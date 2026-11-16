@@ -47,26 +47,26 @@ describe('DiceRollTools.getToolDefinitions', () => {
     }
   });
 
-  it('request-player-rolls requires rollType, rollTarget, targetPlayer and has no visibility gate', () => {
+  it('request-player-rolls requires rollType, rollTarget, actor and has no visibility gate', () => {
     const { tools } = makeTools();
     const defs = tools.getToolDefinitions();
     const def = defs.find(d => d.name === 'request-player-rolls')!;
-    expect((def.inputSchema as any).required).toEqual(['rollType', 'rollTarget', 'targetPlayer']);
+    expect((def.inputSchema as any).required).toEqual(['rollType', 'rollTarget', 'actor']);
     expect((def.inputSchema as any).properties.userConfirmedVisibility).toBeUndefined();
   });
 
-  it('request-ability-check requires targetPlayer, ability', () => {
+  it('request-ability-check requires actor, ability', () => {
     const { tools } = makeTools();
     const defs = tools.getToolDefinitions();
     const def = defs.find(d => d.name === 'request-ability-check')!;
-    expect((def.inputSchema as any).required).toEqual(['targetPlayer', 'ability']);
+    expect((def.inputSchema as any).required).toEqual(['actor', 'ability']);
   });
 
-  it('request-attack-roll requires targetPlayer, weaponOrSpellName', () => {
+  it('request-attack-roll requires actor, weaponOrSpellName', () => {
     const { tools } = makeTools();
     const defs = tools.getToolDefinitions();
     const def = defs.find(d => d.name === 'request-attack-roll')!;
-    expect((def.inputSchema as any).required).toEqual(['targetPlayer', 'weaponOrSpellName']);
+    expect((def.inputSchema as any).required).toEqual(['actor', 'weaponOrSpellName']);
   });
 
   it('the three request tools default isPublic to true', () => {
@@ -77,12 +77,12 @@ describe('DiceRollTools.getToolDefinitions', () => {
     }
   });
 
-  it('roll-npc-check requires actorName, rollType, rollTarget, isPublic', () => {
+  it('roll-npc-check requires actor, rollType, rollTarget, isPublic', () => {
     const { tools } = makeTools();
     const defs = tools.getToolDefinitions();
     const def = defs.find(d => d.name === 'roll-npc-check')!;
     expect((def.inputSchema as any).required).toEqual([
-      'actorName',
+      'actor',
       'rollType',
       'rollTarget',
       'isPublic',
@@ -101,7 +101,7 @@ describe('DiceRollTools.handleRequestAbilityCheck', () => {
       message: 'Roll button posted.',
     }));
     const result = await tools.handleRequestAbilityCheck({
-      targetPlayer: 'Alice',
+      actor: 'Alice',
       ability: 'dex',
       isPublic: true,
     });
@@ -116,7 +116,7 @@ describe('DiceRollTools.handleRequestAbilityCheck', () => {
   it('passes optional dc and reason when provided', async () => {
     const { tools, query } = makeTools(() => ({ success: true, message: 'ok' }));
     await tools.handleRequestAbilityCheck({
-      targetPlayer: 'Bob',
+      actor: 'Bob',
       ability: 'wis',
       dc: 15,
       isPublic: false,
@@ -133,7 +133,7 @@ describe('DiceRollTools.handleRequestAbilityCheck', () => {
 
   it('returns a parameter-error string (not a throw) when ability is missing', async () => {
     const { tools, query } = makeTools();
-    const result = await tools.handleRequestAbilityCheck({ targetPlayer: 'Alice', isPublic: true });
+    const result = await tools.handleRequestAbilityCheck({ actor: 'Alice', isPublic: true });
     expect(typeof result).toBe('string');
     expect(result).toMatch(/Parameter error/i);
     expect(query).not.toHaveBeenCalled();
@@ -142,7 +142,7 @@ describe('DiceRollTools.handleRequestAbilityCheck', () => {
   it('returns a parameter-error string when ability is not a valid enum value', async () => {
     const { tools, query } = makeTools();
     const result = await tools.handleRequestAbilityCheck({
-      targetPlayer: 'Alice',
+      actor: 'Alice',
       ability: 'luck',
       isPublic: true,
     });
@@ -154,14 +154,14 @@ describe('DiceRollTools.handleRequestAbilityCheck', () => {
   it('throws when Foundry reports a failure with an error message', async () => {
     const { tools } = makeTools(() => ({ success: false, error: 'player not found' }));
     await expect(
-      tools.handleRequestAbilityCheck({ targetPlayer: 'Alice', ability: 'str', isPublic: true })
+      tools.handleRequestAbilityCheck({ actor: 'Alice', ability: 'str', isPublic: true })
     ).rejects.toThrow('player not found');
   });
 
   it('throws a generic message when Foundry reports failure with no error field', async () => {
     const { tools } = makeTools(() => ({ success: false }));
     await expect(
-      tools.handleRequestAbilityCheck({ targetPlayer: 'Alice', ability: 'str', isPublic: true })
+      tools.handleRequestAbilityCheck({ actor: 'Alice', ability: 'str', isPublic: true })
     ).rejects.toThrow('Failed to request ability check');
   });
 });
@@ -176,7 +176,7 @@ describe('DiceRollTools.handleRequestPlayerRolls', () => {
     await tools.handleRequestPlayerRolls({
       rollType: 'skill',
       rollTarget: 'prc',
-      targetPlayer: 'Bob',
+      actor: 'Bob',
       isPublic: true,
       userConfirmedVisibility: true,
       flavor: 'DC 14',
@@ -193,7 +193,7 @@ describe('DiceRollTools.handleRequestPlayerRolls', () => {
     const base = {
       rollType: 'save',
       rollTarget: 'dex',
-      targetPlayer: 'Bob',
+      actor: 'Bob',
       isPublic: true,
       userConfirmedVisibility: true,
       dc: 15,
@@ -212,7 +212,7 @@ describe('DiceRollTools.handleRequestPlayerRolls', () => {
 describe('DiceRollTools.handleRequestAttackRoll', () => {
   it('appends an unclear or problem rules check to the reply and stays silent when legal', async () => {
     const { query } = makeTools(() => ({ success: true, message: 'Posted.' }));
-    const args = { targetPlayer: 'Carol', weaponOrSpellName: 'Longsword', isPublic: true };
+    const args = { actor: 'Carol', weaponOrSpellName: 'Longsword', isPublic: true };
     const logger: any = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
     logger.child = (): unknown => logger;
     const run = async (check: unknown): Promise<unknown> => {
@@ -239,7 +239,7 @@ describe('DiceRollTools.handleRequestAttackRoll', () => {
       message: 'Attack roll button posted.',
     }));
     const result = await tools.handleRequestAttackRoll({
-      targetPlayer: 'Carol',
+      actor: 'Carol',
       weaponOrSpellName: 'Longsword',
       isPublic: true,
     });
@@ -254,7 +254,7 @@ describe('DiceRollTools.handleRequestAttackRoll', () => {
   it('returns a parameter-error string (not a throw) when weaponOrSpellName is missing', async () => {
     const { tools, query } = makeTools();
     const result = await tools.handleRequestAttackRoll({
-      targetPlayer: 'Carol',
+      actor: 'Carol',
       isPublic: true,
     });
     expect(typeof result).toBe('string');
@@ -262,7 +262,7 @@ describe('DiceRollTools.handleRequestAttackRoll', () => {
     expect(query).not.toHaveBeenCalled();
   });
 
-  it('returns a parameter-error string when targetPlayer is missing', async () => {
+  it('returns a parameter-error string when actor is missing', async () => {
     const { tools, query } = makeTools();
     const result = await tools.handleRequestAttackRoll({
       weaponOrSpellName: 'Fireball',
@@ -285,7 +285,7 @@ describe('DiceRollTools.handleRequestAttackRoll', () => {
     const { tools } = makeTools(() => ({ success: false, error: 'character not found' }));
     await expect(
       tools.handleRequestAttackRoll({
-        targetPlayer: 'Carol',
+        actor: 'Carol',
         weaponOrSpellName: 'Dagger',
         isPublic: false,
       })
@@ -296,7 +296,7 @@ describe('DiceRollTools.handleRequestAttackRoll', () => {
     const { tools } = makeTools(() => ({ success: false }));
     await expect(
       tools.handleRequestAttackRoll({
-        targetPlayer: 'Carol',
+        actor: 'Carol',
         weaponOrSpellName: 'Dagger',
         isPublic: false,
       })
@@ -313,7 +313,7 @@ describe('DiceRollTools.handleRollNpcCheck', () => {
     const payload = { success: true, roll: { total: 14 } };
     const { tools, query } = makeTools(() => payload);
     const result = await tools.handleRollNpcCheck({
-      actorName: 'Goblin',
+      actor: 'Goblin',
       rollType: 'skill',
       rollTarget: 'stealth',
       isPublic: false,
@@ -330,7 +330,7 @@ describe('DiceRollTools.handleRollNpcCheck', () => {
   it('forwards an advantage choice to the bridge and rejects an unknown one', async () => {
     const { tools, query } = makeTools(() => ({ success: true }));
     await tools.handleRollNpcCheck({
-      actorName: 'Goblin',
+      actor: 'Goblin',
       rollType: 'save',
       rollTarget: 'dex',
       isPublic: true,
@@ -338,7 +338,7 @@ describe('DiceRollTools.handleRollNpcCheck', () => {
     });
     expect(query.mock.calls[0][1]).toMatchObject({ advantage: 'advantage' });
     const bad = await tools.handleRollNpcCheck({
-      actorName: 'Goblin',
+      actor: 'Goblin',
       rollType: 'save',
       rollTarget: 'dex',
       isPublic: true,
@@ -350,13 +350,13 @@ describe('DiceRollTools.handleRollNpcCheck', () => {
   it('forwards advantage on the ability check and attack requests too', async () => {
     const { tools, query } = makeTools(() => ({ success: true, message: 'ok' }));
     await tools.handleRequestAbilityCheck({
-      targetPlayer: 'Alice',
+      actor: 'Alice',
       ability: 'dex',
       isPublic: true,
       advantage: 'disadvantage',
     });
     await tools.handleRequestAttackRoll({
-      targetPlayer: 'Alice',
+      actor: 'Alice',
       weaponOrSpellName: 'Longsword',
       isPublic: true,
       advantage: 'advantage',
@@ -369,7 +369,7 @@ describe('DiceRollTools.handleRollNpcCheck', () => {
     const payload = { success: true, details: 'roll data' };
     const { tools } = makeTools(() => payload);
     const result = await tools.handleRollNpcCheck({
-      actorName: 'Orc',
+      actor: 'Orc',
       rollType: 'ability',
       rollTarget: 'str',
       isPublic: true,
@@ -380,7 +380,7 @@ describe('DiceRollTools.handleRollNpcCheck', () => {
   it('returns a parameter-error string (not a throw) when rollType enum is invalid', async () => {
     const { tools, query } = makeTools();
     const result = await tools.handleRollNpcCheck({
-      actorName: 'Goblin',
+      actor: 'Goblin',
       rollType: 'initiative',
       rollTarget: 'str',
       isPublic: true,
@@ -390,7 +390,7 @@ describe('DiceRollTools.handleRollNpcCheck', () => {
     expect(query).not.toHaveBeenCalled();
   });
 
-  it('returns a parameter-error string when actorName is missing', async () => {
+  it('returns a parameter-error string when actor is missing', async () => {
     const { tools, query } = makeTools();
     const result = await tools.handleRollNpcCheck({
       rollType: 'ability',
@@ -414,7 +414,7 @@ describe('DiceRollTools.handleRollNpcCheck', () => {
     const { tools } = makeTools(() => ({ success: false, error: 'actor not found' }));
     await expect(
       tools.handleRollNpcCheck({
-        actorName: 'Ghost',
+        actor: 'Ghost',
         rollType: 'save',
         rollTarget: 'con',
         isPublic: true,
@@ -426,7 +426,7 @@ describe('DiceRollTools.handleRollNpcCheck', () => {
     const { tools } = makeTools(() => ({ success: false }));
     await expect(
       tools.handleRollNpcCheck({
-        actorName: 'Ghost',
+        actor: 'Ghost',
         rollType: 'attack',
         rollTarget: 'Claws',
         isPublic: false,
@@ -448,7 +448,7 @@ describe('DiceRollTools.handleRequestPlayerRolls', () => {
     const result = await tools.handleRequestPlayerRolls({
       rollType: 'skill',
       rollTarget: 'perception',
-      targetPlayer: 'Dave',
+      actor: 'Dave',
       isPublic: true,
       userConfirmedVisibility: true,
     });
@@ -469,7 +469,7 @@ describe('DiceRollTools.handleRequestPlayerRolls', () => {
     await tools.handleRequestPlayerRolls({
       rollType: 'ability',
       rollTarget: 'str',
-      targetPlayer: 'Eve',
+      actor: 'Eve',
       isPublic: false,
       rollModifier: '+2',
       flavor: 'Strength check',
@@ -488,7 +488,7 @@ describe('DiceRollTools.handleRequestPlayerRolls', () => {
     const { tools, query } = makeTools();
     const result = await tools.handleRequestPlayerRolls({
       rollTarget: 'perception',
-      targetPlayer: 'Dave',
+      actor: 'Dave',
       isPublic: true,
       userConfirmedVisibility: true,
     });
@@ -502,7 +502,7 @@ describe('DiceRollTools.handleRequestPlayerRolls', () => {
     await tools.handleRequestPlayerRolls({
       rollType: 'save',
       rollTarget: 'dex',
-      targetPlayer: 'Frank',
+      actor: 'Frank',
       userConfirmedVisibility: false,
     });
     const sent = query.mock.calls[0][1] as Record<string, unknown>;
@@ -512,8 +512,8 @@ describe('DiceRollTools.handleRequestPlayerRolls', () => {
 
   it('defaults isPublic to true for ability checks and attack rolls', async () => {
     const { tools, query } = makeTools(() => ({ success: true, message: 'ok' }));
-    await tools.handleRequestAbilityCheck({ targetPlayer: 'Alice', ability: 'str' });
-    await tools.handleRequestAttackRoll({ targetPlayer: 'Carol', weaponOrSpellName: 'Longsword' });
+    await tools.handleRequestAbilityCheck({ actor: 'Alice', ability: 'str' });
+    await tools.handleRequestAttackRoll({ actor: 'Carol', weaponOrSpellName: 'Longsword' });
     expect(query.mock.calls.map(c => (c[1] as { isPublic: boolean }).isPublic)).toEqual([
       true,
       true,
@@ -525,7 +525,7 @@ describe('DiceRollTools.handleRequestPlayerRolls', () => {
     const result = await tools.handleRequestPlayerRolls({
       rollType: 'death',
       rollTarget: 'dex',
-      targetPlayer: 'Grace',
+      actor: 'Grace',
       isPublic: true,
       userConfirmedVisibility: true,
     });
@@ -548,7 +548,7 @@ describe('DiceRollTools.handleRequestPlayerRolls', () => {
       tools.handleRequestPlayerRolls({
         rollType: 'initiative',
         rollTarget: 'initiative',
-        targetPlayer: 'Hank',
+        actor: 'Hank',
         isPublic: true,
         userConfirmedVisibility: true,
       })
@@ -561,7 +561,7 @@ describe('DiceRollTools.handleRequestPlayerRolls', () => {
       tools.handleRequestPlayerRolls({
         rollType: 'custom',
         rollTarget: '1d20+5',
-        targetPlayer: 'Iris',
+        actor: 'Iris',
         isPublic: false,
         userConfirmedVisibility: true,
       })

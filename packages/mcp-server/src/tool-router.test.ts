@@ -162,6 +162,17 @@ describe('buildToolRouter', () => {
     expect(tool(deps, 'scene').switchScene).toHaveBeenCalledWith(args);
   });
 
+  it('renames old parameter names before the handler sees them', async () => {
+    const deps = makeDeps();
+    const router = buildToolRouter(deps);
+
+    await router['switch-scene']({ scene_identifier: 'Inn' });
+    expect(tool(deps, 'scene').switchScene).toHaveBeenCalledWith({ scene: 'Inn' });
+
+    await router['list-scenes']({ include_active_only: true });
+    expect(tool(deps, 'scene').listScenes).toHaveBeenCalledWith({ activeOnly: true });
+  });
+
   it('passes who asked to the writes that record a name, and nothing without a context', async () => {
     const deps = makeDeps();
     const router = buildToolRouter(deps);

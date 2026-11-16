@@ -14,6 +14,7 @@
  * - Controlling tokens on the map posts their ids to the frame ({@link LIVE_PICK_MESSAGE}); the
  *   strip picks the same creatures. The message carries ids only and goes to the frame's own origin.
  */
+import { escapeHtml } from '@gnuminator/shared/browser';
 import { MODULE_ID } from './constants.js';
 import { toGmMessage } from './gm-message.js';
 
@@ -546,10 +547,6 @@ function onFrameMessage(event: MessageEvent): void {
     postPick();
     syncScheme(true);
   }
-}
-
-function escapeHtml(text: string): string {
-  return text.replace(/[&<>"']/g, ch => `&#${ch.charCodeAt(0)};`);
 }
 
 function define(): new () => AppV2Instance {

@@ -17,7 +17,7 @@ Kind: read-only. Title: Plan ownership change.
 Parameters:
 
 - `action` (string, required): assign or remove. One of: `assign`, `remove`.
-- `actorIdentifier` (string, required): Actor name or ID, "all friendly NPCs" or "party characters".
+- `actor` (string, required): Actor name or ID, "all friendly NPCs" or "party characters".
 - `playerIdentifier` (string, required): Player or character name, or "party" for all connected players.
 - `permissionLevel` (string): assign: NONE, LIMITED, OBSERVER (sees the sheet) or OWNER (controls it). One of: `NONE`, `LIMITED`, `OBSERVER`, `OWNER`.
 
@@ -29,7 +29,7 @@ Kind: read-only. Title: List actor ownership.
 
 Parameters:
 
-- `actorIdentifier` (string): Optional: specific actor name/ID to check, or "all" for all actors
+- `actor` (string): Optional: specific actor name/ID to check, or "all" for all actors
 - `playerIdentifier` (string): Optional: specific player name to check ownership for
 
 ## plan-token-rings

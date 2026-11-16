@@ -179,7 +179,7 @@ test(
   }
 );
 
-const hasTsc = fs.existsSync(path.join(root, 'node_modules', 'typescript', 'bin', 'tsc'));
+const hasEsbuild = fs.existsSync(path.join(root, 'node_modules', 'esbuild'));
 
 /** @param {number} pid */
 const alive = pid => {
@@ -192,9 +192,9 @@ const alive = pid => {
 };
 
 test(
-  'sync-module.ps1 -Watch with the build: no stale first copy, type errors not synced, tsc dies with it',
+  'sync-module.ps1 -Watch with the build: no stale first copy, broken saves not synced, the build dies with it',
   {
-    skip: (!hasPwsh && 'pwsh is missing') || (!hasTsc && 'typescript is not installed'),
+    skip: (!hasPwsh && 'pwsh is missing') || (!hasEsbuild && 'esbuild is not installed'),
     timeout: 120000,
   },
   async () => {
@@ -207,19 +207,6 @@ test(
     fs.writeFileSync(
       path.join(src, 'module.json'),
       JSON.stringify({ id: 'foundry-mcp-bridge', version: '9.9.9' })
-    );
-    fs.writeFileSync(
-      path.join(src, 'tsconfig.json'),
-      JSON.stringify({
-        compilerOptions: {
-          outDir: 'dist',
-          rootDir: 'src',
-          target: 'ES2022',
-          module: 'ESNext',
-          types: [],
-        },
-        include: ['src'],
-      })
     );
     const ts = path.join(src, 'src', 'main.ts');
     const mainDest = path.join(lockRoot, 'modules', 'foundry-mcp-bridge', 'dist', 'main.js');
@@ -253,7 +240,7 @@ test(
       await until(() => /Build watch started \(pid (\d+)\)/.test(out), 'the build watch', 30000);
       tscPid = Number(/Build watch started \(pid (\d+)\)/.exec(out)[1]);
 
-      // The first copy is tsc's first build, not the dist/ that was on disk.
+      // The first copy is the watch's first build, not the dist/ that was on disk.
       await until(() => out.includes('Synced module'), 'the first sync', 60000);
       assert.match(fs.readFileSync(mainDest, 'utf8'), /built-1/);
       assert.equal(
@@ -262,9 +249,9 @@ test(
         'one copy: the first build, not the old dist/ first'
       );
 
-      // A save with a type error emits nothing (--noEmitOnError), so nothing is copied.
-      fs.writeFileSync(ts, 'export const v: number = "built-2";\n');
-      await until(() => /error TS2322/.test(out), 'the type error', 30000);
+      // A save that does not bundle writes nothing, so nothing is copied.
+      fs.writeFileSync(ts, 'export const v: string = ;\n');
+      await until(() => /ERROR/.test(out), 'the build error', 30000);
       await sleep(3000);
       assert.match(fs.readFileSync(mainDest, 'utf8'), /built-1/);
 
@@ -272,10 +259,10 @@ test(
       fs.writeFileSync(ts, 'export const v: string = "built-3";\n');
       await until(() => /built-3/.test(read(mainDest) ?? ''), 'the sync of the fix', 30000);
 
-      // A hard kill of the watch (TaskStop, a closed window) takes tsc with it.
-      assert.ok(alive(tscPid), 'tsc runs while the watch runs');
+      // A hard kill of the watch (TaskStop, a closed window) takes the build with it.
+      assert.ok(alive(tscPid), 'the build runs while the watch runs');
       child.kill('SIGKILL');
-      await until(() => !alive(tscPid), 'tsc to exit after the watch was killed', 15000);
+      await until(() => !alive(tscPid), 'the build to exit after the watch was killed', 15000);
     } finally {
       child.kill('SIGKILL');
       if (tscPid && alive(tscPid)) process.kill(tscPid);

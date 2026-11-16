@@ -100,7 +100,7 @@ Parameters:
 
 - `limit` (integer): Maximum number of events to return (default 100). Default: `100`.
 - `eventType` (string): Optional event type filter (e.g. "combat-start", "combat-end", "damage", "healing", "death", "stabilize", "condition-applied", "condition-removed", "resource-spent", "scene-change", "journal-created", "journal-updated", "roll", "damage-roll", "gm-roll", "item-use").
-- `actorName` (string): Optional actor name filter (partial match).
+- `actor` (string): Optional actor name filter (partial match).
 
 ## suggest-balanced-encounter
 

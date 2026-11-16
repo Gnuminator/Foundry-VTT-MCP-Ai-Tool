@@ -74,10 +74,10 @@ describe('DnD5eFeaturesFromCompendiumTools.getToolDefinitions', () => {
     expect((defs[0].inputSchema as any).type).toBe('object');
   });
 
-  it('requires actorIdentifier and featureNames', () => {
+  it('requires actor and featureNames', () => {
     const { tools } = makeFeatureTools();
     const def = tools.getToolDefinitions()[0];
-    expect((def.inputSchema as any).required).toEqual(['actorIdentifier', 'featureNames']);
+    expect((def.inputSchema as any).required).toEqual(['actor', 'featureNames']);
   });
 
   it('featureNames has minItems 1 and maxItems 50', () => {
@@ -122,7 +122,7 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium: disp
     const { tools, query } = makeFeatureTools(() => bridgeResult);
 
     await tools.handleAddFeaturesFromCompendium({
-      actorIdentifier: 'goblin-boss',
+      actor: 'goblin-boss',
       featureNames: ['Pack Tactics'],
     });
 
@@ -137,7 +137,7 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium: disp
     const { tools, query } = makeFeatureTools(() => makeResult());
 
     await tools.handleAddFeaturesFromCompendium({
-      actorIdentifier: 'actor-x',
+      actor: 'actor-x',
       featureNames: ['Multiattack'],
       compendiumPacks: ['dnd5e.monsterfeatures24'],
     });
@@ -153,7 +153,7 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium: disp
     const { tools, query } = makeFeatureTools(() => makeResult());
 
     await tools.handleAddFeaturesFromCompendium({
-      actorIdentifier: 'actor-y',
+      actor: 'actor-y',
       featureNames: ['Nimble Escape'],
     });
 
@@ -171,7 +171,7 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium: vali
     mockDetectGameSystem.mockResolvedValue('dnd5e');
   });
 
-  it('throws a ZodError (not returns string) when actorIdentifier is missing', async () => {
+  it('throws a ZodError (not returns string) when actor is missing', async () => {
     const { tools, query } = makeFeatureTools();
     await expect(
       tools.handleAddFeaturesFromCompendium({ featureNames: ['Pack Tactics'] })
@@ -181,9 +181,7 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium: vali
 
   it('throws when featureNames is missing', async () => {
     const { tools, query } = makeFeatureTools();
-    await expect(
-      tools.handleAddFeaturesFromCompendium({ actorIdentifier: 'goblin' })
-    ).rejects.toThrow();
+    await expect(tools.handleAddFeaturesFromCompendium({ actor: 'goblin' })).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
   });
 
@@ -191,18 +189,18 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium: vali
     const { tools, query } = makeFeatureTools();
     await expect(
       tools.handleAddFeaturesFromCompendium({
-        actorIdentifier: 'goblin',
+        actor: 'goblin',
         featureNames: [],
       })
     ).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
   });
 
-  it('throws when actorIdentifier is an empty string (min length 1)', async () => {
+  it('throws when actor is an empty string (min length 1)', async () => {
     const { tools, query } = makeFeatureTools();
     await expect(
       tools.handleAddFeaturesFromCompendium({
-        actorIdentifier: '',
+        actor: '',
         featureNames: ['Pack Tactics'],
       })
     ).rejects.toThrow();
@@ -213,7 +211,7 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium: vali
     const { tools, query } = makeFeatureTools();
     await expect(
       tools.handleAddFeaturesFromCompendium({
-        actorIdentifier: 'goblin',
+        actor: 'goblin',
         featureNames: Array.from({ length: 51 }, (_, i) => `Feature ${i}`),
       })
     ).rejects.toThrow();
@@ -238,7 +236,7 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium: syst
 
     await expect(
       tools.handleAddFeaturesFromCompendium({
-        actorIdentifier: 'fighter',
+        actor: 'fighter',
         featureNames: ['Pack Tactics'],
       })
     ).rejects.toThrow();
@@ -254,7 +252,7 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium: syst
     // so the thrown message is the formatted MCP error, not the raw system-guard message.
     await expect(
       tools.handleAddFeaturesFromCompendium({
-        actorIdentifier: 'fighter',
+        actor: 'fighter',
         featureNames: ['Pack Tactics'],
       })
     ).rejects.toThrow();
@@ -277,7 +275,7 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium: Foun
 
     await expect(
       tools.handleAddFeaturesFromCompendium({
-        actorIdentifier: 'goblin',
+        actor: 'goblin',
         featureNames: ['Pack Tactics'],
       })
     ).rejects.toThrow();
@@ -305,7 +303,7 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium: resu
     const { tools } = makeFeatureTools(() => makeResult({ added }));
 
     const result = await tools.handleAddFeaturesFromCompendium({
-      actorIdentifier: 'goblin-boss',
+      actor: 'goblin-boss',
       featureNames: ['Pack Tactics'],
     });
 
@@ -333,7 +331,7 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium: resu
     const { tools } = makeFeatureTools(() => makeResult({ added }));
 
     const result = await tools.handleAddFeaturesFromCompendium({
-      actorIdentifier: 'goblin-boss',
+      actor: 'goblin-boss',
       featureNames: ['Pack Tactics'],
     });
 
@@ -344,7 +342,7 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium: resu
     const { tools } = makeFeatureTools(() => makeResult({ notFound: ['Nonexistent Feature'] }));
 
     const result = await tools.handleAddFeaturesFromCompendium({
-      actorIdentifier: 'goblin-boss',
+      actor: 'goblin-boss',
       featureNames: ['Nonexistent Feature'],
     });
 
@@ -356,7 +354,7 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium: resu
     const { tools } = makeFeatureTools(() => makeResult({ failed }));
 
     const result = await tools.handleAddFeaturesFromCompendium({
-      actorIdentifier: 'goblin-boss',
+      actor: 'goblin-boss',
       featureNames: ['Pack Tactics'],
     });
 
@@ -368,7 +366,7 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium: resu
     const { tools } = makeFeatureTools(() => makeResult({ skipped }));
 
     const result = await tools.handleAddFeaturesFromCompendium({
-      actorIdentifier: 'goblin-boss',
+      actor: 'goblin-boss',
       featureNames: ['Pack Tactics'],
     });
 
@@ -380,7 +378,7 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium: resu
     const { tools } = makeFeatureTools(() => makeResult());
 
     const result = await tools.handleAddFeaturesFromCompendium({
-      actorIdentifier: 'goblin-boss',
+      actor: 'goblin-boss',
       featureNames: ['Pack Tactics'],
     });
 
@@ -399,7 +397,7 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium: resu
     const { tools } = makeFeatureTools(() => makeResult({ added }));
 
     const result = await tools.handleAddFeaturesFromCompendium({
-      actorIdentifier: 'goblin-boss',
+      actor: 'goblin-boss',
       featureNames: ['Pack Tactics'],
     });
 
@@ -410,7 +408,7 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium: resu
     const { tools } = makeFeatureTools(() => makeResult());
 
     const result = await tools.handleAddFeaturesFromCompendium({
-      actorIdentifier: 'goblin-boss',
+      actor: 'goblin-boss',
       featureNames: ['Pack Tactics'],
     });
 
@@ -422,7 +420,7 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium: resu
     const { tools } = makeFeatureTools(() => makeResult({ notFound: ['Mystery Ability'] }));
 
     const result = await tools.handleAddFeaturesFromCompendium({
-      actorIdentifier: 'goblin-boss',
+      actor: 'goblin-boss',
       featureNames: ['Mystery Ability'],
     });
 
@@ -435,7 +433,7 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium: resu
     );
 
     const result = await tools.handleAddFeaturesFromCompendium({
-      actorIdentifier: 'goblin-boss',
+      actor: 'goblin-boss',
       featureNames: ['Pack Tactics'],
     });
 

@@ -1,4 +1,4 @@
-import { toolRef } from '@gnuminator/shared';
+import { toolRef, unwrapBridgeReply } from '@gnuminator/shared';
 import { z } from 'zod';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
@@ -32,6 +32,10 @@ function playerUsersOf(worldData: unknown): { id: string; name: string; active: 
         typeof u.name === 'string'
     )
     .map(u => ({ id: u.id as string, name: u.name as string, active: u.active === true }));
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'Unknown error';
 }
 
 export class SceneTools {
@@ -87,7 +91,7 @@ export class SceneTools {
               description: 'Optional filter to search scene names (case-insensitive)',
               default: '',
             },
-            include_active_only: {
+            activeOnly: {
               type: 'boolean',
               description: 'Only return the currently active scene',
               default: false,
@@ -101,7 +105,7 @@ export class SceneTools {
         inputSchema: {
           type: 'object',
           properties: {
-            scene_identifier: {
+            scene: {
               type: 'string',
               description: 'Scene name or ID to switch to',
               ...toolRef('scene', 'id'),
@@ -112,7 +116,7 @@ export class SceneTools {
               default: true,
             },
           },
-          required: ['scene_identifier'],
+          required: ['scene'],
         },
       },
     ];
@@ -120,45 +124,39 @@ export class SceneTools {
 
   async listScenes(input: unknown): Promise<unknown> {
     const safeInput = (input ?? {}) as Record<string, unknown>;
+    let reply: unknown;
     try {
       const params = {
         filter: typeof safeInput.filter === 'string' ? safeInput.filter : undefined,
-        include_active_only: Boolean(safeInput.include_active_only),
+        include_active_only: Boolean(safeInput.activeOnly),
       };
-      return await this.foundryClient.query('foundry-mcp-bridge.list-scenes', params);
+      reply = await this.foundryClient.query('foundry-mcp-bridge.list-scenes', params);
     } catch (error: unknown) {
       this.logger.error('List scenes failed', { error, input: safeInput });
-      return {
-        success: false,
-        error: (error as { message?: unknown } | null | undefined)?.message ?? 'Unknown error',
-      };
+      throw new Error(`Failed to list scenes: ${errorMessage(error)}`, { cause: error });
     }
+    return unwrapBridgeReply(reply, 'Failed to list scenes');
   }
 
   async switchScene(input: unknown): Promise<unknown> {
     const safeInput = (input ?? {}) as Record<string, unknown>;
+    const scene = safeInput.scene;
+    if (typeof scene !== 'string' || !scene.trim()) {
+      throw new Error('scene is required: give a scene name or id');
+    }
+    let reply: unknown;
     try {
-      const sceneIdentifier =
-        typeof safeInput.scene_identifier === 'string'
-          ? safeInput.scene_identifier
-          : safeInput.sceneId;
-      if (!sceneIdentifier || typeof sceneIdentifier !== 'string' || !sceneIdentifier.trim()) {
-        return { success: false, error: 'scene_identifier is required' };
-      }
-
       const params = {
-        scene_identifier: sceneIdentifier,
+        scene_identifier: scene,
         optimize_view: safeInput.optimize_view !== false,
       };
 
-      return await this.foundryClient.query('foundry-mcp-bridge.switch-scene', params);
+      reply = await this.foundryClient.query('foundry-mcp-bridge.switch-scene', params);
     } catch (error: unknown) {
       this.logger.error('Switch scene failed', { error, input: safeInput });
-      return {
-        success: false,
-        error: (error as { message?: unknown } | null | undefined)?.message ?? 'Unknown error',
-      };
+      throw new Error(`Failed to switch scene: ${errorMessage(error)}`, { cause: error });
     }
+    return unwrapBridgeReply(reply, 'Failed to switch scene');
   }
 
   async handleGetCurrentScene(args: unknown): Promise<Record<string, unknown>> {

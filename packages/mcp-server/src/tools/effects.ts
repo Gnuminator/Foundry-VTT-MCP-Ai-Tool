@@ -30,26 +30,25 @@ export class EffectsTools {
         inputSchema: {
           type: 'object',
           properties: {
-            identifier: {
+            actor: {
               type: 'string',
               description: 'Actor name or ID.',
               ...toolRef('actor', 'id', { filter: AT_THE_TABLE }),
             },
           },
-          required: ['identifier'],
+          required: ['actor'],
         },
       },
     ];
   }
 
   async handleGetActiveEffects(args: unknown): Promise<EffectsReply | undefined> {
-    const schema = z.object({ identifier: z.string() });
+    const schema = z.object({ actor: z.string() });
     try {
       const params = schema.parse(args ?? {});
-      const response = (await this.foundryClient.query(
-        'foundry-mcp-bridge.getActiveEffects',
-        params
-      )) as EffectsReply | undefined;
+      const response = (await this.foundryClient.query('foundry-mcp-bridge.getActiveEffects', {
+        identifier: params.actor,
+      })) as EffectsReply | undefined;
       if (response?.success === false) {
         throw new Error(response.error || 'Failed to get active effects');
       }

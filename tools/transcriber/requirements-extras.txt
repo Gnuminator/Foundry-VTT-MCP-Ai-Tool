@@ -1,8 +1,8 @@
 # Optional, installed with --build-arg WITH_TRANSFORMERS=1 (hviske-v6, saga-2-m).
-# torch comes from the cu128 index (CUDA 12.8 builds, needed for Blackwell).
-torch==2.11.0
-transformers==4.57.6
-accelerate==1.12.0
+# torch comes from the cu130 index (CUDA 13.0 builds, Blackwell supported; the cu128 index stops at torch 2.11).
+torch==2.14.1
+transformers==5.23.0
+accelerate==1.15.0
 safetensors==0.8.0
 librosa==1.0.0
 soundfile==0.14.0

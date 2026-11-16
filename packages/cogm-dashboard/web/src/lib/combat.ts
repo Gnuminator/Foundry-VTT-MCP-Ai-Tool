@@ -6,6 +6,8 @@
 // The reaction button shows only on a living boss, a fight is marked old when the bridge is away,
 // and a fight with nobody in it says so.
 
+import { isRecord } from '../../../../../shared/src/util/record.js';
+
 export interface CombatantHp {
   value: number;
   max: number;
@@ -58,9 +60,6 @@ export interface CombatState {
   current: Combatant | null;
   combatants: Combatant[];
 }
-
-const isRecord = (v: unknown): v is Record<string, unknown> =>
-  typeof v === 'object' && v !== null && !Array.isArray(v);
 
 const num = (v: unknown, fallback: number): number =>
   typeof v === 'number' && Number.isFinite(v) ? v : fallback;

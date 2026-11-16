@@ -34,16 +34,15 @@ const params = z.object({
   value: z.unknown().optional(),
 });
 
+const packLevelSchema = z.enum(PACK_OWNERSHIP_LEVELS);
+
 const packValue = z
   .object({
     ownership: z
       .object(
         Object.fromEntries(
-          PACK_OWNERSHIP_ROLES.map(role => [role, z.enum(PACK_OWNERSHIP_LEVELS).optional()])
-        ) as Record<
-          (typeof PACK_OWNERSHIP_ROLES)[number],
-          z.ZodOptional<z.ZodEnum<['NONE', 'LIMITED', 'OBSERVER', 'OWNER']>>
-        >
+          PACK_OWNERSHIP_ROLES.map(role => [role, packLevelSchema.optional()])
+        ) as Record<(typeof PACK_OWNERSHIP_ROLES)[number], z.ZodOptional<typeof packLevelSchema>>
       )
       .strict()
       .optional(),
@@ -261,7 +260,7 @@ export class FoundrySetupTools {
   private async planOwnership(target: string, raw: unknown): Promise<unknown> {
     const levels = z.enum(PACK_OWNERSHIP_LEVELS);
     const value = z
-      .object({ default: levels.optional(), users: z.record(levels).optional() })
+      .object({ default: levels.optional(), users: z.record(z.string(), levels).optional() })
       .strict()
       .parse(raw);
     if (value.default === undefined && !value.users) {

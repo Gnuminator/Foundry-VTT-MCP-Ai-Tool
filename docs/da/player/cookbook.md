@@ -1,6 +1,6 @@
 ---
 source: player/cookbook.md
-sourceHash: 931d9314071b
+sourceHash: 3cfe0fd79bce
 title: D&D-hjælperens kogebog
 description: Færdige forespørgsler til D&D-hjælperen, samlet efter hvornår du har brug for dem (planlæg en karakter, level op, tjek dit ark, regelspørgsmål), med hvad hjælperen gør og ét tip til hver.
 ---
@@ -158,7 +158,7 @@ Den fortæller dig, hvad du skal klikke på, og du klikker i Foundry. How-tos ti
 - **Hvad der sker:** den læser din egen karakters play stats og kampagnens totaler (sessioner,
   kampe, runder). Kun offentlige slag tæller med.
 - **Tip:** bed om en sammenligning mellem sessioner eller et sjovt faktum til recappet. Tallene er
-  de samme som i din My stats-note.
+  de samme, som dit bords spillervault viser, hvis det har en.
 
 ### Historien? Spørg GM'en
 

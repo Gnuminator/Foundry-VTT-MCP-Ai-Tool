@@ -155,7 +155,7 @@ to click, and you click in Foundry. The how-tos for the player page are in
 - **What happens:** it reads your own character's play stats and campaign totals (sessions,
   combats, rounds). It counts public rolls only.
 - **Tip:** ask for a comparison between sessions or a fun fact for the recap. The numbers are the
-  same ones as in your My stats note.
+  same ones your table's player vault shows, if it has one.
 
 ### The story? Ask the GM
 

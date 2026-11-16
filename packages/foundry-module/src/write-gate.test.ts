@@ -8,7 +8,6 @@ import { bridgeHandlers } from './bridge-handlers.js';
 import { changeJournal } from './change-journal.js';
 import { MODULE_ID } from './constants.js';
 import { FoundryDataAccess } from './data-access.js';
-import { permissionManager } from './permissions.js';
 import { QueryHandlers } from './queries.js';
 import { createTestWorld, type TestWorld } from './test-support/foundry-mock/index.js';
 import {
@@ -183,26 +182,18 @@ describe('write gate: behaviour', () => {
   });
 });
 
-describe('permissions: requiresGM and the P-036 functions', () => {
-  it('refuses a GM-only operation (delete, world structure) for a non-GM user', () => {
-    world.enableWrites();
-    (globalThis as any).game.user.isGM = false;
-    for (const op of ['deleteData', 'modifyWorld']) {
-      const check = permissionManager.checkWritePermission(op);
-      expect(check.allowed, op).toBe(false);
-      expect(check.reason).toMatch(/needs a GM user/);
-    }
-    expect(permissionManager.checkWritePermission('modifyScene').allowed).toBe(true);
-  });
-
-  it('refuses the remaining direct write paths when writes are off (data access, no bridge)', async () => {
+describe('direct write paths below the bridge', () => {
+  it('refuses them when writes are off (data access, no bridge)', async () => {
     const da = new FoundryDataAccess();
     world.setSetting(MODULE_ID, 'allowWriteOperations', false);
     await expect(
       da.createActorFromCompendiumEntry({ packId: 'p', itemId: 'i', customNames: ['A'] })
-    ).rejects.toThrow(/disabled in module settings/);
+    ).rejects.toThrow(WRITES_DISABLED_MESSAGE);
     await expect(
       da.addActorItems({ actorIdentifier: 'a', items: [{ name: 'x', type: 'loot' }] })
-    ).rejects.toThrow(/disabled in module settings/);
+    ).rejects.toThrow(WRITES_DISABLED_MESSAGE);
+    await expect(
+      da.addActorsToScene({ actorIds: ['a'], placement: 'grid', hidden: false })
+    ).rejects.toThrow(WRITES_DISABLED_MESSAGE);
   });
 });

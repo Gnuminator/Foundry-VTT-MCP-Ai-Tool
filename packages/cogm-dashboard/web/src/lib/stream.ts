@@ -588,7 +588,7 @@ export function useCombatActive(): boolean {
  * channel or an unreachable Foundry shows at once, and so does back, and so does a status the
  * panel mounts with.
  */
-export const AWAY_AFTER_MS = 5000;
+const AWAY_AFTER_MS = 5000;
 
 /** Whether the bridge is away, as the stream last said (false before the first status). */
 export function useBridgeAway(): boolean {

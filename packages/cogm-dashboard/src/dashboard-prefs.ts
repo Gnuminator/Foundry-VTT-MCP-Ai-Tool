@@ -9,7 +9,7 @@ import { promises as fsp, readFileSync } from 'fs';
 import * as path from 'path';
 
 /** A: layered cards, B: a Simple/Full switch, C: auto. */
-export const DURING_LAYOUTS = ['layered', 'toggle', 'auto'] as const;
+const DURING_LAYOUTS = ['layered', 'toggle', 'auto'] as const;
 export type DuringLayout = (typeof DURING_LAYOUTS)[number];
 
 /** How many sessions the quiet "try the other layouts" hint shows on the During screen. */

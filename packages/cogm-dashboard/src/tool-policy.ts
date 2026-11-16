@@ -33,7 +33,7 @@ const READ_TOOLS_EXTRA: ReadonlySet<string> = new Set([
  * markers), never game state or Foundry itself. Classified as reads for gating:
  * no GM Actions switch, no confirm modal; same reasoning as a `get-*` tool.
  */
-export const LOG_ONLY_TOOLS: ReadonlySet<string> = new Set(['mark-play-session']);
+const LOG_ONLY_TOOLS: ReadonlySet<string> = new Set(['mark-play-session']);
 
 /** Tools whose confirm arguments come only from the dashboard's confirmation. */
 export const CONFIRM_FORWARDED_TOOLS: ReadonlySet<string> = new Set([

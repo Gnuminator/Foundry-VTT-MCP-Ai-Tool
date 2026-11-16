@@ -10,6 +10,7 @@ import {
   insideCodeSpan,
   navOrder,
   pageUrl,
+  playerFoundryPath,
   rewriteLinks,
   stripOffSideLinks,
   toSite,
@@ -207,6 +208,24 @@ test('the player copy of a Foundry page keeps its player links and drops the res
   );
   const out = rewriteLinks(text, 'docs/foundry/tokens.md', new Set(), { playerCopy: true });
   assert.equal(out, 'See [combat](combat.md#turns) and actors, also GM.');
+});
+
+test('the Danish twin of a Foundry basics page goes to the Danish player side only', () => {
+  assert.equal(playerFoundryPath('docs/foundry/tokens.md'), 'player/foundry/tokens.md');
+  assert.equal(playerFoundryPath('docs/da/foundry/tokens.md'), 'da/player/foundry/tokens.md');
+  assert.equal(playerFoundryPath('docs/da/foundry/actors.md'), null);
+  assert.equal(playerFoundryPath('docs/da/gm/tokens.md'), null);
+});
+
+test('the Danish player copy links its Danish siblings and drops GM-side links to plain text', () => {
+  const text =
+    'Se [combat](combat.md#turns), [actors](../../foundry/actors.md), [GM](../gm/dashboard.md) og ' +
+    '![billede](../../images/foundry/tokens-drag.png).';
+  const out = rewriteLinks(text, 'docs/da/foundry/tokens.md', new Set(), { playerCopy: true });
+  assert.equal(
+    out,
+    'Se [combat](combat.md#turns), actors, GM og ![billede](../../../images/foundry/tokens-drag.png).'
+  );
 });
 
 test('check-sides finds links from a player page to the GM side, and none to its own', () => {

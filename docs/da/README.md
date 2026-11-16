@@ -7,7 +7,10 @@ description: How the Danish versions of the GM and player guides are made and ke
 
 Every page in [docs/gm](../gm/README.md) and [docs/player](../player/README.md) has a Danish twin
 here, at the same name: `docs/gm/first-hour.md` becomes `docs/da/gm/first-hour.md`. The wiki shows
-them under a Danish language switch. Not translated: docs/foundry, reference, dev, design and history.
+them under a Danish language switch. The Foundry basics a player reads (the seven pages in
+`PLAYER_FOUNDRY` in `scripts/wiki/stage.mjs`) have twins in `docs/da/foundry/` too, shown only on the
+Danish player side (`/da/player/foundry/`). Not translated: the rest of docs/foundry (the Danish GM
+side shows the English Foundry basics), reference, dev, design and history.
 
 ## The format of a twin
 
@@ -22,8 +25,10 @@ them under a Danish language switch. Not translated: docs/foundry, reference, de
   done: stamping to quiet the check makes the Danish page lie.
 - **A new English guide** needs its twin in the same pull request.
 - **Links:** correct relative paths from the twin's own place. A link to a page that has a twin points
-  at the twin (from `docs/da/gm/`: `x.md` for a GM page, `../player/x.md` for a player page). A link to
-  a page with no twin (docs/foundry, repo files) points at the English file (`../../foundry/x.md`).
+  at the twin (from `docs/da/gm/`: `x.md` for a GM page, `../player/x.md` for a player page; from
+  `docs/da/player/`: `../foundry/x.md` for a player's Foundry basics page). A link to a page with no
+  twin (the other docs/foundry pages, repo files) points at the English file (`../../foundry/x.md`).
+  A Danish GM page links the Foundry basics at the English file too: the GM side has no Danish copies.
   Images are `../../images/...`. A link with `#anchor` uses the anchor of the Danish heading.
 - **Chips and quests:** a time in the last parentheses of a heading, `(15 minutter)`, becomes a chip on
   the wiki; `ca.` and `minutter`, `time` or `timer` are understood. Quest checkboxes work as in English.
@@ -50,8 +55,9 @@ game night (`spilaften`), the table (`bordet`), prep (`forberedelse`, `forberede
 **Endings:** Danish endings go straight on an English word: `tokenet`, `dashboardet`, `worlden`, `scenen`,
 `tokens`. An apostrophe only after an abbreviation: `GM'en`, `GM'ens`, `NPC'er`, `PC'er`, `AC'en`.
 
-**Links to pages with no Danish version** (the Foundry basics): the link text is the English page
-title, as the reader lands on the English page ("A tour of the Foundry screen", "Foundry glossary").
+**Links to pages with no Danish version** (the Foundry basics from a GM page, the other Foundry
+pages): the link text is the English page title, as the reader lands on the English page ("A tour of
+the Foundry screen", "Foundry glossary").
 
 **Names of things:** the tool is `Foundry AI Tool`; Danni is the GM; keep file names, commands, code,
 keyboard keys and URLs exactly as they are, in backticks as in the English page.

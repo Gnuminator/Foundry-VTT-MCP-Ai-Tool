@@ -26,14 +26,15 @@ The wiki (`docs/wiki`, staged by `scripts/wiki/stage.mjs`) has two sides. Its ho
 - A new player guide goes in `docs/player/` and shows up by itself. A new GM guide goes in
   `docs/gm/`, and in the `SIDEBAR` list of the stage script if it should not land under "More guides".
 
-## Danish twins (GM and player guides only)
+## Danish twins (GM and player guides, and the player's Foundry basics)
 
 Every page in `docs/gm/` and `docs/player/` has a Danish twin at the same name under `docs/da/`, and
 the wiki shows them under a Danish language switch. **The format, the check and the word list are in
 [da/README.md](da/README.md).** In short: the twin's front matter holds `source` and `sourceHash`,
 `npm run docs:links` fails when a guide has no twin or its twin is older than its source, and
 `node scripts/wiki/da.mjs stamp gm/x.md` records the new hash once the change is translated.
-Not translated: `docs/foundry/`, reference, dev, design and history.
+The seven Foundry basics a player reads (`PLAYER_FOUNDRY`) have twins in `docs/da/foundry/` for the
+Danish player side. Not translated: the rest of `docs/foundry/`, reference, dev, design and history.
 
 Supported: Foundry VTT 14 with the dnd5e 6 system. Foundry AI Tool is not affiliated with or endorsed by
 Foundry Gaming LLC.

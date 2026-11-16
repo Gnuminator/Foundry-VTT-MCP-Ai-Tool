@@ -57,6 +57,24 @@ test('a missing twin, a stale twin, an em dash and an orphan twin are each repor
   rmSync(root, { recursive: true });
 });
 
+test("the player's Foundry basics need twins; the other Foundry pages do not", () => {
+  const basic = '---\ntitle: Tokens\n---\n\n# Tokens\n';
+  const root = tree({
+    'foundry/tokens.md': basic,
+    'foundry/actors.md': EN,
+    'da/foundry/tokens.md': `---\ntitle: Tokens\ndescription: Flyt dit token.\nsource: foundry/tokens.md\nsourceHash: ${hashOf(basic)}\n---\n`,
+    'da/foundry/scenes.md': twin(hashOf(EN)),
+  });
+  assert.deepEqual(englishPages(root), ['foundry/tokens.md']);
+  assert.deepEqual(checkTwins(root), ['docs/da/foundry/scenes.md has no English page']);
+  rmSync(root, { recursive: true });
+  const missing = tree({ 'foundry/combat.md': basic });
+  assert.deepEqual(checkTwins(missing), [
+    'docs/foundry/combat.md has no Danish twin (docs/da/foundry/combat.md)',
+  ]);
+  rmSync(missing, { recursive: true });
+});
+
 test('an unquoted front matter value with a colon is reported', () => {
   const bad = twin(hashOf(EN)).replace(
     'description: Sådan kommer du ind.',

@@ -2,7 +2,8 @@
 /**
  * Danish twins of the GM and player guides (format: docs/README.md, "Danish twins").
  *
- * Every page in docs/gm and docs/player has a twin at docs/da/<section>/<name>.md whose front matter
+ * Every page in docs/gm and docs/player, and the player's Foundry basics in docs/foundry
+ * (PLAYER_FOUNDRY), has a twin at docs/da/<section>/<name>.md whose front matter
  * says which English page it translates (`source: gm/first-hour.md`, relative to docs/) and the hash
  * of that page when the translation was made (`sourceHash`: the first 12 hex characters of the
  * SHA-256 of the English file with line endings turned into LF).
@@ -18,6 +19,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { PLAYER_FOUNDRY } from './stage.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const docs = path.join(repo, 'docs');
@@ -41,15 +43,23 @@ export function frontMatter(text) {
   return out;
 }
 
-/** Every English guide page as `gm/first-hour.md`, sorted. */
+/**
+ * Every English page that needs a twin as `gm/first-hour.md`, sorted: all of docs/gm and docs/player,
+ * and the Foundry basics a player reads (PLAYER_FOUNDRY in stage.mjs), which also show on the Danish
+ * player side.
+ */
 export function englishPages(root = docs) {
-  return SECTIONS.flatMap(s =>
+  const guides = SECTIONS.flatMap(s =>
     existsSync(path.join(root, s))
       ? readdirSync(path.join(root, s))
           .filter(f => f.endsWith('.md'))
           .map(f => `${s}/${f}`)
       : []
-  ).sort();
+  );
+  const basics = PLAYER_FOUNDRY.map(name => `foundry/${name}.md`).filter(page =>
+    existsSync(path.join(root, page))
+  );
+  return [...guides, ...basics].sort();
 }
 
 export const twinOf = page => `da/${page}`;
@@ -99,7 +109,7 @@ export function checkTwins(root = docs) {
     }
   }
   // A twin whose English page is gone.
-  for (const s of SECTIONS) {
+  for (const s of [...SECTIONS, 'foundry']) {
     const dir = path.join(root, 'da', s);
     if (!existsSync(dir)) continue;
     for (const f of readdirSync(dir).filter(n => n.endsWith('.md'))) {

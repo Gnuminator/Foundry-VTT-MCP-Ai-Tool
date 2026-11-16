@@ -130,7 +130,9 @@ If you get that, you are done with setup. Everything below is what to ask for.
 ## What to ask: the four flows
 
 Claude is not a form. Ask in your own words, in your own language. The examples are only
-starting points.
+starting points. For ready-made requests grouped by the moment you need them (planning a
+character, levelling up, checking your sheet, rules questions), see the
+[D&D helper cookbook](cookbook.md).
 
 ### 1. Make a new character
 

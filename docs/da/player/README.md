@@ -1,6 +1,6 @@
 ---
 source: player/README.md
-sourceHash: ebabfa8658fc
+sourceHash: c152ca8046e1
 title: Spillerguide
 description: Hvad spillere kan se, hvad værktøjet optager under spillet, hvilke dele der når en AI, og hvordan du får dine data slettet.
 ---
@@ -9,7 +9,9 @@ description: Hvad spillere kan se, hvad værktøjet optager under spillet, hvilk
 
 Hej! Din GM bruger Foundry AI Tool ved siden af Foundry. For dig virker Foundry præcis som
 altid. Denne side forklarer de ekstra ting: hvad du kan se, hvad der bliver optaget, og hvad en AI
-læser. Korte how-tos står i [spillerens kogebog](cookbook.md).
+læser. Korte how-tos står i [Brug player page](player-page.md). Player page og My character er valgfrie
+ekstraer ved siden af Foundry, aldrig en erstatning. Færdige forespørgsler til D&D-hjælperen står i
+[D&D-hjælperens kogebog](cookbook.md).
 
 Er du ny ved bordet? Start med [Kom med i spillet](join.md) (adressen, login, Discord), og derefter
 [Lav din karakter](make-a-character.md).

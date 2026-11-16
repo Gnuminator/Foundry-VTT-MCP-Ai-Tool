@@ -1,6 +1,6 @@
 ---
 source: gm/README.md
-sourceHash: 00ee649dc205
+sourceHash: 9af2482ee89f
 title: GM-guides
 description: Guides til en GM, der kører et spil med Foundry AI Tool, skrevet til en, der er ny i Foundry og i værktøjet.
 ---
@@ -70,4 +70,4 @@ du gør, hvis det ikke gjorde.
 | [Claude Free eller Pro](claude-plans.md)                         | Hvad der virker på den gratis Claude-plan, dens grænser, og hvad Pro giver dig.                                  |
 
 Hvad spillerne ser, og hvad værktøjet registrerer om dem: [spillerguiden](../player/README.md) og
-[spillerens kogebog](../player/cookbook.md).
+[how-tos til player page](../player/player-page.md).

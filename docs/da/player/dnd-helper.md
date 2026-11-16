@@ -1,6 +1,6 @@
 ---
 source: player/dnd-helper.md
-sourceHash: 5251d6ee93cb
+sourceHash: 41e8a06470ad
 title: D&D-hjælperen til spillere
 description: Installer Claude Desktop og din Foundry-spillerconnector, og lav, level op og tjek så din egen karakter og slå regler op, trin for trin.
 ---
@@ -132,7 +132,8 @@ Får du det, er du færdig med opsætningen. Resten nedenfor handler om, hvad du
 ## Hvad du kan spørge om: de fire forløb
 
 Claude er ikke en formular. Spørg med dine egne ord, på dit eget sprog. Eksemplerne er kun
-startpunkter.
+startpunkter. Færdige forespørgsler samlet efter, hvornår du har brug for dem (planlæg en karakter,
+level op, tjek dit ark, regelspørgsmål), står i [D&D-hjælperens kogebog](cookbook.md).
 
 ### 1. Lav en ny karakter
 

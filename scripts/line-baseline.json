@@ -2,7 +2,6 @@
   "limit": 1000,
   "files": {
     ".claude/hooks/guard-remote-commands.mjs": 1020,
-    "packages/cogm-dashboard/web/src/styles/styles.css": 2400,
     "packages/foundry-module/src/data-access/actor-builder.ts": 2241,
     "packages/foundry-module/src/data-access/guarded-write.ts": 1094,
     "packages/foundry-module/src/data-access/player-rolls.ts": 1640,

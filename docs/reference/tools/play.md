@@ -16,7 +16,7 @@ Kind: changes something and can delete or overwrite. Title: Use item.
 
 Parameters:
 
-- `actorIdentifier` (string, required): Character using the item (name or ID)
+- `actor` (string, required): Character using the item (name or ID)
 - `itemIdentifier` (string, required): Item name or ID (spell, feat, equipment, consumable, etc.)
 - `targets` (array of string): Target character/token names or IDs. Use ["self"] to target the caster. If omitted, GM selects targets in Foundry.
 - `consume` (boolean): Whether to consume charges/uses (default: true)
@@ -31,7 +31,7 @@ Kind: changes something. Title: Switch scene.
 
 Parameters:
 
-- `scene_identifier` (string, required): Scene name or ID to switch to
+- `scene` (string, required): Scene name or ID to switch to
 - `optimize_view` (boolean): Automatically optimize the view for the scene. Default: `true`.
 
 ## request-player-rolls
@@ -44,7 +44,7 @@ Parameters:
 
 - `rollType` (string, required): Type of roll to request (ability, skill, save, attack, initiative, custom). One of: `ability`, `skill`, `save`, `attack`, `initiative`, `custom`.
 - `rollTarget` (string, required): An ability (str, dex, con, int, wis, cha), a skill (perception, stealth, ...) or a custom roll formula
-- `targetPlayer` (string, required): Player name or character name to request the roll from
+- `actor` (string, required): Player name or character name to request the roll from
 - `isPublic` (boolean): Default true: everyone sees the roll. false only when asked: just the target player and GM. Default: `true`.
 - `rollModifier` (string): Optional modifier to add to the roll (e.g., "+2", "-1", "+1d4"). Default: `""`.
 - `flavor` (string): Optional flavor text to describe the roll context. Default: `""`.
@@ -59,7 +59,7 @@ Kind: changes something. Title: Request ability check.
 
 Parameters:
 
-- `targetPlayer` (string, required): Player name or character name to request the roll from.
+- `actor` (string, required): Player name or character name to request the roll from.
 - `ability` (string, required): Ability to check. One of: `str`, `dex`, `con`, `int`, `wis`, `cha`.
 - `dc` (integer): Optional difficulty class to display with the request.
 - `isPublic` (boolean): Default true: visible to all. false only when asked: target player + GM only. Default: `true`.
@@ -74,7 +74,7 @@ Kind: changes something. Title: Request attack roll.
 
 Parameters:
 
-- `targetPlayer` (string, required): Player name or character name to request the roll from.
+- `actor` (string, required): Player name or character name to request the roll from.
 - `weaponOrSpellName` (string, required): Name of the weapon or spell attack.
 - `isPublic` (boolean): Default true: visible to all. false only when asked: target player + GM only. Default: `true`.
 - `advantage` (string): One of: `advantage`, `disadvantage`.
@@ -87,7 +87,7 @@ Kind: changes something. Title: Roll NPC check.
 
 Parameters:
 
-- `actorName` (string, required): NPC actor name or ID.
+- `actor` (string, required): NPC actor name or ID.
 - `rollType` (string, required): Type of roll. One of: `ability`, `save`, `skill`, `attack`.
 - `rollTarget` (string, required): Target for the roll: ability (str/dex/...), skill name (perception, stealth, ...), or weapon/attack name.
 - `isPublic` (boolean, required): Whether the result is public (true) or whispered to the GM (false).
@@ -275,7 +275,7 @@ Kind: read-only. Title: Get character resources.
 
 Parameters:
 
-- `identifier` (string, required): Character name or actor ID.
+- `actor` (string, required): Character name or actor ID.
 
 ## get-active-effects
 
@@ -285,7 +285,7 @@ Kind: read-only. Title: Get active effects.
 
 Parameters:
 
-- `identifier` (string, required): Actor name or ID.
+- `actor` (string, required): Actor name or ID.
 
 ## advance-combat-turn
 
@@ -359,7 +359,7 @@ Kind: read-only. Title: Wait for a game event.
 Parameters:
 
 - `eventTypes` (array of string): Event types, e.g. ["combat-turn"], ["scene-change"], ["roll","damage-roll"]. Empty = any.
-- `actorName` (string): Actor name filter (partial match).
+- `actor` (string): Actor name filter (partial match).
 - `sinceTimestamp` (string): The latestTimestamp of the previous call (not an event time); matching events after it return at once. Omit = only new ones.
 - `timeoutSeconds` (integer): Default 25, max 45.
 
@@ -386,7 +386,7 @@ Kind: changes something. Title: Use NPC attack or activity.
 
 Parameters:
 
-- `actorName` (string, required): NPC actor name or ID. A token on the current scene with this name or ID (or the only token made from this actor) is used first, so an unlinked token spends its own uses.
+- `actor` (string, required): NPC actor name or ID. A token on the current scene with this name or ID (or the only token made from this actor) is used first, so an unlinked token spends its own uses.
 - `itemName` (string, required): Name of the weapon/feature/spell to use (e.g. "Scimitar").
 - `activity` (string): Activity to run (name, id or type); a non-attack one is used (spends its cost) and its damage rolled.
 - `targetAC` (integer): Optional target AC to compute hit/miss against.

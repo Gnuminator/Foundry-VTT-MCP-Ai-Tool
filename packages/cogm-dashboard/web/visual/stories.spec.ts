@@ -16,21 +16,10 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 
 import { KNOWN_STORY_VIOLATIONS } from './axe-known-stories';
-import { contentClip, loadStories, showStory } from './stories';
+import { contentClip, loadStories, photographed, showStory } from './stories';
 
 const FAILING = new Set(['serious', 'critical']);
 const stories = loadStories();
-
-// A Veil story is photographed only when it is a `ui-` primitive (they pin the Veil tokens), a
-// phone story (often the component's only phone shot) or the heal form (its only story). Every
-// story still gets its axe check, Veil ones included. Not covered by any shot after this trim:
-// page-level Veil rules (moment tab glow, mist background) and the Veil theme at 1080 and 390 wide.
-const KEEP_VEIL = new Set(['components-combat-strip--heal-form-veil']);
-const photographed = (story: (typeof stories)[number]): boolean =>
-  !story.tags.includes('veil') ||
-  story.tags.includes('phone') ||
-  story.id.startsWith('ui-') ||
-  KEEP_VEIL.has(story.id);
 
 test('the stories are built', () => {
   expect(

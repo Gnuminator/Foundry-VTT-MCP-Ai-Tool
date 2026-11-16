@@ -4,6 +4,7 @@ import * as path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { EventPump, PUMP_STATE_FILE, eventSeq } from './event-pump.js';
+import { makeLogger } from './test-support/make-tool-harness.js';
 import { VaultStore } from './vault/store.js';
 
 /** The module's buffer: strictly-after filter, newest `limit` events, `evt-<n>` ids per load. */
@@ -42,7 +43,7 @@ let store: VaultStore;
 let foundry: FakeModule;
 
 function makePump(worldIds?: { current: () => Promise<string> }): EventPump {
-  const logger: any = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
+  const logger = makeLogger();
   logger.child = (): unknown => logger;
   return new EventPump({
     foundryClient: foundry,
@@ -194,7 +195,7 @@ describe('EventPump gaps and health', () => {
     vi.useFakeTimers();
     vi.setSystemTime(T0);
     let world = 'w1';
-    const logger: any = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
+    const logger = makeLogger();
     logger.child = (): unknown => logger;
     const pump = new EventPump({
       foundryClient: foundry,

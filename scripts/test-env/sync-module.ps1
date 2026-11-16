@@ -9,14 +9,15 @@
 #   pwsh scripts/test-env/sync-module.ps1 -Watch -Session <local_id> [-NoBuild]
 #   ... -Server B                                    test server B's module folder and lock (default A)
 #
-# -Watch (sync on save, D-102): runs the module's TypeScript build in watch mode (not with
+# -Watch (sync on save, D-102): runs the module's esbuild bundle in watch mode (not with
 # -NoBuild) and copies the module again after every change to its build (dist, lang, styles,
 # templates, module.json), once the files have been quiet for 1.5 seconds. It copies only while
 # the session -Session holds the test server lock (lock.ps1), so a half-saved edit never reaches
 # another lane's live test. Otherwise it waits, says who holds the lock, and copies once this
 # session holds it. It never takes the lock itself. Ctrl+C stops it.
-# The build runs with --noEmitOnError (a save with type errors changes nothing, tsc prints the
-# errors) through tsc-watch-child.cjs, which exits when this pwsh is gone, even after a hard kill.
+# The bundle runs through module-watch-child.mjs, which exits when this pwsh is gone, even after a
+# hard kill. A save that does not bundle (syntax error, missing import) changes nothing and esbuild
+# prints the error; type errors are not checked here (npm run typecheck and CI do that).
 # With the build, the first copy waits for its first output, so an older dist/ is never copied;
 # with -NoBuild the existing build is copied at once.
 # -Root and -Source are for the tests: the lock is read from <Root>/lock.json and the module goes
@@ -103,11 +104,10 @@ $build = $null
 try {
   if (-not $NoBuild) {
     $node = Get-NodeExe
-    $tsc = Join-Path $RepoRoot 'node_modules' 'typescript' 'bin' 'tsc'
-    if (-not (Test-Path $tsc)) { throw "TypeScript not found at $tsc (run npm ci in this checkout)." }
+    $esbuild = Join-Path $RepoRoot 'node_modules' 'esbuild'
+    if (-not (Test-Path $esbuild)) { throw "esbuild not found at $esbuild (run npm ci in this checkout)." }
     $build = Start-Process -FilePath $node -NoNewWindow -PassThru -ArgumentList @(
-      "`"$(Join-Path $PSScriptRoot 'tsc-watch-child.cjs')`"", $PID, "`"$tsc`"",
-      '-p', "`"$(Join-Path $source 'tsconfig.json')`"", '--watch', '--preserveWatchOutput', '--noEmitOnError')
+      "`"$(Join-Path $PSScriptRoot 'module-watch-child.mjs')`"", $PID, "`"$source`"")
   }
   Write-Stamped "Watching $source for module build changes; syncing to $dest only while session $Session holds the test server lock. Ctrl+C stops."
   if ($build) { Write-Stamped "Build watch started (pid $($build.Id)); the first copy waits for its first build." }

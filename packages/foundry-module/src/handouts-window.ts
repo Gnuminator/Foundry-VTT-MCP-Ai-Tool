@@ -11,6 +11,7 @@
  * forwards clicks, and is built on first use because Foundry's `ApplicationV2` does
  * not exist when this file is loaded.
  */
+import { errorMessage } from '@gnuminator/shared/browser';
 import { onAiChangesUpdated } from './ai-changes-signal.js';
 import {
   buildHandoutsRows,
@@ -34,10 +35,6 @@ export interface HandoutsDeps {
   confirmReveal(plan: RevealPlan): Promise<boolean>;
   notifyInfo(message: string): void;
   notifyError(message: string): void;
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error && error.message ? error.message : String(error);
 }
 
 /** The window's state: what is listed, what is loading, and the Remove and Reveal flows. */

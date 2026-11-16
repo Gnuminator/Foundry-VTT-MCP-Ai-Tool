@@ -118,12 +118,11 @@ Everything else outstanding is below, roughly in priority order.
 
 **Write-permission gate holes (High):**
 
-- [ ] Route through `permissionManager.checkWritePermission`: `setActorOwnership`
-      (`data-access/ownership-players.ts:58`), `createActorFromCompendiumEntry`
-      (`data-access/actor-creation.ts:165`), `addActorItems` (`:307`), `actor-builder` writes,
-      `setTokenVisionLight` (`data-access/scenes-tokens.ts:596`), `scene-fx` writes.
-- [ ] Enforce the HIGH_RISK tier: `checkWritePermission` should read `WriteOperation.requiresGM`; gate
-      `deleteTokens` under `deleteData`, not MEDIUM (`foundry-module/src/permissions.ts`).
+- [x] Every write handler is behind the write gate (`write-gate.ts`, P-036); the old per-operation
+      `permissionManager` layer is gone and `requireWriteOperations()` guards the data-access
+      write functions.
+- [x] The HIGH_RISK tier and `requiresGM` went with `permissions.ts`: nothing called them;
+      `withGmGate` is the GM check.
 
 **Player-view leaks (High):**
 

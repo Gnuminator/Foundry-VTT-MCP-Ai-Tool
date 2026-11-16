@@ -116,18 +116,18 @@ NARRATION_PYTHON=C:\path\to\venv\Scripts\python.exe
 HF_HOME=C:\path\to\hf-cache
 ```
 
-The voice environment is Python 3.12 with a CUDA 12.8 PyTorch (the RTX 5080 needs it) and
+The voice environment is Python 3.12 with a CUDA 13.0 PyTorch (the RTX 5080 needs it) and
 `chatterbox-tts` 0.1.7 installed without its dependencies, because its pins ask for torch 2.6,
 which has no Blackwell support:
 
 ```powershell
 python -m venv C:\path\to\venv
 C:\path\to\venv\Scripts\pip install --no-deps -r tools\narration\requirements-voice.lock.txt `
-  --extra-index-url https://download.pytorch.org/whl/cu128
+  --extra-index-url https://download.pytorch.org/whl/cu130
 ```
 
 Run it from the repo root. `requirements-voice.lock.txt` is the frozen working venv with exact versions, including the
-`+cu128` torch builds. `--no-deps` is deliberate: chatterbox-tts 0.1.7's own pins ask for torch
+`+cu130` torch builds. `--no-deps` is deliberate: chatterbox-tts 0.1.7's own pins ask for torch
 2.6, so everything it needs is listed in the file (without gradio, which only its demo app uses).
 A test (`tests/test_voice_lock.py`) keeps this recipe and the file in step.
 

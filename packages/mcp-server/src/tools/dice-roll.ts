@@ -50,7 +50,7 @@ export class DiceRollTools {
                 'An ability (str, dex, con, int, wis, cha), a skill (perception, stealth, ...) or a custom roll formula',
               ...toolRef(['ability', 'skill'], 'id'),
             },
-            targetPlayer: {
+            actor: {
               type: 'string',
               description: 'Player name or character name to request the roll from',
               ...toolRef(['user', 'actor'], 'name', {
@@ -77,7 +77,7 @@ export class DiceRollTools {
             dc: { type: 'integer' },
             advantage: advantageChoice,
           },
-          required: ['rollType', 'rollTarget', 'targetPlayer'],
+          required: ['rollType', 'rollTarget', 'actor'],
         },
       },
       {
@@ -87,7 +87,7 @@ export class DiceRollTools {
         inputSchema: {
           type: 'object',
           properties: {
-            targetPlayer: {
+            actor: {
               type: 'string',
               description: 'Player name or character name to request the roll from.',
               ...toolRef(['user', 'actor'], 'name', {
@@ -115,7 +115,7 @@ export class DiceRollTools {
             },
             advantage: advantageChoice,
           },
-          required: ['targetPlayer', 'ability'],
+          required: ['actor', 'ability'],
         },
       },
       {
@@ -125,7 +125,7 @@ export class DiceRollTools {
         inputSchema: {
           type: 'object',
           properties: {
-            targetPlayer: {
+            actor: {
               type: 'string',
               description: 'Player name or character name to request the roll from.',
               ...toolRef(['user', 'actor'], 'name', {
@@ -147,7 +147,7 @@ export class DiceRollTools {
             },
             advantage: advantageChoice,
           },
-          required: ['targetPlayer', 'weaponOrSpellName'],
+          required: ['actor', 'weaponOrSpellName'],
         },
       },
       {
@@ -157,7 +157,7 @@ export class DiceRollTools {
         inputSchema: {
           type: 'object',
           properties: {
-            actorName: {
+            actor: {
               type: 'string',
               description: 'NPC actor name or ID.',
               ...toolRef('actor', 'id', { filter: { types: ['npc'] } }),
@@ -179,7 +179,7 @@ export class DiceRollTools {
             },
             advantage: advantageChoice,
           },
-          required: ['actorName', 'rollType', 'rollTarget', 'isPublic'],
+          required: ['actor', 'rollType', 'rollTarget', 'isPublic'],
         },
       },
     ];
@@ -189,7 +189,7 @@ export class DiceRollTools {
     args: unknown
   ): Promise<string | DiceRollBridgeReply | undefined> {
     const schema = z.object({
-      targetPlayer: z.string(),
+      actor: z.string(),
       ability: z.enum(['str', 'dex', 'con', 'int', 'wis', 'cha']),
       dc: z.number().int().optional(),
       isPublic: z.boolean().default(true),
@@ -198,10 +198,11 @@ export class DiceRollTools {
     });
     try {
       const params = schema.parse(args);
-      const response = (await this.foundryClient.query(
-        'foundry-mcp-bridge.requestAbilityCheck',
-        params
-      )) as DiceRollBridgeReply | undefined;
+      const { actor, ...rest } = params;
+      const response = (await this.foundryClient.query('foundry-mcp-bridge.requestAbilityCheck', {
+        targetPlayer: actor,
+        ...rest,
+      })) as DiceRollBridgeReply | undefined;
       if (response?.success) {
         return `Ability check requested. ${response.message}`;
       }
@@ -217,7 +218,7 @@ export class DiceRollTools {
 
   async handleRequestAttackRoll(args: unknown): Promise<string | DiceRollBridgeReply | undefined> {
     const schema = z.object({
-      targetPlayer: z.string(),
+      actor: z.string(),
       weaponOrSpellName: z.string(),
       isPublic: z.boolean().default(true),
       advantage: z.enum(['advantage', 'disadvantage']).optional(),
@@ -225,13 +226,14 @@ export class DiceRollTools {
     try {
       const params = schema.parse(args);
       const check = await this.rulesCheck?.tryCheck({
-        actor: params.targetPlayer,
+        actor: params.actor,
         item: params.weaponOrSpellName,
       });
-      const response = (await this.foundryClient.query(
-        'foundry-mcp-bridge.requestAttackRoll',
-        params
-      )) as DiceRollBridgeReply | undefined;
+      const { actor, ...rest } = params;
+      const response = (await this.foundryClient.query('foundry-mcp-bridge.requestAttackRoll', {
+        targetPlayer: actor,
+        ...rest,
+      })) as DiceRollBridgeReply | undefined;
       if (response?.success) {
         const note = check && check.verdict !== 'legal' ? ` Rules check: ${check.summary}` : '';
         return `Attack roll requested. ${response.message}${note}`;
@@ -248,7 +250,7 @@ export class DiceRollTools {
 
   async handleRollNpcCheck(args: unknown): Promise<string | DiceRollBridgeReply | undefined> {
     const schema = z.object({
-      actorName: z.string(),
+      actor: z.string(),
       rollType: z.enum(['ability', 'save', 'skill', 'attack']),
       rollTarget: z.string(),
       isPublic: z.boolean(),
@@ -256,10 +258,11 @@ export class DiceRollTools {
     });
     try {
       const params = schema.parse(args);
-      const response = (await this.foundryClient.query(
-        'foundry-mcp-bridge.rollNpcCheck',
-        params
-      )) as DiceRollBridgeReply | undefined;
+      const { actor, ...rest } = params;
+      const response = (await this.foundryClient.query('foundry-mcp-bridge.rollNpcCheck', {
+        actorName: actor,
+        ...rest,
+      })) as DiceRollBridgeReply | undefined;
       if (response?.success === false) {
         throw new Error(response.error || 'Failed to roll NPC check');
       }
@@ -277,7 +280,7 @@ export class DiceRollTools {
     const schema = z.object({
       rollType: z.enum(['ability', 'skill', 'save', 'attack', 'initiative', 'custom']),
       rollTarget: z.string(),
-      targetPlayer: z.string(),
+      actor: z.string(),
       isPublic: z.boolean().default(true),
       // An old client may still send userConfirmedVisibility: zod drops it (removed from the schema).
       rollModifier: z.string().default(''),
@@ -297,8 +300,10 @@ export class DiceRollTools {
           ? params.flavor
           : [params.flavor, dcText].filter(Boolean).join(', ');
 
+      const { actor, ...rest } = params;
       const response = (await this.foundryClient.query('foundry-mcp-bridge.request-player-rolls', {
-        ...params,
+        ...rest,
+        targetPlayer: actor,
         flavor,
       })) as DiceRollBridgeReply;
 

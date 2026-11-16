@@ -164,14 +164,6 @@ export interface WorldUser {
 }
 
 // Phase 2: Write Operation Interfaces
-export interface ActorCreationRequest {
-  creatureType: string;
-  customNames?: string[] | undefined;
-  packPreference?: string | undefined;
-  quantity?: number | undefined;
-  addToScene?: boolean | undefined;
-}
-
 export interface ActorCreationResult {
   success: boolean;
   actors: CreatedActorInfo[];

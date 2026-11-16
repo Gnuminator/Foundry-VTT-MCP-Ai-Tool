@@ -5,6 +5,7 @@ import * as path from 'path';
 import { usageLogFileName, type UsageEvent } from '@gnuminator/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { makeLogger } from './test-support/make-tool-harness.js';
 import { usageEvent } from './test-support/usage-events.js';
 import { UsageLog } from './usage-log.js';
 import { USAGE_PUMP_STATE_FILE, UsagePump } from './usage-pump.js';
@@ -88,7 +89,7 @@ beforeEach(async () => {
   dataDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'usage-pump-'));
   store = new VaultStore({ dataDir });
   foundry = new FakeModule();
-  logger = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
+  logger = makeLogger();
   logger.child = (): unknown => logger;
   world = 'w1';
 });

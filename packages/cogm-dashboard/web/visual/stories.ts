@@ -16,6 +16,8 @@ const packageDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '.
 
 export const STORYBOOK_DIR = path.join(packageDir, 'storybook-static');
 export const STORYBOOK_PORT = 6199;
+/** The base (main) Storybook of the two-sided render, served beside the head one (stories-diff.spec.ts). */
+export const BASE_STORYBOOK_PORT = 6198;
 
 export interface StoryEntry {
   id: string;
@@ -24,11 +26,11 @@ export interface StoryEntry {
   tags: string[];
 }
 
-/** The stories of the built Storybook (docs pages left out); empty when it is not built yet. */
-export function loadStories(): StoryEntry[] {
+/** The stories of a built Storybook (docs pages left out); empty when it is not built yet. */
+export function loadStories(dir: string = STORYBOOK_DIR): StoryEntry[] {
   let raw: string;
   try {
-    raw = readFileSync(path.join(STORYBOOK_DIR, 'index.json'), 'utf8');
+    raw = readFileSync(path.join(dir, 'index.json'), 'utf8');
   } catch {
     return [];
   }
@@ -37,6 +39,17 @@ export function loadStories(): StoryEntry[] {
   };
   return Object.values(entries).filter(e => e.type === 'story');
 }
+
+// A Veil story is photographed only when it is a `ui-` primitive (they pin the Veil tokens), a
+// phone story (often the component's only phone shot) or the heal form (its only story). Every
+// story still gets its axe check, Veil ones included. Not covered by any shot after this trim:
+// page-level Veil rules (moment tab glow, mist background) and the Veil theme at 1080 and 390 wide.
+const KEEP_VEIL = new Set(['components-combat-strip--heal-form-veil']);
+export const photographed = (story: StoryEntry): boolean =>
+  !story.tags.includes('veil') ||
+  story.tags.includes('phone') ||
+  story.id.startsWith('ui-') ||
+  KEEP_VEIL.has(story.id);
 
 export const DESKTOP = { width: 1100, height: 760 } as const;
 /** The same size as PHONE in web/src/storybook/modes.ts. */
@@ -52,12 +65,12 @@ export const isPhone = (story: StoryEntry): boolean => story.tags.includes('phon
  * until it has rendered and its play step has run, and settles the page the way the app shots do:
  * fonts loaded, the clock fixed, the mouse out of the way, nothing in flight.
  */
-export async function showStory(page: Page, story: StoryEntry): Promise<void> {
+export async function showStory(page: Page, story: StoryEntry, origin: string = ''): Promise<void> {
   await page.setViewportSize(isPhone(story) ? PHONE : DESKTOP);
   await page.clock.setFixedTime(NOW);
   // No globals in the URL: the story's own `globals` are what the preview applies, so the checks
   // below see what a person opening the story in Storybook sees.
-  await page.goto(`/iframe.html?id=${encodeURIComponent(story.id)}&viewMode=story`);
+  await page.goto(`${origin}/iframe.html?id=${encodeURIComponent(story.id)}&viewMode=story`);
   await expect(page.locator('html')).toHaveAttribute('data-theme', themeOf(story));
   // StoryRender's last phase: "finished" once the story rendered and its play step ran.
   await page.waitForFunction(() => {

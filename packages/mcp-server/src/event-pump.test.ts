@@ -10,6 +10,7 @@ import {
   eventPumpSettings,
   localDateKey,
 } from './event-pump.js';
+import { makeLogger } from './test-support/make-tool-harness.js';
 import { VaultStore } from './vault/store.js';
 
 /** The module's buffer: strictly-after filter, newest `limit` events. */
@@ -71,7 +72,7 @@ beforeEach(async () => {
   dataDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'event-pump-'));
   store = new VaultStore({ dataDir });
   foundry = new FakeModule();
-  logger = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
+  logger = makeLogger();
   logger.child = (): unknown => logger;
 });
 

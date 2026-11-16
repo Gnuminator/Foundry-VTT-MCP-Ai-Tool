@@ -72,13 +72,13 @@ export class CharacterTools {
         inputSchema: {
           type: 'object',
           properties: {
-            identifier: {
+            actor: {
               type: 'string',
               description: 'Character name or ID to look up',
               ...toolRef('actor', 'id', { filter: AT_THE_TABLE }),
             },
           },
-          required: ['identifier'],
+          required: ['actor'],
         },
       },
       {
@@ -88,7 +88,7 @@ export class CharacterTools {
         inputSchema: {
           type: 'object',
           properties: {
-            characterIdentifier: {
+            actor: {
               type: 'string',
               description: 'Character name or ID',
               ...toolRef('actor', 'id', { filter: AT_THE_TABLE }),
@@ -96,10 +96,10 @@ export class CharacterTools {
             entityIdentifier: {
               type: 'string',
               description: 'Item or effect name or ID (a spell, weapon, feature or effect)',
-              ...toolRef('actor-item', 'id', { parent: 'characterIdentifier' }),
+              ...toolRef('actor-item', 'id', { parent: 'actor' }),
             },
           },
-          required: ['characterIdentifier', 'entityIdentifier'],
+          required: ['actor', 'entityIdentifier'],
         },
       },
       {
@@ -122,7 +122,7 @@ export class CharacterTools {
         inputSchema: {
           type: 'object',
           properties: {
-            actorIdentifier: {
+            actor: {
               type: 'string',
               description: 'Character using the item (name or ID)',
               ...toolRef('actor', 'id', { filter: AT_THE_TABLE }),
@@ -130,7 +130,7 @@ export class CharacterTools {
             itemIdentifier: {
               type: 'string',
               description: 'Item name or ID (spell, feat, equipment, consumable, etc.)',
-              ...toolRef('actor-item', 'id', { parent: 'actorIdentifier' }),
+              ...toolRef('actor-item', 'id', { parent: 'actor' }),
             },
             targets: {
               type: 'array',
@@ -155,7 +155,7 @@ export class CharacterTools {
                 "D&D 5e: also roll the item's attack at once, with no dialog, against the targets. Needs at least one target. Errors when the item has no usable attack.",
             },
           },
-          required: ['actorIdentifier', 'itemIdentifier'],
+          required: ['actor', 'itemIdentifier'],
         },
       },
       {
@@ -243,7 +243,7 @@ export class CharacterTools {
               type: 'string',
               description: 'For "list": case-insensitive substring match on item name.',
             },
-            actorIdentifier: {
+            actor: {
               type: 'string',
               description: 'For "add-to-actor": actor name or ID to receive the items.',
               ...toolRef('actor', 'id', { filter: AT_THE_TABLE }),
@@ -259,7 +259,7 @@ export class CharacterTools {
         inputSchema: {
           type: 'object',
           properties: {
-            characterIdentifier: {
+            actor: {
               type: 'string',
               description: 'Character name or ID to search within',
               ...toolRef('actor', 'id', { filter: AT_THE_TABLE }),
@@ -284,7 +284,7 @@ export class CharacterTools {
               description: 'Maximum number of results to return (default: 20)',
             },
           },
-          required: ['characterIdentifier'],
+          required: ['actor'],
         },
       },
     ];
@@ -292,16 +292,16 @@ export class CharacterTools {
 
   async handleGetCharacter(args: unknown): Promise<unknown> {
     const schema = z.object({
-      identifier: z.string().min(1, 'Character identifier cannot be empty'),
+      actor: z.string().min(1, 'Character identifier cannot be empty'),
     });
 
-    const { identifier } = schema.parse(args);
+    const { actor } = schema.parse(args);
 
-    this.logger.info('Getting character information', { identifier });
+    this.logger.info('Getting character information', { actor });
 
     try {
       const characterData = (await this.foundryClient.query('foundry-mcp-bridge.getCharacterInfo', {
-        characterName: identifier,
+        characterName: actor,
       })) as Rec;
 
       this.logger.debug('Successfully retrieved character data', {
@@ -314,7 +314,7 @@ export class CharacterTools {
     } catch (error) {
       this.logger.error('Failed to get character information', error);
       throw new Error(
-        `Failed to retrieve character "${identifier}": ${error instanceof Error ? error.message : 'Unknown error'}`,
+        `Failed to retrieve character "${actor}": ${error instanceof Error ? error.message : 'Unknown error'}`,
         { cause: error }
       );
     }
@@ -322,18 +322,18 @@ export class CharacterTools {
 
   async handleGetCharacterEntity(args: unknown): Promise<unknown> {
     const schema = z.object({
-      characterIdentifier: z.string().min(1, 'Character identifier cannot be empty'),
+      actor: z.string().min(1, 'Character identifier cannot be empty'),
       entityIdentifier: z.string().min(1, 'Entity identifier cannot be empty'),
     });
 
-    const { characterIdentifier, entityIdentifier } = schema.parse(args);
+    const { actor, entityIdentifier } = schema.parse(args);
 
-    this.logger.info('Getting character entity', { characterIdentifier, entityIdentifier });
+    this.logger.info('Getting character entity', { actor, entityIdentifier });
 
     try {
       const result: unknown = await this.foundryClient.query(
         'foundry-mcp-bridge.getCharacterEntity',
-        { characterIdentifier, entityIdentifier }
+        { characterIdentifier: actor, entityIdentifier }
       );
       return flattenEntityResult(result);
     } catch (error) {
@@ -343,7 +343,7 @@ export class CharacterTools {
         ? ' The Foundry AI Tool module in this world is older than the bridge; update the module.'
         : '';
       throw new Error(
-        `Failed to retrieve entity "${entityIdentifier}" from character "${characterIdentifier}": ${message}${hint}`,
+        `Failed to retrieve entity "${entityIdentifier}" from character "${actor}": ${message}${hint}`,
         { cause: error }
       );
     }
@@ -387,7 +387,7 @@ export class CharacterTools {
 
   async handleUseItem(args: unknown): Promise<unknown> {
     const schema = z.object({
-      actorIdentifier: z.string().min(1, 'Actor identifier cannot be empty'),
+      actor: z.string().min(1, 'Actor identifier cannot be empty'),
       itemIdentifier: z.string().min(1, 'Item identifier cannot be empty'),
       targets: z.array(z.string()).optional(),
       consume: z.boolean().optional(),
@@ -396,18 +396,11 @@ export class CharacterTools {
       rollAttack: z.boolean().optional(),
     });
 
-    const {
-      actorIdentifier,
-      itemIdentifier,
-      targets,
-      consume,
-      spellLevel,
-      skipDialog,
-      rollAttack,
-    } = schema.parse(args);
+    const { actor, itemIdentifier, targets, consume, spellLevel, skipDialog, rollAttack } =
+      schema.parse(args);
 
     this.logger.info('Using item', {
-      actorIdentifier,
+      actor,
       itemIdentifier,
       targets,
       consume,
@@ -419,7 +412,7 @@ export class CharacterTools {
       const target = targets?.find(t => t.toLowerCase() !== 'self');
       const rulesCheck = await this.rulesCheck?.tryCheck(
         {
-          actor: actorIdentifier,
+          actor,
           item: itemIdentifier,
           ...(target ? { target } : {}),
           ...(spellLevel !== undefined && spellLevel >= 1 && spellLevel <= 9
@@ -429,7 +422,7 @@ export class CharacterTools {
         true
       );
       const result = (await this.foundryClient.query('foundry-mcp-bridge.useItem', {
-        actorIdentifier,
+        actorIdentifier: actor,
         itemIdentifier,
         targets,
         options: {
@@ -467,21 +460,21 @@ export class CharacterTools {
     });
 
     const schema = z.object({
-      actorIdentifier: z.string().min(1, 'Actor identifier cannot be empty'),
+      actor: z.string().min(1, 'Actor identifier cannot be empty'),
       items: z.array(itemSchema).min(1, 'At least one item is required'),
     });
 
-    const { actorIdentifier, items } = schema.parse(args);
+    const { actor, items } = schema.parse(args);
 
     this.logger.info('Adding items to actor', {
-      actorIdentifier,
+      actor,
       count: items.length,
       types: items.map(i => i.type),
     });
 
     try {
       const result = (await this.foundryClient.query('foundry-mcp-bridge.addActorItems', {
-        actorIdentifier,
+        actorIdentifier: actor,
         items,
       })) as Rec;
 
@@ -494,7 +487,7 @@ export class CharacterTools {
     } catch (error) {
       this.logger.error('Failed to add actor items', error);
       throw new Error(
-        `Failed to add items to "${actorIdentifier}": ${error instanceof Error ? error.message : 'Unknown error'}`,
+        `Failed to add items to "${actor}": ${error instanceof Error ? error.message : 'Unknown error'}`,
         { cause: error }
       );
     }
@@ -637,17 +630,17 @@ export class CharacterTools {
 
   async handleSearchCharacterItems(args: unknown): Promise<unknown> {
     const schema = z.object({
-      characterIdentifier: z.string().min(1, 'Character identifier cannot be empty'),
+      actor: z.string().min(1, 'Character identifier cannot be empty'),
       query: z.string().optional(),
       type: z.string().optional(),
       category: z.string().optional(),
       limit: z.number().optional(),
     });
 
-    const { characterIdentifier, query, type, category, limit } = schema.parse(args);
+    const { actor, query, type, category, limit } = schema.parse(args);
 
     this.logger.info('Searching character items', {
-      characterIdentifier,
+      actor,
       query,
       type,
       category,
@@ -656,7 +649,7 @@ export class CharacterTools {
 
     try {
       const result = (await this.foundryClient.query('foundry-mcp-bridge.searchCharacterItems', {
-        characterIdentifier,
+        characterIdentifier: actor,
         query,
         type,
         category,
@@ -672,7 +665,7 @@ export class CharacterTools {
     } catch (error) {
       this.logger.error('Failed to search character items', error);
       throw new Error(
-        `Failed to search items for "${characterIdentifier}": ${error instanceof Error ? error.message : 'Unknown error'}`,
+        `Failed to search items for "${actor}": ${error instanceof Error ? error.message : 'Unknown error'}`,
         { cause: error }
       );
     }

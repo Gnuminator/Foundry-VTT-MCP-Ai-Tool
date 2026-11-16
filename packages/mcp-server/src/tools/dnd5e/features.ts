@@ -44,11 +44,11 @@ export class DnD5eFeaturesFromCompendiumTools {
           'Not for: spells or spell slots (use dnd5e-add-feature with featureType "spells" or "spellcasting"); ' +
           '2024 class features (they live inside the class items, so this cannot import them); homebrew.\n' +
           'Returns a report: added, skipped (already on the actor), not found, failed.\n' +
-          'Find the actorIdentifier with list-characters or get-character.',
+          'Find the actor with list-characters or get-character.',
         inputSchema: {
           type: 'object',
           properties: {
-            actorIdentifier: {
+            actor: {
               type: 'string',
               description: 'Name or ID of the target actor (partial name match supported)',
               ...toolRef('actor', 'id', { filter: NPCS_ONLY }),
@@ -75,7 +75,7 @@ export class DnD5eFeaturesFromCompendiumTools {
               ...toolRef('compendium-pack', 'id', { filter: { documentName: 'Item' } }),
             },
           },
-          required: ['actorIdentifier', 'featureNames'],
+          required: ['actor', 'featureNames'],
         },
       },
     ];
@@ -83,7 +83,7 @@ export class DnD5eFeaturesFromCompendiumTools {
 
   async handleAddFeaturesFromCompendium(args: unknown): Promise<unknown> {
     const schema = z.object({
-      actorIdentifier: z.string().min(1, 'actorIdentifier cannot be empty'),
+      actor: z.string().min(1, 'actor cannot be empty'),
       featureNames: z.array(z.string().min(1)).min(1).max(50),
       compendiumPacks: z
         .array(z.string().min(1))
@@ -93,7 +93,7 @@ export class DnD5eFeaturesFromCompendiumTools {
     const parsed = schema.parse(args);
 
     this.logger.info('Adding features to D&D 5e actor from compendium', {
-      actorIdentifier: parsed.actorIdentifier,
+      actor: parsed.actor,
       featureCount: parsed.featureNames.length,
       packs: parsed.compendiumPacks,
     });
@@ -109,7 +109,11 @@ export class DnD5eFeaturesFromCompendiumTools {
 
       const result = (await this.foundryClient.query(
         'foundry-mcp-bridge.addFeaturesFromCompendium',
-        parsed
+        {
+          actorIdentifier: parsed.actor,
+          featureNames: parsed.featureNames,
+          compendiumPacks: parsed.compendiumPacks,
+        }
       )) as Rec;
 
       this.logger.info('Features import complete', {

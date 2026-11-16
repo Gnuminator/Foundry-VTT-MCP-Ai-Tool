@@ -4,6 +4,7 @@ import { FoundryClient } from '../../foundry-client.js';
 import { Logger } from '../../logger.js';
 import { ErrorHandler } from '../../utils/error-handler.js';
 import { detectGameSystem, getCachedSystemId } from '../../utils/system-detection.js';
+import { toBridge } from './bridge-actor.js';
 import type {
   AttackParams,
   AttackWithSaveParams,
@@ -121,7 +122,7 @@ export class DnD5eAddFeatureTool {
         name: 'dnd5e-add-feature',
         description:
           'Direct write. D&D 5e only. Add a feature, attack, spellcasting setup or spells to an existing actor. ' +
-          'featureType picks the mode; each parameter says which modes use it. Required besides actorIdentifier:\n' +
+          'featureType picks the mode; each parameter says which modes use it. Required besides actor:\n' +
           '- passive: a trait with no roll (Magic Resistance): featureName\n' +
           '- save: forces a saving throw (breath weapon): featureName, saveAbility, saveDC, damageParts\n' +
           '- attack: weapon attack (Claw, Bite): featureName, attackType, damageParts (rangeFt when ranged)\n' +
@@ -129,8 +130,7 @@ export class DnD5eAddFeatureTool {
           '- aura: damage to all in range, no roll: featureName, damageParts, areaType, areaSize\n' +
           '- spellcasting: slots and casting ability, run before "spells": spellcastingClass, spellcastingLevel\n' +
           '- spells: import named spells from the compendium: spellNames (English, max 50)\n' +
-          'Find the actorIdentifier with list-characters or get-character.',
-
+          'Find the actor with list-characters or get-character.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -150,7 +150,7 @@ export class DnD5eAddFeatureTool {
             },
 
             // ── Common ────────────────────────────────────────────────────────
-            actorIdentifier: {
+            actor: {
               type: 'string',
               description:
                 'Name or ID of the target actor (partial name match works). Always required.',
@@ -408,7 +408,7 @@ export class DnD5eAddFeatureTool {
               default: '',
             },
           },
-          required: ['featureType', 'actorIdentifier'],
+          required: ['featureType', 'actor'],
         },
       },
     ];
@@ -458,7 +458,7 @@ export class DnD5eAddFeatureTool {
   private async handlePassive(args: unknown): Promise<unknown> {
     const schema = z.object({
       featureType: z.literal('passive'),
-      actorIdentifier: z.string().min(1, 'actorIdentifier cannot be empty'),
+      actor: z.string().min(1, 'actor cannot be empty'),
       featureName: z.string().min(1, 'featureName cannot be empty'),
       description: z.string().default(''),
       sourceRules: z.enum(['2014', '2024']).default('2014'),
@@ -469,7 +469,7 @@ export class DnD5eAddFeatureTool {
     const parsed = schema.parse(args);
 
     this.logger.info('Adding passive feature to D&D 5e actor', {
-      actorIdentifier: parsed.actorIdentifier,
+      actor: parsed.actor,
       featureName: parsed.featureName,
     });
 
@@ -484,7 +484,7 @@ export class DnD5eAddFeatureTool {
 
       const result = (await this.foundryClient.query(
         'foundry-mcp-bridge.addPassiveFeatureToActor',
-        parsed
+        toBridge(parsed)
       )) as FeatureResult;
 
       this.logger.info('Passive feature added successfully', {
@@ -526,7 +526,7 @@ export class DnD5eAddFeatureTool {
     const schema = z
       .object({
         featureType: z.literal('save'),
-        actorIdentifier: z.string().min(1, 'actorIdentifier cannot be empty'),
+        actor: z.string().min(1, 'actor cannot be empty'),
         featureName: z.string().min(1, 'featureName cannot be empty'),
         description: z.string().default(''),
         activationType: z
@@ -556,7 +556,7 @@ export class DnD5eAddFeatureTool {
     const parsed = schema.parse(args);
 
     this.logger.info('Adding save feature to D&D 5e actor', {
-      actorIdentifier: parsed.actorIdentifier,
+      actor: parsed.actor,
       featureName: parsed.featureName,
       saveAbility: parsed.saveAbility,
       saveDC: parsed.saveDC,
@@ -574,7 +574,7 @@ export class DnD5eAddFeatureTool {
 
       const result = (await this.foundryClient.query(
         'foundry-mcp-bridge.addSaveFeatureToActor',
-        parsed
+        toBridge(parsed)
       )) as FeatureResult;
 
       this.logger.info('Save feature added successfully', {
@@ -622,7 +622,7 @@ export class DnD5eAddFeatureTool {
     const schema = z
       .object({
         featureType: z.literal('attack'),
-        actorIdentifier: z.string().min(1, 'actorIdentifier cannot be empty'),
+        actor: z.string().min(1, 'actor cannot be empty'),
         featureName: z.string().min(1, 'featureName cannot be empty'),
         description: z.string().default(''),
         activationType: z
@@ -687,7 +687,7 @@ export class DnD5eAddFeatureTool {
     }
 
     this.logger.info('Adding attack feature to D&D 5e actor', {
-      actorIdentifier: parsed.actorIdentifier,
+      actor: parsed.actor,
       featureName: parsed.featureName,
       attackType: parsed.attackType,
       ability: effectiveAbility,
@@ -704,7 +704,7 @@ export class DnD5eAddFeatureTool {
       }
 
       const result = (await this.foundryClient.query('foundry-mcp-bridge.addAttackToActor', {
-        ...parsed,
+        ...toBridge(parsed),
         effectiveAbility,
       })) as FeatureResult;
 
@@ -763,7 +763,7 @@ export class DnD5eAddFeatureTool {
     const schema = z
       .object({
         featureType: z.literal('attack-with-save'),
-        actorIdentifier: z.string().min(1, 'actorIdentifier cannot be empty'),
+        actor: z.string().min(1, 'actor cannot be empty'),
         featureName: z.string().min(1, 'featureName cannot be empty'),
         description: z.string().default(''),
         activationType: z
@@ -825,7 +825,7 @@ export class DnD5eAddFeatureTool {
     }
 
     this.logger.info('Adding attack+save feature to D&D 5e actor', {
-      actorIdentifier: parsed.actorIdentifier,
+      actor: parsed.actor,
       featureName: parsed.featureName,
       attackType: parsed.attackType,
       saveAbility: parsed.saveAbility,
@@ -845,7 +845,7 @@ export class DnD5eAddFeatureTool {
       const result = (await this.foundryClient.query(
         'foundry-mcp-bridge.addAttackWithSaveToActor',
         {
-          ...parsed,
+          ...toBridge(parsed),
           effectiveAbility,
         }
       )) as FeatureResult;
@@ -906,7 +906,7 @@ export class DnD5eAddFeatureTool {
   private async handleAura(args: unknown): Promise<unknown> {
     const schema = z.object({
       featureType: z.literal('aura'),
-      actorIdentifier: z.string().min(1, 'actorIdentifier cannot be empty'),
+      actor: z.string().min(1, 'actor cannot be empty'),
       featureName: z.string().min(1, 'featureName cannot be empty'),
       description: z.string().default(''),
       activationType: z
@@ -934,7 +934,7 @@ export class DnD5eAddFeatureTool {
     }
 
     this.logger.info('Adding aura feature to D&D 5e actor', {
-      actorIdentifier: parsed.actorIdentifier,
+      actor: parsed.actor,
       featureName: parsed.featureName,
       areaType: parsed.areaType,
       areaSize: parsed.areaSize,
@@ -952,7 +952,7 @@ export class DnD5eAddFeatureTool {
 
       const result = (await this.foundryClient.query(
         'foundry-mcp-bridge.addAuraToActor',
-        parsed
+        toBridge(parsed)
       )) as FeatureResult;
 
       this.logger.info('Aura feature added successfully', {
@@ -1004,7 +1004,7 @@ export class DnD5eAddFeatureTool {
   private async handleSpellcasting(args: unknown): Promise<unknown> {
     const schema = z.object({
       featureType: z.literal('spellcasting'),
-      actorIdentifier: z.string().min(1, 'actorIdentifier cannot be empty'),
+      actor: z.string().min(1, 'actor cannot be empty'),
       spellcastingClass: z.enum([
         'artificer',
         'bard',
@@ -1026,7 +1026,7 @@ export class DnD5eAddFeatureTool {
       parsed.spellcastingAbility ?? CLASS_DEFAULT_ABILITY[parsed.spellcastingClass];
 
     this.logger.info('Setting actor spellcasting', {
-      actorIdentifier: parsed.actorIdentifier,
+      actor: parsed.actor,
       spellcastingClass: parsed.spellcastingClass,
       spellcastingLevel: parsed.spellcastingLevel,
       ability: effectiveAbility,
@@ -1042,7 +1042,7 @@ export class DnD5eAddFeatureTool {
       }
 
       const result = (await this.foundryClient.query('foundry-mcp-bridge.setActorSpellcasting', {
-        ...parsed,
+        ...toBridge(parsed),
         effectiveAbility,
       })) as SpellcastingResult;
 
@@ -1093,7 +1093,7 @@ export class DnD5eAddFeatureTool {
   private async handleSpells(args: unknown): Promise<unknown> {
     const schema = z.object({
       featureType: z.literal('spells'),
-      actorIdentifier: z.string().min(1, 'actorIdentifier cannot be empty'),
+      actor: z.string().min(1, 'actor cannot be empty'),
       spellNames: z.array(z.string().min(1)).min(1).max(50),
       compendiumPacks: z.array(z.string().min(1)).default(['dnd5e.spells']),
     });
@@ -1101,7 +1101,7 @@ export class DnD5eAddFeatureTool {
     const parsed = schema.parse(args);
 
     this.logger.info('Adding spells to D&D 5e actor', {
-      actorIdentifier: parsed.actorIdentifier,
+      actor: parsed.actor,
       spellCount: parsed.spellNames.length,
       packs: parsed.compendiumPacks,
     });
@@ -1117,7 +1117,7 @@ export class DnD5eAddFeatureTool {
 
       const result = (await this.foundryClient.query(
         'foundry-mcp-bridge.addSpellsToActor',
-        parsed
+        toBridge(parsed)
       )) as SpellsResult;
 
       this.logger.info('Spells import complete', {

@@ -19,7 +19,7 @@
     "packages/mcp-server/src/obsidian/mirror-render.ts": 1503,
     "packages/mcp-server/src/obsidian/render.ts": 1172,
     "packages/mcp-server/src/stats/build.ts": 1035,
-    "packages/mcp-server/src/tools/character.ts": 1058,
+    "packages/mcp-server/src/tools/character.ts": 1051,
     "packages/mcp-server/src/tools/compendium.ts": 1079,
     "packages/mcp-server/src/tools/dnd5e/add-feature.ts": 1189,
     "packages/mcp-server/src/tools/quest-creation.ts": 1346,

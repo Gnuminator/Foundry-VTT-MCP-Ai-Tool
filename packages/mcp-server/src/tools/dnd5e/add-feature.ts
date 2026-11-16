@@ -4,6 +4,7 @@ import { FoundryClient } from '../../foundry-client.js';
 import { Logger } from '../../logger.js';
 import { ErrorHandler } from '../../utils/error-handler.js';
 import { detectGameSystem, getCachedSystemId } from '../../utils/system-detection.js';
+import { toBridge } from './bridge-actor.js';
 import type {
   AttackParams,
   AttackWithSaveParams,
@@ -91,14 +92,6 @@ const damagePartSchema = {
   required: ['number', 'denomination', 'type'],
 };
 
-/** The bridge still takes the actor as `actorIdentifier`; the tool input calls it `actor`. */
-function toBridge<T extends { actor: string }>(
-  parsed: T
-): Omit<T, 'actor'> & { actorIdentifier: string } {
-  const { actor, ...rest } = parsed;
-  return { ...rest, actorIdentifier: actor };
-}
-
 // ---------------------------------------------------------------------------
 // Options interface
 // ---------------------------------------------------------------------------
@@ -138,7 +131,6 @@ export class DnD5eAddFeatureTool {
           '- spellcasting: slots and casting ability, run before "spells": spellcastingClass, spellcastingLevel\n' +
           '- spells: import named spells from the compendium: spellNames (English, max 50)\n' +
           'Find the actor with list-characters or get-character.',
-
         inputSchema: {
           type: 'object',
           properties: {

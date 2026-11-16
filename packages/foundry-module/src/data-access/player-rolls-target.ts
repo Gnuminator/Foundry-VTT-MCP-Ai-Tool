@@ -1,7 +1,7 @@
 /** Resolving a roll-request target (a player user and/or character) and the whisper recipients. */
 
 /** Outcome of resolving a roll-request target (a player user and/or character). */
-export interface ResolveResult {
+interface ResolveResult {
   found: boolean;
   user?: User;
   character?: Actor;
@@ -122,7 +122,7 @@ export function resolveTargetPlayer(targetPlayer: string): ResolveResult {
 }
 
 /** Several partial matches: not found, with the candidates and ids so the caller can pick. */
-export function ambiguousTarget(targetPlayer: string, candidates: string[]): ResolveResult {
+function ambiguousTarget(targetPlayer: string, candidates: string[]): ResolveResult {
   const shown = candidates.slice(0, 10).join(', ');
   const more = candidates.length > 10 ? `, ...(+${candidates.length - 10} more)` : '';
   return {
@@ -134,7 +134,7 @@ export function ambiguousTarget(targetPlayer: string, candidates: string[]): Res
 }
 
 /** Resolve a matched user: PLAYER_OFFLINE when inactive, else found (with owned character). */
-export function resultForUser(user: User): ResolveResult {
+function resultForUser(user: User): ResolveResult {
   if (!user.active) {
     return {
       found: false,

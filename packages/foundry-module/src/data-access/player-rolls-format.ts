@@ -128,7 +128,7 @@ export function getSkillCode(skillName: string): string {
 }
 
 /** An ability's or skill's name in words ("Dexterity", "Perception") from dnd5e's config, else a readable fallback. */
-export function rollTargetName(rollType: string, rollTarget: string): string {
+function rollTargetName(rollType: string, rollTarget: string): string {
   const config = rec(rec((globalThis as { CONFIG?: unknown }).CONFIG)?.DND5E);
   const label = (v: unknown): string | undefined => {
     const l = rec(v)?.label;

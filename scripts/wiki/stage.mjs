@@ -77,9 +77,15 @@ export const PLAYER_FOUNDRY = [
   'measuring-and-templates',
   'glossary',
 ];
-const playerFoundryPath = repoPath => {
-  const m = /^docs\/foundry\/([a-z0-9-]+)\.md$/.exec(repoPath);
-  return m && PLAYER_FOUNDRY.includes(m[1]) ? `player/foundry/${m[1]}.md` : null;
+/**
+ * Where the player copy of a Foundry basics page goes, or null when the player side has no copy.
+ * The Danish twins of these pages (docs/da/foundry/, see docs/da/README.md) go to da/player/foundry/
+ * only: the Danish GM side keeps showing the English Foundry basics.
+ */
+export const playerFoundryPath = repoPath => {
+  const m = /^docs\/(da\/)?foundry\/([a-z0-9-]+)\.md$/.exec(repoPath);
+  if (!m || !PLAYER_FOUNDRY.includes(m[2])) return null;
+  return `${m[1] ? 'da/' : ''}player/foundry/${m[2]}.md`;
 };
 const GM_LABEL = '<p class="audience audience-gm">For the GM</p>';
 const GM_LABEL_DA = '<p class="audience audience-gm">Til GM\'en</p>';
@@ -146,7 +152,7 @@ const SIDEBAR = [
   { label: 'Foundry basics for players', pages: [], rest: 'player/foundry' },
 ];
 const LAST_GROUP = 'More guides';
-/** The Danish name of each sidebar group and of the overview links (the Foundry basics stay English). */
+/** The Danish name of each sidebar group and of the overview links ("Foundry basics" stays English). */
 const DA_LABELS = {
   'Player or GM?': 'Spiller eller GM?',
   'Start here': 'Kom i gang',
@@ -230,7 +236,7 @@ export function stripOffSideLinks(text, repoPath) {
         return match;
       const file = target.split('#')[0];
       const resolved = path.posix.normalize(path.posix.join(path.posix.dirname(repoPath), file));
-      return /^docs\/(gm|foundry)\/.+\.md$/.test(resolved) && !playerFoundryPath(resolved)
+      return /^docs\/(da\/)?(gm|foundry)\/.+\.md$/.test(resolved) && !playerFoundryPath(resolved)
         ? label
         : match;
     }
@@ -515,6 +521,12 @@ function main() {
     for (const f of readdirSync(path.join(repo, s.from)).filter(n => n.endsWith('.md'))) {
       stagePage(`${s.from}/${f}`, images);
     }
+  }
+  // The Danish Foundry basics for players (da/player/foundry/); a page with no twin falls back to
+  // the English page, as before.
+  for (const name of PLAYER_FOUNDRY) {
+    const twin = `docs/da/foundry/${name}.md`;
+    if (existsSync(path.join(repo, twin))) stagePage(twin, images, true);
   }
 
   for (const img of images) {

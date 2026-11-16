@@ -30,15 +30,21 @@ export function openStep(doneWhen) {
   const patterns = [
     // anchored to release and repo-setting shapes: loose words ("published", "tag field") close normally
     [
-      /\b(?:git tag|tag(?:ged)? v?\d+\.\d+|tagged and publish|tag the release|release tag)/i,
+      /\b(?:git tag|tag(?:ged)?\b.{0,40}\b(?:release|v?\d+\.\d+|publish)|(?:release|version) tag)/i,
       'a tag',
     ],
-    [/\bpublish(?:ed)? (?:on|to) (?:GitHub|npm|the release)|\bpublish the release\b/i, 'a publish'],
     [
-      /\b(?:main )?ruleset (?:has|gets|needs)\b|\bmerge_queue rule\b|\bbranch protection (?:change|rule|setting)/i,
+      /\b(?:release|installer|package|build)\b.{0,30}\bpublish|\bpublish(?:ed)?\b.{0,30}\b(?:release|installer|GitHub|npm)/i,
+      'a publish',
+    ],
+    [
+      /\bruleset\b.{0,40}\b(?:has|gets|needs|requires|updated|change|merge[ _]queue)|\bmerge[ _]queue\b.{0,30}\bruleset|\bmerge_queue rule\b|\bbranch protection\b.{0,20}\b(?:change|rule|setting|update|requires)/i,
       'a ruleset change',
     ],
-    [/\bthe user(?:'s)? (?:OK|go|approval)\b|\buser OK\b|\bthe user says go\b/i, "the user's OK"],
+    [
+      /\b(?:the )?user(?:'s)?\s+(?:says\s+|gives\s+the\s+)?(?:OK|go|approv\w*)\b|\buser OK\b|\bapproval from the user\b/i,
+      "the user's OK",
+    ],
   ];
   for (const [re, name] of patterns) if (re.test(text)) return name;
   return '';

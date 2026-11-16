@@ -18,6 +18,24 @@ test('openStep: release and repo-setting shapes keep the item open', () => {
   assert.equal(openStep('done once the user OK arrives'), "the user's OK");
 });
 
+test('openStep: wider wording of the same steps still keeps the item open', () => {
+  for (const [t, want] of [
+    ['v0.29.2 is tagged, the release is published and the installer attached', 'a tag'],
+    ['tag pushed and release published', 'a tag'],
+    ['publish the installer', 'a publish'],
+    ['published as a GitHub release', 'a publish'],
+    ['the ruleset requires a merge queue', 'a ruleset change'],
+    ['merge queue enabled on the ruleset', 'a ruleset change'],
+    ['branch protection now requires CI', 'a ruleset change'],
+    ['the user gives the OK', "the user's OK"],
+    ['user says OK', "the user's OK"],
+    ['the user approves', "the user's OK"],
+    ['user approval', "the user's OK"],
+  ]) {
+    assert.equal(openStep(t), want, t);
+  }
+});
+
 test('openStep: ordinary done-when text closes on the merge', () => {
   for (const t of [
     'markDone keeps the item open; a test covers it; Sonnet review plus CI',
@@ -43,6 +61,6 @@ test('openLeft: a Pi run or Waiting blocker wins over a done-when step; nothing 
   assert.match(openLeft(pi, 5), /Pi run or Waiting step/);
   const wait = new Map([['blocked by', ['W12 (the user)']]]);
   assert.match(openLeft(wait, 5), /--pi-run/);
-  assert.match(openLeft(new Map([['done when', ['tagged and publish']]]), 5), /names a tag/);
+  assert.match(openLeft(new Map([['done when', ['tagged and publish']]]), 5), /still names a tag:/);
   assert.equal(openLeft(new Map([['done when', ['tests pass']]]), 5), '');
 });

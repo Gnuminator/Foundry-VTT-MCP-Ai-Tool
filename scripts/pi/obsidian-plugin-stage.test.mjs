@@ -79,17 +79,6 @@ describe('the Syncthing ignore lists on the Pi and the PC', () => {
     assert.doesNotMatch(pc, /!\.obsidian\/plugins\/foundry-ai-tool\/data\.json|!\.obsidian\/plugins\/foundry-ai-tool\/\*/);
     assert.doesNotMatch(stage, /^!\.obsidian\/plugins\/foundry-ai-tool\/(data\.json|\*)/m);
   });
-
-  test('the guides carry the same lines, English and Danish', () => {
-    for (const p of ['docs/gm/setup-obsidian-sync.md', 'docs/da/gm/setup-obsidian-sync.md']) {
-      const t = read(p);
-      for (const l of INCLUDES) assert.ok(t.includes(l), `${p} has ${l}`);
-      assert.ok(
-        t.indexOf(INCLUDES[0]) < t.indexOf('\n   .obsidian/plugins\n'),
-        `${p}: includes above the plugins line`
-      );
-    }
-  });
 });
 
 describe(

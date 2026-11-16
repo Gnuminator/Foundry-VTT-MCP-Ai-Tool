@@ -222,7 +222,12 @@ export const CHECKS = [
   nodeTest('pi-join-page-look', 'pi', 'scripts/pi/join-page-look.test.mjs'),
   nodeTest('pi-vault-sync', 'pi', 'scripts/pi/vault-sync.test.mjs'),
   nodeTest('pi-gm-vault-peers', 'pi', 'scripts/pi/gm-vault-peers.test.mjs'),
-  nodeTest('pi-obsidian-plugin-stage', 'pi', 'scripts/pi/obsidian-plugin-stage.test.mjs'),
+  nodeTest(
+    'pi-obsidian-plugin-stage',
+    'pi',
+    'scripts/pi/obsidian-plugin-stage.test.mjs',
+    'scripts/pi/obsidian-plugin-guides.test.mjs'
+  ),
   nodeTest('pi-player-vault', 'pi', 'scripts/pi/player-vault.test.mjs'),
   nodeTest(
     'pi-seven-books',

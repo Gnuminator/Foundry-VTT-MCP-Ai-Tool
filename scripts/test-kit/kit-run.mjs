@@ -50,6 +50,9 @@ Usage: npm run kit:run -- [options]
   --wait <minutes>         when the lock is taken: queue and wait this long (default 0: give up)
   --nightly                the overnight run: --size full, --wait 120, a skipped run is recorded,
                            and a kit run lock older than 7 hours (a killed run) is taken over
+  --daily                  with --nightly, for a PC that is not on all night (logon trigger): does
+                           nothing when a run already finished today (local date), so the task
+                           can fire at every logon
   --session <id>           the lock's session id (default KIT_RUN_SESSION, else kit-run-<time>);
                            pass your own when you already hold the lock, it is then kept
   --holder <name>          the name on the lock (default "kit run")
@@ -66,6 +69,7 @@ export function parseArgs(argv) {
     server: DEFAULT_SERVER,
     wait: null,
     nightly: false,
+    daily: false,
     session: process.env.KIT_RUN_SESSION || null,
     holder: 'kit run',
     build: true,
@@ -87,6 +91,7 @@ export function parseArgs(argv) {
     else if (a === '--server') o.server = value(a).toUpperCase();
     else if (a === '--wait') o.wait = Number(value(a));
     else if (a === '--nightly') o.nightly = true;
+    else if (a === '--daily') o.daily = o.nightly = true;
     else if (a === '--session') o.session = value(a);
     else if (a === '--holder') o.holder = value(a);
     else if (a === '--no-build') o.build = false;
@@ -331,6 +336,17 @@ export function updateNote(text, row) {
   return `${NOTE_HEAD}${[row, ...rows].slice(0, MAX_ROWS).join('\n')}\n`;
 }
 
+/** True when last-run.json holds a run that got as far as a report and started on `day`'s local date. */
+export function ranToday(home, day) {
+  try {
+    const doc = JSON.parse(readFileSync(path.join(home, 'last-run.json'), 'utf8'));
+    const at = doc?.lastRun?.at;
+    return Boolean(at) && stamp(new Date(at)).slice(0, 8) === stamp(day).slice(0, 8);
+  } catch {
+    return false;
+  }
+}
+
 /** <kit home>/last-run.json: the last attempt, and the last run that got as far as a report. */
 export function writeLastRun(home, r) {
   const file = path.join(home, 'last-run.json');
@@ -429,6 +445,10 @@ export async function kitRun(o, deps = {}) {
   // An unknown profile stops here, before the lock and without a record.
   const profile = loadProfile(o.profile);
   const started = now();
+  if (o.daily && ranToday(home, started)) {
+    log('a kit run already finished today; nothing to do (--daily)');
+    return { code: 0, result: { state: 'already' } };
+  }
   const session = o.session || `kit-run-${stamp(started)}`;
   const base = {
     at: started.toISOString(),

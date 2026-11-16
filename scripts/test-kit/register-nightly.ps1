@@ -1,18 +1,22 @@
 # Registers (or removes) the overnight kit run as a Windows scheduled task (D-102 line 5).
 #
-#   pwsh scripts/test-kit/register-nightly.ps1                 every night at 03:30
-#   pwsh scripts/test-kit/register-nightly.ps1 -At 04:00
+#   pwsh scripts/test-kit/register-nightly.ps1                 at every logon, 10 minutes after it
+#   pwsh scripts/test-kit/register-nightly.ps1 -At 03:30       every day at a fixed time instead
 #   pwsh scripts/test-kit/register-nightly.ps1 -WhatIf         show what it would register
 #   pwsh scripts/test-kit/register-nightly.ps1 -Remove
 #
 # The task "Foundry AI Tool kit run" runs `kit-run.mjs --nightly` in the main checkout with the
 # portable Node 24, only while you are logged on (no stored password), in a hidden console, and
 # appends its output to <kit home>\nightly.log. It tests the main checkout as it is: pull main
-# there to test the newest. A PC that is asleep, off or logged off at that time skips the night;
-# a missed run is not started later (it could stop a test server you are using during the day).
+# there to test the newest.
+# This PC is not on all night, so the default trigger is the logon, with `--daily`: a run that
+# already finished today makes the task do nothing, so it runs at most once a day. It uses test
+# server B's lock and waits up to 2 hours for it; when a lane still holds B it records a skipped
+# run (last-run.json says so) and the next logon tries again. With -At the task runs at that time
+# and a PC that is off then skips the day (no catch-up, it could stop a server you are using).
 [CmdletBinding(SupportsShouldProcess)]
 param(
-  [string]$At = '03:30',
+  [string]$At,
   [switch]$Remove
 )
 . (Join-Path $PSScriptRoot '..' 'test-env' 'config.ps1')
@@ -37,19 +41,26 @@ if (-not (Test-Path $script)) { throw "No $script in the main checkout; merge th
 $node = Get-NodeExe
 $kitHome = if ($env:TEST_KIT_HOME) { $env:TEST_KIT_HOME } else { 'C:\FoundryTest\test-kit' }
 $log = Join-Path $kitHome 'nightly.log'
-
 # conhost --headless: the console exists (the kit run still gets Ctrl+Break and close signals)
-# but no window opens at night.
-$command = "`"$node`" `"$script`" --nightly >> `"$log`" 2>&1"
+# but no window opens.
+$flag = if ($At) { '--nightly' } else { '--daily' }
+$command = "`"$node`" `"$script`" $flag >> `"$log`" 2>&1"
 $action = New-ScheduledTaskAction -Execute 'conhost.exe' `
   -Argument "--headless cmd.exe /d /s /c `"$command`"" -WorkingDirectory $repo
-$trigger = New-ScheduledTaskTrigger -Daily -At $At
-$settings = New-ScheduledTaskSettingsSet -DontStopIfGoingOnBatteries `
+if ($At) {
+  $trigger = New-ScheduledTaskTrigger -Daily -At $At
+  $when = "every day at $At"
+} else {
+  $trigger = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\$env:USERNAME"
+  $trigger.Delay = 'PT10M'
+  $when = 'at every logon (10 minutes after it, once a day)'
+}
+$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
   -ExecutionTimeLimit (New-TimeSpan -Hours 6) -MultipleInstances IgnoreNew
 $principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive
-if ($PSCmdlet.ShouldProcess($name, "Register: every day at $At, $script --nightly, log $log")) {
+if ($PSCmdlet.ShouldProcess($name, "Register: $when, $script $flag, log $log")) {
   New-Item -ItemType Directory -Force $kitHome | Out-Null
   Register-ScheduledTask -TaskName $name -Action $action -Trigger $trigger -Settings $settings `
-    -Principal $principal -Description 'Foundry AI Tool: the nightly test kit run (npm run kit:run -- --nightly).' -Force | Out-Null
-  Write-Host "Registered '$name': every day at $At, $script --nightly, log $log."
+    -Principal $principal -Description "Foundry AI Tool: the test kit run (kit-run.mjs $flag)." -Force | Out-Null
+  Write-Host "Registered '$name': $when, $script $flag, log $log."
 }

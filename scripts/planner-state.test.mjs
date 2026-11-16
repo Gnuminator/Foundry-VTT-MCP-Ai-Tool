@@ -6,6 +6,7 @@ import test from 'node:test';
 import {
   ciState,
   dueWaiting,
+  kitLine,
   ledgerLines,
   mainLine,
   newestNote,
@@ -207,4 +208,32 @@ test('plannerSections assembles every section from a vault dir and a fake gh', (
   fs.rmSync(path.join(dev, 'Waiting.md'));
   const gone = plannerSections({ devDir: dev, backlog: '', today: '2026-11-12', gh: () => null });
   assert.ok(gone.includes('Waiting due: not readable'));
+});
+
+test('kitLine reports the last run, its age, failures, staleness and a later skip', () => {
+  const now = Date.parse('2026-11-17T12:00:00Z');
+  const ran = {
+    at: '2026-11-17T09:00:00Z',
+    finishedAt: '2026-11-17T09:30:00Z',
+    git: 'abc1234',
+    text: 'FAILED: 1 of 25 failed, 24 passed (26 min)',
+    state: 'failed',
+    failing: ['bridge-health'],
+  };
+  const doc = { version: 1, last: ran, lastRun: ran };
+  const line = kitLine(JSON.stringify(doc), now);
+  assert.match(line, /last run FAILED: 1 of 25.*, 3 h ago, on abc1234; failing: bridge-health/);
+  assert.doesNotMatch(line, /STALE/);
+  assert.match(kitLine(JSON.stringify(doc), now + 40 * 3600000), /STALE/);
+  const skipped = {
+    at: '2026-11-17T11:00:00Z',
+    state: 'skipped',
+    text: 'skipped: the lock was not free',
+  };
+  assert.match(
+    kitLine(JSON.stringify({ version: 1, last: skipped, lastRun: ran }), now),
+    /latest attempt: skipped: the lock was not free \(1 h ago\)/
+  );
+  assert.match(kitLine(null, now), /no last-run\.json yet/);
+  assert.match(kitLine('{bad', now), /no last-run\.json yet/);
 });

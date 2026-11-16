@@ -228,11 +228,20 @@ environment was not ready, 3 the lock was not free. An on-demand run that found 
 leaves no record. Run it from a checkout with its own `npm ci` (the main checkout for the nightly
 run); it tests that checkout's code.
 
-**Overnight:** `pwsh scripts/test-kit/register-nightly.ps1` registers the Windows scheduled task
-"Foundry AI Tool kit run" (every night at 03:30, `-At 04:00` for another time, `-Remove` to take
-it away, `-WhatIf` to see what it would register). It runs `kit-run.mjs --nightly` in the main
-checkout with the portable Node 24 while you are logged on, in a hidden console, and appends its
-output to `<kit home>\nightly.log`. A PC that is asleep, off or logged off at that time skips the
-night; a missed run is not started later, so it never stops a test server you use during the day.
+**Once a day:** `pwsh scripts/test-kit/register-nightly.ps1` registers the Windows scheduled task
+"Foundry AI Tool kit run" (`-Remove` to take it away, `-WhatIf` to see what it would register).
+This PC is not on all night, so by default the task fires 10 minutes after every logon and runs
+`kit-run.mjs --daily`: the full nightly kit run, but it does nothing when a run already finished
+today, so it runs at most once a day. It takes test server **B**'s lock (A stays free for lanes),
+waits up to 2 hours when a lane holds it, then records a skipped run and the next logon tries
+again. It runs in the main checkout with the portable Node 24, in a hidden console, and appends
+its output to `<kit home>\nightly.log`. `-At 03:30` registers a fixed daily time instead (a PC that
+is off then skips the day; a missed run is not started later).
+
+**Reading the result:** `<kit home>\last-run.json` has `last` (the latest attempt, including a
+skip) and `lastRun` (the latest run that got to a report: `state`, `passed`, `failed`, `failing`
+scenario ids, `at`, `git`, `reportDir`). `node scripts/backlog.mjs status --planner` prints it as
+one "Nightly kit:" line (result, age, failing ids, `STALE` after 36 hours, a later skip), so the
+planner reads it at each sitting.
 The task stops a run after 6 hours without warning, which leaves its lock behind: the next nightly
 run takes over a kit run lock older than 7 hours, and the start alerts hook shows it until then.

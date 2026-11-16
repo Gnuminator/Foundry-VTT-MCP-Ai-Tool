@@ -9,7 +9,7 @@
     "packages/foundry-module/src/export-index.ts": 1433,
     "packages/foundry-module/src/npc-turn.ts": 1158,
     "packages/foundry-module/src/play-recorder.ts": 2131,
-    "packages/foundry-module/src/queries.ts": 1824,
+    "packages/foundry-module/src/queries.ts": 1805,
     "packages/foundry-module/src/session-events.ts": 1301,
     "packages/mcp-server/src/change-history.ts": 1443,
     "packages/mcp-server/src/guarded-write/service.ts": 1543,

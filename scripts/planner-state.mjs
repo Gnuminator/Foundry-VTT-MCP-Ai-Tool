@@ -252,9 +252,50 @@ export function ledgerLines(lowsDir, today) {
     : `Lows ledgers over ${LEDGER_LIMIT} lines: none`;
 }
 
+export const KIT_STALE_HOURS = 36;
+
+/**
+ * One line on the nightly kit run, from `<kit home>/last-run.json`: the last run that got as far
+ * as a report (result, age, failing scenarios) and the last attempt when it was a skip or error.
+ * @param {string | null} json the file's text, null when unreadable @param {number} nowMs
+ */
+export function kitLine(json, nowMs) {
+  /** @type {any} */
+  let doc;
+  try {
+    doc = json === null ? null : JSON.parse(json);
+  } catch {
+    doc = null;
+  }
+  if (json === null)
+    return 'Nightly kit: no last-run.json yet (the task has not run, or register-nightly.ps1 is not registered)';
+  if (!doc?.last) return 'Nightly kit: last-run.json is unreadable';
+  const age = (/** @type {any} */ e) => {
+    const t = Date.parse(e?.finishedAt || e?.at || '');
+    return Number.isFinite(t) ? `${Math.max(0, Math.round((nowMs - t) / 3600000))} h ago` : 'age unknown';
+  };
+  const hours = (/** @type {any} */ e) => {
+    const t = Date.parse(e?.finishedAt || e?.at || '');
+    return Number.isFinite(t) ? (nowMs - t) / 3600000 : null;
+  };
+  const ran = doc.lastRun;
+  const parts = [];
+  if (ran) {
+    const fail = ran.failing?.length ? `; failing: ${ran.failing.slice(0, 5).join(', ')}` : '';
+    parts.push(`last run ${ran.text ?? ran.state}, ${age(ran)}, on ${ran.git}${fail}`);
+    const h = hours(ran);
+    if (h !== null && h > KIT_STALE_HOURS) parts.push(`STALE (over ${KIT_STALE_HOURS} h)`);
+  } else {
+    parts.push('no run has finished yet');
+  }
+  if (doc.last.state !== 'passed' && doc.last.state !== 'failed')
+    parts.push(`latest attempt: ${doc.last.text ?? doc.last.state} (${age(doc.last)})`);
+  return `Nightly kit: ${parts.join('; ')}`;
+}
+
 /**
  * The extra sections of `status --planner`.
- * @param {{ devDir: string, backlog: string, today: string, gh?: (a: string[]) => any }} o
+ * @param {{ devDir: string, backlog: string, today: string, gh?: (a: string[]) => any, kitHome?: string, nowMs?: number }} o
  */
 export function plannerSections(o) {
   const gh = o.gh ?? ghJson;
@@ -296,6 +337,19 @@ export function plannerSections(o) {
     trainLine(read('Merge train.md') ?? ''),
     mainLine(runs?.[0] ?? null),
     ledgerLines(path.join(o.devDir, 'Lows'), o.today),
+    kitLine(
+      (() => {
+        try {
+          return fs.readFileSync(
+            path.join(o.kitHome ?? process.env.TEST_KIT_HOME ?? 'C:\\FoundryTest\\test-kit', 'last-run.json'),
+            'utf8'
+          );
+        } catch {
+          return null;
+        }
+      })(),
+      o.nowMs ?? Date.now()
+    ),
     (() => {
       const w = read('Waiting.md');
       return w === null ? 'Waiting due: not readable' : dueWaiting(w, o.today);

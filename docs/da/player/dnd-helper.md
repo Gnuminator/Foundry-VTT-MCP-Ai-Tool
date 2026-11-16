@@ -1,6 +1,6 @@
 ---
 source: player/dnd-helper.md
-sourceHash: 41e8a06470ad
+sourceHash: 8cdc6df60024
 title: D&D-hjælperen til spillere
 description: Installer Claude Desktop og din Foundry-spillerconnector, og lav, level op og tjek så din egen karakter og slå regler op, trin for trin.
 ---
@@ -29,8 +29,9 @@ udgangspunkt ved Claude ikke noget om vores spil. To små dele ændrer det:
   fortæller serveren, hvem du er, så du ser din egen karakter og ingen andres. I filen, du henter
   fra din side, ligger de allerede inde i.
 
-Det, den **gør**: læser dine egne karakterer, læser de bøger, som bordet lader spillere læse, og
-snakker valgene igennem med dig.
+Det, den **gør**: læser dine egne karakterer, læser de bøger, som bordet lader spillere læse,
+læser de handouts, det recap og de quests, GM'en har vist dig, samt dine karakterers play stats,
+og snakker valgene igennem med dig.
 
 Det, den **aldrig gør**: ændrer noget. Den kan ikke redigere dit ark, rulle terninger, flytte en
 token eller sende en besked i spillet. Du laver selv alle ændringer ved at klikke i Foundry, og
@@ -112,7 +113,7 @@ installér den på samme måde, og når en formular spørger, så indsæt dit **
 felt og din **Client Secret** i det andet (**My character**-siden har begge med kopiér-knapper).
 
 For at tjekke, at det virker, så åbn en ny chat og klik på **+** eller værktøjsikonet ved
-beskedfeltet. Du skulle gerne se **Foundry** (eller **foundry-player**) med seks tools (de fem
+beskedfeltet. Du skulle gerne se **Foundry** (eller **foundry-player**) med otte tools (de syv
 bordtools og **get-helper-guide**). Gør du det, sidder stikket i. Hjælperens instrukser følger med
 extension, så du skulle ikke behøve at tilføje en skill eller slå Code execution til. Følger Claude
 ikke hjælperens trin, så se Fejlfinding.
@@ -220,6 +221,8 @@ ikke siden.
 Det er med vilje, og det beskytter også historien.
 
 - **Kun dine karakterer.** Ikke andre spilleres karakterer, ikke monsters, ikke GM'ens noter.
+- **Kun det, GM'en har vist dig.** Handouts, recappet og quests er de samme som på din
+  spillerside; en handout til en anden spiller forbliver skjult.
 - **Kun de bøger, bordet lader spillere se.** Ikke eventyret, ikke GM'ens bøger. Spørger du om
   historien, et sted, en NPC eller det, GM'en har planlagt, siger den, at den ikke kan se det.
   Spørg GM'en.

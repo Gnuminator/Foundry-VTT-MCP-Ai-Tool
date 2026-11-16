@@ -46,13 +46,13 @@ export function buildGuide() {
       // Relative links between the public guides mean nothing to the model: name the topic instead.
       .replace(/\[([^\]]+)\]\((join|make-a-character)\.md\)/g, '$1 (the "$2" topic)')
       .replace(/\[([^\]]+)\]\(README\.md\)/g, '$1');
-  const from = 'These five tools are all of them. Do not look for others,';
+  const from = 'These seven tools are all of them. Do not look for others,';
   if (!skill.includes(from)) throw new Error('guide: the tools sentence in SKILL.md changed');
   const body = skill
     .slice(0, cut)
     .replace(
       from,
-      'These five tools, plus `get-helper-guide` (this guide), are all of them. Do not look for others,'
+      'These seven tools, plus `get-helper-guide` (this guide), are all of them. Do not look for others,'
     )
     .trimEnd();
   const topics = [...files.keys()].filter(n => n.startsWith('references/')).map(topicOf);

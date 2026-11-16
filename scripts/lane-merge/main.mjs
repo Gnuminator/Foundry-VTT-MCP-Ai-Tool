@@ -38,6 +38,7 @@ import { refusedBecause, mainModules, sameGate } from './relaunch.mjs';
 import { runDrift } from './drift.mjs';
 import { liveCheckProblem } from './live-check.mjs';
 import { mainRedCheck } from './main-red.mjs';
+import { visualAcceptProblem } from './visual-accept.mjs';
 
 /** @import { Run } from './run.mjs' */
 /** @import { TrainState, TrainEvent } from './train.mjs' */
@@ -194,7 +195,7 @@ export function main(options = {}) {
       release?.();
     }
     log(
-      `lane:merge: merge train reset at ${short(tipSha)}; merge train ${keptSince.length}/${TRAIN_SIZE}${keptSince.length ?' (still queued, not on main yet)' : ''}`
+      `lane:merge: merge train reset at ${short(tipSha)}; merge train ${keptSince.length}/${TRAIN_SIZE}${keptSince.length ? ' (still queued, not on main yet)' : ''}`
     );
     const resetWarning = recordTrain(
       { lastRoundtrip: { sha: tipSha, at: now().toISOString() }, since: keptSince },
@@ -494,6 +495,12 @@ export function main(options = {}) {
   // d2. Module and Pi PRs state their live check in the description.
   const liveCheck = liveCheckProblem(files, String(pr.body ?? ''));
   if (liveCheck) failures.push(liveCheck);
+
+  // d2b. Dashboard story shots that differ from main need an accepting line in the review note.
+  if (!failures.some(f => f.startsWith('ci:'))) {
+    const visual = visualAcceptProblem({ run, rollup, head, reviews: reviews ?? [] });
+    if (visual) failures.push(visual);
+  }
 
   // d3. Main itself must be green, unless this PR says it unblocks main.
   const mainRed = mainRedCheck(run, String(pr.body ?? ''));

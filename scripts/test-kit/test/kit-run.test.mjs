@@ -108,6 +108,66 @@ test('parseArgs: on-demand defaults and the nightly preset', () => {
   assert.throws(() => parseArgs(['--bogus']), /unknown option/);
 });
 
+test('--daily is a nightly run that does nothing when a run finished today', async () => {
+  const d = parseArgs(['--daily']);
+  assert.equal(d.nightly, true);
+  assert.equal(d.size, 'full');
+  const t = setup({}, { opts: d });
+  try {
+    // first logon of the day: runs and records
+    const first = await kitRun(t.o, t.deps);
+    assert.equal(first.code, 0);
+    const calls = t.fake.calls.length;
+    // a second logon the same day: nothing happens, nothing is recorded
+    const again = await kitRun(t.o, t.deps);
+    assert.equal(again.code, 0);
+    assert.equal(again.result.state, 'already');
+    assert.equal(t.fake.calls.length, calls);
+    // the next day it runs again
+    const next = new Date(t.deps.now().getTime() + 24 * 3600000);
+    await kitRun(t.o, { ...t.deps, now: () => next, state: async () => UP });
+    assert.ok(t.fake.calls.length > calls);
+  } finally {
+    t.cleanup();
+  }
+});
+
+test('--daily: a hand-run smoke run today does not count as the daily run', async () => {
+  const t = setup({}, { opts: parseArgs(['--daily']) });
+  try {
+    writeFileSync(
+      path.join(t.home, 'last-run.json'),
+      JSON.stringify({
+        version: 1,
+        last: {},
+        lastRun: { at: t.deps.now().toISOString(), state: 'passed', size: 'smoke', nightly: false },
+      })
+    );
+    const r = await kitRun(t.o, t.deps);
+    assert.notEqual(r.result.state, 'already');
+  } finally {
+    t.cleanup();
+  }
+});
+
+test('--daily: a skipped night does not count as a run, so the next logon tries again', async () => {
+  const t = setup({}, { opts: parseArgs(['--daily']) });
+  try {
+    writeFileSync(
+      path.join(t.home, 'last-run.json'),
+      JSON.stringify({
+        version: 1,
+        last: { at: t.deps.now().toISOString(), state: 'skipped' },
+        lastRun: null,
+      })
+    );
+    const r = await kitRun(t.o, t.deps);
+    assert.notEqual(r.result.state, 'already');
+  } finally {
+    t.cleanup();
+  }
+});
+
 test('parseArgs: kit runs go to test server B unless --server says otherwise', () => {
   assert.equal(parseArgs([]).server, 'B');
   assert.equal(parseArgs(['--server', 'a']).server, 'A');

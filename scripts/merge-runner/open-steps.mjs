@@ -30,19 +30,19 @@ export function openStep(doneWhen) {
   const patterns = [
     // anchored to release and repo-setting shapes: loose words ("published", "tag field") close normally
     [
-      /\b(?:git tag|tag(?:ged)?\b.{0,40}\b(?:release|v?\d+\.\d+|publish)|(?:release|version) tag)/i,
+      /\bgit tag\b|\btagged and publish|\btag the release\b|\btag(?:ged)? v\d+\.\d+\.\d+|\bv?\d+\.\d+\.\d+ is tagged\b|\btag pushed\b/i,
       'a tag',
     ],
     [
-      /\b(?:release|installer|package|build)\b.{0,30}\bpublish|\bpublish(?:ed)?\b.{0,30}\b(?:release|installer|GitHub|npm)/i,
+      /\bpublish(?:ed)?\b.{0,30}\b(?:on|to) (?:GitHub|npm)\b|\b(?:release|installer)\b.{0,20}\b(?:is|are|gets?) publish(?:ed)?\b|\bpublish the (?:release|installer)\b|\brelease published\b/i,
       'a publish',
     ],
     [
-      /\bruleset\b.{0,40}\b(?:has|gets|needs|requires|updated|change|merge[ _]queue)|\bmerge[ _]queue\b.{0,30}\bruleset|\bmerge_queue rule\b|\bbranch protection\b.{0,20}\b(?:change|rule|setting|update|requires)/i,
+      /\bruleset (?:has|gets|needs|requires)\b|\bmerge_queue rule\b|\bbranch protection (?:change|rule|setting|now requires)|\bmerge queue (?:is )?enabled\b.{0,20}\bruleset/i,
       'a ruleset change',
     ],
     [
-      /\b(?:the )?user(?:'s)?\s+(?:says\s+|gives\s+the\s+)?(?:OK|go|approv\w*)\b|\buser OK\b|\bapproval from the user\b/i,
+      /\bthe user (?:says go|says OK|gives the OK|approves)\b|\buser OK arrives\b|\bapproval from the user\b/i,
       "the user's OK",
     ],
   ];

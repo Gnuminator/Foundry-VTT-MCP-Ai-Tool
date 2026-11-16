@@ -23,14 +23,14 @@ test('openStep: wider wording of the same steps still keeps the item open', () =
     ['v0.29.2 is tagged, the release is published and the installer attached', 'a tag'],
     ['tag pushed and release published', 'a tag'],
     ['publish the installer', 'a publish'],
-    ['published as a GitHub release', 'a publish'],
+    ['the release is published on GitHub', 'a publish'],
     ['the ruleset requires a merge queue', 'a ruleset change'],
     ['merge queue enabled on the ruleset', 'a ruleset change'],
     ['branch protection now requires CI', 'a ruleset change'],
     ['the user gives the OK', "the user's OK"],
-    ['user says OK', "the user's OK"],
+    ['the user says OK', "the user's OK"],
     ['the user approves', "the user's OK"],
-    ['user approval', "the user's OK"],
+    ['approval from the user', "the user's OK"],
   ]) {
     assert.equal(openStep(t), want, t);
   }
@@ -46,6 +46,18 @@ test('openStep: ordinary done-when text closes on the merge', () => {
     'no publish needed',
     'CI green; ruleset unchanged',
     'the merge_queue path marks done',
+    'the package build publishes a tarball artifact in CI',
+    'the build publishes events to the bus after release',
+    'package version shown; published field in UI',
+    'release pipeline test: publishes to a fake npm in the test',
+    'the version tag parser handles v1.2 strings',
+    'release tag is parsed from the changelog',
+    'a tag with version 1.2 is rendered in the list',
+    'user approval dialog is shown in the UI',
+    'user go button',
+    'user OK button appears',
+    'branch protection docs are updated',
+    'merge queue status shown on the ruleset page',
     'markDone keeps the item open when done-when names a tag, publish, ruleset change or the user OK',
   ]) {
     assert.equal(openStep(t), '', t);

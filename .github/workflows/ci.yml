@@ -243,6 +243,7 @@ jobs:
         # information and never turns the check red; the committed comparison below still decides.
         id: base
         continue-on-error: true
+        timeout-minutes: 10
         env:
           HUSKY: '0'
           EVENT: ${{ github.event_name }}
@@ -268,6 +269,7 @@ jobs:
         if: steps.base.outcome == 'success'
         id: diff
         continue-on-error: true
+        timeout-minutes: 12
         env:
           VISUAL_BASE_DIR: ${{ runner.temp }}/base/packages/cogm-dashboard/storybook-static
           VISUAL_DIFF_OUT: ${{ github.workspace }}/visual-diff-raw
@@ -342,12 +344,18 @@ jobs:
     if: ${{ !cancelled() && needs.visual-changes.outputs.run == 'true' }}
     runs-on: ubuntu-latest
     name: dashboard-visual-diff (report)${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
-    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      # Every step has its own timeout and continue-on-error (no job timeout: that would turn the
+      # check red); later steps run only when the checkout worked.
+      - id: co
+        continue-on-error: true
+        timeout-minutes: 3
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Download the shard renders
+        if: steps.co.outcome == 'success'
         continue-on-error: true
+        timeout-minutes: 5
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           pattern: dashboard-visual-diff-shard-*
@@ -355,14 +363,17 @@ jobs:
 
       - name: Merge them and write the summary
         id: merge
+        if: steps.co.outcome == 'success'
         continue-on-error: true
+        timeout-minutes: 5
         run: |
           base=$(cat shards/*/base-sha.txt 2>/dev/null | head -n 1)
-          node scripts/visual-diff-report.mjs --out dashboard-visual-diff --base-sha "$base" --head-sha "${{ github.sha }}" --summary "$GITHUB_STEP_SUMMARY" shards/*
+          node scripts/visual-diff-report.mjs --out dashboard-visual-diff --base-sha "$base" --head-sha "${{ github.event.pull_request.head.sha || github.sha }}" --summary "$GITHUB_STEP_SUMMARY" shards/*
 
       - name: Keep the merged diff
         if: steps.merge.outcome == 'success'
         continue-on-error: true
+        timeout-minutes: 5
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: dashboard-visual-diff

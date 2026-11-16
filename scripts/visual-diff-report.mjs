@@ -95,9 +95,12 @@ ${errors}
 }
 
 export function renderSummary(report) {
+  if (report.compared === 0) {
+    return '### Dashboard story shots: no renders found\n\nNo shard produced a two-sided render (the base build or the render failed); nothing was compared.\n';
+  }
   const lines = [`### Dashboard story shots: ${report.count} changed against the base`, ''];
   lines.push(
-    `${report.compared} stories compared (base ${report.baseSha?.slice(0, 8) ?? 'unknown'}, head ${report.headSha?.slice(0, 8) ?? 'unknown'}); ` +
+    `${report.compared} stories compared (base commit ${report.baseSha?.slice(0, 8) || 'unknown'}, tested commit ${report.headSha?.slice(0, 8) || 'unknown'}); ` +
       `${report.changed.length} changed, ${report.added.length} added, ${report.removed.length} removed, ${report.errors.length} could not render. Hash \`${report.hash}\`.`,
     '',
     'The images are in the `dashboard-visual-diff` artifact (open `index.html`).',

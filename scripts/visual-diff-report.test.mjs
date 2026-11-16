@@ -66,6 +66,10 @@ test('no differences: zero count and a plain page', () => {
   assert.match(renderSummary(report), /0 changed against the base/);
 });
 
+test('nothing compared says so instead of 0 changed', () => {
+  assert.match(renderSummary(buildReport([])), /no renders found/);
+});
+
 test('escapes ids in the page', () => {
   const report = buildReport([{ id: '<x>', status: 'added', pixels: 0 }]);
   assert.ok(!renderPage(report).includes('<x>'));

@@ -153,12 +153,19 @@ test('the base and the head Storybook are built', () => {
   expect(headStories.size, 'no stories in the head storybook-static').toBeGreaterThan(0);
 });
 
-for (const id of ids) {
+// With no base stories every story would show as added: render nothing and let the test above say why.
+for (const id of baseStories.size === 0 ? [] : ids) {
   test(`diff: ${id}`, async ({ page }) => {
     const baseStory = baseStories.get(id);
     const headStory = headStories.get(id);
+    test.setTimeout(90_000);
     const entry: Record<string, unknown> = { id, status: 'same', pixels: 0 };
     mkdirSync(path.join(out, 'entries'), { recursive: true });
+    // Provisional entry, overwritten at the end: a timeout still leaves a trace in the report.
+    writeFileSync(
+      path.join(out, 'entries', `${id}.json`),
+      JSON.stringify({ id, status: 'error', error: 'timed out or crashed' })
+    );
     try {
       let before: Buffer | null = null;
       let after: Buffer | null = null;

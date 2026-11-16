@@ -45,8 +45,7 @@ Parameters:
 - `rollType` (string, required): Type of roll to request (ability, skill, save, attack, initiative, custom). One of: `ability`, `skill`, `save`, `attack`, `initiative`, `custom`.
 - `rollTarget` (string, required): An ability (str, dex, con, int, wis, cha), a skill (perception, stealth, ...) or a custom roll formula
 - `targetPlayer` (string, required): Player name or character name to request the roll from
-- `isPublic` (boolean, required): true: everyone sees the roll. false: only the target player and GM.
-- `userConfirmedVisibility` (boolean, required): Must be true. Set it only when the user said "public" or "private" or answered your question about it. Always `true`.
+- `isPublic` (boolean): Default true: everyone sees the roll. false only when asked: just the target player and GM. Default: `true`.
 - `rollModifier` (string): Optional modifier to add to the roll (e.g., "+2", "-1", "+1d4"). Default: `""`.
 - `flavor` (string): Optional flavor text to describe the roll context. Default: `""`.
 - `dc` (integer)
@@ -63,7 +62,7 @@ Parameters:
 - `targetPlayer` (string, required): Player name or character name to request the roll from.
 - `ability` (string, required): Ability to check. One of: `str`, `dex`, `con`, `int`, `wis`, `cha`.
 - `dc` (integer): Optional difficulty class to display with the request.
-- `isPublic` (boolean, required): Whether the roll is public (visible to all) or private (target player + GM only).
+- `isPublic` (boolean): Default true: visible to all. false only when asked: target player + GM only. Default: `true`.
 - `reason` (string): Context for the check, e.g. "Perception check to notice the ambush".
 - `advantage` (string): One of: `advantage`, `disadvantage`.
 
@@ -77,7 +76,7 @@ Parameters:
 
 - `targetPlayer` (string, required): Player name or character name to request the roll from.
 - `weaponOrSpellName` (string, required): Name of the weapon or spell attack.
-- `isPublic` (boolean, required): Whether the roll is public (visible to all) or private (target player + GM only).
+- `isPublic` (boolean): Default true: visible to all. false only when asked: target player + GM only. Default: `true`.
 - `advantage` (string): One of: `advantage`, `disadvantage`.
 
 ## roll-npc-check

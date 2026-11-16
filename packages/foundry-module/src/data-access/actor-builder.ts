@@ -11,7 +11,6 @@ export type {
   AddFeaturesFromCompendiumInput,
   AddSpellsToActorInput,
   CompendiumImportResult,
-  CompendiumImportTarget,
 } from './actor-compendium-import.js';
 import { ActorUseDataAccess } from './actor-use.js';
 import type {

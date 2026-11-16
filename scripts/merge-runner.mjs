@@ -61,7 +61,8 @@
  * differ it fast-forwards the main checkout and runs the runner again as a child, same arguments
  * and output (the scheduled task has no restart count): the first process stays as the parent and
  * starts each new child. A failed update is tried again next round; the third in a row posts one
- * line and exits 3, as do five restarts in a row that each lived under a minute.
+ * line and exits 3, as do five restarts in a row that each lived under a minute. The first process
+ * stays the parent, so a change to this restart contract itself needs a manual Start-ScheduledTask.
  *
  * Exit codes: 0 --once finished, 1 another runner holds the lock, 2 usage, 3 stopped (main red,
  * merge train full, checkout problem, code changed but not updatable, restart loop), 75 a child that
@@ -529,7 +530,7 @@ export function round(d, tried, attempts) {
       d.post(
         `merge runner: #${r.pr} head is already on main (if the PR still reads open, GitHub lost the merge event); marked done, not gated again`
       );
-      markDone(r, true, tip);
+      markDone(r, true, mergedOnGitHub(r.pr) ? '' : tip);
       continue;
     }
     // With a merge queue a main CI run still going holds nothing back: the queue tested this PR on
@@ -541,8 +542,8 @@ export function round(d, tried, attempts) {
       if ('tipWait' in main && main.tipWait) {
         const n = (attempts.get(TIP_WAIT_KEY) ?? 0) + 1;
         attempts.set(TIP_WAIT_KEY, n);
-        if (n === TIP_WAIT_ROUNDS) {
-          // A lost push event (2026-11-14); a dispatched run counts as main's run (mainState).
+        if (n % TIP_WAIT_ROUNDS === 0) {
+          // A lost push event (2026-11-14); a dispatched run counts as main's run (mainState); fired again every N rounds.
           const run = d.gh(['workflow', 'run', 'ci.yml', '-R', REPO, '--ref', 'main']);
           if (run.status === 0) {
             d.log(`${main.why} for ${TIP_WAIT_ROUNDS * 2} minutes; started main's CI`);
@@ -654,7 +655,7 @@ export function round(d, tried, attempts) {
       d.post(
         `merge runner: #${r.pr} landed on main although GitHub answered: ${oneLine(out.reason, 200)}; the PR may still read open and main's tip may get no CI run`
       );
-      markDone(r, true, mainTip());
+      markDone(r, true, mainTip() || tip);
     } else if (out.kind === 'merged') {
       tried.add(key);
       merged.push(r.pr);
@@ -862,7 +863,12 @@ export function takeRunnerLock(file, pid = process.pid, isRunner = isRunnerProce
       // A lock older than the last boot is stale whatever its pid is now (a killed runner leaves
       // it behind, and the pid may belong to a service whose command line cannot be read).
       const bootMs = Date.now() - os.uptime() * 1000;
-      const stale = fs.statSync(file).mtimeMs < bootMs - 60_000;
+      let stale = false;
+      try {
+        stale = fs.statSync(file).mtimeMs < bootMs - 60_000;
+      } catch {
+        // the lock vanished between read and stat; the forced rm below is harmless
+      }
       if (!stale && Number.isInteger(holder) && holder > 0 && holder !== pid && isRunner(holder)) {
         return { ok: false, holder };
       }

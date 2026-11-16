@@ -1,6 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { clientHeaderValue, compareVersions, updateNotice } from './client-update.js';
+import {
+  clientHeaderValue,
+  compareVersions,
+  installUpdateNotice,
+  updateNotice,
+} from './client-update.js';
 import { DashboardClient, type HttpRequest } from './dashboard.js';
 
 describe('client header', () => {
@@ -77,5 +82,104 @@ describe('outdated decision', () => {
       () => null
     );
     expect(await down.clientVersions()).toBeNull();
+  });
+});
+
+type Answer = { current: unknown; obsidianLink: unknown } | null;
+
+function setupNotice(initial: Answer): {
+  state: { shown: boolean; text: string; title: string };
+  calls: { open: string[]; intervals: number };
+  check: () => Promise<void>;
+  setAnswer: (a: Answer) => void;
+  click: () => void;
+} {
+  const calls = { open: [] as string[], intervals: 0 };
+  vi.stubGlobal('window', {
+    open: (url: string) => calls.open.push(url),
+    setInterval: () => {
+      calls.intervals += 1;
+      return 1;
+    },
+  });
+  const state = { shown: false, text: '', title: '' };
+  let click: (() => void) | undefined;
+  let layoutReady: (() => void) | undefined;
+  const el = Object.assign(new EventTarget(), {
+    addClass: () => undefined,
+    hide: () => {
+      state.shown = false;
+    },
+    show: () => {
+      state.shown = true;
+    },
+    setText: (t: string) => {
+      state.text = t;
+    },
+    setAttribute: (name: string, value: string) => {
+      if (name === 'title') state.title = value;
+    },
+  });
+  const host = {
+    manifest: { version: '0.27.0' },
+    addStatusBarItem: (): typeof el => el,
+    registerInterval: (id: number): number => id,
+    registerDomEvent: (_el: EventTarget, _type: 'click', cb: () => void): void => {
+      click = cb;
+    },
+    app: {
+      workspace: {
+        onLayoutReady: (cb: () => void): void => {
+          layoutReady = cb;
+        },
+      },
+    },
+  };
+  let answer = initial;
+  installUpdateNotice(host, { clientVersions: () => Promise.resolve(answer) });
+  return {
+    state,
+    calls,
+    check: async (): Promise<void> => {
+      layoutReady?.();
+      await new Promise(resolve => setTimeout(resolve, 0));
+    },
+    setAnswer: (a: Answer): void => {
+      answer = a;
+    },
+    click: (): void => click?.(),
+  };
+}
+
+describe('installUpdateNotice', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('is hidden at first, shows when behind, and a click opens the link', async () => {
+    const link = 'https://example.org/foundry-ai-tool-obsidian.zip';
+    const t = setupNotice({ current: '0.28.0', obsidianLink: link });
+    expect(t.state.shown).toBe(false);
+    expect(t.calls.intervals).toBe(1);
+    await t.check();
+    expect(t.state.shown).toBe(true);
+    expect(t.state.text).toBe('Foundry AI Tool: opdatering 0.28.0');
+    expect(t.state.title).toContain('Update available');
+    t.click();
+    expect(t.calls.open).toEqual([link]);
+  });
+
+  it('hides again when current or the answer is gone, and a click then does nothing', async () => {
+    const t = setupNotice({ current: '0.28.0', obsidianLink: 'https://example.org/x.zip' });
+    await t.check();
+    expect(t.state.shown).toBe(true);
+    t.setAnswer({ current: '0.27.0', obsidianLink: null });
+    await t.check();
+    expect(t.state.shown).toBe(false);
+    t.click();
+    expect(t.calls.open).toEqual([]);
+    t.setAnswer(null);
+    await t.check();
+    expect(t.state.shown).toBe(false);
   });
 });

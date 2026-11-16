@@ -41,7 +41,7 @@ Two small things that save trouble:
 - **A step can show a blank panel for about 5 seconds** after you click **Complete**. Nothing is
   wrong. Wait for the next step to appear and don't click again.
 
-> **Not sure? Ask Claude.** Ask the D&D helper: "I am new to D&D. What kind of character fits how I like to play?" ([how to set up the D&D helper](dnd-helper.md))
+> **Not sure? Ask Claude.** Ask the D&D helper: "I am new to D&D. What kind of character fits how I like to play?"
 
 ## 1. Open Actor Studio
 

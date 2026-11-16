@@ -371,6 +371,12 @@ test('isMerged: the three false positives of 2026-11-12 are not merged, the two 
   assert.equal(isMerged(itemWith(['2026-10-28 PR #301 MERGED at ad13367 after rounds'])), true);
 });
 
+test('isMerged: an older merged line does not count when the newest line is not merged', () => {
+  const newestFirst = ['2026-11-12 reopened, PR #9 in review', '2026-11-01 PR #5 merged'];
+  assert.equal(isMerged(itemWith(newestFirst)), false);
+  assert.equal(isMerged(itemWith([...newestFirst].reverse())), false);
+});
+
 test('newestProgress reads the newest date, not the last line; an undated line is oldest', () => {
   const i = itemWith(['2026-11-12 PR #5 merged', '2026-11-01 PR #4 ready', 'no date']);
   assert.equal(newestProgress(i), '2026-11-12 PR #5 merged');

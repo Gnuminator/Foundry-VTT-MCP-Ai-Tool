@@ -28,7 +28,8 @@ describe('committed screenshots', () => {
   it('hold story shots only, no page shot', () => {
     const stray = filesBelow(root)
       .map(file => path.relative(root, file).split(path.sep).join('/'))
-      .filter(rel => !(rel.startsWith('stories/') && rel.endsWith('.png')));
+      // A story id is `<title>--<story>`, so a PNG in stories/ without `--` is a page shot in disguise.
+      .filter(rel => !(rel.startsWith('stories/') && rel.endsWith('.png') && rel.includes('--')));
     expect(
       stray,
       'page shots are not committed (they are the CI artifact dashboard-page-shots-N); delete these from web/visual/__screenshots__/'

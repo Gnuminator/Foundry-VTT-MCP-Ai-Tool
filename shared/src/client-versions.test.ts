@@ -1,6 +1,9 @@
+import { readFileSync } from 'node:fs';
+
 import { describe, expect, it } from 'vitest';
 
 import {
+  CLIENT_HEADER,
   cleanClientVersion,
   clientDownloadUrl,
   clientNoticeText,
@@ -10,6 +13,23 @@ import {
   parseClientHeader,
   playerExtensionVersion,
 } from './client-versions.js';
+
+describe('client identifiers match the installed pieces', () => {
+  const read = (rel: string): string => readFileSync(new URL(rel, import.meta.url), 'utf8');
+
+  it('the Obsidian plugin sends the shared header name and obsidian/<version>', () => {
+    const plugin = read('../../packages/obsidian-plugin/src/client-update.ts');
+    expect(plugin).toContain(`CLIENT_HEADER = '${CLIENT_HEADER}'`);
+    expect(plugin).toContain('`obsidian/${version}`');
+    expect(parseClientHeader('obsidian/0.28.0')).toEqual({ piece: 'obsidian', version: '0.28.0' });
+  });
+
+  it('the player extension sends the user-agent prefix the shared parser reads', () => {
+    const connector = read('../../tools/player-connector/server/index.js');
+    expect(connector).toContain("'user-agent': `foundry-player-connector/${VERSION}`");
+    expect(playerExtensionVersion('foundry-player-connector/1.2.3')).toBe('1.2.3');
+  });
+});
 
 describe('client versions', () => {
   it('cleans a reported version to x.y.z', () => {

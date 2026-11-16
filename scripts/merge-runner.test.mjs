@@ -417,6 +417,9 @@ test('main tip with no run: after the waiting rounds the runner starts main CI o
     assert.equal(h.calls.post.length, i < TIP_WAIT_ROUNDS ? 0 : 1, `round ${i}`);
     assert.equal(dispatches().length, i < TIP_WAIT_ROUNDS ? 0 : 1, `round ${i}`);
   }
+  // Still no run after another full wait (cancelled or never appeared): started again.
+  for (let i = TIP_WAIT_ROUNDS + 4; i <= TIP_WAIT_ROUNDS * 2; i += 1) round(h.deps, tried, attempts);
+  assert.equal(dispatches().length, 2);
   assert.deepEqual(dispatches()[0], [
     'workflow',
     'run',

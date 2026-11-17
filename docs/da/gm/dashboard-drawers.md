@@ -1,6 +1,6 @@
 ---
 source: gm/dashboard-drawers.md
-sourceHash: a761580976e5
+sourceHash: 95134c7ec45a
 title: 'Dashboardet: confirm-vindue, Tool Runner og skuffer'
 description: 'Confirm-vinduet, Tool Runner og skufferne Tarokka, Handouts, Prep og Party.'
 ---
@@ -177,7 +177,7 @@ Uden Foundry forbundet viser skuffen stadig last session og siger, hvad der mang
 GM-resuméet fra den nyeste optagede session, der har et. Den læser kun
 `<sessions-mappe>/<dato>-discord/notes/summary.en.md` (eller `summary.da.md`, når kun det danske
 er skrevet), aldrig spillernes recap-kladde eller en transskription. Sessions-mappen er
-`FVTT_SESSIONS_DIR`, ellers `Documents\FoundrySessions` i din brugermappe, på den computer,
+`FVTT_SESSIONS_DIR`, ellers `FoundrySessions` i datamappen (`FVTT_DATA_DIR`) eller i `Documents` i din brugermappe, på den computer,
 bridgen kører på. Hvis ingen session har et resumé endnu, eller bridgen ikke kan se mappen (den
 kører på en anden computer), siger Claude det i én linje.
 

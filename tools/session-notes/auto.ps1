@@ -37,7 +37,8 @@ $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repo = Resolve-Path (Join-Path $here '..\..')
 # FVTT_VOICE_STACK lets a test put its own script in place of voice-stack.ps1.
 $voiceStack = if ($env:FVTT_VOICE_STACK) { $env:FVTT_VOICE_STACK } else { Join-Path $repo 'scripts\voice-stack.ps1' }
-$sessions = if ($env:FVTT_SESSIONS_DIR) { $env:FVTT_SESSIONS_DIR } else { Join-Path $env:USERPROFILE 'Documents\FoundrySessions' }
+. (Join-Path $PSScriptRoot '..\..\scripts\data-folder.ps1')
+$sessions = if ($env:FVTT_SESSIONS_DIR) { $env:FVTT_SESSIONS_DIR } else { Get-DataFolder 'FoundrySessions' }
 if (-not (Test-Path $sessions)) { Write-Host "No sessions folder at $sessions; nothing to do."; exit 0 }
 
 $log = Join-Path $sessions 'auto.log'

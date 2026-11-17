@@ -11,6 +11,32 @@
 /** Mirror of the shared CLIENT_HEADER. */
 export const CLIENT_HEADER = 'x-foundry-client';
 
+/** Mirror of the shared INSTALL_HEADER: a random id per install, never a name. */
+export const INSTALL_HEADER = 'x-foundry-install';
+
+const INSTALL_KEY = 'foundry-ai-tool-install-id';
+
+/**
+ * A random id for this PC (12 hex), made on first use and kept in the app's local storage, so the
+ * table's "who uses what" page can tell two PCs apart (D-146). It holds no name and no path.
+ * Null when storage is unavailable.
+ */
+export function localInstallId(
+  storage: Pick<Storage, 'getItem' | 'setItem'> | undefined = globalThis.localStorage
+): string | null {
+  try {
+    const have = storage?.getItem(INSTALL_KEY);
+    if (have && /^[0-9a-f]{12}$/.test(have)) return have;
+    const bytes = new Uint8Array(6);
+    globalThis.crypto.getRandomValues(bytes);
+    const made = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+    storage?.setItem(INSTALL_KEY, made);
+    return storage ? made : null;
+  } catch {
+    return null;
+  }
+}
+
 /** How often the plugin asks again after the first check at load (6 hours). */
 const CLIENT_CHECK_INTERVAL_MS = 6 * 3600 * 1000;
 

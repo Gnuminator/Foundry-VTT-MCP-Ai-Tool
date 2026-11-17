@@ -241,6 +241,16 @@ export class McpControlClient extends EventEmitter {
     return this.send('wrapper_status');
   }
 
+  /** A piece's version seen for a person (D-146): names and versions only. A control method. */
+  async recordClient(entry: Record<string, unknown>): Promise<unknown> {
+    return this.send('record_client', entry);
+  }
+
+  /** The "who uses what" report (D-146). A control method; an old backend rejects. */
+  async whoUsesWhat(days: number): Promise<unknown> {
+    return this.send('who_uses_what', { days });
+  }
+
   /** The player tool definitions, for `/mcp/player` `tools/list` (D-136). A control method. */
   async listPlayerTools(): Promise<unknown> {
     return this.send('list_player_tools');

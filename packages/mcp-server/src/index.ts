@@ -25,8 +25,6 @@ import {
 
 import { PROMPTS_CAPABILITY, registerPromptHandlers } from './prompts/register.js';
 
-import { ToolCallLog, runLoggedCall } from './tool-call-log.js';
-
 import { type ToolDefinitionLike, type ToolResultLike, capToolResult } from './tool-router.js';
 
 import { BUILD_ID } from './build-id.js';
@@ -410,6 +408,16 @@ async function startWrapper(): Promise<void> {
     }
   );
 
+  // Tell the bridge which Claude app this is (its own name and version, D-146); an old bridge
+  // answers "Unknown method", which is ignored.
+  mcp.oninitialized = (): void => {
+    const info = mcp.getClientVersion();
+    if (!info) return;
+    void backend
+      .send('record_client', { piece: 'claude', who: 'gm', name: info.name, version: info.version })
+      .catch(() => undefined);
+  };
+
   // The ready-made "/" prompts (prompts/list, prompts/get). Static, answered right here.
   registerPromptHandlers(mcp, TOOL_SET_SELECTION.all ? undefined : TOOL_SET_SELECTION.sets);
 
@@ -477,32 +485,27 @@ async function startWrapper(): Promise<void> {
     }
   });
 
-  // One line per call (name, set, ms, size, ok; no arguments) for the tool-set trimming data.
-  const callLog = new ToolCallLog();
-
+  // The call log (who, tool, set, ms, size, ok) is written by the backend, where the caller is known (D-146).
   mcp.setRequestHandler(CallToolRequestSchema, async request => {
     const { name, arguments: args } = request.params as unknown as CallToolParams;
     const toolName = String(name);
 
-    return (await runLoggedCall(
-      callLog,
-      toolName,
-      async () => {
-        const res = (await backend.send('call_tool', {
-          name,
-          args: args ?? {},
-        })) as ToolResultLike;
+    try {
+      const res = (await backend.send('call_tool', {
+        name,
+        args: args ?? {},
+      })) as ToolResultLike;
 
-        // One size cap for every tool result Claude gets (D-109); the dashboard reads them in full.
-        return capToolResult(res, toolName, listedTools.get(toolName));
-      },
-      (e: unknown): ToolResultLike => ({
+      // One size cap for every tool result Claude gets (D-109); the dashboard reads them in full.
+      return capToolResult(res, toolName, listedTools.get(toolName)) as unknown as CallToolResult;
+    } catch (e: unknown) {
+      return {
         content: [
           { type: 'text', text: `Error: ${templateText(messageOf(e) || 'Backend unavailable')}` },
         ],
         isError: true,
-      })
-    )) as unknown as CallToolResult;
+      };
+    }
   });
 
   const transport = new StdioServerTransport();

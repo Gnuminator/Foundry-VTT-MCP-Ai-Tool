@@ -57,8 +57,29 @@ export function mountRawBodyRoutes(
   // the GM check. Runs after the Access identity (app.ts mounts these routes after it); never
   // rejects a request.
   app.use(
-    obsidianClientRecorder(clientsOf(f), req => isGm(resolveRole(req as AuthRequest, config.auth)))
+    obsidianClientRecorder(
+      clientsOf(f),
+      req => isGm(resolveRole(req as AuthRequest, config.auth)),
+      Date.now,
+      entry => {
+        if (typeof client.recordClient === 'function')
+          void client.recordClient(entry).catch(() => undefined);
+      }
+    )
   );
+  // "Who uses what" (D-146): GM only; the bridge builds the report from its own counts.
+  app.get('/api/who-uses-what', requireGm, (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    if (typeof client.whoUsesWhat !== 'function') {
+      res.status(501).json({ error: 'The bridge cannot build this report.' });
+      return;
+    }
+    const days = Number(req.query.days);
+    client
+      .whoUsesWhat(Number.isFinite(days) ? days : 7)
+      .then(report => res.json(report))
+      .catch(() => res.status(502).json({ error: 'The bridge did not answer. Try again.' }));
+  });
   // "Open in Foundry" (O4, open-route.ts). Before the JSON parser: its POST parses its own
   // body after its guards.
   mountOpenRoute(app, { ...deps.openRoute, config, client, logger: logger.child('open') });

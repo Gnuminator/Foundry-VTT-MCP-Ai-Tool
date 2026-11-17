@@ -356,6 +356,18 @@ async function inspectActor(args) {
       }
     }
   }
+  // dnd5e 6.1 gives a feature's saving throws (Slippery Mind) through a Trait advancement
+  // ("saves:wis") instead of an effect; the feature item on the actor explains them the same way.
+  for (const item of actor.items) {
+    // system.advancement is a collection (iterable, not an array and not Object.values-able).
+    for (const adv of Array.from(item.system?.advancement ?? [])) {
+      if (adv?.type !== 'Trait') continue;
+      for (const grant of adv.configuration?.grants ?? []) {
+        const m = /^saves:([a-z]+)$/.exec(String(grant));
+        if (m) (saveSources[m[1]] ??= []).push(item.name);
+      }
+    }
+  }
   const ownership = {};
   for (const [userId, level] of Object.entries(actor.ownership ?? {})) {
     ownership[userId === 'default' ? 'default' : (game.users.get(userId)?.name ?? userId)] = level;

@@ -193,6 +193,7 @@ export async function runMulticlass(t) {
             classes.push({
               identifier: p.entry.identifier,
               name: p.entry.name,
+              subclass: p.subclass?.name ?? '',
               levels: p.level,
               rules: p.entry.rules === '2024' ? '2024' : '2014',
               expected: d.expected,

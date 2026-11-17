@@ -16,6 +16,8 @@
  *                                         or enqueued line is replaced; a ready line for a PR also
  *                                         keeps the item's other PRs' lines (one line per PR)
  *   node scripts/backlog.mjs release <id>                  removes the claimed and link lines
+ *   node scripts/backlog.mjs set <id> <field> <value>      replaces one planning field (board, gate, area,
+ *                                         blocked by, depends on, touches, source, done when); an empty value removes it
  *   node scripts/backlog.mjs done <id> <PR> [--sha <sha>] [--summary <text>] [--by <who>]
  *                                         [--pi-run <text>]
  *   node scripts/backlog.mjs add --id <slug> --size S|M|L --title <t> --board <area>
@@ -171,6 +173,37 @@ export function releaseEdit(text, o) {
   if (!field(item, 'claimed')) throw new Error(`${o.id} is not claimed`);
   const { body, tail } = trimBlock(item);
   const next = setField(setField(body, 'claimed', []), 'link', []);
+  const out = splice(p, item.start, item.end, [...next, ...tail]);
+  checkEdit(text, out, { id: o.id, items: 0, lines: next.length - body.length });
+  return { text: out, notes: [] };
+}
+
+/** Fields `set` may change: planning data, never the claim, the link, the progress or the id. */
+export const SETTABLE = [
+  'board',
+  'gate',
+  'area',
+  'blocked by',
+  'depends on',
+  'touches',
+  'source',
+  'done when',
+];
+
+/**
+ * Replace (or, with an empty value, remove) one planning field of an item.
+ * @param {string} text @param {{ id: string, name: string, value: string }} o
+ */
+export function setFieldEdit(text, o) {
+  const name = o.name.toLowerCase().trim();
+  if (!SETTABLE.includes(name)) {
+    throw new Error(`set changes only: ${SETTABLE.join(', ')} (not "${o.name}")`);
+  }
+  const value = oneLine(o.value);
+  const p = parseBacklog(text);
+  const item = findItem(p, o.id);
+  const { body, tail } = trimBlock(item);
+  const next = setField(body, name, value ? [`- ${name}: ${value}`] : [], ['board']);
   const out = splice(p, item.start, item.end, [...next, ...tail]);
   checkEdit(text, out, { id: o.id, items: 0, lines: next.length - body.length });
   return { text: out, notes: [] };
@@ -768,6 +801,18 @@ export function run(argv, env = {}) {
         };
         break;
       }
+      case 'set': {
+        needId();
+        const name = pos[1];
+        if (!name) throw new Usage('set <id> <field> <value> (empty value removes the field)');
+        const value = pos.slice(2).join(' ');
+        job = {
+          paths: [BACKLOG],
+          message: `Backlog: set ${id} ${name}`,
+          edit: read => ({ [BACKLOG]: setFieldEdit(read(BACKLOG), { id, name, value }).text }),
+        };
+        break;
+      }
       case 'done': {
         needId();
         if (!pos[1]) throw new Usage('done <id> <PR>');
@@ -856,7 +901,7 @@ export function run(argv, env = {}) {
       }
       default:
         throw new Usage(
-          `unknown command "${cmd}"; use status, claim, progress, release, done, add or low`
+          `unknown command "${cmd}"; use status, claim, progress, release, set, done, add or low`
         );
     }
     if (flags['dry-run']) {

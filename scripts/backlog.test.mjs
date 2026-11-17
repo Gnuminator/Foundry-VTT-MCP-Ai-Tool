@@ -28,6 +28,7 @@ import {
   lowEdit,
   progressEdit,
   releaseEdit,
+  setFieldEdit,
   run,
   statusText,
   piListStatus,
@@ -250,6 +251,29 @@ test('progress puts several old progress lines into one and inserts one where no
   const s = progressEdit(FIXTURE, { id: 'second', text: 'started', date: D });
   assert.match(block(s.text, 'second') ?? '', /- id: second\n- progress: 2026-11-12 started\n/);
   assert.throws(() => progressEdit(FIXTURE, { id: 'second', text: 'a\nb', date: D }), /one line/);
+});
+
+test('set replaces, adds and removes one planning field; refuses claim, progress and an unknown item', () => {
+  const r = setFieldEdit(FIXTURE, { id: 'second', name: 'gate', value: 'G1 (revisit 2026-11-29)' });
+  assert.match(
+    block(r.text, 'second') ?? '',
+    /- board: Process and tooling\r?\n- gate: G1 \(revisit/
+  );
+  const again = setFieldEdit(r.text, { id: 'second', name: 'gate', value: 'G1' });
+  assert.equal(((block(again.text, 'second') ?? '').match(/- gate:/g) ?? []).length, 1);
+  const gone = setFieldEdit(again.text, { id: 'second', name: 'gate', value: '' });
+  assert.doesNotMatch(block(gone.text, 'second') ?? '', /- gate:/);
+  const area = 'Docs, videos, Danni onboarding';
+  const board = setFieldEdit(FIXTURE, { id: 'first', name: 'board', value: area });
+  assert.match(block(board.text, 'first') ?? '', /- board: Docs, videos, Danni onboarding/);
+  assert.equal(parseBacklog(board.text).items.length, parseBacklog(FIXTURE).items.length);
+  for (const name of ['claimed', 'progress', 'id']) {
+    assert.throws(
+      () => setFieldEdit(FIXTURE, { id: 'first', name, value: 'x' }),
+      /set changes only/
+    );
+  }
+  assert.throws(() => setFieldEdit(FIXTURE, { id: 'nope', name: 'gate', value: 'G1' }), /nope/);
 });
 
 test('release refuses an unclaimed item', () => {

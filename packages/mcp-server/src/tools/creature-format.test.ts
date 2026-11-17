@@ -1,4 +1,6 @@
-import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+
+import { makeTools } from '../test-support/make-tool-harness.js';
 
 import { CompendiumTools } from './compendium.js';
 import {
@@ -206,13 +208,6 @@ describe('weaponDamageSummary', () => {
 
 type QueryImpl = (method: string, data?: unknown) => unknown;
 
-function makeTools(queryImpl: QueryImpl): { tools: CompendiumTools; query: Mock<QueryImpl> } {
-  const query = vi.fn(queryImpl);
-  const logger: any = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
-  logger.child = (): unknown => logger;
-  return { tools: new CompendiumTools({ foundryClient: { query } as any, logger }), query };
-}
-
 function withDnd5e(payload: unknown): QueryImpl {
   let first = true;
   return (method: string): unknown => {
@@ -269,7 +264,7 @@ describe('CompendiumTools.handleListCreaturesByCriteria reads the module flat re
   };
 
   it('reports CR, type, size word and flags from the flat fields', async () => {
-    const { tools } = makeTools(withDnd5e(flat));
+    const { tools } = makeTools(CompendiumTools, withDnd5e(flat));
     const result = await tools.handleListCreaturesByCriteria({});
     const [lich, wolf, tarrasque] = result.creatures;
 
@@ -308,7 +303,7 @@ describe('CompendiumTools.handleListCreaturesByCriteria reads the module flat re
         searchSummary: { packsSearched: 1, topPacks: [], totalCreaturesFound: 1 },
       },
     };
-    const { tools } = makeTools(withDnd5e(legacy));
+    const { tools } = makeTools(CompendiumTools, withDnd5e(legacy));
     const result = await tools.handleListCreaturesByCriteria({});
     expect(result.creatures[0]).toMatchObject({
       challengeRating: 0.25,
@@ -338,7 +333,7 @@ describe('CompendiumTools.handleGetCompendiumItem formatting (M3)', () => {
   };
 
   it('compact mode reports the size word and dnd5e 6 movement.speeds', async () => {
-    const { tools } = makeTools(withDnd5e(npc));
+    const { tools } = makeTools(CompendiumTools, withDnd5e(npc));
     const result = await tools.handleGetCompendiumItem({
       packId: 'dnd5e.monsters',
       itemId: 'wolf',
@@ -377,7 +372,7 @@ describe('CompendiumTools.handleGetCompendiumItem formatting (M3)', () => {
         system: { level: 0, school: 'evo' },
       },
     ];
-    const { tools } = makeTools(withDnd5e(hits));
+    const { tools } = makeTools(CompendiumTools, withDnd5e(hits));
     const result = await tools.handleSearchCompendium({ query: 'fire' });
     expect(result.results[0].summary).toContain('1d8 slashing damage');
     expect(result.results[1].summary).toContain('Evocation');
@@ -409,7 +404,7 @@ describe('CompendiumTools.handleGetCompendiumItem formatting (M3)', () => {
       system: { type: { value: 'shield' }, armor: { value: 2 }, properties: [] },
     };
     const ring = { ...chainMail, id: 'ring', name: 'Ring', system: { type: { value: 'ring' } } };
-    const { tools } = makeTools(withDnd5e([chainMail, shield, ring]));
+    const { tools } = makeTools(CompendiumTools, withDnd5e([chainMail, shield, ring]));
     const result = await tools.handleSearchCompendium({ query: 'armor' });
     expect(result.results[0].summary).toBe('equipment from Equipment • AC 16 • 75 gp');
     expect(result.results[1].summary).toBe('equipment from Equipment • AC +2');
@@ -417,7 +412,7 @@ describe('CompendiumTools.handleGetCompendiumItem formatting (M3)', () => {
   });
 
   it('full mode reports dnd5e 6 armor properties (type, AC, strength, stealth)', async () => {
-    const { tools } = makeTools(withDnd5e(chainMail));
+    const { tools } = makeTools(CompendiumTools, withDnd5e(chainMail));
     const result = await tools.handleGetCompendiumItem({
       packId: 'dnd5e.equipment24',
       itemId: 'chain',
@@ -448,7 +443,7 @@ describe('CompendiumTools.handleGetCompendiumItem formatting (M3)', () => {
         system: { rarities: ['common'] },
       },
     ];
-    const { tools } = makeTools(withDnd5e(hits));
+    const { tools } = makeTools(CompendiumTools, withDnd5e(hits));
     const result = await tools.handleSearchCompendium({ query: 'of' });
     expect(result.results[0].summary).toBe('equipment from SRD Items • Very Rare • 6000 gp');
     expect(result.results[1].summary).toBe('equipment from Loot • Common');
@@ -463,7 +458,7 @@ describe('CompendiumTools.handleGetCompendiumItem formatting (M3)', () => {
       packLabel: 'Loot',
       system: { rarity: '', rarities: ['veryRare'] },
     };
-    const { tools } = makeTools(withDnd5e([cloak]));
+    const { tools } = makeTools(CompendiumTools, withDnd5e([cloak]));
     const result = await tools.handleSearchCompendium({ query: 'cloak' });
     expect(result.results[0].summary).toBe('equipment from Loot • Very Rare');
   });
@@ -471,6 +466,7 @@ describe('CompendiumTools.handleGetCompendiumItem formatting (M3)', () => {
   it('full mode reports the same rarity label as the search summary', async () => {
     const detail = (system: Record<string, unknown>): Promise<any> =>
       makeTools(
+        CompendiumTools,
         withDnd5e({ ...chainMail, id: 'cloak', name: 'Cloak', system })
       ).tools.handleGetCompendiumItem({ packId: 'dnd5e.items', itemId: 'cloak' });
     expect((await detail({ rarity: 'veryRare' })).properties.rarity).toBe('Very Rare');

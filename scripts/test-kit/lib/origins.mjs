@@ -1012,7 +1012,13 @@ export function checkMulticlass({ classes, actor, facts, build, base, warnings }
       const made = (c.picks ?? [])
         .filter(
           p =>
-            p.advancement === type && !String(p.title).endsWith('(ability)') && Number(p.level) >= 1
+            p.advancement === type &&
+            !String(p.title).endsWith('(ability)') &&
+            Number(p.level) >= 1 &&
+            // Only what the class's own advancements asked ("Fighter: ..."): a feature the class
+            // grants (a Fighting Style, a Divine Order) asks for its own choice, which the class
+            // data does not count (dnd5e 6.1 reports those at the class level).
+            [c.name, c.subclass].some(n => n && String(p.title).startsWith(`${n}: `))
         )
         .reduce(
           (/** @type {number} */ n, p) =>

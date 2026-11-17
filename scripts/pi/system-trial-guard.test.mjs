@@ -55,7 +55,7 @@ describe('refuse_during_system_trial', { skip: !hasBash && 'no bash here' }, () 
   });
 
   test('a switched trial is over: every stage may run', () => {
-    setTrial('phase=switched\nfrom=6.0.5\nto=6.0.6\n');
+    setTrial('phase=switched\nfrom=6.0.6\nto=6.1.1\n');
     assert.match(guard().stdout, /passed/);
   });
 
@@ -221,28 +221,28 @@ describe(
         ...env,
       });
 
-    test('dnd5e 6.0.6 installed (after a switch): kept, no download', () => {
+    test('dnd5e 6.1.1 installed (after a switch): kept, no download', () => {
       setTrial(null);
-      setUp('6.0.6');
+      setUp('6.1.1');
       const res = stage5({});
       assert.match(
         res.stdout,
-        /ok: dnd5e 6\.0\.6 installed \(kept; stage 14 changes the version\)/
+        /ok: dnd5e 6\.1\.1 installed \(kept; stage 14 changes the version\)/
       );
-      assert.equal(JSON.parse(readFileSync(`${sys}/system.json`, 'utf8')).version, '6.0.6');
+      assert.equal(JSON.parse(readFileSync(`${sys}/system.json`, 'utf8')).version, '6.1.1');
       assert.equal(existsSync(`${pi}/curl`), false, 'nothing downloaded');
     });
 
     test('DND5E_VERSION naming another version than the installed one is refused', () => {
       setTrial(null);
-      setUp('6.0.6');
+      setUp('6.1.1');
       const res = stage5({ DND5E_VERSION: '6.0.5' });
       assert.equal(res.status, 1);
       assert.match(
         res.stderr,
-        /dnd5e 6\.0\.6 is installed, not DND5E_VERSION=6\.0\.5: this stage never replaces it/
+        /dnd5e 6\.1\.1 is installed, not DND5E_VERSION=6\.0\.5: this stage never replaces it/
       );
-      assert.equal(JSON.parse(readFileSync(`${sys}/system.json`, 'utf8')).version, '6.0.6');
+      assert.equal(JSON.parse(readFileSync(`${sys}/system.json`, 'utf8')).version, '6.1.1');
       assert.equal(existsSync(`${pi}/curl`), false);
     });
 
@@ -260,7 +260,7 @@ describe(
 
     test('during an open trial the stage is refused before the dnd5e step', () => {
       setTrial('phase=trial\n');
-      setUp('6.0.6');
+      setUp('6.1.1');
       const res = stage5({});
       assert.equal(res.status, 1);
       assert.match(res.stderr, /a dnd5e system trial is open .*stage 5's check world/);

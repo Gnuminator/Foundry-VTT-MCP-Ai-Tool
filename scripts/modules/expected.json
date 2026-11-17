@@ -21,6 +21,13 @@
       "why": "Informational load line."
     },
     {
+      "id": "dnd5e-61-echolocation-multiply",
+      "module": "*",
+      "match": "\"multiply\" change to system.attributes.senses.ranges.blind",
+      "max": 400,
+      "why": "One finding per bat actor prepared, so the count follows the kit (55 or more in a full srd run). dnd5e 6.1.1 SRD monsters pack: the Echolocation feature on the Bat actor (seen; other bats may share it) has an effect with a multiply change (1 - @statuses.deafened) on senses.blindsight, which 6.1 maps to senses.ranges.blind and then logs as an invalid change. Stock compendium data, not ours (2026-11-17, 6.1.1)."
+    },
+    {
       "id": "autoanimations-null-id",
       "module": "autoanimations",
       "match": "Cannot read properties of null (reading 'id')",

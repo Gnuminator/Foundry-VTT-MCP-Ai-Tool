@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Stage 14: try a new dnd5e version on the kit world before the campaign gets it (D-098 update rule, D-110
-# benchmark; docs/dev/PI-SETUP.md, "System trial (stage 14)"). The first case is dnd5e 6.0.5 to 6.0.6.
+# benchmark; docs/dev/PI-SETUP.md, "System trial (stage 14)"). The first case was dnd5e 6.0.5 to 6.0.6; the pin is now 6.1.1 (from 6.0.6).
 #   cat scripts/pi/remote/lib.sh scripts/pi/remote/14-system-trial.sh | ssh foundry-pi 'MODE=trial bash -s'
 # Every mode but status stops Foundry for a minute or two: take a snapshot first (/boot/dietpi/dietpi-backup 1) and
 # get the user's OK for that mode, each time. Never on a game-night day.
@@ -56,9 +56,9 @@ MIGRATION_WAIT="${MIGRATION_WAIT:-1800}"
 # The version on trial. A new version is a new reviewed change to these four lines (the sha256 is the release
 # asset's digest on GitHub: gh api repos/foundryvtt/dnd5e/releases/tags/release-<v> --jq '.assets[].digest').
 SYSTEM=dnd5e
-PIN_VERSION=6.0.6
-PIN_URL=https://github.com/foundryvtt/dnd5e/releases/download/release-6.0.6/dnd5e-release-6.0.6.zip
-PIN_SHA256=88c4013a5fb9aaaae18405b6a7eda69fd72c4f0b74920906c899c6df6b617595
+PIN_VERSION=6.1.1
+PIN_URL=https://github.com/foundryvtt/dnd5e/releases/download/release-6.1.1/dnd5e-release-6.1.1.zip
+PIN_SHA256=ee22dea3348eccd7169d3d311082a82b13b7f6ddca475d5725f3d76802dd933f
 KIT=strahd-kit
 CAMPAIGN=curse-of-strahd
 IMPORT=/var/lib/foundry-import

@@ -38,7 +38,7 @@ const containerReason = saved
 // In CI a missing Docker is a failure, not a skip: the step would go green without running a scenario.
 const noDockerInCi = Boolean(process.env.CI) && containerReason === 'no Docker here';
 const PIN_URL =
-  'https://github.com/foundryvtt/dnd5e/releases/download/release-6.0.6/dnd5e-release-6.0.6.zip';
+  'https://github.com/foundryvtt/dnd5e/releases/download/release-6.1.1/dnd5e-release-6.1.1.zip';
 
 // The scenarios are listed in the script (SCENARIOS=( ... )). They run in a few containers side by side, because
 // under QEMU emulation on a PC one container takes close to an hour (apt and every node start are slow); on an
@@ -208,12 +208,12 @@ describe('14-system-trial.sh in an ARM64 container', { skip: containerReason }, 
     );
   };
 
-  const INSTALLED = 'dnd5e 6.0.5 files';
-  const NEW = 'dnd5e 6.0.6 files';
+  const INSTALLED = 'dnd5e 6.0.6 files';
+  const NEW = 'dnd5e 6.1.1 files';
   const WORLDS = ['curse-of-strahd', 'frostmaiden-training', 'pi-check', 'strahd-kit'];
   /** A world as the scenario script made it, never opened since. */
   const untouched = {
-    systemVersion: '6.0.5',
+    systemVersion: '6.0.6',
     marker: 'original',
     files: ['LOG', 'marker.txt'],
     opened: '-',
@@ -229,29 +229,29 @@ describe('14-system-trial.sh in an ARM64 container', { skip: containerReason }, 
     assert.deepEqual([...actual].sort(), [...expected].sort(), message ?? actual.join('\n'));
 
   /**
-   * The Pi after a good trial: 6.0.6 installed, strahd-kit launched on it (and opened by Foundry), the other worlds as
+   * The Pi after a good trial: 6.1.1 installed, strahd-kit launched on it (and opened by Foundry), the other worlds as
    * they were. `campaign` is the world curse-of-strahd as it was at the trial's start, `prev` the folders in the
    * import folder from before.
    */
   const assertTrialState = (st, { campaign = untouched, prev = [] } = {}) => {
-    assert.equal(st.system, `6.0.6 (${NEW})`);
+    assert.equal(st.system, `6.1.1 (${NEW})`);
     assert.equal(st.options, 'strahd-kit');
     assert.equal(st.stopped, 'none');
     assert.deepEqual(Object.keys(st.worlds).sort(), WORLDS);
-    assert.deepEqual(st.worlds['strahd-kit'], opened('6.0.6'));
+    assert.deepEqual(st.worlds['strahd-kit'], opened('6.1.1'));
     assert.deepEqual(st.worlds['curse-of-strahd'], campaign);
     for (const id of ['frostmaiden-training', 'pi-check'])
       assert.deepEqual(st.worlds[id], untouched, id);
     assert.deepEqual(st.trial, {
-      from: '6.0.5',
+      from: '6.0.6',
       launched_before: 'curse-of-strahd',
       phase: 'trial',
       started: 'STAMP',
       system: 'dnd5e',
-      to: '6.0.6',
+      to: '6.1.1',
     });
-    assert.deepEqual(st.trialDir, ['dnd5e-6.0.5', 'started', 'state', 'worlds']);
-    // The copies are the worlds as they were before anything ran on 6.0.6.
+    assert.deepEqual(st.trialDir, ['dnd5e-6.0.6', 'started', 'state', 'worlds']);
+    // The copies are the worlds as they were before anything ran on 6.1.1.
     assert.deepEqual(Object.keys(st.copies).sort(), WORLDS);
     for (const id of WORLDS) {
       const { opened: _, ...copy } = id === 'curse-of-strahd' ? campaign : untouched;
@@ -261,29 +261,29 @@ describe('14-system-trial.sh in an ARM64 container', { skip: containerReason }, 
     sameSet(st.prev, prev);
   };
 
-  test('trial-download: the download is checked, 6.0.5 kept aside, every world copied, only strahd-kit launched', () => {
+  test('trial-download: the download is checked, 6.0.6 kept aside, every world copied, only strahd-kit launched', () => {
     const r = run('trial-download');
     const start = r.state('start');
-    assert.equal(start.system, `6.0.5 (${INSTALLED})`);
+    assert.equal(start.system, `6.0.6 (${INSTALLED})`);
     assert.equal(start.options, 'curse-of-strahd');
     assert.equal(start.trial, null);
     assert.equal(start.zips, 'none');
     assert.equal(r.exit('trial'), '0', r.output('trial'));
     const out = r.output('trial');
-    assert.match(out, /downloaded \/var\/lib\/foundry-import\/dnd5e-release-6\.0\.6\.zip/);
+    assert.match(out, /downloaded \/var\/lib\/foundry-import\/dnd5e-release-6\.1\.1\.zip/);
     assert.match(out, /sha256 matches the pin/);
-    assert.match(out, /dnd5e 6\.0\.6 fits Foundry 14\.368\.0 \(minimum 14\.367, maximum 14\)/);
+    assert.match(out, /dnd5e 6\.1\.1 fits Foundry 14\.368\.0 \(minimum 14\.367, maximum 14\)/);
     assert.match(out, /copied: curse-of-strahd frostmaiden-training pi-check strahd-kit/);
     assert.match(
       out,
-      /dnd5e 6\.0\.6 installed; 6\.0\.5 kept in \/var\/lib\/foundry-import\/system-trial\/dnd5e-6\.0\.5/
+      /dnd5e 6\.1\.1 installed; 6\.0\.6 kept in \/var\/lib\/foundry-import\/system-trial\/dnd5e-6\.0\.6/
     );
     assert.match(out, /strahd-kit is running/);
-    assert.match(out, /Foundry reports dnd5e 6\.0\.6/);
-    // The release's needsMigrationVersion (6.0.0) is older than the kit world's setting (6.0.5): no migration to wait for.
+    assert.match(out, /Foundry reports dnd5e 6\.1\.1/);
+    // The release's needsMigrationVersion (6.0.0) is older than the kit world's setting (6.0.6): no migration to wait for.
     assert.match(
       out,
-      /strahd-kit needs no dnd5e data migration for 6\.0\.6 \(needsMigrationVersion 6\.0\.0\)/
+      /strahd-kit needs no dnd5e data migration for 6\.1\.1 \(needsMigrationVersion 6\.0\.0\)/
     );
     assert.doesNotMatch(out, /did not finish|waiting for the dnd5e data migration/);
     // The first line says the run is logged; the log holds the lines of the run, each with a time.
@@ -296,15 +296,15 @@ describe('14-system-trial.sh in an ARM64 container', { skip: containerReason }, 
     assert.match(log, /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d ==> checking the request \(MODE=trial\)$/m);
     assert.match(log, / {4}ok: sha256 matches the pin$/m);
     assert.match(log, / {4}ok: strahd-kit is running$/m);
-    assert.match(log, / {4}ok: strahd-kit needs no dnd5e data migration for 6\.0\.6/);
+    assert.match(log, / {4}ok: strahd-kit needs no dnd5e data migration for 6\.1\.1/);
     assert.match(log, / {4}next: run the test kit on strahd-kit, then MODE=switch/);
     assert.deepEqual(r.downloads('trial'), [PIN_URL]);
     const st = r.state('trial');
     assertTrialState(st);
-    assert.equal(st.zips, 'dnd5e-release-6.0.6.zip');
-    // Every world keeps its setting (6.0.5); nothing was migrated.
-    for (const id of WORLDS) assert.deepEqual(st.settings[id], { setting: '6.0.5', gm: '-' }, id);
-    for (const id of WORLDS) assert.equal(st.copySettings[id], '6.0.5', `copy of ${id}`);
+    assert.equal(st.zips, 'dnd5e-release-6.1.1.zip');
+    // Every world keeps its setting (6.0.6); nothing was migrated.
+    for (const id of WORLDS) assert.deepEqual(st.settings[id], { setting: '6.0.6', gm: '-' }, id);
+    for (const id of WORLDS) assert.equal(st.copySettings[id], '6.0.6', `copy of ${id}`);
     // Order: the Assistant GM browser and Foundry stop, Foundry starts on the kit world, then the browser.
     const calls = r.calls('trial');
     const at = c => calls.indexOf(c);
@@ -351,7 +351,7 @@ describe('14-system-trial.sh in an ARM64 container', { skip: containerReason }, 
     assertRefused(
       r,
       'trial',
-      /the download from https:\/\/github\.com\/.*dnd5e-release-6\.0\.6\.zip failed/
+      /the download from https:\/\/github\.com\/.*dnd5e-release-6\.1\.1\.zip failed/
     );
     assert.equal(r.state('trial').zips, 'none');
   });
@@ -381,7 +381,7 @@ describe('14-system-trial.sh in an ARM64 container', { skip: containerReason }, 
     assertRefused(
       r,
       'trial',
-      /dnd5e 6\.0\.6 needs Foundry 14\.369 or newer; the Pi runs 14\.368\.0/
+      /dnd5e 6\.1\.1 needs Foundry 14\.369 or newer; the Pi runs 14\.368\.0/
     );
     assert.deepEqual(r.calls('trial'), [], 'not even a systemctl call');
     assert.equal(r.state('trial').work, 'none', 'the unpacked zip is removed');
@@ -389,19 +389,19 @@ describe('14-system-trial.sh in an ARM64 container', { skip: containerReason }, 
 
   test('zip-max-below: a zip that supports only older Foundry builds is refused', () => {
     const r = run('zip-max-below');
-    assertRefused(r, 'trial', /dnd5e 6\.0\.6 supports Foundry up to 13; the Pi runs 14\.368\.0/);
+    assertRefused(r, 'trial', /dnd5e 6\.1\.1 supports Foundry up to 13; the Pi runs 14\.368\.0/);
     assert.deepEqual(r.calls('trial'), []);
   });
 
   test('zip-wrong-version: a zip that holds another version is refused', () => {
     const r = run('zip-wrong-version');
-    assertRefused(r, 'trial', /the zip holds dnd5e 6\.0\.7, not 6\.0\.6/);
+    assertRefused(r, 'trial', /the zip holds dnd5e 6\.0\.7, not 6\.1\.1/);
     assert.deepEqual(r.calls('trial'), []);
   });
 
   test('already-installed: the pinned version installed already is refused', () => {
     const r = run('already-installed');
-    assertRefused(r, 'trial', /dnd5e 6\.0\.6 is installed already/);
+    assertRefused(r, 'trial', /dnd5e 6\.1\.1 is installed already/);
     assert.deepEqual(r.calls('trial'), []);
     assert.equal(r.state('trial').zips, 'none', 'nothing was downloaded');
     assert.deepEqual(r.downloads('trial'), []);
@@ -412,7 +412,7 @@ describe('14-system-trial.sh in an ARM64 container', { skip: containerReason }, 
     assertRefused(
       r,
       'trial',
-      /dnd5e 6\.0\.6 is not newer than the installed 6\.0\.7: a trial goes forward only/
+      /dnd5e 6\.1\.1 is not newer than the installed 6\.1\.2: a trial goes forward only/
     );
   });
 
@@ -431,32 +431,32 @@ describe('14-system-trial.sh in an ARM64 container', { skip: containerReason }, 
     assertRefused(
       r,
       'second',
-      /a trial is open \(\/var\/lib\/foundry-import\/system-trial, phase trial, dnd5e 6\.0\.5 to 6\.0\.6\): finish it with MODE=switch or MODE=rollback first/,
+      /a trial is open \(\/var\/lib\/foundry-import\/system-trial, phase trial, dnd5e 6\.0\.6 to 6\.1\.1\): finish it with MODE=switch or MODE=rollback first/,
       'trial'
     );
     assert.deepEqual(r.calls('second'), []);
     assertTrialState(r.state('second'));
   });
 
-  test('trial-fails: a trial that fails after Foundry stopped puts 6.0.5, strahd-kit and options.json back', () => {
+  test('trial-fails: a trial that fails after Foundry stopped puts 6.0.6, strahd-kit and options.json back', () => {
     const r = run('trial-fails');
     assert.equal(r.exit('trial'), '1', r.output('trial'));
     assertStoppedBeforeUndo(r.calls('trial'));
     assertNoMoveWhileRunning(r.order('trial'));
     const out = r.output('trial');
     assert.match(out, /strahd-kit is not running on port 30000/);
-    assert.match(out, /dnd5e 6\.0\.5 is back in \/var\/lib\/foundry\/Data\/systems\/dnd5e/);
+    assert.match(out, /dnd5e 6\.0\.6 is back in \/var\/lib\/foundry\/Data\/systems\/dnd5e/);
     assert.match(out, /strahd-kit is back from the trial's copy/);
     assert.match(out, /the run did not finish: Foundry runs curse-of-strahd/);
     const st = r.state('trial');
-    assert.equal(st.system, `6.0.5 (${INSTALLED})`, 'the old version is back');
+    assert.equal(st.system, `6.0.6 (${INSTALLED})`, 'the old version is back');
     assert.equal(st.options, 'curse-of-strahd');
     assert.equal(st.stopped, 'none', 'Foundry and the Assistant GM browser run again');
     assert.deepEqual(st.worlds['strahd-kit'], untouched, 'strahd-kit is the copy again');
     for (const id of ['frostmaiden-training', 'pi-check'])
       assert.deepEqual(st.worlds[id], untouched, id);
     // Foundry restarted on the campaign, which it opens on the old version.
-    assert.deepEqual(st.worlds['curse-of-strahd'], opened('6.0.5'));
+    assert.deepEqual(st.worlds['curse-of-strahd'], opened('6.0.6'));
     assert.equal(st.trial, null, 'the trial folder is gone from the import folder');
     assert.equal(st.work, 'none');
     sameSet(st.prev, [
@@ -474,9 +474,9 @@ describe('14-system-trial.sh in an ARM64 container', { skip: containerReason }, 
     assert.ok(calls.includes('start foundry-ai-tool-gm-browser.service'), calls.join('\n'));
   });
 
-  /** The Pi after a rollback of the plain trial: 6.0.5 back, strahd-kit reset, curse-of-strahd launched. */
+  /** The Pi after a rollback of the plain trial: 6.0.6 back, strahd-kit reset, curse-of-strahd launched. */
   const assertRolledBack = st => {
-    assert.equal(st.system, `6.0.5 (${INSTALLED})`);
+    assert.equal(st.system, `6.0.6 (${INSTALLED})`);
     assert.equal(st.options, 'curse-of-strahd');
     assert.equal(st.stopped, 'none');
     assert.equal(st.trial, null, 'the trial folder moved to prev');
@@ -485,34 +485,34 @@ describe('14-system-trial.sh in an ARM64 container', { skip: containerReason }, 
       untouched,
       'strahd-kit is the copy again, kit-run.txt is gone'
     );
-    assert.deepEqual(st.worlds['curse-of-strahd'], opened('6.0.5'), 'the campaign was launched');
+    assert.deepEqual(st.worlds['curse-of-strahd'], opened('6.0.6'), 'the campaign was launched');
     for (const id of ['frostmaiden-training', 'pi-check'])
       assert.deepEqual(st.worlds[id], untouched, id);
     assert.equal(st.work, 'none');
   };
   const ARCHIVE = 'prev-STAMP-system-trial';
 
-  test('rollback: 6.0.5 back, strahd-kit reset from the copy, the campaign launched, the trial archived in prev', () => {
+  test('rollback: 6.0.6 back, strahd-kit reset from the copy, the campaign launched, the trial archived in prev', () => {
     const r = run('rollback');
     assert.equal(r.exit('rollback'), '0', r.output('rollback'));
     const out = r.output('rollback');
     assert.match(
       out,
-      /dnd5e 6\.0\.6 to 6\.0\.5; reset from the trial's copies: strahd-kit; then Foundry launches curse-of-strahd/
+      /dnd5e 6\.1\.1 to 6\.0\.6; reset from the trial's copies: strahd-kit; then Foundry launches curse-of-strahd/
     );
     assert.match(
       out,
-      /dnd5e 6\.0\.5 is back; 6\.0\.6 kept in .*prev-\d{8}-\d{6}-system-trial\/dnd5e-6\.0\.6/
+      /dnd5e 6\.0\.6 is back; 6\.1\.1 kept in .*prev-\d{8}-\d{6}-system-trial\/dnd5e-6\.1\.1/
     );
     assert.match(out, /strahd-kit reset from the trial's copy/);
     assert.match(out, /curse-of-strahd is running/);
-    assert.match(out, /Foundry reports dnd5e 6\.0\.5/);
+    assert.match(out, /Foundry reports dnd5e 6\.0\.6/);
     assert.doesNotMatch(out, /did not finish|halfway/);
     const st = r.state('rollback');
     assertRolledBack(st);
     sameSet(st.prev, [
       ARCHIVE,
-      `${ARCHIVE}/dnd5e-6.0.6`,
+      `${ARCHIVE}/dnd5e-6.1.1`,
       `${ARCHIVE}/trial`,
       `${ARCHIVE}/trial/restored-strahd-kit`,
       `${ARCHIVE}/trial/started`,
@@ -521,7 +521,7 @@ describe('14-system-trial.sh in an ARM64 container', { skip: containerReason }, 
       `${ARCHIVE}/worlds`,
       `${ARCHIVE}/worlds/strahd-kit`,
     ]);
-    assert.equal(st.zips, 'dnd5e-release-6.0.6.zip', 'the downloaded zip is kept');
+    assert.equal(st.zips, 'dnd5e-release-6.1.1.zip', 'the downloaded zip is kept');
     const calls = r.calls('rollback');
     assert.ok(calls.includes('stop foundry.service') && calls.includes('restart foundry.service'));
   });
@@ -531,18 +531,18 @@ describe('14-system-trial.sh in an ARM64 container', { skip: containerReason }, 
     const before = r.state('before');
     assert.deepEqual(
       before.worlds['frostmaiden-training'],
-      opened('6.0.6'),
-      'it migrated on 6.0.6'
+      opened('6.1.1'),
+      'it migrated on 6.1.1'
     );
-    assert.deepEqual(before.worlds['strahd-kit'], opened('6.0.6', ['kit-run.txt']));
+    assert.deepEqual(before.worlds['strahd-kit'], opened('6.1.1', ['kit-run.txt']));
     assertRefused(
       r,
       'rollback',
-      /launched during the trial, so they may be migrated to 6\.0\.6: frostmaiden-training\. RESTORE_MIGRATED=1 puts them back from the trial's copies too/,
+      /launched during the trial, so they may be migrated to 6\.1\.1: frostmaiden-training\. RESTORE_MIGRATED=1 puts them back from the trial's copies too/,
       'before'
     );
     assert.deepEqual(r.calls('rollback'), []);
-    assert.equal(r.state('rollback').system, `6.0.6 (${NEW})`);
+    assert.equal(r.state('rollback').system, `6.1.1 (${NEW})`);
   });
 
   test('rollback-restore-migrated: RESTORE_MIGRATED=1 puts the migrated world back from the trial copy too', () => {
@@ -559,7 +559,7 @@ describe('14-system-trial.sh in an ARM64 container', { skip: containerReason }, 
     assert.deepEqual(
       st.worlds['frostmaiden-training'],
       untouched,
-      'back to 6.0.5 data, without its run'
+      'back to 6.0.6 data, without its run'
     );
     sameSet(
       st.prev.filter(p => p.startsWith(`${ARCHIVE}/worlds/`)),
@@ -576,7 +576,7 @@ describe('14-system-trial.sh in an ARM64 container', { skip: containerReason }, 
     );
     const st = r.state('rollback');
     assertRolledBack(st);
-    assert.equal(st.worlds['new-world'].systemVersion, '6.0.6', 'left as it was');
+    assert.equal(st.worlds['new-world'].systemVersion, '6.1.1', 'left as it was');
   });
 
   test('rollback-halfway: a rollback that stops after the system swap says so and a rerun finishes it', () => {
@@ -587,10 +587,10 @@ describe('14-system-trial.sh in an ARM64 container', { skip: containerReason }, 
     assert.match(out, /curse-of-strahd is not running on port 30000/);
     assert.match(
       out,
-      /the rollback stopped halfway: dnd5e 6\.0\.5 is back and Foundry launches curse-of-strahd; run MODE=rollback again to finish/
+      /the rollback stopped halfway: dnd5e 6\.0\.6 is back and Foundry launches curse-of-strahd; run MODE=rollback again to finish/
     );
     const half = r.state('rollback');
-    assert.equal(half.system, `6.0.5 (${INSTALLED})`);
+    assert.equal(half.system, `6.0.6 (${INSTALLED})`);
     assert.equal(half.options, 'curse-of-strahd');
     assert.equal(half.stopped, 'none', 'Foundry and the browser were started again');
     assert.deepEqual(half.worlds['strahd-kit'], untouched);
@@ -598,7 +598,7 @@ describe('14-system-trial.sh in an ARM64 container', { skip: containerReason }, 
     assert.equal(half.trial?.restore, 'strahd-kit');
     assert.ok(half.trialDir.includes('restored-strahd-kit'), half.trialDir.join(' '));
     assert.ok(
-      half.prev.some(p => p.endsWith('-system-trial/dnd5e-6.0.6')),
+      half.prev.some(p => p.endsWith('-system-trial/dnd5e-6.1.1')),
       half.prev.join('\n')
     );
     assert.ok(
@@ -619,7 +619,7 @@ describe('14-system-trial.sh in an ARM64 container', { skip: containerReason }, 
       st.prev.join('\n')
     );
     assert.ok(
-      st.prev.some(p => p.endsWith('-system-trial/dnd5e-6.0.6')),
+      st.prev.some(p => p.endsWith('-system-trial/dnd5e-6.1.1')),
       st.prev.join('\n')
     );
     assert.ok(
@@ -631,9 +631,9 @@ describe('14-system-trial.sh in an ARM64 container', { skip: containerReason }, 
       st.prev.map(p => p.match(/prev-[^/]*-system-trial/)?.[0]).filter(Boolean)
     );
     assert.equal(archives.size, 1, st.prev.join('\n'));
-    assert.match(r.output('rerun'), /dnd5e 6\.0\.5 is back already/);
-    assert.match(r.output('rerun'), /kept in \S+-system-trial: dnd5e 6\.0\.6,/);
-    assert.doesNotMatch(r.output('rerun'), /6\.0\.5 to 6\.0\.5/);
+    assert.match(r.output('rerun'), /dnd5e 6\.0\.6 is back already/);
+    assert.match(r.output('rerun'), /kept in \S+-system-trial: dnd5e 6\.1\.1,/);
+    assert.doesNotMatch(r.output('rerun'), /6\.0\.6 to 6\.0\.6/);
   });
 
   test('rollback-no-trial: nothing to roll back is refused', () => {
@@ -649,7 +649,7 @@ describe('14-system-trial.sh in an ARM64 container', { skip: containerReason }, 
     assert.equal(r.exit('again'), '0', r.output('again'));
     assert.match(r.output('again'), /using the zip downloaded before/);
     assert.deepEqual(r.downloads('again'), []);
-    assertTrialState(r.state('again'), { campaign: opened('6.0.5'), prev: afterRollback.prev });
+    assertTrialState(r.state('again'), { campaign: opened('6.0.6'), prev: afterRollback.prev });
   });
 
   test('switch: the campaign is launched on the new version and the phase is switched', () => {
@@ -658,31 +658,31 @@ describe('14-system-trial.sh in an ARM64 container', { skip: containerReason }, 
     const out = r.output('switch');
     assert.match(
       out,
-      /curse-of-strahd goes to dnd5e 6\.0\.6 \(it migrates on this launch\); frostmaiden-training pi-check migrate\(s\) when next launched/
+      /curse-of-strahd goes to dnd5e 6\.1\.1 \(it migrates on this launch\); frostmaiden-training pi-check migrate\(s\) when next launched/
     );
     assert.match(out, /curse-of-strahd is running/);
     assert.match(
       out,
-      /curse-of-strahd runs on dnd5e 6\.0\.6; Foundry launches it again after a reboot/
+      /curse-of-strahd runs on dnd5e 6\.1\.1; Foundry launches it again after a reboot/
     );
     const st = r.state('switch');
-    assert.equal(st.system, `6.0.6 (${NEW})`);
+    assert.equal(st.system, `6.1.1 (${NEW})`);
     assert.equal(st.options, 'curse-of-strahd');
     assert.equal(st.stopped, 'none');
-    assert.deepEqual(st.worlds['curse-of-strahd'], opened('6.0.6'), 'the campaign migrated');
+    assert.deepEqual(st.worlds['curse-of-strahd'], opened('6.1.1'), 'the campaign migrated');
     assert.deepEqual(
       st.worlds['strahd-kit'],
-      opened('6.0.6', ['kit-run.txt']),
+      opened('6.1.1', ['kit-run.txt']),
       'the kit run stays'
     );
     for (const id of ['frostmaiden-training', 'pi-check'])
       assert.deepEqual(st.worlds[id], untouched, id);
     assert.equal(st.trial?.phase, 'switched');
     assert.match(st.trial?.switched ?? '', /^STAMP$/);
-    assert.equal(st.trial?.from, '6.0.5');
+    assert.equal(st.trial?.from, '6.0.6');
     assert.deepEqual(
       st.trialDir,
-      ['dnd5e-6.0.5', 'started', 'state', 'worlds'],
+      ['dnd5e-6.0.6', 'started', 'state', 'worlds'],
       'the old version and copies stay'
     );
     assert.deepEqual(st.prev, []);
@@ -697,9 +697,9 @@ describe('14-system-trial.sh in an ARM64 container', { skip: containerReason }, 
     assertNoMoveWhileRunning(r.order('switch'));
     const out = r.output('switch');
     assert.match(out, /curse-of-strahd is not running on port 30000/);
-    assert.match(out, /curse-of-strahd is back from the trial's copy, still on 6\.0\.5 data/);
+    assert.match(out, /curse-of-strahd is back from the trial's copy, still on 6\.0\.6 data/);
     const st = r.state('switch');
-    assert.equal(st.system, `6.0.6 (${NEW})`, 'a failed switch leaves the new version');
+    assert.equal(st.system, `6.1.1 (${NEW})`, 'a failed switch leaves the new version');
     assert.equal(st.options, 'strahd-kit');
     assert.equal(st.stopped, 'none');
     assert.deepEqual(st.worlds['curse-of-strahd'], untouched, 'the campaign is the copy again');
@@ -715,7 +715,7 @@ describe('14-system-trial.sh in an ARM64 container', { skip: containerReason }, 
   test('switch-twice: a second switch is refused and nothing changes', () => {
     const r = run('switch-twice');
     assert.equal(r.exit('switch'), '0', r.output('switch'));
-    assertRefused(r, 'second', /the trial of dnd5e 6\.0\.6 was switched already/, 'switch');
+    assertRefused(r, 'second', /the trial of dnd5e 6\.1\.1 was switched already/, 'switch');
     assert.deepEqual(r.calls('second'), []);
   });
 
@@ -731,7 +731,7 @@ describe('14-system-trial.sh in an ARM64 container', { skip: containerReason }, 
     assertRefused(
       r,
       'rollback',
-      /the trial was switched: curse-of-strahd runs on dnd5e 6\.0\.6\. Going back means restoring the snapshot from before the switch/,
+      /the trial was switched: curse-of-strahd runs on dnd5e 6\.1\.1\. Going back means restoring the snapshot from before the switch/,
       'switch'
     );
     assert.deepEqual(r.calls('rollback'), []);
@@ -743,22 +743,22 @@ describe('14-system-trial.sh in an ARM64 container', { skip: containerReason }, 
     const out = r.output('status');
     assert.match(
       out,
-      /Foundry 14\.368\.0, dnd5e 6\.0\.6 in \/var\/lib\/foundry\/Data\/systems\/dnd5e; options\.json launches strahd-kit/
+      /Foundry 14\.368\.0, dnd5e 6\.1\.1 in \/var\/lib\/foundry\/Data\/systems\/dnd5e; options\.json launches strahd-kit/
     );
     assert.match(
       out,
-      /trial: phase trial, dnd5e 6\.0\.5 to 6\.0\.6, began \d{8}-\d{6}, Foundry ran curse-of-strahd before it/
+      /trial: phase trial, dnd5e 6\.0\.6 to 6\.1\.1, began \d{8}-\d{6}, Foundry ran curse-of-strahd before it/
     );
     assert.match(
       out,
-      /world frostmaiden-training: dnd5e 6\.0\.6 \(launched since the trial began\)/
+      /world frostmaiden-training: dnd5e 6\.1\.1 \(launched since the trial began\)/
     );
-    assert.match(out, /world pi-check: dnd5e 6\.0\.5 \(not launched since the trial began\)/);
+    assert.match(out, /world pi-check: dnd5e 6\.0\.6 \(not launched since the trial began\)/);
     assert.match(
       out,
-      /world curse-of-strahd: dnd5e 6\.0\.5 \(not launched since the trial began\)/
+      /world curse-of-strahd: dnd5e 6\.0\.6 \(not launched since the trial began\)/
     );
-    assert.match(out, /world strahd-kit: dnd5e 6\.0\.6 \(launched since the trial began\)/);
+    assert.match(out, /world strahd-kit: dnd5e 6\.1\.1 \(launched since the trial began\)/);
     assert.deepEqual(r.calls('status'), [], 'no systemctl call');
     assert.equal(r.rawState('status'), r.rawState('before'));
   });
@@ -769,10 +769,10 @@ describe('14-system-trial.sh in an ARM64 container', { skip: containerReason }, 
     const out = r.output('status');
     assert.match(
       out,
-      /Foundry 14\.368\.0, dnd5e 6\.0\.5 in .*; options\.json launches curse-of-strahd/
+      /Foundry 14\.368\.0, dnd5e 6\.0\.6 in .*; options\.json launches curse-of-strahd/
     );
-    assert.match(out, /no trial open \(pinned for the next one: dnd5e 6\.0\.6\)/);
-    assert.match(out, /world strahd-kit: dnd5e 6\.0\.5$/m);
+    assert.match(out, /no trial open \(pinned for the next one: dnd5e 6\.1\.1\)/);
+    assert.match(out, /world strahd-kit: dnd5e 6\.0\.6$/m);
     assert.deepEqual(r.calls('status'), []);
     assert.equal(r.rawState('status'), r.rawState('start'));
   });
@@ -844,7 +844,7 @@ describe('14-system-trial.sh in an ARM64 container', { skip: containerReason }, 
     assertStoppedBeforeUndo(r.calls('trial'));
     assertNoMoveWhileRunning(r.order('trial'));
     const st = r.state('trial');
-    assert.equal(st.system, `6.0.5 (${INSTALLED})`);
+    assert.equal(st.system, `6.0.6 (${INSTALLED})`);
     assert.equal(st.options, 'curse-of-strahd');
     assert.deepEqual(st.worlds['strahd-kit'], untouched, 'strahd-kit is the copy again');
   });
@@ -873,7 +873,7 @@ describe('14-system-trial.sh in an ARM64 container', { skip: containerReason }, 
   test('trial-copy-fails, rollback-restore-fails, rollback-swap-fails: a failed copy or move is undone or finished by a rerun', () => {
     const c = run('trial-copy-fails');
     assert.equal(c.exit('trial'), '1', c.output('trial'));
-    assert.equal(c.state('trial').system, `6.0.5 (${INSTALLED})`, 'the old version is still in place');
+    assert.equal(c.state('trial').system, `6.0.6 (${INSTALLED})`, 'the old version is still in place');
     assert.equal(c.state('trial').options, 'curse-of-strahd');
     assert.equal(c.state('trial').stopped, 'none', 'Foundry runs again');
     const a = run('rollback-restore-fails');
@@ -882,7 +882,7 @@ describe('14-system-trial.sh in an ARM64 container', { skip: containerReason }, 
     const b = run('rollback-swap-fails');
     assert.equal(b.exit('rollback'), '1', b.output('rollback'));
     assert.equal(b.exit('rerun'), '0', b.output('rerun'));
-    assert.equal(b.state('rerun').system.startsWith('6.0.5'), true);
+    assert.equal(b.state('rerun').system.startsWith('6.0.6'), true);
   });
 
   test('run-locked: a second run is refused while one holds the lock, and goes through after', () => {
@@ -899,7 +899,7 @@ describe('14-system-trial.sh in an ARM64 container', { skip: containerReason }, 
       assert.match(r.output(label), reason);
       assert.deepEqual(r.calls(label), [], `${label}: nothing stopped or started`);
     }
-    assert.equal(r.state('trial_refused').system.startsWith('6.0.5'), true);
+    assert.equal(r.state('trial_refused').system.startsWith('6.0.6'), true);
     assert.equal(r.exit('status'), '0', r.output('status'));
     assert.match(r.output('status'), /trial: phase trial/);
     assert.deepEqual(r.calls('status'), []);

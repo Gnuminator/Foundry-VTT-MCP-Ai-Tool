@@ -55,7 +55,11 @@ export default {
       const { status, data } = await t.http('/api/tools');
       t.equal(status, 200, 'GET /api/tools status');
       const offered = new Set((data.tools || []).map((/** @type {any} */ x) => x.name));
-      const missing = [...catalog.all].filter(name => !offered.has(name)).sort();
+      // The player set (D-136) is served only on /mcp/player, never listed by /api/tools.
+      const playerOnly = new Set(catalog.sets.player ?? []);
+      const missing = [...catalog.all]
+        .filter(name => !playerOnly.has(name) && !offered.has(name))
+        .sort();
       t.check(
         missing.length === 0,
         `tools missing from /api/tools: ${missing.join(', ')}`,

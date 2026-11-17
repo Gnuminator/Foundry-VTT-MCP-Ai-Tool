@@ -669,11 +669,11 @@ export const DEEP_CHECKS = [
         stepValue(RULES.rageUses, hero.level),
         scaleOf(facts, 'barbarian', 'rages')
       );
-      // The effect data uses the old key; dnd5e 6 maps it to system.rolls.damage.mwak.bonus.
-      const damageKey = 'system.bonuses.mwak.damage';
+      // dnd5e 6.0 effect data uses the old key (mapped to system.rolls.damage.mwak.bonus), 6.1 the new one.
+      const damageKeys = ['system.bonuses.mwak.damage', 'system.rolls.damage.mwak.bonus'];
       const damageRead = 'system.rolls.damage.mwak.bonus';
       const resistKey = 'system.traits.dr.value';
-      const effect = item.effects.find(e => e.changes.some(c => c.key === damageKey));
+      const effect = item.effects.find(e => e.changes.some(c => damageKeys.includes(c.key)));
       if (!effect) {
         bad(
           out.problems,

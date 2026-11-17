@@ -25,6 +25,7 @@ import {
 import { localDateKey } from './event-pump.js';
 import type { RecentChange } from './guarded-write/service.js';
 import type { UndoState } from './guarded-write/undo-state.js';
+import { makeLogger } from './test-support/make-tool-harness.js';
 import { VaultStore } from './vault/store.js';
 
 const NOW = new Date(2026, 9, 7, 12, 0, 0).getTime();
@@ -1338,8 +1339,7 @@ describe('ChangeHistory.list', () => {
     counter = 0;
     dataDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'change-history-'));
     store = new VaultStore({ dataDir });
-    logger = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
-    logger.child = (): unknown => logger;
+    logger = makeLogger();
     audit = [];
     undoState = new Map();
     pullNow = vi.fn(() => Promise.resolve());
@@ -2003,7 +2003,7 @@ describe('ChangeHistory.list undo state', () => {
   it('marks undone actions, and says an action with no usable record cannot be undone', async () => {
     const dataDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'change-history-'));
     const store = new VaultStore({ dataDir });
-    const logger: any = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
+    const logger = makeLogger();
     logger.child = (): unknown => logger;
     try {
       await store.appendLines('w1', 'gm', changeJournalFileName(localDateKey(NOW - MIN)), [

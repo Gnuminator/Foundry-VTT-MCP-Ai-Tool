@@ -1,6 +1,6 @@
 ---
 source: gm/troubleshooting.md
-sourceHash: 7682c7367942
+sourceHash: e056e517a775
 title: Fejlfinding
 description: Symptom, sandsynlig årsag og løsning på de problemer, en GM oftest møder med Foundry AI Tool.
 ---
@@ -41,7 +41,7 @@ Afvisningen siger hvorfor. Der blev ikke skrevet noget.
 | --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | GM Actions are off                                                                                                                            | Klik på **Start session** (eller **Turn on** i dashboardets header). En genstart af dashboardet slår den fra igen.                                                              |
 | `"AI Tool: Tarokka (writes)" is switched off. In Foundry, open the Settings tab, Game Settings…` (eller Handouts, Obsidian mirror, Live play) | **Game Settings**, kategorien **Foundry AI Tool**, sæt kryds ved "AI Tool: Tarokka (writes)" (eller Handouts, Obsidian mirror, Live play), **Save Changes**, og anvend så igen. |
-| `Write operations are disabled in the module settings` eller `… is disabled in module settings`                                               | Samme sted: sæt kryds ved **AI Tool: Allow Write Operations**.                                                                                                                  |
+| `Write operations are disabled in the module settings`                                                                                        | Samme sted: sæt kryds ved **AI Tool: Allow Write Operations**.                                                                                                                  |
 | `No pending plan … (plans expire after 15 minutes)`                                                                                           | Planen er udløbet, eller bridgen er genstartet. Lav planen igen (bed Claude om det, eller kør `plan-`-værktøjet igen).                                                          |
 | `Conflict, nothing was written: …`                                                                                                            | Noget ændrede det samme, efter planen blev lavet. Tjek det i Foundry, og lav så en ny plan.                                                                                     |
 | `That page is already revealed to players`                                                                                                    | Der er intet at gøre.                                                                                                                                                           |

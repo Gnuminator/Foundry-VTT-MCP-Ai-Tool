@@ -30,7 +30,7 @@ export class LevelUpTools {
         inputSchema: {
           type: 'object',
           properties: {
-            identifier: {
+            actor: {
               type: 'string',
               description: 'Character name or actor ID.',
               ...toolRef('actor', 'id'),
@@ -40,20 +40,20 @@ export class LevelUpTools {
               ...freeText('A class name such as "wizard"; omit for every class.'),
             },
           },
-          required: ['identifier'],
+          required: ['actor'],
         },
       },
     ];
   }
 
   async handleGetLevelUpOptions(args: unknown): Promise<unknown> {
-    const schema = z.object({ identifier: z.string(), className: z.string().optional() });
+    const schema = z.object({ actor: z.string(), className: z.string().optional() });
     try {
       const params = schema.parse(args ?? {});
-      const response = (await this.foundryClient.query(
-        'foundry-mcp-bridge.getLevelUpOptions',
-        params
-      )) as { success?: boolean; error?: string } | undefined;
+      const response = (await this.foundryClient.query('foundry-mcp-bridge.getLevelUpOptions', {
+        identifier: params.actor,
+        className: params.className,
+      })) as { success?: boolean; error?: string } | undefined;
       if (response?.success === false) {
         throw new Error(response.error || 'Failed to get level-up options');
       }

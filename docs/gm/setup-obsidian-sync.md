@@ -57,12 +57,18 @@ Stuck on a step? Ask Claude first: open a chat with the GM coach on and say wher
    ```text
    .obsidian/workspace*.json
    .obsidian/cache
+   !.obsidian/plugins/foundry-ai-tool/main.js
+   !.obsidian/plugins/foundry-ai-tool/manifest.json
+   !.obsidian/plugins/foundry-ai-tool/styles.css
    .obsidian/plugins
    .obsidian/community-plugins.json
    .trash
    ```
 
-   They keep each PC's own Obsidian settings out of the sync.
+   They keep each PC's own Obsidian settings out of the sync. The three lines that start with `!`
+   let the Foundry AI Tool plugin's files through, so the server can keep your plugin up to date
+   (see [the plugin page](setup-obsidian-plugin.md)). Keep them above the `.obsidian/plugins` line:
+   Syncthing uses the first line that matches. The plugin's own settings stay on your PC.
 
 5. The folder row shows **Syncing**, then **Up to Date** in green.
 

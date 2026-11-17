@@ -186,7 +186,6 @@ export const NON_WRITE_METHODS: readonly string[] = [
   'sessionSwitches',
   'snapshotGuardedOps',
   'suggestBalancedEncounter',
-  'validateWritePermissions',
 ];
 
 /** Throw the standard refusal while "Allow Write Operations" is off. */

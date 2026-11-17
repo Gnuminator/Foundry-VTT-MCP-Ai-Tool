@@ -1,13 +1,9 @@
+import { errorMessage } from '@gnuminator/shared/browser';
 import { ERROR_MESSAGES } from '../constants.js';
 import * as shared from './shared.js';
 import { sceneBackgroundSrc } from '../systems/core.js';
 import { rec } from '../doc-read.js';
 import { viewedScene } from '../viewed-scene.js';
-
-/** Normalize a thrown value to a message string for wrapped error reporting. */
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : 'Unknown error';
-}
 
 /** How long `switchScene` waits for the GM client's view to follow an activation. */
 const SCENE_VIEW_WAIT_MS = 2000;

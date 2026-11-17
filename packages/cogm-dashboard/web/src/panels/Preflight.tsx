@@ -7,7 +7,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, type JSX } from 'react';
 
 import { api } from '../lib/api';
-import { PREFLIGHT_QUIET_DELAY_MS, runQuietPreflight } from '../lib/preflightQuiet';
+import { PREFLIGHT_QUIET_DELAY_MS, runQuietPreflight } from '../lib/preflight-quiet';
 import { useBridgeStatus } from '../lib/stream';
 import { Button } from '../ui';
 

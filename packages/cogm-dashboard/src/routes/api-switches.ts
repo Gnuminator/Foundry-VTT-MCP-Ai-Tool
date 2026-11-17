@@ -144,6 +144,7 @@ export function mountApiSwitchesRoutes(app: Express, ctx: RouteContext): void {
           gmActionsEnabled: settings.gmActionsEnabled,
           sessionSwitches,
           playerState: ctx.currentPlayerState(),
+          playerVaultHealth: ctx.playerVaultHealth?.() ?? null,
           foundryUrl: config.foundryUrl,
         })
       )

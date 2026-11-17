@@ -28,7 +28,7 @@ const LEVEL_NAMES = Object.keys(OWNERSHIP_LEVELS) as OwnershipLevelName[];
 
 const planParams = z.object({
   action: z.enum(OWNERSHIP_ACTIONS),
-  actorIdentifier: z.string().min(1),
+  actor: z.string().min(1),
   playerIdentifier: z.string().min(1),
   permissionLevel: z.enum(['NONE', 'LIMITED', 'OBSERVER', 'OWNER']).optional(),
 });
@@ -93,7 +93,7 @@ export class OwnershipTools {
               enum: [...OWNERSHIP_ACTIONS],
               description: 'assign or remove.',
             },
-            actorIdentifier: {
+            actor: {
               type: 'string',
               description: 'Actor name or ID, "all friendly NPCs" or "party characters".',
               ...actorOrBulkRef,
@@ -110,7 +110,7 @@ export class OwnershipTools {
                 'assign: NONE, LIMITED, OBSERVER (sees the sheet) or OWNER (controls it).',
             },
           },
-          required: ['action', 'actorIdentifier', 'playerIdentifier'],
+          required: ['action', 'actor', 'playerIdentifier'],
         },
       },
       {
@@ -120,7 +120,7 @@ export class OwnershipTools {
         inputSchema: {
           type: 'object',
           properties: {
-            actorIdentifier: {
+            actor: {
               type: 'string',
               description: 'Optional: specific actor name/ID to check, or "all" for all actors',
               ...toolRef('actor', 'id', { extra: [{ value: 'all', label: 'All actors' }] }),
@@ -171,8 +171,8 @@ export class OwnershipTools {
       throw new Error('Action "assign" needs permissionLevel (NONE, LIMITED, OBSERVER or OWNER)');
     }
     const level = OWNERSHIP_LEVELS[levelKey];
-    const actors = await this.resolveActors(params.actorIdentifier);
-    if (actors.length === 0) throw new Error(`No actor matches "${params.actorIdentifier}"`);
+    const actors = await this.resolveActors(params.actor);
+    if (actors.length === 0) throw new Error(`No actor matches "${params.actor}"`);
     const players = await this.resolvePlayers(params.playerIdentifier);
     if (players.length === 0) throw new Error(`No player matches "${params.playerIdentifier}"`);
 
@@ -226,20 +226,20 @@ export class OwnershipTools {
    * List actor ownership permissions
    */
   private async listActorOwnership(args: unknown): Promise<OwnershipListResult> {
-    const { actorIdentifier, playerIdentifier } = args as {
-      actorIdentifier?: string;
+    const { actor, playerIdentifier } = args as {
+      actor?: string;
       playerIdentifier?: string;
     };
 
     this.logger.info(
-      `Listing actor ownership for actor: "${actorIdentifier || 'all'}", player: "${playerIdentifier || 'all'}"`
+      `Listing actor ownership for actor: "${actor || 'all'}", player: "${playerIdentifier || 'all'}"`
     );
 
     try {
       const ownershipData: unknown = await this.foundryClient.query(
         'foundry-mcp-bridge.getActorOwnership',
         {
-          actorIdentifier,
+          actorIdentifier: actor,
           playerIdentifier,
         }
       );

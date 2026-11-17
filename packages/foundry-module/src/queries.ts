@@ -419,10 +419,6 @@ export class QueryHandlers {
       this.handleGetCompendiumDocumentFull.bind(this)
     );
     handlers.set(`${modulePrefix}.addActorsToScene`, this.handleAddActorsToScene.bind(this));
-    handlers.set(
-      `${modulePrefix}.validateWritePermissions`,
-      this.handleValidateWritePermissions.bind(this)
-    );
     handlers.set(`${modulePrefix}.createJournalEntry`, this.handleCreateJournalEntry.bind(this));
     handlers.set(`${modulePrefix}.listJournals`, this.handleListJournals.bind(this));
     handlers.set(`${modulePrefix}.getJournalContent`, this.handleGetJournalContent.bind(this));
@@ -868,21 +864,6 @@ export class QueryHandlers {
         placement: data.placement || 'random',
         hidden: data.hidden || false,
       });
-    });
-  }
-
-  /**
-   * Handle validate write permissions request
-   */
-  private async handleValidateWritePermissions(data: {
-    operation: 'createActor' | 'modifyScene';
-  }): Promise<unknown> {
-    return this.withGmGate('Failed to validate write permissions', async () => {
-      if (!data.operation) {
-        throw new Error('operation is required');
-      }
-
-      return await this.dataAccess.validateWritePermissions(data.operation);
     });
   }
 

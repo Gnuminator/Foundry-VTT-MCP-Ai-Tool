@@ -1,9 +1,9 @@
-// The plan link (lib/planLink.ts): a page opened as /?plan=<planId> shows that plan's confirm window
+// The plan link (lib/plan-link.ts): a page opened as /?plan=<planId> shows that plan's confirm window
 // once GM Actions are on, then drops the parameter from the address. Until GM Actions are on it
 // says so once. The plan goes through the same guarded path as any plan made on this page.
 import { useEffect, useRef, useState } from 'react';
 
-import { planIdFromSearch } from '../lib/planLink';
+import { planIdFromSearch } from '../lib/plan-link';
 import { useGuardedTools } from '../lib/guarded';
 import { useDashboardSettings } from '../lib/stream';
 

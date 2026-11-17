@@ -1,6 +1,6 @@
 ---
 source: gm/connect-claude-desktop.md
-sourceHash: 6a37d0d96116
+sourceHash: 6ead948d6245
 title: Forbind Claude Desktop til serveren
 description: Installer den lille Windows-klient, så Claude Desktop på din PC når det Foundry AI Tool, der kører på hjemmeserveren, med en nøgle som kun du har.
 ---
@@ -74,8 +74,9 @@ Slå det til eller fra med (PowerShell):
 & "$env:LOCALAPPDATA\FoundryMCPServer\client-update.ps1" -Action Status
 ```
 
-Obsidian-pluginet opdateres gennem den synkroniserede GM-vault (se Obsidian-synkroniseringsguiden),
-ikke af dette.
+Dette rører ikke Obsidian-pluginet. Serveren lægger det nyeste plugin i GM-vaulten, og Syncthing
+bringer det til din pc (se [Obsidian-synkroniseringsguiden](setup-obsidian-sync.md)); genstart
+Obsidian for at indlæse det.
 
 ## Tjek, at det virker
 

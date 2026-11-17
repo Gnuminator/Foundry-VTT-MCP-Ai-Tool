@@ -25,11 +25,11 @@ describe('ResourceTools.getToolDefinitions', () => {
     }
   });
 
-  it('get-character-resources requires identifier', () => {
+  it('get-character-resources requires actor', () => {
     const { tools } = makeTools(ResourceTools);
     const defs = tools.getToolDefinitions();
     const def = defs.find(d => d.name === 'get-character-resources')!;
-    expect((def.inputSchema as any).required).toEqual(['identifier']);
+    expect((def.inputSchema as any).required).toEqual(['actor']);
   });
 });
 
@@ -41,7 +41,7 @@ describe('ResourceTools.handleGetCharacterResources', () => {
   it('dispatches the correct query method with identifier and returns the response', async () => {
     const payload = { success: true, spellSlots: { 1: { max: 4, current: 3 } } };
     const { tools, query } = makeTools(ResourceTools, () => payload);
-    const result = await tools.handleGetCharacterResources({ identifier: 'Aria' });
+    const result = await tools.handleGetCharacterResources({ actor: 'Aria' });
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getCharacterResources', {
       identifier: 'Aria',
     });
@@ -53,12 +53,12 @@ describe('ResourceTools.handleGetCharacterResources', () => {
       success: false,
       error: 'actor not found',
     }));
-    await expect(tools.handleGetCharacterResources({ identifier: 'Ghost' })).rejects.toThrow(
+    await expect(tools.handleGetCharacterResources({ actor: 'Ghost' })).rejects.toThrow(
       'actor not found'
     );
   });
 
-  it('throws a ZodError (not a string) when identifier is missing', async () => {
+  it('throws a ZodError (not a string) when actor is missing', async () => {
     const { tools, query } = makeTools(ResourceTools);
     await expect(tools.handleGetCharacterResources({})).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
@@ -72,7 +72,7 @@ describe('ResourceTools.handleGetCharacterResources', () => {
 
   it('uses a default error message when Foundry returns success:false with no error field', async () => {
     const { tools } = makeTools(ResourceTools, () => ({ success: false }));
-    await expect(tools.handleGetCharacterResources({ identifier: 'X' })).rejects.toThrow(
+    await expect(tools.handleGetCharacterResources({ actor: 'X' })).rejects.toThrow(
       'Failed to get character resources'
     );
   });

@@ -16,6 +16,8 @@ from pathlib import Path
 
 from .claude_runner import ClaudeCli, ClaudeError
 from .consent import EXIT_NO_CONSENT, check_consent, load_consent, set_consent
+from .inbox import pending as inbox_pending
+from .inbox import sync as inbox_sync
 from .model import clock, load_timeline
 from .publish import publish
 from .retention import approve, cleanup
@@ -136,10 +138,32 @@ def main(argv: list[str] | None = None) -> int:
     con_check.add_argument(
         "--write-status", action="store_true", help="when blocked, say so in notes/status.json"
     )
+    inb = sub.add_parser(
+        "inbox", help="recap inbox for a cloud routine (I-132); needs FVTT_RECAP_INBOX"
+    )
+    inb_sub = inb.add_subparsers(dest="inbox_cmd", required=True)
+    inb_sub.add_parser("sync", help="PC pass: import finished notes, export new sessions, push")
+    inb_sub.add_parser("pending", help="list inbox sessions that still need notes (routine side)")
     args = parser.parse_args(argv)
 
     if args.cmd == "consent":
         return run_consent(args)
+    if args.cmd == "inbox":
+        raw = os.environ.get("FVTT_RECAP_INBOX")
+        if not raw or not Path(raw).is_dir():
+            print("FVTT_RECAP_INBOX is not set to a folder; the recap inbox is off.")
+            return 0 if args.inbox_cmd == "sync" else 1
+        if args.inbox_cmd == "pending":
+            for path in inbox_pending(Path(raw)):
+                print(path)
+            return 0
+        try:
+            report = inbox_sync(sessions_root(), Path(raw))
+        except RuntimeError as exc:
+            print(exc, file=sys.stderr)
+            return 1
+        print("\n".join(report.lines()))
+        return 0
     if args.cmd == "cleanup":
         items = cleanup(sessions_root(), days=args.days, apply=args.yes)
         for item in items:

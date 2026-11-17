@@ -13,7 +13,7 @@ import {
   rollBackChange,
   type DuringPrefs,
   type PrefsChange,
-} from './prefsModel';
+} from './prefs-model';
 
 export const PREFS_KEY = ['stream', 'prefs'] as const;
 

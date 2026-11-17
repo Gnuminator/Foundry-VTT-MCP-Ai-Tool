@@ -43,7 +43,7 @@ export class SessionLogTools {
               description:
                 'Optional event type filter (e.g. "combat-start", "combat-end", "damage", "healing", "death", "stabilize", "condition-applied", "condition-removed", "resource-spent", "scene-change", "journal-created", "journal-updated", "roll", "damage-roll", "gm-roll", "item-use").',
             },
-            actorName: {
+            actor: {
               type: 'string',
               description: 'Optional actor name filter (partial match).',
               // `damage-roll` events copy their actorName straight from the chat
@@ -87,14 +87,14 @@ export class SessionLogTools {
     const schema = z.object({
       limit: z.number().int().min(1).max(1000).optional(),
       eventType: z.string().optional(),
-      actorName: z.string().optional(),
+      actor: z.string().optional(),
     });
     try {
-      const params = schema.parse(args ?? {});
-      const response = (await this.foundryClient.query(
-        'foundry-mcp-bridge.getSessionLog',
-        params
-      )) as SessionLogBridgeReply | undefined;
+      const { actor, ...params } = schema.parse(args ?? {});
+      const response = (await this.foundryClient.query('foundry-mcp-bridge.getSessionLog', {
+        ...params,
+        ...(actor !== undefined ? { actorName: actor } : {}),
+      })) as SessionLogBridgeReply | undefined;
       if (response?.success === false) {
         throw new Error(response.error || 'Failed to get session log');
       }

@@ -17,10 +17,13 @@ import { fileURLToPath } from 'node:url';
 import { defineConfig, devices } from '@playwright/test';
 
 import { GM_TOKEN } from './e2e/support';
-import { STORYBOOK_PORT } from './visual/stories';
+import { BASE_STORYBOOK_PORT, STORYBOOK_PORT } from './visual/stories';
 
 const packageDir = fileURLToPath(new URL('..', import.meta.url));
 const PORT = 3198;
+// Set only by the two-sided render (stories-diff.spec.ts): the built Storybook of the base branch.
+// Without it that spec has no project and no second server, so the normal run is unchanged.
+const BASE_DIR = process.env['VISUAL_BASE_DIR'];
 
 export default defineConfig({
   testDir: './visual',
@@ -66,17 +69,17 @@ export default defineConfig({
     // The axe check (axe.spec.ts) runs once, at 1440; the screenshots run at every width.
     {
       name: 'desktop-1440',
-      testIgnore: /stories\.spec/,
+      testIgnore: /stories(-diff)?\.spec/,
       use: { viewport: { width: 1440, height: 900 } },
     },
     {
       name: 'laptop-1080',
-      testIgnore: [/axe\.spec/, /stories\.spec/],
+      testIgnore: [/axe\.spec/, /stories(-diff)?\.spec/],
       use: { viewport: { width: 1080, height: 800 } },
     },
     {
       name: 'phone-390',
-      testIgnore: [/axe\.spec/, /stories\.spec/],
+      testIgnore: [/axe\.spec/, /stories(-diff)?\.spec/],
       use: { viewport: { width: 390, height: 844 } },
     },
     // The story shots and their axe check (stories.spec.ts, UI-03): the built Storybook, served
@@ -86,6 +89,8 @@ export default defineConfig({
       testMatch: /stories\.spec/,
       use: { baseURL: `http://127.0.0.1:${STORYBOOK_PORT}` },
     },
+    // The two-sided render: base and head stories compared, nothing committed.
+    ...(BASE_DIR ? [{ name: 'stories-diff', testMatch: /stories-diff\.spec/ }] : []),
   ],
   webServer: [
     {
@@ -114,5 +119,16 @@ export default defineConfig({
       reuseExistingServer: !process.env.CI,
       timeout: 15_000,
     },
+    ...(BASE_DIR
+      ? [
+          {
+            command: `node scripts/serve-static.mjs "${BASE_DIR}" ${BASE_STORYBOOK_PORT}`,
+            cwd: packageDir,
+            url: `http://127.0.0.1:${BASE_STORYBOOK_PORT}/health`,
+            reuseExistingServer: !process.env.CI,
+            timeout: 15_000,
+          },
+        ]
+      : []),
   ],
 });

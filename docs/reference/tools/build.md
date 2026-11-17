@@ -36,7 +36,7 @@ Parameters:
 - `folder` (string): For "create": folder name/ID to place items in (created if absent). For "list": filter to items inside this folder.
 - `type` (string): For "list": filter by item type (e.g. "action", "talent"). Omit to return all types.
 - `nameFilter` (string): For "list": case-insensitive substring match on item name.
-- `actorIdentifier` (string): For "add-to-actor": actor name or ID to receive the items.
+- `actor` (string): For "add-to-actor": actor name or ID to receive the items.
 
 ## list-creatures-by-criteria
 
@@ -85,7 +85,7 @@ Parameters:
 
 ## dnd5e-add-feature
 
-Direct write. D&D 5e only. Add a feature, attack, spellcasting setup or spells to an existing actor. featureType picks the mode; each parameter says which modes use it. Required besides actorIdentifier:
+Direct write. D&D 5e only. Add a feature, attack, spellcasting setup or spells to an existing actor. featureType picks the mode; each parameter says which modes use it. Required besides actor:
 
 - passive: a trait with no roll (Magic Resistance): featureName
 - save: forces a saving throw (breath weapon): featureName, saveAbility, saveDC, damageParts
@@ -95,14 +95,14 @@ Direct write. D&D 5e only. Add a feature, attack, spellcasting setup or spells t
 - spellcasting: slots and casting ability, run before "spells": spellcastingClass, spellcastingLevel
 - spells: import named spells from the compendium: spellNames (English, max 50)
 
-Find the actorIdentifier with list-characters or get-character.
+Find the actor with list-characters or get-character.
 
 Kind: changes something. Title: Add feature to actor.
 
 Parameters:
 
 - `featureType` (string, required): Mode: decides which parameters are used. One of: `passive`, `save`, `attack`, `attack-with-save`, `aura`, `spellcasting`, `spells`.
-- `actorIdentifier` (string, required): Name or ID of the target actor (partial name match works). Always required.
+- `actor` (string, required): Name or ID of the target actor (partial name match works). Always required.
 - `featureName` (string): Name for the new feature/item; must be unique on the actor. Required for: passive, save, attack, attack-with-save, aura.
 - `description` (string): HTML description of the feature (optional). Used by: passive, save, attack, attack-with-save, aura. Default: `""`.
 - `activationType` (string): Action economy type. Used by: save, attack, attack-with-save, aura. Default: "action". One of: `action`, `bonus`, `reaction`, `legendary`, `lair`, `special`. Default: `action`.
@@ -194,13 +194,13 @@ Parameters:
 
 ## dnd5e-add-features-from-compendium
 
-Direct write. D&D 5e only. Import monster features and class features by name from a compendium pack onto an actor (NPC or PC), copied as they are in the compendium. Examples: "Pack Tactics", "Multiattack", "Action Surge", "Font of Magic". Names must be exact (any case) and in English: translate them first. compendiumPacks is searched in order, first match wins. Default ["dnd5e.monsterfeatures", "dnd5e.classfeatures"] is the 2014 SRD; ["dnd5e.monsterfeatures24"] is 2024 monster features only. Not for: spells or spell slots (use dnd5e-add-feature with featureType "spells" or "spellcasting"); 2024 class features (they live inside the class items, so this cannot import them); homebrew. Returns a report: added, skipped (already on the actor), not found, failed. Find the actorIdentifier with list-characters or get-character.
+Direct write. D&D 5e only. Import monster features and class features by name from a compendium pack onto an actor (NPC or PC), copied as they are in the compendium. Examples: "Pack Tactics", "Multiattack", "Action Surge", "Font of Magic". Names must be exact (any case) and in English: translate them first. compendiumPacks is searched in order, first match wins. Default ["dnd5e.monsterfeatures", "dnd5e.classfeatures"] is the 2014 SRD; ["dnd5e.monsterfeatures24"] is 2024 monster features only. Not for: spells or spell slots (use dnd5e-add-feature with featureType "spells" or "spellcasting"); 2024 class features (they live inside the class items, so this cannot import them); homebrew. Returns a report: added, skipped (already on the actor), not found, failed. Find the actor with list-characters or get-character.
 
 Kind: changes something. Title: Add compendium features to actor.
 
 Parameters:
 
-- `actorIdentifier` (string, required): Name or ID of the target actor (partial name match supported)
+- `actor` (string, required): Name or ID of the target actor (partial name match supported)
 - `featureNames` (array of string, required): English feature names to import (exact match, case-insensitive). Maximum 50 per call. Items: 1 to 50.
 - `compendiumPacks` (array of string): Pack IDs to search in order, first match wins. Default ["dnd5e.monsterfeatures", "dnd5e.classfeatures"] (SRD 2014); "dnd5e.monsterfeatures24" for 2024 monster features. Default: `["dnd5e.monsterfeatures","dnd5e.classfeatures"]`.
 

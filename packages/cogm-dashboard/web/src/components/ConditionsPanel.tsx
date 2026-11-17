@@ -12,9 +12,9 @@ import {
   conditionChoices,
   conditionPlanArgs,
   type ConditionChoice,
-} from '../lib/conditionsPanel';
+} from '../lib/conditions-panel';
 import { useGuardedTools } from '../lib/guarded';
-import { canFight, pickerRows, sideWords, type TokenPositionsAnswer } from '../lib/startCombat';
+import { canFight, pickerRows, sideWords, type TokenPositionsAnswer } from '../lib/start-combat';
 import { Button, QueryState } from '../ui';
 
 import styles from './ConditionsPanel.module.css';

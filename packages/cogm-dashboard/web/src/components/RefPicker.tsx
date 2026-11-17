@@ -7,8 +7,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Fragment, useEffect, useMemo, useRef, useState, type JSX, type ReactNode } from 'react';
 
 import { callTool, errorText } from '../lib/api';
-import { fetchFoundryTargets, targetPairs, targetsNote } from '../lib/foundryTargets';
-import { fieldValues, refValue, type RefChoice, type ToolRef } from '../lib/toolForm';
+import { fetchFoundryTargets, targetPairs, targetsNote } from '../lib/foundry-targets';
+import { fieldValues, refValue, type RefChoice, type ToolRef } from '../lib/tool-form';
 import { usage } from '../lib/usage';
 import { Button } from '../ui';
 

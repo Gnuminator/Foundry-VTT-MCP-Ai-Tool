@@ -1,6 +1,6 @@
 ---
 source: player/dnd-helper.md
-sourceHash: 8cdc6df60024
+sourceHash: 9779e9970e4e
 title: D&D-hjælperen til spillere
 description: Installer Claude Desktop og din Foundry-spillerconnector, og lav, level op og tjek så din egen karakter og slå regler op, trin for trin.
 ---
@@ -113,8 +113,8 @@ installér den på samme måde, og når en formular spørger, så indsæt dit **
 felt og din **Client Secret** i det andet (**My character**-siden har begge med kopiér-knapper).
 
 For at tjekke, at det virker, så åbn en ny chat og klik på **+** eller værktøjsikonet ved
-beskedfeltet. Du skulle gerne se **Foundry** (eller **foundry-player**) med otte tools (de syv
-bordtools og **get-helper-guide**). Gør du det, sidder stikket i. Hjælperens instrukser følger med
+beskedfeltet. Du skulle gerne se **Foundry** (eller **foundry-player**) med ni tools (de syv
+bordtools, **get-player-skill-guide** og **get-helper-guide**). Gør du det, sidder stikket i. Hjælperens instrukser følger med
 extension, så du skulle ikke behøve at tilføje en skill eller slå Code execution til. Følger Claude
 ikke hjælperens trin, så se Fejlfinding.
 

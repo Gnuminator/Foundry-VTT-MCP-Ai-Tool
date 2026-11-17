@@ -28,7 +28,7 @@ export const PLUGINS = [
     skill: 'foundry-dnd-helper',
     stub: 'tools/dnd-helper/stub/SKILL.md',
     description:
-      'D&D 5e (2024) helper for the GM: builds characters and answers rules questions from the books in Foundry (core connector).',
+      'D&D 5e (2024) helper at a Foundry VTT table: builds characters and answers rules questions from the books in Foundry (core connector, for the GM side; players use foundry-player-helper).',
   },
   {
     name: 'foundry-player-helper',

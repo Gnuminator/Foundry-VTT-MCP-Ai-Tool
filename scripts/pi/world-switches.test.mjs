@@ -1,10 +1,10 @@
-// Tests for the world switches of Pi stage 11 (scripts/pi/remote/world-switches.mjs, docs/dev/PI-SETUP.md,
+// Tests for the world switches of Pi stage 11 (scripts/pi/remote/world-switches.mjs, docs/dev/pi/licensed-content.md,
 // "World switches"):
 //   node --test scripts/pi/world-switches.test.mjs
 // - the in-browser part against a fake `game`: every switch set, a second run changing nothing, a setting that is
 //   already right left alone, an optional module that is missing (a warning, not a failure), a required setting that
 //   is missing or a client setting (a blocker), and the read-back check;
-// - the table in PI-SETUP.md and PROFILE name the same settings with the same values;
+// - the table in pi/licensed-content.md and PROFILE name the same settings with the same values;
 // - every AI Tool setting key in PROFILE is one the foundry module registers.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';

@@ -27,6 +27,13 @@ test('standalone mode skips wiki pages only', () => {
   );
 });
 
+test('a link into the optional Storybook passes even when it is missing', () => {
+  assert.deepEqual(
+    checkLinks('<a href="storybook/">s</a>', () => false),
+    []
+  );
+});
+
 test('the real landing page has no banned words, no outside loads and no dead anchors', () => {
   assert.deepEqual(findBanned(page), []);
   const seen = new Set(IMAGES.map(([, to]) => `showcase/img/${to}`));

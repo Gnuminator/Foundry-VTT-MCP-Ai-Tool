@@ -58,7 +58,10 @@ const LINK_HOSTS = new Set(['github.com', 'gnuminator.github.io']);
 // Adam Dooley's upstream project is credited on the page, so github.com covers it.
 
 /** Wiki paths the landing page links to; checked against the wiki build when it exists. */
-const WIKI_PREFIXES = ['gm/', 'player/', 'da/', 'foundry/', 'storybook/'];
+const WIKI_PREFIXES = ['gm/', 'player/', 'da/', 'foundry/'];
+
+/** Added to the site by a step that may fail without stopping the wiki (Storybook), so never required. */
+const OPTIONAL_PREFIXES = ['storybook/'];
 
 export function findBanned(text) {
   const low = text.toLowerCase();
@@ -91,6 +94,7 @@ export function checkLinks(html, exists, { standalone = false } = {}) {
     } else {
       const rel = url.split('#')[0].split('?')[0];
       if (!rel) continue;
+      if (OPTIONAL_PREFIXES.some(p => rel.startsWith(p))) continue;
       const isWiki = WIKI_PREFIXES.some(p => rel.startsWith(p));
       if (isWiki && standalone) continue;
       const target = rel.endsWith('/') ? `${rel}index.html` : rel;

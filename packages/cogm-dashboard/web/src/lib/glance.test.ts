@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { Combatant, CombatState } from './combat';
 import { GLANCE_HREF, ageText, combatRows, isOld, partyRows, sceneName, turnLine } from './glance';
-import { optInScreen } from './liveScreen';
+import { optInScreen } from './live-screen';
 
 describe('ageText', () => {
   it('says how old data is', () => {

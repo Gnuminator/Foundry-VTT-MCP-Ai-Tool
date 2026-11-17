@@ -12,7 +12,7 @@
 // the "?" help.
 import { memo, useState, type JSX } from 'react';
 
-import { foldBodyId } from '../lib/duringFolds';
+import { foldBodyId } from '../lib/during-folds';
 import {
   FEED_AWAY_EMPTY_TEXT,
   FEED_AWAY_TEXT,

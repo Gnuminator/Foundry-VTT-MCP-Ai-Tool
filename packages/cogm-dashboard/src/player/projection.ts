@@ -251,7 +251,7 @@ export function projectCombat(
   return { active: true, round: num(combat.round) ?? 0, combatants };
 }
 
-export function playerStatus(status: BridgeStatus): PlayerState['status'] {
+function playerStatus(status: BridgeStatus): PlayerState['status'] {
   if (status.controlChannel !== 'connected') return 'disconnected';
   if (status.foundry === 'reachable') return 'live';
   if (status.foundry === 'unreachable') return 'foundry-offline';

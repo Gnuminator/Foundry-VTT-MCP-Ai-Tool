@@ -1,0 +1,499 @@
+/* Recent Changes: the AI / Everyone tabs, the person filter, the rows and the undo window (I-109) */
+.changes-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.6rem;
+  padding: 0.35rem 0.6rem 0;
+}
+.changes-tabs {
+  display: flex;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+}
+.changes-tab {
+  border: 0;
+  background: none;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: var(--fs-xs);
+  padding: 0.2rem 0.8rem;
+  border-radius: var(--r-pill);
+  cursor: pointer;
+}
+.changes-tab:hover {
+  color: var(--text);
+}
+.changes-tab[aria-pressed='true'] {
+  background: var(--bg-elev-2);
+  color: var(--text);
+}
+.changes-person {
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+  font-size: var(--fs-xs);
+}
+.change-actions {
+  display: flex;
+  gap: 0.35rem;
+  flex: none;
+}
+.change-badge {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+}
+.change-who {
+  color: var(--text-mid);
+  font-weight: 500;
+}
+.modal-wide {
+  width: min(560px, 100%);
+}
+.modal-wide .modal-body {
+  max-height: 60vh;
+  overflow: auto;
+}
+.undo-later {
+  margin: 0.4rem 0 0;
+  padding: 0 0 0 1.1rem;
+  font-size: var(--fs-xs);
+}
+.undo-later li {
+  margin-bottom: 0.2rem;
+}
+.undo-note {
+  color: var(--text-dim);
+  font-style: italic;
+}
+.undo-advanced {
+  margin-top: 0.8rem;
+  font-size: var(--fs-xs);
+}
+.undo-advanced summary {
+  cursor: pointer;
+  color: var(--text-dim);
+}
+.undo-advanced p {
+  margin: 0.4rem 0;
+}
+.btn-danger {
+  border-color: color-mix(in srgb, var(--bad) 55%, transparent);
+  color: var(--bad-text);
+}
+
+/* --- Tarokka drawer ------------------------------------------------------ */
+.tarokka-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid var(--border-soft);
+}
+.tarokka-show {
+  margin-left: auto;
+  font-size: var(--fs-xs);
+  color: var(--text-mid);
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+}
+.show-now {
+  font-size: var(--fs-xs);
+  color: var(--text-mid);
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+}
+.tarokka-body {
+  flex: 1;
+  overflow: auto;
+  padding: 0.8rem 1rem;
+}
+.tarokka-pos {
+  padding: 0.6rem 0.7rem;
+  margin-bottom: 0.6rem;
+  background: var(--bg-elev);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-md);
+}
+.tarokka-pos-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+  align-items: baseline;
+}
+.tarokka-label {
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+}
+.tarokka-card {
+  font-size: var(--fs-sm);
+  color: var(--text);
+  text-align: right;
+}
+.tarokka-card code {
+  font-size: var(--fs-2xs);
+  color: var(--text-faint);
+}
+.tarokka-card.veiled {
+  filter: blur(6px);
+  user-select: none;
+}
+.tarokka-note {
+  margin-top: 0.3rem;
+  font-size: var(--fs-xs);
+  color: var(--text-mid);
+  white-space: pre-wrap;
+}
+.tarokka-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  margin-top: 0.45rem;
+}
+.tarokka-badge {
+  font-size: var(--fs-2xs);
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: var(--bg-sunken);
+  color: var(--text-dim);
+  border: 1px solid var(--border-soft);
+}
+.tarokka-badge.revealed {
+  color: var(--bad-text);
+  border-color: var(--bad);
+}
+.tarokka-badge.warn {
+  color: var(--warn);
+  border-color: var(--warn);
+}
+.tarokka-form {
+  display: grid;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+.tarokka-candidate {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: var(--fs-xs);
+  color: var(--text-mid);
+  padding: 0.25rem 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+/* --- Pre-flight drawer (I-068) ------------------------------------------ */
+.preflight-summary {
+  padding: 0.55rem 0.7rem;
+  margin-bottom: 0.7rem;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border-soft);
+  font-weight: 600;
+}
+.preflight-summary.pf-ok {
+  background: var(--good-soft);
+  border-color: var(--good);
+  color: var(--good);
+}
+.preflight-summary.pf-warn {
+  background: var(--warn-soft);
+  border-color: var(--warn);
+  border-style: dashed;
+  color: var(--warn);
+}
+.preflight-summary.pf-fail {
+  background: var(--bad-soft);
+  border-color: var(--bad);
+  color: var(--bad-text);
+}
+.preflight-h {
+  margin: 0.9rem 0 0.4rem;
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+.preflight-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.preflight-item {
+  display: flex;
+  gap: 0.55rem;
+  align-items: flex-start;
+  padding: 0.45rem 0.55rem;
+  margin-bottom: 0.35rem;
+  background: var(--bg-elev);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-sm);
+}
+.pf-icon {
+  flex: none;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: var(--r-pill);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  background: var(--bg-sunken);
+  color: var(--text-dim);
+}
+/* The states differ in shape as well as colour (D-092): ok is a filled round badge, warn an
+   outlined square, fail a filled square, so a pale theme or colour blindness cannot hide them. */
+.pf-ok .pf-icon {
+  background: var(--good);
+  color: var(--bg);
+}
+.pf-warn .pf-icon {
+  background: transparent;
+  color: var(--warn);
+  border: 1.5px solid var(--warn);
+  border-radius: var(--r-sm);
+}
+.pf-fail .pf-icon {
+  background: var(--bad);
+  color: var(--bg);
+  border-radius: 2px;
+}
+.pf-info .pf-icon {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.pf-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.pf-label {
+  font-weight: 600;
+  font-size: var(--fs-sm);
+}
+.pf-detail {
+  font-size: var(--fs-xs);
+  color: var(--text-mid);
+  overflow-wrap: anywhere;
+}
+.pf-manual {
+  display: flex;
+  gap: 0.55rem;
+  align-items: flex-start;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+.pf-manual input {
+  margin-top: 0.2rem;
+}
+.preflight-findings {
+  margin: 0.4rem 0 0.2rem;
+  font-size: var(--fs-xs);
+  color: var(--text-mid);
+}
+.preflight-findings ul {
+  margin: 0.4rem 0 0;
+  padding-left: 1.1rem;
+}
+.preflight-findings li {
+  margin-bottom: 0.3rem;
+  overflow-wrap: anywhere;
+}
+#btn-preflight.preflight-bad {
+  border-color: var(--bad);
+  color: var(--bad-text);
+}
+
+/* --- Boss prompts (I-070) ------------------------------------------------ */
+#boss-toggle.on {
+  color: var(--warn);
+}
+.boss-prompts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.5rem 0.9rem;
+  border-bottom: 1px solid var(--border-soft);
+}
+.boss-prompt {
+  padding: 0.4rem 0.6rem;
+  border-radius: var(--r-sm);
+  font-size: var(--fs-sm);
+  border: 1px solid var(--border-soft);
+  background: var(--bg-elev);
+}
+.boss-prompt.prompt-lair {
+  border-color: var(--warn);
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.boss-prompt.prompt-legendary {
+  border-color: var(--npc);
+  background: var(--npc-soft);
+}
+.boss-line {
+  margin-top: 0.2rem;
+  font-size: var(--fs-xs);
+  color: var(--text-mid);
+}
+.boss-pips {
+  letter-spacing: 0.08em;
+}
+.pips-legendary {
+  color: var(--npc);
+}
+.pips-resist {
+  color: var(--accent);
+}
+.reaction-btn {
+  margin-left: 0.3rem;
+  padding: 0 0.35rem;
+  font-size: var(--fs-2xs);
+  line-height: 1.3;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text-mid);
+  cursor: pointer;
+}
+.reaction-btn.used {
+  background: var(--bad-soft);
+  border-color: var(--bad);
+  color: var(--bad-text);
+  text-decoration: line-through;
+}
+
+/* --- Handouts drawer (I-039) --------------------------------------------- */
+#handouts-queue .preflight-item,
+#handouts-revealed .preflight-item {
+  align-items: center;
+}
+#handouts-queue .pf-text,
+#handouts-revealed .pf-text {
+  flex: 1;
+}
+.seen-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.6rem;
+  margin-top: 0.2rem;
+}
+.seen-tick {
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+}
+.seen-tick.seen {
+  color: var(--good);
+}
+
+/* --- Prep drawer (I-045) ------------------------------------------------ */
+.prep-body .pf-text {
+  flex: 1;
+}
+.prep-sub-h {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0.7rem 0 0.35rem;
+  font-size: var(--fs-sm);
+  color: var(--text-mid);
+}
+.prep-beats {
+  margin: 0.6rem 0 0.4rem;
+  font-size: var(--fs-xs);
+  color: var(--text-mid);
+}
+.prep-beats ul {
+  margin: 0.4rem 0 0;
+  padding-left: 1.1rem;
+}
+.prep-beats li {
+  margin-bottom: 0.25rem;
+  overflow-wrap: anywhere;
+}
+.prep-beat-time {
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.prep-note {
+  margin-bottom: 0.6rem;
+  padding: 0.45rem 0.55rem;
+  background: var(--bg-elev);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-sm);
+}
+.prep-note-text {
+  margin-top: 0.2rem;
+  font-size: var(--fs-xs);
+  color: var(--text-mid);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* --- Party drawer (I-079) ----------------------------------------------- */
+.party-body .pf-text {
+  flex: 1;
+}
+.party-control {
+  min-height: 2.25rem;
+  font-family: var(--font-sans);
+  font-size: var(--fs-sm);
+  color: var(--text);
+  background: var(--bg-input);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  padding: 0.25rem 0.5rem;
+}
+.party-group {
+  margin-left: auto;
+  max-width: 14rem;
+}
+.party-hp {
+  flex: none;
+}
+.party-inspiration {
+  color: var(--warn);
+}
+.party-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.35rem 0 0.2rem;
+}
+.party-hint {
+  margin-top: 1rem;
+}
+
+/* Callouts in the help panel (:::note, :::tip, :::caution in the guides). */
+.help-body .callout {
+  margin: 12px 0;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--r-sm);
+  background: var(--accent-soft);
+}
+.help-body .callout > :first-child {
+  margin-top: 0;
+}
+.help-body .callout > :last-child {
+  margin-bottom: 0;
+}
+.help-body .callout-tip {
+  border-left-color: var(--good);
+  background: var(--good-soft);
+}
+.help-body .callout-caution {
+  border-left-color: var(--warn);
+  background: var(--warn-soft);
+}

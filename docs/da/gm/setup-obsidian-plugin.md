@@ -1,6 +1,6 @@
 ---
 source: gm/setup-obsidian-plugin.md
-sourceHash: e34b6efddb11
+sourceHash: de014cd476ef
 title: 'Engangsopsætning: Obsidian-pluginet'
 description: Installer Foundry AI Tool-pluginet i din vault og forbind det til dashboardet, så Open in Foundry virker fra en note.
 ---
@@ -25,6 +25,13 @@ dem aldrig i en chat eller en note.
 Dette Cloudflare-par er det, der er lavet til Obsidian. Det er ikke det par, du brugte til Claude Desktop.
 
 ## Installer pluginet
+
+**Den nemme måde:** serveren lægger pluginet i din vault af sig selv. Når Syncthing viser **Up to
+Date**, så åbn `Documents\Obsidian\Foundry GM vault\.obsidian\plugins`: hvis der er en mappe
+`foundry-ai-tool` med `main.js` i, så hop til trin 5. Samme vej holder det opdateret bagefter: efter
+en ny release skriver serveren de nye filer, Syncthing bringer dem over, og du genstarter Obsidian.
+Dine egne indstillinger (forbindelsesværdierne nedenfor) bliver aldrig rørt. Hvis mappen ikke er der,
+så spørg den, der byggede værktøjet, eller installer det i hånden:
 
 1. Gå til projektets releases-side (<https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases>),
    åbn den nyeste release og hent `foundry-ai-tool-obsidian.zip`.

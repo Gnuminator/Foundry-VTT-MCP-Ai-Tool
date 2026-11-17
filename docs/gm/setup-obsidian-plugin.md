@@ -24,6 +24,13 @@ This Cloudflare pair is the one made for Obsidian. It is not the pair you used f
 
 ## Install the plugin
 
+**The easy way:** the server puts the plugin into your vault by itself. When Syncthing shows **Up
+to Date**, open `Documents\Obsidian\Foundry GM vault\.obsidian\plugins`: if there is a folder
+`foundry-ai-tool` with `main.js` in it, skip to step 5. The same route keeps it up to date later:
+after a new release the server writes the new files, Syncthing brings them over, and you restart
+Obsidian. Your own settings (the connection values below) are never touched. If the folder is not
+there, ask the person who built the tool, or install it by hand:
+
 1. Go to the project's releases page (<https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases>),
    open the newest release and download `foundry-ai-tool-obsidian.zip`.
 2. Unzip it. You get a folder called `foundry-ai-tool` (and a `snippets` folder you can ignore).

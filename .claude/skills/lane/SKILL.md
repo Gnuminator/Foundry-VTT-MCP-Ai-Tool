@@ -21,8 +21,7 @@ Not prose, not only the wrap-up ask, never a message asking the planner to get i
 1. Use `node scripts/backlog.mjs` for every Backlog write (hand edits are refused). `status`, then
    `claim <id> "<session title>" --link <link>` (`get_session "self"`, field `link`). If the item has
    `- touches:` or `- depends on:` lines, look at the board's lane warnings first: another lane on
-   the same paths, or an unmerged dependency, means wait or ask the planner. Start the lane in its
-   own worktree.
+   the same paths, or an unmerged dependency, means wait or ask the planner. Use your own worktree.
 2. `git branch --show-current`. New work:
    `git fetch aitool && git checkout --no-track -b claude/<topic> aitool/main`, then `npm ci`.
 3. Read only what the item names. More than about eight files to read goes to an Explore subagent
@@ -35,8 +34,7 @@ Not prose, not only the wrap-up ask, never a message asking the planner to get i
   file, lock shared contracts first, big files in parts of about 250 lines.
   Workers never build, sync or commit.
 - **Set `model` on every Agent call, Workflow `agent()` call and `start_session`** (unset inherits
-  the caller's); `guard-model.mjs` denies one without it (forks, cloud starts, title-only offers
-  exempt). Agent takes `sonnet`, `haiku`, `opus`; `start_session` a full id (`claude-sonnet-5-5`).
+  the caller's); `guard-model.mjs` denies one without it (forks, cloud starts exempt). Agent takes `sonnet`, `haiku`, `opus`; `start_session` a full id.
 - **Test server:** load `foundry-test-env`; take the lock (`scripts/test-env/lock.ps1 take`) before
   any live check and release it after. Servers A, B, C: check `lock.ps1
 status -Server B`, take a free one with `-Server X` and pass it to start, stop, sync and
@@ -76,11 +74,10 @@ scripts/heavy-lock.mjs status`). `SKIP_PREPUSH=1 git push ...` skips the em-dash
   them, push, and only then open the PR. The helper logs to
   `%TEMP%\visual-baselines-<branch>-<6 hex>.log` (printed first). If it writes nothing, read that log. Never copy
   baselines from a failed PR run; re-run after a later change that moves pixels.
-- `changelog.d/<topic>.md` added; `git status --short`: add explicit paths; no binaries, archives,
-  audio, `.env` or downloads.
+- `changelog.d/<topic>.md` added; `git status --short`: add explicit paths; no binaries, archives, audio, `.env`, downloads.
 - PR description = the handover: what changed, how it was verified (commands, live checks, kit
   report with its `run.gitSha`), what is open, follow-ups. Put a line `Backlog: <id>` (the item's
-  `- id:`, several comma separated) in the body: the board shows the open PR on your lane card.
+  `- id:`, comma separated) in the body: the board shows the PR on your lane card.
   `Backlog-part: <id>` keeps it open.
 - **`Live check:` line (gate-enforced):** a PR touching `packages/foundry-module/src/` or
   `scripts/pi/remote/` needs one in its description. Module: the run on test server A with real
@@ -103,7 +100,9 @@ scripts/heavy-lock.mjs status`). `SKIP_PREPUSH=1 git push ...` skips the em-dash
 - **Review note:** save the reviewer's text (findings as H1, M1, L1 with file:line and a fix) to a file, then
   `node scripts/review-note.mjs <PR> --verdict merge|fixes|no --model opus|sonnet --body <file> [--round N]`.
   It names the file, writes the head and verdict lines, checks them with the gate's parser and pushes the vault
-  note; it refuses Sonnet on a risky PR. Every note for the head must say Merge.
+  note; it refuses Sonnet on a risky PR. Every note for the head must say Merge. Changed story
+  shots in CI's `dashboard-visual-diff` artifact (`index.html`) need `visual: accepted <n> <hash>`
+  in the note (the refusal prints it) once they look intended; repeat it per new head.
 - **Findings:** fix highs and mediums in one batch, push, wait for CI green on the new head, and
   give the same reviewer one delta check. Lows: when the PR needs a fix round anyway,
   fix them in it; a note with only lows says Merge and each low becomes
@@ -142,11 +141,11 @@ scripts/heavy-lock.mjs status`). `SKIP_PREPUSH=1 git push ...` skips the em-dash
   lane (project dir under `.claude/worktrees/`), fixed at session start (the user, 2026-11-04); the planner and
   other sessions keep 200k and 250k. `get_usage "self"` gives the exact number.
 - **Hard stop:** at or above 300k `context-stop.mjs` denies Edit, Write, Agent and shell commands
-  that write in the repo. Still allowed: reading, git add, commit and push, `gh`, writes to the
-  vault and the scratchpad, SendMessage, wrap_up. Write the handover and stop.
-- **Handover:** write it once, when you hand over. Half a page in vault `Handoff/<lane> prompt
+  that write in the repo. Still allowed: reading, git, `gh`, vault and scratchpad writes, wrap_up.
+  Hand over, stop.
+- **Handover:** write it once. Half a page in vault `Handoff/<lane> prompt
   <date>.md` and in the chat in a fenced block: task, state, branch, PR and head sha, done-when, the next command, "follow
-  CLAUDE.md". Findings a successor needs go in the vault, not side-session notes (archiving deletes those). Before closing, no background run of yours may still go. Push the note, then `backlog.mjs progress` (`handed over at <context>, no PR
-yet` or the PR state, plus the note path); the planner reads it and starts the successor. Start no successor, message nobody.
+  CLAUDE.md". Findings a successor needs go in the vault, not side-session notes (archiving deletes those). No background run of yours may still go. Push the note, then `backlog.mjs progress` (`handed over at <context>, no PR
+yet` or the PR state, plus the note path). Start no successor, message nobody.
 - Never leave a user to-do only in chat: add it to vault `Waiting.md` (what to do, minutes, what it
   settles, a `- due:` line).

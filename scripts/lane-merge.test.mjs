@@ -11,6 +11,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { unblocksMainLine } from './lane-merge/main-red.mjs';
 import { REPO } from './lane-merge/constants.mjs';
+import { acceptLines, visualAcceptProblem } from './lane-merge/visual-accept.mjs';
 import {
   RISKY_CATEGORIES,
   TRAIN_PATTERNS,
@@ -281,6 +282,17 @@ function gate(o = {}) {
       return o.mainRuns === 'fail'
         ? { status: 1, stdout: '', stderr: 'HTTP 502' }
         : ok(JSON.stringify(o.mainRuns ?? [MAIN_GREEN]));
+    }
+    if (key === 'gh run download') {
+      // the dashboard-visual-diff artifact: `visualReport` is its visual-diff.json (null: no artifact)
+      if (o.visualReport === undefined || o.visualReport === null) {
+        return { status: 1, stdout: '', stderr: 'no valid artifacts found to download' };
+      }
+      fs.writeFileSync(
+        path.join(args[args.indexOf('-D') + 1], 'visual-diff.json'),
+        JSON.stringify(o.visualReport)
+      );
+      return ok();
     }
     if (key === 'gh pr merge') {
       if (args.includes('--disable-auto')) return ok('');
@@ -4187,5 +4199,117 @@ test('main red: a tip whose only run was cancelled is not judged by the run befo
   assert.match(
     ok.text,
     /main was not judged \(main red: no push run of ci\.yml for main's tip fffffff/
+  );
+});
+
+const VIS_CHECK = (extra = {}) => ({
+  __typename: 'CheckRun',
+  name: 'dashboard-visual-diff (report)',
+  status: 'COMPLETED',
+  conclusion: 'SUCCESS',
+  detailsUrl: `https://github.com/${REPO}/actions/runs/777/job/1`,
+  ...extra,
+});
+const withVisual = (check, extraNote = '') => ({
+  rollup: [
+    { __typename: 'CheckRun', name: 'build-test', status: 'COMPLETED', conclusion: 'SUCCESS' },
+    { __typename: 'CheckRun', name: 'ci-all-green', status: 'COMPLETED', conclusion: 'SUCCESS' },
+    ...(check ? [check] : []),
+  ],
+  vault: vaultWith([{ name: '312-review.md', text: note({ extra: extraNote }) }]),
+  argv: ['--dry-run'],
+});
+const REPORT = { headSha: HEAD, count: 3, hash: 'abcd1234', changed: [], added: [], removed: [] };
+
+test('visual gate: no differences, or no visual job, needs no accept line', () => {
+  const none = gate({ ...withVisual(VIS_CHECK()), visualReport: { ...REPORT, count: 0 } });
+  assert.equal(none.code, 0, none.text);
+  const skipped = gate({ ...withVisual(VIS_CHECK({ conclusion: 'SKIPPED' })) });
+  assert.equal(skipped.code, 0, skipped.text);
+  const absent = gate({ ...withVisual(null) });
+  assert.equal(absent.code, 0, absent.text);
+  assert.ok(!skipped.calls.some(c => c[1] === 'run' && c[2] === 'download'));
+});
+
+test('visual gate: differences need the matching accept line in the note for the head', () => {
+  const refused = gate({ ...withVisual(VIS_CHECK()), visualReport: REPORT });
+  assert.equal(refused.code, 1);
+  assert.match(refused.text, /visual: 3 dashboard story shots differ from main/);
+  assert.match(refused.text, /add "visual: accepted 3 abcd1234"/);
+  assert.match(refused.text, /actions\/runs\/777/);
+  const ok = gate({
+    ...withVisual(VIS_CHECK(), '\n- visual: accepted 3 abcd1234 (the new card padding)\n'),
+    visualReport: REPORT,
+  });
+  assert.equal(ok.code, 0, ok.text);
+});
+
+test('visual gate: a stale line (other count or hash) does not accept the set', () => {
+  for (const line of ['visual: accepted 2 abcd1234', 'visual: accepted 3 deadbeef']) {
+    const r = gate({ ...withVisual(VIS_CHECK(), `\n${line}\n`), visualReport: REPORT });
+    assert.equal(r.code, 1, line);
+    assert.match(r.text, /visual: 3 dashboard story shots differ .*line is for another set/);
+  }
+});
+
+test('visual gate: a missing artifact, a failed report job or a report for another head refuses', () => {
+  const noArtifact = gate({ ...withVisual(VIS_CHECK()), visualReport: null });
+  assert.equal(noArtifact.code, 1);
+  assert.match(
+    noArtifact.text,
+    /visual: the dashboard-visual-diff artifact of run 777 cannot be read/
+  );
+  const failed = gate({ ...withVisual(VIS_CHECK({ conclusion: 'FAILURE' })) });
+  // the CI check already refuses a failed or pending report job, before the visual check runs
+  assert.match(failed.text, /ci: failing: dashboard-visual-diff \(report\)/);
+  const pending = gate({ ...withVisual(VIS_CHECK({ status: 'IN_PROGRESS', conclusion: '' })) });
+  assert.match(pending.text, /ci: pending: dashboard-visual-diff \(report\)/);
+  const other = gate({
+    ...withVisual(VIS_CHECK(), '\nvisual: accepted 3 abcd1234\n'),
+    visualReport: { ...REPORT, headSha: OTHER },
+  });
+  assert.equal(other.code, 1);
+  assert.match(other.text, /report is for ffffffff, not the head/);
+});
+
+test('visual gate: a report that compared nothing or could not render stories refuses', () => {
+  const empty = gate({
+    ...withVisual(VIS_CHECK()),
+    visualReport: { ...REPORT, count: 0, compared: 0, errors: [] },
+  });
+  assert.equal(empty.code, 1);
+  assert.match(empty.text, /visual: no story was compared/);
+  const errs = gate({
+    ...withVisual(VIS_CHECK()),
+    visualReport: { ...REPORT, count: 0, compared: 9, errors: [{ id: 'a', error: 'x' }] },
+  });
+  assert.match(errs.text, /visual: 1 story could not render/);
+});
+
+test('visual gate: an accept line in a note whose verdict is carried to the head counts', () => {
+  const rollup = withVisual(VIS_CHECK()).rollup;
+  const run = (cmd, args) => {
+    fs.writeFileSync(
+      path.join(args[args.indexOf('-D') + 1], 'visual-diff.json'),
+      JSON.stringify(REPORT)
+    );
+    return { status: 0, stdout: '', stderr: '' };
+  };
+  const reviews = [{ entries: [{ head: OTHER }], visual: [{ n: 3, hash: 'abcd1234' }] }];
+  assert.match(visualAcceptProblem({ run, rollup, head: HEAD, reviews }) ?? '', /differ from main/);
+  assert.equal(visualAcceptProblem({ run, rollup, head: HEAD, reviews, carried: [OTHER] }), null);
+});
+
+test('acceptLines: bullet and bold forms, case, and prose mentions that do not count', () => {
+  assert.deepEqual(
+    acceptLines('- **visual:** accepted 12 ABCD1234 ok\nvisual: accepted 1 00ff00ff'),
+    [
+      { n: 12, hash: 'abcd1234' },
+      { n: 1, hash: '00ff00ff' },
+    ]
+  );
+  assert.deepEqual(
+    acceptLines('say visual: accepted 3 abcd1234 in the note\nvisual: accepted 3 abc'),
+    []
   );
 });

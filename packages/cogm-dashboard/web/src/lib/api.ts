@@ -1,5 +1,5 @@
 import { authHeaders } from './auth';
-import { toolWords } from './toolWords';
+import { toolWords } from './tool-words';
 
 /**
  * A failed dashboard route: the server's own message when it sent one, else a plain sentence for

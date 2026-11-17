@@ -1,0 +1,939 @@
+/* =============================================================================
+   Co-GM Dashboard: "Modern Command Center"
+   A 2026 dark observability dashboard in the spirit of Linear / Vercel / Datadog.
+   Vanilla CSS, system fonts only, fully offline. Dark theme, high legibility.
+   ============================================================================= */
+
+:root {
+  /* ---- Surfaces (desaturated slate, layered elevation) ---- */
+  --bg: #0f1115; /* app backdrop, near-black slate */
+  --bg-sunken: #0c0e12; /* recessed wells */
+  --bg-panel: #171a21; /* card / pane surface */
+  --bg-elev: #1d212b; /* raised rows inside panes */
+  --bg-elev-2: #242936; /* hover / active row */
+  --bg-input: #0d0f13; /* form fields */
+
+  /* ---- Hairlines & dividers ---- */
+  --border: #272c38; /* default hairline */
+  --border-soft: #1f232d; /* quieter divider */
+  --border-strong: #353b4a; /* emphasized edge */
+
+  /* ---- Text ---- */
+  --text: #e6e9ef; /* primary */
+  --text-mid: #b9c0cc; /* secondary */
+  --text-dim: #9aa3b2; /* tertiary / meta */
+  --text-faint: #6b7385; /* faint labels */
+
+  /* ---- Accent: confident cyan-azure (distinct from all faction colors) ---- */
+  --accent: #4ea1ff; /* primary accent */
+  --accent-bright: #8cc2ff; /* highlight / hover text */
+  --accent-glow: color-mix(in srgb, var(--accent) 35%, transparent);
+  --accent-soft: color-mix(in srgb, var(--accent) 12%, transparent);
+
+  /* ---- Faction colors (kept semantically; refreshed for slate bg) ---- */
+  --pc: #5b9dff;
+  --pc-soft: color-mix(in srgb, var(--pc) 14%, transparent);
+  --enemy: #e63946;
+  --enemy-soft: color-mix(in srgb, var(--enemy) 14%, transparent);
+  --npc: #c08be8;
+  --npc-soft: color-mix(in srgb, var(--npc) 14%, transparent);
+
+  /* ---- Status semantics ---- */
+  --good: #46c46a;
+  --good-soft: color-mix(in srgb, var(--good) 14%, transparent);
+  --warn: #e0a106;
+  --warn-soft: color-mix(in srgb, var(--warn) 14%, transparent);
+  --bad: #e63946;
+  --bad-soft: color-mix(in srgb, var(--bad) 14%, transparent);
+  /* Danger text on its own tint or a panel: the plain red is 3.4 to 3.9:1 there, so text takes a
+     lighter red (the same mix as the Enemy tag). Use --bad for borders and fills. */
+  --bad-text: color-mix(in srgb, var(--bad) 62%, var(--text));
+  --grey: #5a6276;
+
+  /* ---- HP gradient bar stops ---- */
+  --hp-high-a: #2dd4bf;
+  --hp-high-b: #34d399;
+  --hp-mid-a: #f1b53c;
+  --hp-mid-b: #f59e0b;
+  --hp-low-a: #f1654a;
+  --hp-low-b: #ef4444;
+
+  /* ---- Text on filled controls, and the brand's one warm spark ---- */
+  --on-accent: #04222f;
+  --on-warn: #2a1d00;
+  --on-strong: #fff;
+  --spark: #fe6a1f;
+
+  /* ---- Radii ---- */
+  --r-sm: 7px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-pill: 999px;
+
+  /* ---- Shadows (soft elevation) ---- */
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px -12px rgba(0, 0, 0, 0.7);
+  --shadow-row: 0 1px 1px rgba(0, 0, 0, 0.25);
+  --inset-top: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+
+  /* ---- Type ---- */
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-display: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono:
+    ui-monospace, 'SFMono-Regular', 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+
+  --fs-2xs: 0.66rem;
+  --fs-xs: 0.74rem;
+  --fs-sm: 0.82rem;
+  --fs-base: 0.9rem;
+  --fs-md: 0.98rem;
+  --fs-lg: 1.12rem;
+
+  color-scheme: dark;
+  font-synthesis: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* The `hidden` attribute must always win over class-level `display` rules
+   (e.g. the drawer/modal/combat-actions set display:flex|grid). */
+[hidden] {
+  display: none !important;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background:
+    radial-gradient(
+      1200px 600px at 80% -10%,
+      color-mix(in srgb, var(--accent) 6%, transparent),
+      transparent 60%
+    ),
+    radial-gradient(900px 500px at -5% 0%, rgba(124, 110, 232, 0.05), transparent 55%), var(--bg);
+  background-attachment: fixed;
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+::selection {
+  background: var(--accent-glow);
+  color: var(--on-strong);
+}
+
+/* Refined scrollbars */
+.pane-body {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+.pane-body::-webkit-scrollbar {
+  width: 10px;
+}
+.pane-body::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: var(--r-pill);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+.pane-body::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
+  background-clip: padding-box;
+}
+
+/* =============================================================================
+   TOP BAR
+   ============================================================================= */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0.7rem 1.1rem;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.018), transparent), var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  box-shadow:
+    0 1px 0 rgba(0, 0, 0, 0.5),
+    0 6px 20px -16px rgba(0, 0, 0, 0.9);
+  flex-wrap: wrap;
+  row-gap: 0.6rem;
+  position: relative;
+  z-index: 5;
+}
+
+.link-banner {
+  padding: 0.55rem 1.1rem;
+  background: var(--warn-soft);
+  border-bottom: 1px solid var(--warn);
+  color: var(--warn);
+  font-size: 0.92rem;
+}
+.diag-note {
+  margin: 0;
+  padding: 0.5rem 1.1rem;
+  font-size: 0.88rem;
+  color: var(--warn);
+  border-bottom: 1px solid var(--border);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-width: 0;
+}
+.brand-icon {
+  font-size: 1.35rem;
+  line-height: 1;
+  width: 2.2rem;
+  height: 2.2rem;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-md);
+  background: linear-gradient(
+    160deg,
+    var(--accent-soft),
+    color-mix(in srgb, var(--accent) 2%, transparent)
+  );
+  border: 1px solid var(--border-strong);
+  box-shadow:
+    var(--inset-top),
+    0 0 18px -8px var(--accent-glow);
+  flex: none;
+}
+.brand h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.05;
+  background: linear-gradient(180deg, var(--text), var(--text-mid));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.subtitle {
+  margin: 0.1rem 0 0;
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 42ch;
+}
+.subtitle-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.app-version {
+  flex: none;
+  margin-top: 0.1rem;
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Status pills ---- */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  padding: 0.32rem 0.7rem 0.32rem 0.6rem;
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  color: var(--text-mid);
+  white-space: nowrap;
+  box-shadow: var(--inset-top), var(--shadow-row);
+}
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--grey);
+  flex: none;
+  position: relative;
+}
+.dot-green {
+  background: var(--good);
+  box-shadow:
+    0 0 0 3px var(--good-soft),
+    0 0 8px var(--good);
+}
+.dot-red {
+  background: var(--bad);
+  box-shadow:
+    0 0 0 3px var(--bad-soft),
+    0 0 8px color-mix(in srgb, var(--bad) 60%, transparent);
+}
+.dot-amber {
+  background: var(--warn);
+  box-shadow:
+    0 0 0 3px var(--warn-soft),
+    0 0 8px color-mix(in srgb, var(--warn) 55%, transparent);
+}
+.dot-grey {
+  background: var(--grey);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--grey) 18%, transparent);
+}
+/* Subtle live pulse on the green "connected" dots */
+.dot-green::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 1px solid var(--good);
+  opacity: 0;
+  animation: pulse 2.4s ease-out infinite;
+}
+@keyframes pulse {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.5;
+  }
+  70%,
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
+/* ---- Play session control ---- */
+.session-control {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.session-status {
+  font-size: var(--fs-xs);
+  color: var(--text-mid);
+  white-space: nowrap;
+}
+
+/* ---- Controls ---- */
+/* The controls are a row of their own under the title and the moment tabs, so the buttons stay on
+   one line at 1280 px and wider; the health line takes the rest of the row, or the next row. */
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+}
+.controls .health-line {
+  order: 99;
+  flex: 1 1 auto;
+  justify-content: flex-end;
+}
+/* .stream-state is display: contents, so the pill inside it is the flex item. */
+.controls .stream-state .status-pill {
+  order: 98;
+}
+#live-header > h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+}
+/* Every header control is one height and one line (header-tidy). */
+.topbar .controls .btn,
+.topbar .controls .select {
+  box-sizing: border-box;
+  height: 2.1rem;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.topbar .controls .btn[hidden],
+.topbar .controls .select[hidden] {
+  display: none;
+}
+.topbar .controls .select {
+  display: block;
+  line-height: 1.2;
+}
+
+.select,
+.btn {
+  font-family: var(--font-sans);
+  background: var(--bg-elev);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  padding: 0.42rem 0.7rem;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  cursor: pointer;
+  line-height: 1.2;
+  box-shadow: var(--inset-top), var(--shadow-row);
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.05s ease,
+    color 0.15s ease;
+}
+.select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 1.7rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5l3 3 3-3' fill='none' stroke='%237b8499' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.55rem center;
+}
+.btn:hover,
+.select:hover {
+  background: var(--bg-elev-2);
+  border-color: var(--accent);
+  color: var(--on-strong);
+}
+.btn:active {
+  transform: translateY(1px);
+}
+.btn:focus-visible,
+.select:focus-visible,
+.ask-input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(0.4);
+}
+.btn:disabled:hover {
+  background: var(--bg-elev);
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.btn-primary {
+  background: linear-gradient(180deg, var(--accent-bright), var(--accent));
+  color: var(--on-accent);
+  border-color: var(--accent);
+  font-weight: 700;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.25) inset,
+    0 6px 16px -8px var(--accent-glow);
+}
+.btn-primary:hover {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent-bright) 70%, white),
+    var(--accent-bright)
+  );
+  color: var(--on-accent);
+  border-color: var(--accent-bright);
+}
+
+/* =============================================================================
+   PANES (the grid)
+   ============================================================================= */
+#pane-diagnostics {
+  grid-column: 1 / 3;
+}
+#pane-changes {
+  grid-column: 3;
+}
+
+.pane {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.015), transparent 120px), var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.pane-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.7rem 0.9rem 0.65rem;
+  border-bottom: 1px solid var(--border-soft);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.012), transparent);
+}
+.pane-head h2 {
+  margin: 0;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-mid);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+/* Accent tick before each pane title */
+.pane-head h2::before {
+  content: '';
+  width: 3px;
+  height: 0.85em;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+.pane-meta {
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+  font-weight: 500;
+  color: var(--text-dim);
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  background: var(--bg-elev);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-pill);
+  padding: 0.18rem 0.55rem;
+}
+
+.pane-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.6rem 0.7rem;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+/* List rows keep their natural height: the pane scrolls instead of
+   flex-shrinking each row to fit. Without this, a full feed squished every
+   .event and its `overflow: hidden` clipped the footer (badge + timestamp). */
+.pane-body > * {
+  flex-shrink: 0;
+}
+
+.empty {
+  color: var(--text-dim);
+  font-size: var(--fs-sm);
+  text-align: center;
+  margin: auto;
+  padding: 1.5rem 1rem;
+  max-width: 30ch;
+  line-height: 1.55;
+}
+
+/* =============================================================================
+   COMBAT TRACKER
+   ============================================================================= */
+.combatant {
+  display: grid;
+  grid-template-columns: 2.3rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.55rem 0.6rem;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border-soft);
+  background: var(--bg-elev);
+  box-shadow: var(--shadow-row);
+  position: relative;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+.combatant:hover {
+  background: var(--bg-elev-2);
+}
+.combatant.current {
+  border-color: var(--accent);
+  background: linear-gradient(90deg, var(--accent-soft), transparent 60%), var(--bg-elev-2);
+  box-shadow:
+    var(--shadow-row),
+    0 0 0 1px var(--accent-soft),
+    0 6px 18px -10px var(--accent-glow);
+}
+.combatant.current::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 7px;
+  bottom: 7px;
+  width: 3px;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  box-shadow: 0 0 10px var(--accent-glow);
+}
+.turn-pill {
+  flex: none;
+  padding: 0.05rem 0.45rem;
+  border-radius: var(--r-pill);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--accent-bright);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  white-space: nowrap;
+}
+.combatant.defeated {
+  opacity: 0.5;
+  filter: grayscale(0.45);
+}
+.combatant.defeated .combatant-name {
+  text-decoration: line-through;
+  text-decoration-color: var(--text-faint);
+}
+
+.init-badge {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: var(--fs-base);
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  color: var(--text-mid);
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  letter-spacing: -0.02em;
+}
+.combatant.current .init-badge {
+  color: var(--accent-bright);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.combatant-main {
+  min-width: 0;
+}
+.combatant-name {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.combatant-name .side {
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.1rem 0.4rem;
+  border-radius: var(--r-sm);
+  line-height: 1.3;
+  flex: none;
+  border: 1px solid transparent;
+}
+.side-pc {
+  background: var(--pc-soft);
+  color: var(--pc);
+  border-color: color-mix(in srgb, var(--pc) 25%, transparent);
+}
+.side-enemy {
+  background: var(--enemy-soft);
+  color: var(--enemy);
+  border-color: color-mix(in srgb, var(--bad) 25%, transparent);
+}
+.side-npc {
+  background: var(--npc-soft);
+  color: var(--npc);
+  border-color: color-mix(in srgb, var(--npc) 25%, transparent);
+}
+
+.conditions {
+  margin-top: 0.35rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.condition-chip {
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background: var(--warn-soft);
+  color: var(--warn);
+  padding: 0.1rem 0.45rem;
+  border-radius: var(--r-pill);
+  border: 1px solid color-mix(in srgb, var(--warn) 22%, transparent);
+  text-transform: capitalize;
+}
+.death-saves {
+  margin-top: 0.35rem;
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  color: var(--bad-text);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.hp {
+  text-align: right;
+  min-width: 5.2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.32rem;
+}
+.hp-text {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-mid);
+  letter-spacing: -0.01em;
+}
+.hp-bar {
+  height: 7px;
+  border-radius: var(--r-pill);
+  background: var(--bg-sunken);
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px var(--border-soft);
+  position: relative;
+}
+.hp-fill {
+  height: 100%;
+  border-radius: var(--r-pill);
+  background: linear-gradient(90deg, var(--hp-high-a), var(--hp-high-b));
+  box-shadow: 0 0 10px -2px color-mix(in srgb, var(--good) 60%, transparent);
+  transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.hp-fill.mid {
+  background: linear-gradient(90deg, var(--hp-mid-a), var(--hp-mid-b));
+  box-shadow: 0 0 10px -2px color-mix(in srgb, var(--warn) 55%, transparent);
+}
+.hp-fill.low {
+  background: linear-gradient(90deg, var(--hp-low-a), var(--hp-low-b));
+  box-shadow: 0 0 10px -2px color-mix(in srgb, var(--bad) 60%, transparent);
+}
+
+/* =============================================================================
+   EVENT FEED
+   ============================================================================= */
+.event {
+  position: relative;
+  padding: 0.5rem 0.6rem 0.5rem 0.85rem;
+  background: var(--bg-elev);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-row);
+  overflow: hidden;
+}
+.event::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--grey);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .event {
+    animation: slidein 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+}
+@keyframes slidein {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.event-desc {
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+  color: var(--text);
+}
+/* Roll box: who rolled and the total on one line; the full breakdown stays below, smaller. */
+.event-roll {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  font-size: var(--fs-sm);
+}
+.event-roll-result {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: none;
+}
+.event-roll-total {
+  min-width: 2rem;
+  padding: 0.1rem 0.45rem;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+.event-roll-total[data-passed='true'] {
+  border-color: var(--good);
+}
+.event-roll-total[data-passed='false'] {
+  border-color: var(--bad);
+}
+.event-roll-verdict {
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.event-roll-verdict.is-pass {
+  color: var(--good);
+}
+.event-roll-verdict.is-fail {
+  color: var(--bad-text);
+}
+.event-roll-d20s {
+  display: inline-flex;
+  gap: 0.25rem;
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+  color: var(--text-dim);
+}
+.event-roll-d20s b {
+  color: var(--text);
+}
+.event-roll-d20s abbr {
+  text-decoration: none;
+  text-transform: uppercase;
+}
+.event-roll-detail {
+  margin-top: 0.2rem;
+  font-size: var(--fs-2xs);
+  color: var(--text-mid);
+}
+.event-meta {
+  font-size: var(--fs-2xs);
+  color: var(--text-dim);
+  margin-top: 0.3rem;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+.event-type {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+  font-size: 0.6rem;
+  padding: 0.08rem 0.4rem;
+  border-radius: var(--r-pill);
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+  color: var(--text-mid);
+}
+.event-meta > span:last-child {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* Severity rails + type-chip tints */
+.event.sev-damage::before,
+.event.sev-death::before {
+  background: linear-gradient(180deg, var(--bad), color-mix(in srgb, var(--bad) 75%, black));
+}
+.event.sev-healing::before,
+.event.sev-stabilize::before {
+  background: linear-gradient(180deg, var(--good), color-mix(in srgb, var(--good) 70%, black));
+}
+.event.sev-combat-start::before,
+.event.sev-combat-end::before {
+  background: linear-gradient(180deg, var(--accent-bright), var(--accent));
+}
+.event.sev-condition-applied::before,
+.event.sev-condition-removed::before,
+.event.sev-resource-spent::before {
+  background: linear-gradient(180deg, var(--npc), color-mix(in srgb, var(--npc) 75%, black));
+}
+/* Dice rolls: public ones like the table sees them; GM-only (private, blind) muted. */
+.event.sev-roll::before,
+.event.sev-damage-roll::before,
+.event.sev-item-use::before {
+  background: linear-gradient(180deg, var(--accent-bright), var(--accent));
+}
+.event.sev-gm-roll::before {
+  background: linear-gradient(180deg, var(--npc), color-mix(in srgb, var(--npc) 75%, black));
+  opacity: 0.6;
+}
+.event.sev-gm-roll .event-desc {
+  font-style: italic;
+}
+.event.sev-damage .event-type,
+.event.sev-death .event-type {
+  background: var(--bad-soft);
+  border-color: color-mix(in srgb, var(--bad) 30%, transparent);
+  color: var(--bad-text);
+}
+.event.sev-healing .event-type,
+.event.sev-stabilize .event-type {
+  background: var(--good-soft);
+  border-color: color-mix(in srgb, var(--good) 30%, transparent);
+  color: var(--good);
+}
+.event.sev-combat-start .event-type,
+.event.sev-combat-end .event-type {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+  color: var(--accent-bright);
+}
+.event.sev-condition-applied .event-type,
+.event.sev-condition-removed .event-type,
+.event.sev-resource-spent .event-type {
+  background: var(--npc-soft);
+  border-color: color-mix(in srgb, var(--npc) 30%, transparent);
+  color: var(--npc);
+}
+
+/* =============================================================================
+   TEXT INPUT
+   ============================================================================= */
+.ask-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-input);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  padding: 0.5rem 0.7rem;
+  font-size: var(--fs-sm);
+  font-family: var(--font-sans);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.35);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.ask-input::placeholder {
+  color: var(--text-faint);
+}
+.ask-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow:
+    inset 0 1px 3px rgba(0, 0, 0, 0.35),
+    0 0 0 3px var(--accent-soft);
+}

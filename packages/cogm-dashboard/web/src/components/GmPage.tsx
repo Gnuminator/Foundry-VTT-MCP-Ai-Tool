@@ -2,7 +2,7 @@
 // live strip (the same component as screens A and B) in the other, with a drag divider and a layout
 // saved per browser. A pick on the Foundry map reaches the strip through this page: the Foundry
 // module posts the picked token ids up, and only a message from the Foundry frame (or tab) on
-// Foundry's origin counts (lib/gmLayout.ts). Design: vault Design/GM page design 2026-10-31.md.
+// Foundry's origin counts (lib/gm-layout.ts). Design: vault Design/GM page design 2026-10-31.md.
 import { useQuery } from '@tanstack/react-query';
 import {
   useCallback,
@@ -29,8 +29,8 @@ import {
   saveLayout,
   type GmLayout,
   type GmMode,
-} from '../lib/gmLayout';
-import { LIVE_PICK_MESSAGE, LIVE_READY_MESSAGE, currentMapPick, setMapPick } from '../lib/mapPick';
+} from '../lib/gm-layout';
+import { LIVE_PICK_MESSAGE, LIVE_READY_MESSAGE, currentMapPick, setMapPick } from '../lib/map-pick';
 import { useDashboardStream } from '../lib/stream';
 import { LiveStrip } from './LiveStrip';
 import { HealthLine } from './HealthLine';

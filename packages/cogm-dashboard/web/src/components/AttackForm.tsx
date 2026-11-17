@@ -19,9 +19,9 @@ import {
   spellAttacksOf,
   weaponsOf,
   type Weapon,
-} from '../lib/attackForm';
+} from '../lib/attack-form';
 import type { Combatant } from '../lib/combat';
-import { fetchFoundryTargets } from '../lib/foundryTargets';
+import { fetchFoundryTargets } from '../lib/foundry-targets';
 import { useGuardedTools } from '../lib/guarded';
 import { Button } from '../ui';
 import { useToast } from './Toasts';

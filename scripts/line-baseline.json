@@ -28,9 +28,9 @@
     "scripts/test-kit/lib/dashboard-controls.mjs": 1252,
     "scripts/test-kit/lib/fake/origins.mjs": 1051,
     "scripts/test-kit/lib/features.mjs": 1387,
-    "scripts/test-kit/lib/gm-actions.mjs": 1975,
+    "scripts/test-kit/lib/gm-actions.mjs": 1987,
     "scripts/test-kit/lib/monsters.mjs": 1187,
-    "scripts/test-kit/lib/origins.mjs": 1038,
+    "scripts/test-kit/lib/origins.mjs": 1044,
     "scripts/test-kit/lib/spells-deep.mjs": 1020
   },
   "exceptions": [
@@ -57,6 +57,18 @@
       "lines": 1812,
       "reason": "one more read-only query registration (getRenownState); the file is the registration table",
       "pr": "1126"
+    },
+    {
+      "file": "scripts/test-kit/lib/gm-actions.mjs",
+      "lines": 1987,
+      "reason": "dnd5e 6.1 Trait-advancement save sources run in the GM page, so they cannot move to another file",
+      "pr": ""
+    },
+    {
+      "file": "scripts/test-kit/lib/origins.mjs",
+      "lines": 1044,
+      "reason": "multiclass choice counting for dnd5e 6.1 sits in checkMulticlass with the other counting",
+      "pr": ""
     }
   ]
 }

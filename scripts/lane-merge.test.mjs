@@ -1071,6 +1071,26 @@ test('rollupProblems: a cancelled check of a superseded run does not block the n
     ]).failing,
     []
   );
+  // the same holds for the dashboard-e2e matrix (3 shards): a skipped raw leg and a superseded cancelled shard
+  const rawE2e = 'dashboard-e2e shard ${{ matrix.shard }}/3${{ x }}';
+  assert.deepEqual(
+    rollupProblems([
+      check(100, rawE2e, 'CANCELLED'),
+      check(100, 'lint', 'CANCELLED'),
+      check(200, rawE2e, 'SKIPPED'),
+      check(200, 'lint', 'SUCCESS'),
+    ]).failing,
+    []
+  );
+  assert.deepEqual(
+    rollupProblems([
+      check(100, rawE2e, 'CANCELLED'),
+      check(100, 'lint', 'CANCELLED'),
+      check(200, 'dashboard-e2e shard 2/3', 'SUCCESS'),
+      check(200, 'lint', 'SUCCESS'),
+    ]).failing,
+    []
+  );
   // the SKIPPED clause needs a newer run known to be a normal run: an unclassified one (only a raw
   // name) does not clear the cancelled raw shard
   assert.deepEqual(

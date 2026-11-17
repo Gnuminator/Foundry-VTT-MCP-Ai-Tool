@@ -12,6 +12,7 @@ describe('rootFolder', () => {
     expect(rootFolder('FoundryPlanB', '', '/drive')).toBe(join('/drive', 'FoundryPlanB'));
     // A relative value is ignored.
     expect(rootFolder('FoundryPlanB', 'data', '/drive')).toBe(join('/drive', 'FoundryPlanB'));
+    expect(rootFolder('FoundryPlanB', 'C:data', '/drive')).toBe(join('/drive', 'FoundryPlanB'));
   });
 
   it('follows the folder when it has moved, and the old place until then', () => {

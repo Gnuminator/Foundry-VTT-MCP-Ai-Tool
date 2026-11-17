@@ -353,7 +353,11 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
         # A relative value is ignored.
         $env:FVTT_DATA_DIR = 'relative\\data'
         $relative = Resolve-RootPath 'C:\\FoundryPlanB\\data'
+        # C:data (drive-relative) is ignored too, as Node's isAbsolute does.
+        $env:FVTT_DATA_DIR = 'C:data'
+        $driveRelative = Resolve-RootPath 'C:\\FoundryPlanB\\data'
         @{
+          driveRelative = $driveRelative
           none = $none; moved = $moved; other = $other; missing = $missing; relative = $relative
           expected = [IO.Path]::Combine($d, 'FoundryPlanB', 'data')
         }
@@ -370,6 +374,7 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
       r.missing
     );
     assert.equal(win(r.relative), 'C:\\FoundryPlanB\\data');
+    assert.equal(win(r.driveRelative), 'C:\\FoundryPlanB\\data');
   });
 
   test('env file: comments, quotes and = in values', () => {

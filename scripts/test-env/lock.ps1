@@ -46,7 +46,8 @@ if ($isGpu) { $Server = 'A'; $env:FOUNDRY_TEST_SERVER = 'A' }
 $gpuRoot = if ($IsWindows) { [IO.Path]::Combine((Get-RootFolder 'FoundryAI'), 'gpu-lock') } else { Join-Path $HOME 'foundry-ai/gpu-lock' }
 $lockRoot = if ($Root) { $Root } elseif ($isGpu) { $gpuRoot } else { $TestEnv.Root }
 # Never start a second GPU lock: a run that cannot find FoundryAI (a process that does not see
-# FVTT_DATA_DIR after a move, or a half-done move) refuses instead of creating a fresh, free lock.
+# FVTT_DATA_DIR after the move) refuses instead of creating a fresh, free lock. A half-done move is
+# not caught here: the mover keeps lock.json at the place every run will see (step 2 of the move).
 if ($isGpu -and $IsWindows -and -not $Root -and -not (Test-Path -LiteralPath (Split-Path $gpuRoot))) {
   Write-Host "refused: the FoundryAI folder is not at $(Split-Path $gpuRoot) (moved? FVTT_DATA_DIR not set in this shell?). The GPU lock is not created here."
   exit 1

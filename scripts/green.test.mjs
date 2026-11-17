@@ -12,6 +12,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
 import { ciRunCommands, ciUnsupported, normalizeCommand } from './ci-yaml.mjs';
+import { cheapCiQuickSteps } from './cheap-ci-steps.mjs';
 import {
   CHECKS as ALL_CHECKS,
   CI_GROUPS,
@@ -1047,6 +1048,7 @@ test('quickSteps: typecheck and unit tests of each touched package only', () => 
     'unit-discord-bot',
     'unit-mcp-server',
     'line-ratchet-quick',
+    'unused-ratchet-quick',
   ]);
   // Markdown that is not there (deleted) gets only the link check.
   assert.deepEqual(quickNames(['docs/dev/X.md', 'changelog.d/x.md']), ['docs-links-quick']);
@@ -1094,6 +1096,7 @@ test('quickSteps: a shared change typechecks every package and tests shared', ()
     'lint-changed',
     'unit-shared',
     'line-ratchet-quick',
+    'unused-ratchet-quick',
   ]);
 });
 
@@ -1133,6 +1136,7 @@ test('quickSteps: touched dashboard e2e specs build the dashboard and run only t
     'typecheck-cogm-dashboard',
     'lint-changed',
     'unit-cogm-dashboard',
+    'unused-ratchet-quick',
     'catalog-check',
     'build-dashboard',
     'bundle-budget',
@@ -1152,6 +1156,7 @@ test('quickSteps: dashboard web files add catalogue check, one build and the bun
     'lint-changed',
     'unit-cogm-dashboard',
     'line-ratchet-quick',
+    'unused-ratchet-quick',
     'catalog-check',
     'docs-ui-quick',
     'build-dashboard',
@@ -1269,6 +1274,7 @@ test('main --quick --list: lists the quick steps, and no base is an error too', 
     'typecheck-all',
     'unit-shared',
     'line-ratchet-quick',
+    'unused-ratchet-quick',
   ]);
   lines.length = 0;
   assert.equal(main({ ...base, changed: null }), 2);
@@ -1403,6 +1409,7 @@ test('quickSteps: the lint steps sit after the typecheck, before the unit tests,
     'docs-links-quick',
     'unit-mcp-server',
     'line-ratchet-quick',
+    'unused-ratchet-quick',
   ]);
   for (const s of quickSteps(
     ['packages/mcp-server/src/index.ts', 'docs/dev/ARCHITECTURE.md'],
@@ -1413,6 +1420,36 @@ test('quickSteps: the lint steps sit after the typecheck, before the unit tests,
   }
 });
 
+test('cheapCiQuickSteps: unused ratchet on source changes, sweep coverage on tool module changes', () => {
+  assert.deepEqual(cheapCiQuickSteps(['docs/dev/ARCHITECTURE.md']), []);
+  assert.deepEqual(
+    cheapCiQuickSteps(['packages/discord-bot/src/a.ts']).map(s => s.name),
+    ['unused-ratchet-quick']
+  );
+  assert.deepEqual(
+    cheapCiQuickSteps(['knip.json']).map(s => s.name),
+    ['unused-ratchet-quick']
+  );
+  const tool = cheapCiQuickSteps(['packages/mcp-server/src/tools/modules/renown.ts']);
+  assert.deepEqual(
+    tool.map(s => s.name),
+    ['unused-ratchet-quick', 'sweep-coverage-quick']
+  );
+  assert.deepEqual(tool[1].args.slice(-2), ['--', 'src/live-sweep-coverage.test.ts']);
+  assert.deepEqual(
+    cheapCiQuickSteps(['scripts/live-write-sweep.mjs']).map(s => s.name),
+    ['sweep-coverage-quick']
+  );
+  assert.deepEqual(
+    cheapCiQuickSteps(['tsconfig.json']).map(s => s.name),
+    ['unused-ratchet-quick']
+  );
+  assert.ok(!HEAVY_STEPS.has('unused-ratchet-quick') && !HEAVY_STEPS.has('sweep-coverage-quick'));
+  // Same npm script as the CI step, so the quick run cannot drift from it.
+  const ci = ALL_CHECKS.find(c => c.name === 'unused-ratchet');
+  assert.ok(JSON.stringify(ci).includes('unused:ratchet'));
+});
+
 test('quickSteps: a deleted package file still triggers that package', () => {
   assert.deepEqual(quickNames(['packages/mcp-server/src/gone.ts']), [
     'shared-link',
@@ -1420,6 +1457,7 @@ test('quickSteps: a deleted package file still triggers that package', () => {
     'typecheck-mcp-server',
     'unit-mcp-server',
     'line-ratchet-quick',
+    'unused-ratchet-quick',
   ]);
 });
 
@@ -1457,11 +1495,12 @@ test('main --quick: runs the quick steps without the heavy lock, nothing to chec
     'typecheck-mcp-server',
     'unit-mcp-server',
     'line-ratchet-quick',
+    'unused-ratchet-quick',
   ]);
   assert.equal(locked, 0, 'a quick run takes no heavy slot');
-  assert.match(lines.at(-1), /^green: OK, 5 steps/);
+  assert.match(lines.at(-1), /^green: OK, 6 steps/);
   lines.length = 0;
-  assert.equal(main({ ...base, changed: ['package.json'] }), 0);
+  assert.equal(main({ ...base, changed: ['LICENSE'] }), 0);
   assert.match(lines.at(-1), /OK \(quick\), nothing to check/);
   assert.equal(main({ ...base, changed: ['packages/mcp-server/src/a.ts'], runStep: () => 1 }), 1);
 });

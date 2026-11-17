@@ -1,4 +1,6 @@
-import { describe, expect, it, vi, type Mock } from 'vitest';
+import { describe, expect, it } from 'vitest';
+
+import { makeTools } from '../test-support/make-tool-harness.js';
 
 import { ActorCreationTools } from './actor-creation.js';
 
@@ -14,49 +16,33 @@ import { ActorCreationTools } from './actor-creation.js';
  * The FoundryClient is mocked so these tests run with no bridge connection.
  */
 
-function makeTools(queryImpl?: (method: string, data: unknown) => unknown): {
-  tools: ActorCreationTools;
-  query: Mock;
-} {
-  const query = vi.fn(queryImpl ?? ((): unknown => ({ success: true })));
-  const foundryClient = { query } as any;
-  // Minimal Logger stub: `.child()` returns itself; level methods are no-ops.
-  const logger: any = {
-    error: vi.fn(),
-    warn: vi.fn(),
-    info: vi.fn(),
-    debug: vi.fn(),
-  };
-  logger.child = (): unknown => logger;
-  return { tools: new ActorCreationTools({ foundryClient, logger }), query };
-}
-
 // ---------------------------------------------------------------------------
 // getToolDefinitions
 // ---------------------------------------------------------------------------
 
 describe('ActorCreationTools.getToolDefinitions', () => {
-  it('exposes the two actor-creation tools with object input schemas', () => {
-    const { tools } = makeTools();
+  it('exposes the actor-creation tool with object input schemas', () => {
+    const { tools } = makeTools(ActorCreationTools);
     const defs = tools.getToolDefinitions();
-    expect(defs.map(d => d.name)).toEqual([
-      'create-actor-from-compendium',
-      'get-compendium-entry-full',
-    ]);
+    expect(defs.map(d => d.name)).toEqual(['create-actor-from-compendium']);
     for (const d of defs) {
       expect((d.inputSchema as any).type).toBe('object');
     }
   });
 
   it('create-actor-from-compendium requires packId, itemId, and names', () => {
-    const { tools } = makeTools();
+    const { tools } = makeTools(ActorCreationTools);
     const defs = tools.getToolDefinitions();
     const create = defs.find(d => d.name === 'create-actor-from-compendium')!;
     expect((create.inputSchema as any).required).toEqual(['packId', 'itemId', 'names']);
   });
 
   it('create-actor-from-compendium allows up to 50 actors, the setting ceiling (P-062)', async () => {
-    const { tools, query } = makeTools(() => ({ success: true, actors: [], errors: [] }));
+    const { tools, query } = makeTools(ActorCreationTools, () => ({
+      success: true,
+      actors: [],
+      errors: [],
+    }));
     const create = tools.getToolDefinitions().find(d => d.name === 'create-actor-from-compendium')!;
     expect((create.inputSchema as any).properties.quantity).toMatchObject({
       minimum: 1,
@@ -74,13 +60,6 @@ describe('ActorCreationTools.getToolDefinitions', () => {
     ).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
   });
-
-  it('get-compendium-entry-full requires packId and entryId', () => {
-    const { tools } = makeTools();
-    const defs = tools.getToolDefinitions();
-    const full = defs.find(d => d.name === 'get-compendium-entry-full')!;
-    expect((full.inputSchema as any).required).toEqual(['packId', 'entryId']);
-  });
 });
 
 // ---------------------------------------------------------------------------
@@ -97,7 +76,7 @@ describe('ActorCreationTools.handleCreateActorFromCompendium', () => {
       tokensPlaced: 0,
       errors: [],
     };
-    const { tools, query } = makeTools(() => mockResult);
+    const { tools, query } = makeTools(ActorCreationTools, () => mockResult);
     await tools.handleCreateActorFromCompendium({
       packId: 'dnd5e.monsters',
       itemId: 'goblin-id',
@@ -122,7 +101,7 @@ describe('ActorCreationTools.handleCreateActorFromCompendium', () => {
       tokensPlaced: 1,
       errors: [],
     };
-    const { tools, query } = makeTools(() => mockResult);
+    const { tools, query } = makeTools(ActorCreationTools, () => mockResult);
     await tools.handleCreateActorFromCompendium({
       packId: 'dnd5e.monsters',
       itemId: 'rogue-id',
@@ -153,7 +132,7 @@ describe('ActorCreationTools.handleCreateActorFromCompendium', () => {
       tokensPlaced: 0,
       errors: [],
     };
-    const { tools, query } = makeTools(() => mockResult);
+    const { tools, query } = makeTools(ActorCreationTools, () => mockResult);
     await tools.handleCreateActorFromCompendium({
       packId: 'dnd5e.monsters',
       itemId: 'goblin-id',
@@ -179,7 +158,7 @@ describe('ActorCreationTools.handleCreateActorFromCompendium', () => {
       tokensPlaced: 0,
       errors: [],
     };
-    const { tools } = makeTools(() => mockResult);
+    const { tools } = makeTools(ActorCreationTools, () => mockResult);
     const result = await tools.handleCreateActorFromCompendium({
       packId: 'dnd5e.monsters',
       itemId: 'goblin-id',
@@ -200,7 +179,7 @@ describe('ActorCreationTools.handleCreateActorFromCompendium', () => {
   });
 
   it('throws (not returns string) when packId is missing', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(ActorCreationTools);
     await expect(
       tools.handleCreateActorFromCompendium({ itemId: 'goblin-id', names: ['Goblin'] })
     ).rejects.toThrow();
@@ -208,7 +187,7 @@ describe('ActorCreationTools.handleCreateActorFromCompendium', () => {
   });
 
   it('throws (not returns string) when itemId is missing', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(ActorCreationTools);
     await expect(
       tools.handleCreateActorFromCompendium({ packId: 'dnd5e.monsters', names: ['Goblin'] })
     ).rejects.toThrow();
@@ -216,7 +195,7 @@ describe('ActorCreationTools.handleCreateActorFromCompendium', () => {
   });
 
   it('throws (not returns string) when names array is missing', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(ActorCreationTools);
     await expect(
       tools.handleCreateActorFromCompendium({ packId: 'dnd5e.monsters', itemId: 'goblin-id' })
     ).rejects.toThrow();
@@ -224,7 +203,7 @@ describe('ActorCreationTools.handleCreateActorFromCompendium', () => {
   });
 
   it('throws (not returns string) when names array is empty', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(ActorCreationTools);
     await expect(
       tools.handleCreateActorFromCompendium({
         packId: 'dnd5e.monsters',
@@ -236,13 +215,13 @@ describe('ActorCreationTools.handleCreateActorFromCompendium', () => {
   });
 
   it('throws (not returns string) when args are null/undefined', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(ActorCreationTools);
     await expect(tools.handleCreateActorFromCompendium(undefined)).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
   });
 
   it('throws when Foundry query throws an error', async () => {
-    const { tools } = makeTools(() => {
+    const { tools } = makeTools(ActorCreationTools, () => {
       throw new Error('bridge timeout');
     });
     await expect(
@@ -251,108 +230,6 @@ describe('ActorCreationTools.handleCreateActorFromCompendium', () => {
         itemId: 'goblin-id',
         names: ['Goblin'],
       })
-    ).rejects.toThrow();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// handleGetCompendiumEntryFull
-// ---------------------------------------------------------------------------
-
-describe('ActorCreationTools.handleGetCompendiumEntryFull', () => {
-  it('dispatches the correct query method with packId and documentId', async () => {
-    const mockEntry = {
-      name: 'Goblin',
-      type: 'npc',
-      packLabel: 'Monsters',
-      system: {},
-      fullData: {},
-      items: [],
-      effects: [],
-    };
-    const { tools, query } = makeTools(() => mockEntry);
-    await tools.handleGetCompendiumEntryFull({
-      packId: 'dnd5e.monsters',
-      entryId: 'goblin-entry-id',
-    });
-    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getCompendiumDocumentFull', {
-      packId: 'dnd5e.monsters',
-      documentId: 'goblin-entry-id',
-    });
-  });
-
-  it('shapes the result via formatCompendiumEntryResponse', async () => {
-    const mockEntry = {
-      name: 'Goblin',
-      type: 'npc',
-      packLabel: 'Monsters',
-      system: { hp: { value: 7 } },
-      fullData: { _id: 'goblin-entry-id' },
-      items: [{ name: 'Scimitar' }, { name: 'Shortbow' }],
-      effects: [],
-    };
-    const { tools } = makeTools(() => mockEntry);
-    const result = await tools.handleGetCompendiumEntryFull({
-      packId: 'dnd5e.monsters',
-      entryId: 'goblin-entry-id',
-    });
-    expect(result).toHaveProperty('name', 'Goblin');
-    expect(result).toHaveProperty('type', 'npc');
-    expect(result).toHaveProperty('pack', 'Monsters');
-    expect(result).toHaveProperty('system', mockEntry.system);
-    expect(result).toHaveProperty('fullData', mockEntry.fullData);
-    expect(result).toHaveProperty('items', mockEntry.items);
-    expect(result).toHaveProperty('effects', []);
-    expect(result).toHaveProperty('summary');
-    expect(typeof result.summary).toBe('string');
-    expect(result.summary).toContain('Goblin');
-  });
-
-  it('returns empty arrays for items and effects when entry has none', async () => {
-    const mockEntry = {
-      name: 'Shadow',
-      type: 'npc',
-      packLabel: 'Monsters',
-      system: {},
-      fullData: {},
-    };
-    const { tools } = makeTools(() => mockEntry);
-    const result = await tools.handleGetCompendiumEntryFull({
-      packId: 'dnd5e.monsters',
-      entryId: 'shadow-id',
-    });
-    expect(result.items).toEqual([]);
-    expect(result.effects).toEqual([]);
-  });
-
-  it('throws (not returns string) when packId is missing', async () => {
-    const { tools, query } = makeTools();
-    await expect(
-      tools.handleGetCompendiumEntryFull({ entryId: 'goblin-entry-id' })
-    ).rejects.toThrow();
-    expect(query).not.toHaveBeenCalled();
-  });
-
-  it('throws (not returns string) when entryId is missing', async () => {
-    const { tools, query } = makeTools();
-    await expect(
-      tools.handleGetCompendiumEntryFull({ packId: 'dnd5e.monsters' })
-    ).rejects.toThrow();
-    expect(query).not.toHaveBeenCalled();
-  });
-
-  it('throws (not returns string) when args are null/undefined', async () => {
-    const { tools, query } = makeTools();
-    await expect(tools.handleGetCompendiumEntryFull(undefined)).rejects.toThrow();
-    expect(query).not.toHaveBeenCalled();
-  });
-
-  it('throws when Foundry query throws an error', async () => {
-    const { tools } = makeTools(() => {
-      throw new Error('pack not found');
-    });
-    await expect(
-      tools.handleGetCompendiumEntryFull({ packId: 'dnd5e.monsters', entryId: 'goblin-entry-id' })
     ).rejects.toThrow();
   });
 });

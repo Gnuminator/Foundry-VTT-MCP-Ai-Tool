@@ -12,12 +12,7 @@ import { CLIENT_NOTICE_INTERVAL_MS, TOOL_VERSION, clientToolNotice } from '@gnum
 import { BUILD_ID } from './build-id.js';
 import { TOOL_RESULT_MAX_CHARS } from './tool-router.js';
 
-export {
-  isOlderVersion,
-  isOtherBuild,
-  type WrapperEntry,
-  type WrapperStatus,
-} from './wrapper-version.js';
+export { isOlderVersion } from './wrapper-version.js';
 import {
   isOlderVersion,
   isOtherBuild,
@@ -29,7 +24,7 @@ import {
  * True when a wrapper should be updated: too old to say its version, an older version, or the
  * same version from another build.
  */
-export function isWrapperBehind(w: WrapperEntry, current: string, build: string): boolean {
+function isWrapperBehind(w: WrapperEntry, current: string, build: string): boolean {
   return (
     w.version === null || isOlderVersion(w.version, current) || isOtherBuild(w, current, build)
   );

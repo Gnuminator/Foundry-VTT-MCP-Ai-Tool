@@ -42,6 +42,7 @@ import { preflightModule } from './modules/preflight.js';
 import { prepDigestModule } from './modules/prep-digest.js';
 import { questCreationModule } from './modules/quest-creation.js';
 import { refChoicesModule } from './modules/ref-choices.js';
+import { renownModule } from './modules/renown.js';
 import { resourcesModule } from './modules/resources.js';
 import { roomSetupModule } from './modules/room-setup.js';
 import { rulesCheckModule } from './modules/rules-check.js';
@@ -115,6 +116,7 @@ export const TOOL_MODULES: readonly AnyToolModule[] = [
   refChoicesModule,
   skillGuideModule,
   playerModule,
+  renownModule,
 ];
 
 /** One instance of every tool module, built from the services. */

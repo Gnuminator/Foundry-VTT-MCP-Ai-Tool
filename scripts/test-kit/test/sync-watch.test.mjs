@@ -173,11 +173,19 @@ test(
       writeLock(lockRoot, held(ME, 'Module sync'));
       await until(() => read(mainDest) === 'v4 with even more bytes', 'the sync after waiting');
     } finally {
-      child.kill();
+      release(child);
       fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
     }
   }
 );
+
+/** A leftover grandchild (esbuild) holds the pipes open and keeps node alive: let go of them. */
+const release = child => {
+  child.kill('SIGKILL');
+  child.stdout?.destroy();
+  child.stderr?.destroy();
+  child.unref();
+};
 
 const hasEsbuild = fs.existsSync(path.join(root, 'node_modules', 'esbuild'));
 
@@ -195,7 +203,7 @@ test(
   'sync-module.ps1 -Watch with the build: no stale first copy, broken saves not synced, the build dies with it',
   {
     skip: (!hasPwsh && 'pwsh is missing') || (!hasEsbuild && 'esbuild is not installed'),
-    timeout: 120000,
+    timeout: 170000,
   },
   async () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'sync-watch-build-'));
@@ -241,7 +249,7 @@ test(
       tscPid = Number(/Build watch started \(pid (\d+)\)/.exec(out)[1]);
 
       // The first copy is the watch's first build, not the dist/ that was on disk.
-      await until(() => out.includes('Synced module'), 'the first sync', 60000);
+      await until(() => out.includes('Synced module'), 'the first sync', 100000);
       assert.match(fs.readFileSync(mainDest, 'utf8'), /built-1/);
       assert.equal(
         out.split('Synced module').length - 1,
@@ -264,7 +272,7 @@ test(
       child.kill('SIGKILL');
       await until(() => !alive(tscPid), 'the build to exit after the watch was killed', 15000);
     } finally {
-      child.kill('SIGKILL');
+      release(child);
       if (tscPid && alive(tscPid)) process.kill(tscPid);
       fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
     }

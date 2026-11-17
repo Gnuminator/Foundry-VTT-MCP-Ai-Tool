@@ -42,6 +42,7 @@ import {
 import { getPreflightScan, PREFLIGHT_QUERY } from './preflight-scan.js';
 import { getPartyState, PARTY_STATE_QUERY } from './party-scan.js';
 import { PARTY_PLACE_QUERY, planPartyPlacement } from './party-place.js';
+import { getRenownState, RENOWN_STATE_QUERY } from './renown-scan.js';
 import { getPrepScan, PREP_SCAN_QUERY } from './prep-scan.js';
 import { LIVE_PLAN_QUERY, planLiveChange } from './live-plan.js';
 import { COMBAT_PLAN_QUERY, planCombatChange } from './combat-plan.js';
@@ -260,6 +261,12 @@ export class QueryHandlers {
     // request cards. GM client only.
     handlers.set(`${modulePrefix}.${PARTY_STATE_QUERY}`, () =>
       this.withGmGate('Failed to read the party', () => Promise.resolve(getPartyState()))
+    );
+
+    // Factions and renown (dnd5e 6.1, read-only): faction actors and every actor's renown items.
+    // GM client only.
+    handlers.set(`${modulePrefix}.${RENOWN_STATE_QUERY}`, () =>
+      this.withGmGate('Failed to read renown', () => Promise.resolve(getRenownState()))
     );
 
     // Place the party (I-097): where the members' tokens would go on the viewed scene. Read only;

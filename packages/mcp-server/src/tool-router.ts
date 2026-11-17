@@ -7,7 +7,7 @@
  * `capToolResult`, and so loads the tool modules (not their instances) through tool-hints.ts.
  */
 import { type ToolAnnotations, withToolHints } from './tool-hints.js';
-import { actorToolNames, applyParamAliases } from './param-aliases.js';
+import { RENAMED_TOOLS, actorToolNames, applyParamAliases } from './param-aliases.js';
 import { type ToolInstances, instanceOf } from './tools/tool-module.js';
 
 /** The built tool instances the router dispatches to (tools/index.ts `createTools`). */
@@ -52,7 +52,24 @@ export function buildToolRouter(deps: ToolRouterDeps): Record<string, ToolHandle
         route(tools, applyParamAliases(name, args, actorTools), context);
     }
   }
+  for (const [old, { to, params }] of Object.entries(RENAMED_TOOLS)) {
+    const target = routes[to];
+    if (!target || Object.hasOwn(routes, old)) continue;
+    routes[old] = (args, context): Promise<unknown> => target(applyRenames(args, params), context);
+  }
   return routes;
+}
+
+function applyRenames(args: unknown, params: Readonly<Record<string, string>>): unknown {
+  if (args === null || typeof args !== 'object' || Array.isArray(args)) return args;
+  const input = args as Record<string, unknown>;
+  const out: Record<string, unknown> = { ...input };
+  for (const [old, current] of Object.entries(params)) {
+    if (!Object.hasOwn(input, old)) continue;
+    if (!Object.hasOwn(out, current)) out[current] = input[old];
+    delete out[old];
+  }
+  return out;
 }
 
 /** A tool as the backend lists it (MCP `tools/list` shape). */

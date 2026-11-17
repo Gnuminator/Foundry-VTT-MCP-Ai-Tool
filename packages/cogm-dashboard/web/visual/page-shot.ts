@@ -1,8 +1,7 @@
 // A page shot: the screenshot of a whole dashboard or player page. It is rendered on every run and
 // written to page-shots/<project>/<name> (CI uploads that folder as the artifact
-// dashboard-page-shots-<shard>), but it is NOT compared with a committed PNG: a control added to a
-// page would otherwise change committed baselines in nearly every dashboard PR. The story shots
-// (stories.spec.ts) stay compared; they are the pixel guard.
+// dashboard-page-shots-<shard>), but it is NOT compared with anything. The story shots are
+// compared base against head in CI (stories-diff.spec.ts); they are the pixel guard.
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 

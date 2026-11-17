@@ -9,9 +9,9 @@
 //   VISUAL_BASE_DIR=<base>/storybook-static VISUAL_DIFF_OUT=visual-diff VISUAL_SHARD=1/4 \
 //     npx playwright test -c web/playwright.visual.config.ts --project stories-diff
 // VISUAL_SHARD splits the sorted union of story ids, so a story only on one side still lands in one
-// shard. Same pixel rule as the committed shots: a pixel counts when its colour differs by more than
+// shard. Pixel rule: a pixel counts when its colour differs by more than
 // threshold 0.02 (pixelmatch's YIQ distance), and any such pixel makes the story "changed".
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { expect, test, type Page } from '@playwright/test';
@@ -220,6 +220,25 @@ const write = (kind: 'before' | 'after' | 'diff', id: string, data: Buffer): voi
 test('the base and the head Storybook are built', () => {
   expect(baseStories.size, `no stories in VISUAL_BASE_DIR ${baseDir}`).toBeGreaterThan(0);
   expect(headStories.size, 'no stories in the head storybook-static').toBeGreaterThan(0);
+});
+
+// A shard that times out or crashes stops before the later stories start. Give each of them an error
+// entry now so the report lists them as not rendered instead of silently leaving them out; a story
+// that runs overwrites its own entry.
+test('every story of this shard has a provisional entry', () => {
+  mkdirSync(path.join(out, 'entries'), { recursive: true });
+  for (const id of baseStories.size === 0 ? [] : ids) {
+    const file = path.join(out, 'entries', `${id}.json`);
+    if (existsSync(file)) continue;
+    writeFileSync(
+      file,
+      JSON.stringify({
+        id,
+        status: 'error',
+        error: 'not rendered: the shard stopped before this story',
+      })
+    );
+  }
 });
 
 // With no base stories every story would show as added: render nothing and let the test above say why.

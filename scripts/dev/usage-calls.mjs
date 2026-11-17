@@ -15,9 +15,9 @@
 // --pi, which always reads the Pi folder).
 // An empty log is not always quiet days: connectorLogging() reads the Claude Desktop config and
 // says when a connector runs a build that predates call logging (the PC log was empty from
-// 2026-10-29 because the config ran an older build). The hint is printed only for an empty log
-// of the default folder (not with --dir, --pi or USAGE_WEEK_CALLS_DIR), and then whenever any
-// connector is stale, even if others do log.
+// 2026-10-29 because the config ran an older build). The hint is printed on stderr for the default
+// folder only (not with --dir, --pi or USAGE_WEEK_CALLS_DIR), whenever any connector is stale,
+// also when others do log and the log is not empty.
 
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -322,7 +322,7 @@ async function main(argv) {
   } else calls = readCalls(dir, days);
   const summary = summarize(calls, await loadCatalog());
   const customDir = argv.includes('--dir') || process.env.USAGE_WEEK_CALLS_DIR;
-  if (!summary.total && !argv.includes('--pi') && !customDir) {
+  if (!argv.includes('--pi') && !customDir) {
     const hint = emptyLogHint(connectorLogging());
     if (hint) process.stderr.write(`${hint}\n`);
   }

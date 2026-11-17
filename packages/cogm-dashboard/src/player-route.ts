@@ -231,7 +231,10 @@ export function mountPlayerRoute(app: Express, options: PlayerRouteOptions): voi
       // A token that cannot even be read is the caller's; a readable one that no key could be
       // fetched for is ours (Cloudflare unreachable): try again, not "check your login".
       if (result.reason === 'invalid') {
-        return { status: v.hasKeys || !looksSigned(token) ? 401 : 503 };
+        // Both applications' keys must be loaded before "invalid" is the caller's fault: an app
+        // token fails here too when only the app verifier could not fetch its keys.
+        const keysOk = v.hasKeys && (!appV || appV.hasKeys);
+        return { status: keysOk || !looksSigned(token) ? 401 : 503 };
       }
       if (result.reason === 'no-client-id' && !warnedClaims) {
         warnedClaims = true;

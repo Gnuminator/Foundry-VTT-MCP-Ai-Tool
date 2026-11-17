@@ -1,4 +1,6 @@
-import { describe, expect, it, vi, type Mock } from 'vitest';
+import { describe, expect, it } from 'vitest';
+
+import { makeTools } from '../test-support/make-tool-harness.js';
 
 import { TokenManipulationTools } from './token-manipulation.js';
 
@@ -14,30 +16,13 @@ import { TokenManipulationTools } from './token-manipulation.js';
  * The FoundryClient is mocked so these tests run with no bridge connection.
  */
 
-function makeTools(queryImpl?: (method: string, data: unknown) => unknown): {
-  tools: TokenManipulationTools;
-  query: Mock;
-} {
-  const query = vi.fn(queryImpl ?? ((): unknown => ({ success: true })));
-  const foundryClient = { query } as any;
-  // Minimal Logger stub: `.child()` returns itself; level methods are no-ops.
-  const logger: any = {
-    error: vi.fn(),
-    warn: vi.fn(),
-    info: vi.fn(),
-    debug: vi.fn(),
-  };
-  logger.child = (): unknown => logger;
-  return { tools: new TokenManipulationTools({ foundryClient, logger }), query };
-}
-
 // ---------------------------------------------------------------------------
 // getToolDefinitions
 // ---------------------------------------------------------------------------
 
 describe('TokenManipulationTools.getToolDefinitions', () => {
   it('exposes the two token read tools with object input schemas', () => {
-    const { tools } = makeTools();
+    const { tools } = makeTools(TokenManipulationTools);
     const defs = tools.getToolDefinitions();
     expect(defs.map(d => d.name)).toEqual(['get-token-details', 'get-available-conditions']);
     for (const d of defs) {
@@ -46,14 +31,14 @@ describe('TokenManipulationTools.getToolDefinitions', () => {
   });
 
   it('get-token-details requires tokenId', () => {
-    const { tools } = makeTools();
+    const { tools } = makeTools(TokenManipulationTools);
     const defs = tools.getToolDefinitions();
     const def = defs.find(d => d.name === 'get-token-details')!;
     expect((def.inputSchema as any).required).toEqual(['tokenId']);
   });
 
   it('get-available-conditions has no required fields', () => {
-    const { tools } = makeTools();
+    const { tools } = makeTools(TokenManipulationTools);
     const defs = tools.getToolDefinitions();
     const def = defs.find(d => d.name === 'get-available-conditions')!;
     expect((def.inputSchema as any).required).toBeUndefined();
@@ -85,7 +70,7 @@ describe('TokenManipulationTools.handleGetTokenDetails', () => {
       actorLink: false,
       actorData: { name: 'Goblin Actor', type: 'npc', img: 'img/goblin.png' },
     };
-    const { tools, query } = makeTools(() => rawToken);
+    const { tools, query } = makeTools(TokenManipulationTools, () => rawToken);
     const result = await tools.handleGetTokenDetails({ tokenId: 'tok1' });
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.get-token-details', {
       tokenId: 'tok1',
@@ -128,7 +113,7 @@ describe('TokenManipulationTools.handleGetTokenDetails', () => {
       actorLink: false,
       actorData: null,
     };
-    const { tools } = makeTools(() => rawToken);
+    const { tools } = makeTools(TokenManipulationTools, () => rawToken);
     const result = await tools.handleGetTokenDetails({ tokenId: 'tok2' });
     expect(result.actor).toBeNull();
     expect(result.behavior.disposition).toBe('neutral');
@@ -154,19 +139,19 @@ describe('TokenManipulationTools.handleGetTokenDetails', () => {
       actorLink: false,
       actorData: null,
     };
-    const { tools } = makeTools(() => rawToken);
+    const { tools } = makeTools(TokenManipulationTools, () => rawToken);
     const result = await tools.handleGetTokenDetails({ tokenId: 'tok3' });
     expect(result.behavior.disposition).toBe('friendly');
   });
 
   it('throws (ZodError) when tokenId is missing', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(TokenManipulationTools);
     await expect(tools.handleGetTokenDetails({})).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
   });
 
   it('wraps query errors as "Failed to get token details: <message>"', async () => {
-    const { tools } = makeTools(() => {
+    const { tools } = makeTools(TokenManipulationTools, () => {
       throw new Error('token not found');
     });
     await expect(tools.handleGetTokenDetails({ tokenId: 'tok1' })).rejects.toThrow(
@@ -185,7 +170,7 @@ describe('TokenManipulationTools.handleGetAvailableConditions', () => {
       conditions: [{ id: 'prone', name: 'Prone' }],
       gameSystem: 'dnd5e',
     };
-    const { tools, query } = makeTools(() => payload);
+    const { tools, query } = makeTools(TokenManipulationTools, () => payload);
     const result = await tools.handleGetAvailableConditions({});
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.get-available-conditions', {});
     expect(result).toEqual({
@@ -197,14 +182,14 @@ describe('TokenManipulationTools.handleGetAvailableConditions', () => {
 
   it('works when called with undefined args', async () => {
     const payload = { conditions: [], gameSystem: 'dnd5e' };
-    const { tools, query } = makeTools(() => payload);
+    const { tools, query } = makeTools(TokenManipulationTools, () => payload);
     const result = await tools.handleGetAvailableConditions(undefined);
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.get-available-conditions', {});
     expect(result.success).toBe(true);
   });
 
   it('wraps query errors as "Failed to get available conditions: <message>"', async () => {
-    const { tools } = makeTools(() => {
+    const { tools } = makeTools(TokenManipulationTools, () => {
       throw new Error('system not loaded');
     });
     await expect(tools.handleGetAvailableConditions({})).rejects.toThrow(
@@ -238,7 +223,7 @@ describe('TokenManipulationTools secret disposition (M3)', () => {
       actorLink: false,
       actorData: null,
     };
-    const { tools } = makeTools(() => rawToken);
+    const { tools } = makeTools(TokenManipulationTools, () => rawToken);
     const result = await tools.handleGetTokenDetails({ tokenId: 'tok9' });
     expect(result.behavior.disposition).toBe('secret');
   });

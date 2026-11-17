@@ -45,7 +45,8 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$sessions = if ($env:FVTT_SESSIONS_DIR) { $env:FVTT_SESSIONS_DIR } else { Join-Path $env:USERPROFILE 'Documents\FoundrySessions' }
+. (Join-Path $PSScriptRoot '..\..\scripts\data-folder.ps1')
+$sessions = if ($env:FVTT_SESSIONS_DIR) { $env:FVTT_SESSIONS_DIR } else { Get-DataFolder 'FoundrySessions' }
 $namePattern = '^[A-Za-z0-9][A-Za-z0-9_.-]*$'
 if ($RemoteDir -notmatch '^/[A-Za-z0-9_./-]+$') { throw "RemoteDir must be a plain absolute path: $RemoteDir" }
 

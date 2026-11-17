@@ -6,7 +6,7 @@
  * | -------------------- | ----------------------------------------------------------- |
  * | `DISCORD_TOKEN`      | the bot token (required to run the bot)                     |
  * | `DISCORD_GUILD_ID`   | register the slash commands in this server only (instant)   |
- * | `FVTT_SESSIONS_DIR`  | where recordings go; default `Documents\FoundrySessions`    |
+ * | `FVTT_SESSIONS_DIR`  | where recordings go; default `FoundrySessions` in `FVTT_DATA_DIR`, else `Documents` |
  * | `DISCORD_OWNER_ID`   | who gets the storage space DMs; default the bot application's owner |
  * | `FOUNDRY_AI_SPACE_STATUS` | the space check's status file (the Pi writes it)       |
  * | `FOUNDRY_AI_BACKUP_PULLS` | folder with the Pi's record of the PC's last backup copies |
@@ -20,7 +20,7 @@
  * | `FOUNDRY_AI_PLAYER_TOKEN` | the dashboard's player token, if the deployment sets one |
  * | `REHEARSAL_TOKEN_1` to `_3` | speaker bot tokens for `rehearse` (one bot application each) |
  * | `REHEARSAL_CHANNEL_ID` | the voice channel rehearsals use                          |
- * | `FVTT_REHEARSAL_DIR` | where rehearsals go; default `Documents\FoundryRehearsals`  |
+ * | `FVTT_REHEARSAL_DIR` | where rehearsals go; default `FoundryRehearsals` in `FVTT_DATA_DIR`, else `Documents` |
  */
 
 import { existsSync, readFileSync } from 'node:fs';
@@ -28,7 +28,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 import { parseStaleDays } from './backup-pull-status.js';
-import { sessionsDirFrom } from './sessions-dir.js';
+import { dataFolder, sessionsDirFrom } from './sessions-dir.js';
 
 export interface BotConfig {
   token: string;
@@ -116,7 +116,7 @@ export function loadConfig(envFile = defaultEnvFile(), requireToken = true): Bot
   return {
     token,
     guildId: get('DISCORD_GUILD_ID'),
-    sessionsDir: sessionsDirFrom(get('FVTT_SESSIONS_DIR')),
+    sessionsDir: sessionsDirFrom(get('FVTT_SESSIONS_DIR'), undefined, get('FVTT_DATA_DIR')),
     envFile,
     ownerId: get('DISCORD_OWNER_ID'),
     spaceStatusFile: get('FOUNDRY_AI_SPACE_STATUS'),
@@ -151,6 +151,6 @@ export function loadRehearsalConfig(envFile = defaultEnvFile()): RehearsalConfig
   return {
     speakerTokens,
     channelId,
-    dir: get('FVTT_REHEARSAL_DIR') ?? join(homedir(), 'Documents', 'FoundryRehearsals'),
+    dir: get('FVTT_REHEARSAL_DIR') ?? dataFolder('FoundryRehearsals', get('FVTT_DATA_DIR')),
   };
 }

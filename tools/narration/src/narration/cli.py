@@ -105,7 +105,7 @@ def main(argv: list[str] | None = None) -> int:
     def common(p: argparse.ArgumentParser) -> None:
         p.add_argument("--voice", help="voice name, or ref:<clip.wav> to clone a clip")
         p.add_argument("--speed", type=float, help="tempo, 0.5 to 2.0 (English default 0.92)")
-        p.add_argument("--out", help="output root (default: Documents\\FoundryNarration)")
+        p.add_argument("--out", help="output root (default: FoundryNarration in FVTT_DATA_DIR, else Documents)")
         p.add_argument("--retakes", type=int, default=2, help="automatic new takes per failing sentence")
         p.add_argument("--no-check", action="store_true", help="skip the Whisper listening check")
 

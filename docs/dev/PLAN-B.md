@@ -16,7 +16,9 @@ within 40 seconds of that. Budget 15 minutes for the whole switch, including tel
 
 ## What it touches
 
-Everything lives in `C:\FoundryPlanB`. The scripts never write to the test server
+Everything lives in `C:\FoundryPlanB` (or `FoundryPlanB` inside the data folder `FVTT_DATA_DIR`
+once it has been moved there; the scripts find it with `Get-RootFolder`, and `-Root` overrides it).
+The paths below say `C:\FoundryPlanB` for short. The scripts never write to the test server
 (`C:\FoundryTest`, only its licence file is read once), never contact the Pi except to check that it
 is down, and read the backup copies in `E:\PiBackup\restic` without locking them.
 

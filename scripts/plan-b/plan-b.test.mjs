@@ -284,7 +284,10 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
     assert.match(r.inplace.msg, /something is in .*app now and the old app folder is in .*app-old/);
     assert.deepEqual([r.inplace.app, r.inplace.old, r.inplace.new], [true, true, true]);
     // the old app could not be moved back: it stays in app-old and the message says so
-    assert.match(r.stuck.msg, /the old app folder could not be moved back \(denied\) and is in .*app-old/);
+    assert.match(
+      r.stuck.msg,
+      /the old app folder could not be moved back \(denied\) and is in .*app-old/
+    );
     assert.deepEqual([r.stuck.app, r.stuck.old, r.stuck.new], [false, true, true]);
   });
 
@@ -332,6 +335,46 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
     assert.equal(r.local.hostname, null);
     assert.equal(r.local.proxySSL, false);
     assert.equal(r.local.dataPath, 'C:/FoundryPlanB/data');
+  });
+
+  test('root folders: C:\\<name> without a data folder, the data folder once the folder is there', () => {
+    const r = ps(`
+      $d = Join-Path ([IO.Path]::GetTempPath()) ('rootf-' + [guid]::NewGuid().ToString('N'))
+      New-Item -ItemType Directory -Path (Join-Path $d 'FoundryPlanB') | Out-Null
+      try {
+        $env:FVTT_DATA_DIR = ''
+        $none = Resolve-RootPath 'C:\\FoundryPlanB\\data'
+        $env:FVTT_DATA_DIR = $d
+        $moved = Resolve-RootPath 'C:\\FoundryPlanB\\data'
+        $other = Resolve-RootPath 'C:\\FoundryTest\\app'
+        # A data folder on a drive that is not there must not throw (an unplugged drive on game night).
+        $env:FVTT_DATA_DIR = 'Q:\\nodrive\\data'
+        $missing = Resolve-RootPath 'C:\\FoundryPlanB\\data'
+        # A relative value is ignored.
+        $env:FVTT_DATA_DIR = 'relative\\data'
+        $relative = Resolve-RootPath 'C:\\FoundryPlanB\\data'
+        # C:data (drive-relative) is ignored too, as Node's isAbsolute does.
+        $env:FVTT_DATA_DIR = 'C:data'
+        $driveRelative = Resolve-RootPath 'C:\\FoundryPlanB\\data'
+        @{
+          driveRelative = $driveRelative
+          none = $none; moved = $moved; other = $other; missing = $missing; relative = $relative
+          expected = [IO.Path]::Combine($d, 'FoundryPlanB', 'data')
+        }
+      } finally { $env:FVTT_DATA_DIR = ''; Remove-Item -Recurse -Force $d }`);
+    // Linux pwsh joins with a slash: compare with the separator normalised.
+    const win = s => s.replace(/\//g, '\\');
+    assert.equal(win(r.none), 'C:\\FoundryPlanB\\data');
+    assert.equal(r.moved, r.expected);
+    assert.equal(r.other, 'C:\\FoundryTest\\app');
+    assert.ok(
+      [win('C:\\FoundryPlanB\\data'), win('Q:\\nodrive\\data\\FoundryPlanB\\data')].includes(
+        win(r.missing)
+      ),
+      r.missing
+    );
+    assert.equal(win(r.relative), 'C:\\FoundryPlanB\\data');
+    assert.equal(win(r.driveRelative), 'C:\\FoundryPlanB\\data');
   });
 
   test('env file: comments, quotes and = in values', () => {

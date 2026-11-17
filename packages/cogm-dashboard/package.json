@@ -15,7 +15,6 @@
     "test": "vitest run",
     "test:e2e": "playwright test -c web",
     "test:visual": "node scripts/visual-docker.mjs",
-    "test:visual:update": "node scripts/visual-docker.mjs --update",
     "test:visual:ci": "playwright test -c web/playwright.visual.config.ts",
     "bundle:budget": "node scripts/bundle-budget.mjs",
     "storybook": "storybook dev -c web/.storybook -p 6006",

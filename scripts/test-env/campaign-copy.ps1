@@ -5,7 +5,7 @@
 #   pwsh scripts/test-env/campaign-copy.ps1 stop      stop it
 #   pwsh scripts/test-env/campaign-copy.ps1 status
 #
-# refresh options: -PiHost foundry-pi (the ssh name), -Root C:\FoundryCampaign, -WithJB2A (also pull
+# refresh options: -PiHost foundry-pi (the ssh name), -Root C:\FoundryCampaign (default; inside FVTT_DATA_DIR once moved), -WithJB2A (also pull
 # the 1.6 GB JB2A animation module, skipped by default), -NoPull (redo the local set-up on an
 # already pulled <Root>\data.new). A running copy must be stopped before a refresh.
 #
@@ -20,7 +20,7 @@
 param(
   [Parameter(Position = 0)] [ValidateSet('refresh', 'start', 'stop', 'status')] [string]$Action = 'status',
   [string]$PiHost = 'foundry-pi',
-  [string]$Root = 'C:\FoundryCampaign',
+  [string]$Root = '',
   [int]$Port = 30004,
   [string]$World = 'curse-of-strahd',
   [switch]$WithJB2A,
@@ -29,6 +29,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'config.ps1')   # server A's settings: app folder, Node helpers, port checks
+. (Join-Path $PSScriptRoot '..\data-folder.ps1')
+if (-not $Root) { $Root = Get-RootFolder 'FoundryCampaign' }   # C:\FoundryCampaign until moved under FVTT_DATA_DIR
 
 $Forbidden = @(31414, 31415, 31416, 30100, 31614, 31615, 3300, 3100, 3101, 3102, 31514, 31515, 31524, 31525, 31534, 31535, 31544, 31545, 30001, 30002, 30003, 30000)
 if ($Forbidden -contains $Port) { throw "Port $Port belongs to the live system, Plan B or a test server. Pick another." }

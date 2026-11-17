@@ -1,0 +1,221 @@
+import { promises as fsp } from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import type { UsageEvent } from '@gnuminator/shared';
+
+import { TOOL_CALL_LOG_DIR, type ToolCallLine } from './tool-call-log.js';
+import {
+  ClientsFile,
+  buildWhoUsesWhat,
+  handleWhoUsesWhat,
+  readCallLines,
+} from './who-uses-what.js';
+
+let dataDir: string;
+beforeEach(async () => {
+  dataDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'who-'));
+});
+afterEach(async () => {
+  await fsp.rm(dataDir, { recursive: true, force: true });
+});
+
+const NOW = Date.parse('2026-11-17T12:00:00Z');
+const call = (over: Partial<ToolCallLine>): ToolCallLine => ({
+  t: '2026-11-17T10:00:00.000Z',
+  tool: 'get-world-info',
+  set: 'core',
+  ms: 5,
+  size: 10,
+  ok: true,
+  who: 'gm',
+  ...over,
+});
+
+describe('ClientsFile', () => {
+  it('keeps the last version per piece, person and install, and survives a restart', async () => {
+    const a = new ClientsFile(dataDir);
+    expect(
+      await a.record(
+        { piece: 'obsidian', who: 'gm', install: 'abc123abc123', version: '0.29.1' },
+        NOW
+      )
+    ).toBe(true);
+    expect(
+      await a.record(
+        { piece: 'obsidian', who: 'gm', install: 'def456def456', version: '0.28.0' },
+        NOW
+      )
+    ).toBe(true);
+    expect(
+      await a.record(
+        { piece: 'player-extension', who: 'AbC123xyzAbC123x', version: 'v0.29.2' },
+        NOW
+      )
+    ).toBe(true);
+    const b = new ClientsFile(dataDir);
+    const list = await b.list();
+    expect(list).toHaveLength(3);
+    expect(list.find(e => e.piece === 'player-extension')?.version).toBe('0.29.2');
+  });
+
+  it('refuses unknown pieces, odd names and free text', async () => {
+    const f = new ClientsFile(dataDir);
+    expect(await f.record({ piece: 'keylogger', who: 'gm', version: '1.0.0' })).toBe(false);
+    expect(await f.record({ piece: 'claude', who: 'a b; rm', version: '1.0.0' })).toBe(false);
+    expect(
+      await f.record({ piece: 'claude', who: 'gm', name: 'x'.repeat(200), version: '1.0.0' })
+    ).toBe(true);
+    const [e] = await f.list();
+    expect(e.name).toBe('');
+    expect(await f.record('nope')).toBe(false);
+  });
+
+  it('writes nothing when logging is off', async () => {
+    const f = new ClientsFile(dataDir, false);
+    expect(await f.record({ piece: 'obsidian', who: 'gm', version: '1.0.0' })).toBe(false);
+    await expect(fsp.readdir(path.join(dataDir, TOOL_CALL_LOG_DIR))).rejects.toThrow();
+  });
+});
+
+describe('buildWhoUsesWhat', () => {
+  it('makes one row per person with top tools, skills, versions and controls', () => {
+    const events: UsageEvent[] = [
+      {
+        t: NOW - 1000,
+        key: 'k1',
+        kind: 'action',
+        name: 'player.roll-initiative',
+        surface: 'player',
+        who: { role: 'player', userId: 'P1', name: 'Ebbe' },
+      } as UsageEvent,
+    ];
+    const report = buildWhoUsesWhat({
+      calls: [
+        call({}),
+        call({ tool: 'get-skill-guide', skill: 'gm-coach', stub: 1 }),
+        call({
+          who: 'player',
+          userId: 'P1',
+          tool: 'get-player-skill-guide',
+          skill: 'dnd-helper-player',
+          stub: 1,
+        }),
+        call({
+          who: 'player',
+          userId: 'P1',
+          tool: 'get-character',
+          ok: false,
+          t: '2026-11-17T11:00:00.000Z',
+        }),
+      ],
+      clients: [
+        {
+          piece: 'player-extension',
+          who: 'P1',
+          install: '',
+          version: '0.20.0',
+          name: '',
+          lastSeen: NOW,
+        },
+        {
+          piece: 'obsidian',
+          who: 'gm',
+          install: 'abc123abc123',
+          version: '0.29.2',
+          name: '',
+          lastSeen: NOW,
+        },
+      ],
+      usageEvents: events,
+      toolNames: ['get-world-info', 'get-skill-guide', 'get-character', 'never-called'],
+      current: '0.29.2',
+      days: 7,
+      now: NOW,
+    });
+    expect(report.people.map(p => p.key)).toEqual(['gm', 'P1']);
+    const gm = report.people[0];
+    expect(gm.calls).toBe(2);
+    expect(gm.skills).toEqual([{ skill: 'gm-coach', stub: 1, calls: 1 }]);
+    expect(gm.versions[0]).toMatchObject({
+      piece: 'obsidian',
+      install: 'abc123abc123',
+      behind: false,
+    });
+    const p = report.people[1];
+    expect(p.name).toBe('Ebbe');
+    expect(p.errors).toBe(1);
+    // The newest of its calls, controls and version sightings.
+    expect(p.lastSeen).toBe('2026-11-17T12:00:00.000Z');
+    expect(p.versions[0]).toMatchObject({ piece: 'player-extension', behind: true });
+    expect(p.controls).toEqual({ events: 1, top: [{ name: 'player.roll-initiative', uses: 1 }] });
+    expect(report.tools.neverCalled).toEqual(['never-called']);
+    expect(report.tools.errorRates).toEqual([{ name: 'get-character', calls: 1, errors: 1 }]);
+  });
+
+  it('puts lines from before callers were logged under unknown', () => {
+    const report = buildWhoUsesWhat({
+      calls: [{ ...call({}), who: undefined }],
+      clients: [],
+      usageEvents: [],
+      toolNames: null,
+      current: '0.29.2',
+      days: 7,
+      now: NOW,
+    });
+    expect(report.people[0]).toMatchObject({ key: 'unknown', role: 'unknown', calls: 1 });
+    expect(report.tools.neverCalled).toBeNull();
+  });
+
+  it('never carries arguments or text: a row holds only fixed fields', () => {
+    const report = buildWhoUsesWhat({
+      calls: [call({})],
+      clients: [],
+      usageEvents: [],
+      toolNames: null,
+      current: '0.29.2',
+      days: 7,
+      now: NOW,
+    });
+    expect(Object.keys(report.people[0]).sort()).toEqual([
+      'calls',
+      'controls',
+      'errors',
+      'key',
+      'lastSeen',
+      'name',
+      'role',
+      'skills',
+      'topTools',
+      'versions',
+    ]);
+  });
+});
+
+describe('handleWhoUsesWhat', () => {
+  it('reads the last days of call files and clamps the day count', async () => {
+    const dir = path.join(dataDir, TOOL_CALL_LOG_DIR);
+    await fsp.mkdir(dir, { recursive: true });
+    const today = new Date().toISOString();
+    const old = new Date(Date.now() - 30 * 86_400_000).toISOString();
+    await fsp.writeFile(
+      path.join(dir, '2026-11-17.calls.jsonl'),
+      `${JSON.stringify(call({ t: today }))}\nnot json\n${JSON.stringify(call({ t: old }))}\n`
+    );
+    const lines = await readCallLines(dataDir, 7);
+    expect(lines).toHaveLength(1);
+    const report = await handleWhoUsesWhat(
+      {
+        dataDir,
+        clients: new ClientsFile(dataDir),
+        usageEvents: () => Promise.reject(new Error('no world')),
+        toolNames: () => ['get-world-info'],
+        current: '0.29.2',
+      },
+      { days: 9999 }
+    );
+    expect(report.days).toBe(90);
+    expect(report.people[0].calls).toBe(2);
+  });
+});

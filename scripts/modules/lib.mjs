@@ -16,11 +16,14 @@
 import { createHash } from 'node:crypto';
 import { createReadStream, existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { resolveRootPath } from '../data-folder.mjs';
 
 const MACHINE_PATHS = JSON.parse(
   readFileSync(new URL('../machine-paths.json', import.meta.url), 'utf8'),
 );
-export const DEFAULT_ARCHIVE = MACHINE_PATHS.moduleArchive;
+// machine-paths.json holds the old place (C:\FoundryAI\...); resolveRootPath follows FoundryAI
+// when it has been moved under FVTT_DATA_DIR.
+export const DEFAULT_ARCHIVE = resolveRootPath(MACHINE_PATHS.moduleArchive);
 /** Where the Pi mirror of the archive lives (a path on the Pi; the Pi plan, not run here). */
 export const PI_MIRROR_PATH = '/home/dietpi/module-archive';
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,80}$/;

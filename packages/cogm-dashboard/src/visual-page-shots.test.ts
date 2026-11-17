@@ -1,7 +1,8 @@
-// Keeps the page shots out of the repo. The full-page shots (dashboard moments, drawers, player
-// pages) are rendered on every CI run and uploaded as an artifact (web/visual/page-shot.ts), not
-// committed: a control added to a page used to change dozens of committed PNGs. Only the story
-// shots are committed, in __screenshots__/stories/. This test fails if any other file comes back.
+// Keeps screenshots out of the repo. The full-page shots (dashboard moments, drawers, player
+// pages) are rendered on every CI run and uploaded as an artifact (web/visual/page-shot.ts), and
+// the story shots are rendered on both sides (base and head) in CI and shown in the artifact
+// dashboard-visual-diff. Nothing is committed: a restyle used to change dozens of PNGs. This test
+// fails if any file comes back under web/visual/__screenshots__/.
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -25,14 +26,11 @@ function filesBelow(dir: string): string[] {
 }
 
 describe('committed screenshots', () => {
-  it('hold story shots only, no page shot', () => {
-    const stray = filesBelow(root)
-      .map(file => path.relative(root, file).split(path.sep).join('/'))
-      // A story id is `<title>--<story>`, so a PNG in stories/ without `--` is a page shot in disguise.
-      .filter(rel => !(rel.startsWith('stories/') && rel.endsWith('.png') && rel.includes('--')));
+  it('hold no PNG at all', () => {
+    const stray = filesBelow(root).map(file => path.relative(root, file).split(path.sep).join('/'));
     expect(
       stray,
-      'page shots are not committed (they are the CI artifact dashboard-page-shots-N); delete these from web/visual/__screenshots__/'
+      'screenshots are not committed (page shots: artifact dashboard-page-shots-N; story shots: artifact dashboard-visual-diff); delete these from web/visual/__screenshots__/'
     ).toEqual([]);
   });
 });

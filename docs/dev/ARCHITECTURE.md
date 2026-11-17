@@ -1,6 +1,6 @@
-# Foundry AI Tool — Architecture
+# Foundry AI Tool: Architecture
 
-> The system from first principles: the idea, the contracts, and the data flows — not a
+> The system from first principles: the idea, the contracts, and the data flows, not a
 > line-by-line code recap. This is the spec the implementation is measured against.
 >
 > **Scope of this document.** The system described here is the _trimmed_ one we actually
@@ -13,18 +13,18 @@
 
 ## 1. The concept
 
-Foundry VTT is a virtual tabletop: it holds the _entire live state of a game session_ —
+Foundry VTT is a virtual tabletop: it holds the _entire live state of a game session_:
 actors and their sheets, tokens on a map, the combat tracker, scenes, journals and quests,
 compendiums of monsters and items, the chat log. All of that lives inside Foundry's
 browser-side JavaScript world, reachable only by code running _inside_ that browser tab.
 
-An AI assistant — Claude, or any other [Model Context Protocol](https://modelcontextprotocol.io)
-client — has no way to reach into a browser tab. The **idea** of this project is to close that
+An AI assistant (Claude, or any other [Model Context Protocol](https://modelcontextprotocol.io)
+client) has no way to reach into a browser tab. The **idea** of this project is to close that
 gap by turning Foundry into a set of **MCP tools**:
 
-- _Read_ tools that answer questions about game state — "what's in this scene?", "what are
+- _Read_ tools that answer questions about game state, such as "what's in this scene?", "what are
   the PCs' hit points?", "whose turn is it?", "what undead of CR 5 exist in my compendiums?"
-- _Write_ tools that change the game on the GM's behalf — create an NPC from a stat block,
+- _Write_ tools that change the game on the GM's behalf: create an NPC from a stat block,
   drop tokens onto the canvas, advance the combat turn, apply damage, roll initiative, post
   to chat, generate a battle map.
 
@@ -35,7 +35,7 @@ Once Foundry's capabilities are expressed as MCP tools, two things become possib
    and reasoning as it goes.
 2. **A live dashboard.** A standalone web app watches the session in real time and
    surfaces an AI that comments on combat, answers tactical questions, and can drive
-   the same tool surface — without Claude Desktop in the loop at all.
+   the same tool surface, without Claude Desktop in the loop at all.
 
 The trick is that the AI never touches Foundry directly. Every capability is mediated by a
 small in-Foundry module that runs inside the browser context and exposes a narrow, audited,
@@ -110,12 +110,12 @@ socket bridge, its state, the heartbeat, the "server not found" notice and the G
 their `linkState` relay) lives in `bridge-link-lifecycle.ts`; `main.ts` hands over to it, and a
 test keeps it that way.
 
-- **`init`** — register settings, register the bridge handlers into the module-private
+- **`init`**: register settings, register the bridge handlers into the module-private
   handler table (`bridge-handlers.ts`, **not** `CONFIG.queries`; see below), register
   campaign hooks, and start the **session-event tracker** (hooks that buffer chat and combat
-  activity — see §7's feed). Diagnostics error-capture is installed even earlier, at module
+  activity; see §7's feed). Diagnostics error-capture is installed even earlier, at module
   evaluation time, so it catches the earliest console/uncaught errors from _other_ modules.
-- **`ready`** — **the GM gate.** If the current user is not a GM (and the
+- **`ready`**: **the GM gate.** If the current user is not a GM (and the
   `allowNonGmAccess` world setting, default off, is not on), the bridge start
   (`onReady()`) returns immediately and silently: no connection, no notifications. The same
   `ready` hook has already started the usage recorder and the Tarokka table watch on every
@@ -124,7 +124,7 @@ test keeps it that way.
   if needed, and begin heartbeat monitoring + reconnect.
 
 The connection is **outbound**: the module dials the backend, not the other way around. This
-matters for the remote-hosting story — a hosted Foundry can reach a bridge, even though the
+matters for the remote-hosting story: a hosted Foundry can reach a bridge, even though the
 bridge can't reach into a hosted Foundry.
 
 ### Transport (`socket-bridge.ts`)
@@ -137,8 +137,8 @@ protocol. The bridge reconnects with exponential backoff, because the backend cy
 ### Query handlers (`queries.ts` + `data-access.ts`)
 
 Every capability the module exposes is a **query handler** registered under a
-`foundry-mcp-bridge.*` key — e.g. `foundry-mcp-bridge.getCharacterInfo`,
-`foundry-mcp-bridge.listCreaturesByCriteria`, `foundry-mcp-bridge.planLiveChange` — in a
+`foundry-mcp-bridge.*` key, e.g. `foundry-mcp-bridge.getCharacterInfo`,
+`foundry-mcp-bridge.listCreaturesByCriteria`, `foundry-mcp-bridge.planLiveChange`, in a
 **module-private table** (`bridge-handlers.ts`). When a query arrives over the transport, the
 socket bridge looks the method up in that table and invokes it; the table _is_ the dispatch
 table.
@@ -153,7 +153,7 @@ Foundry 14.352+ only, each rejecting a missing, unknown, forged or non-GM sender
 `queries.ts` is a thin layer; the heavy lifting (reading actor sheets, building creature
 indexes, creating documents, attaching roll buttons to chat cards, etc.) lives in
 `data-access.ts`. Every handler routes through a `validateGMAccess()` check that **silently
-fails** for non-GM users — defense in depth on top of the `ready`-hook gate.
+fails** for non-GM users, which is defense in depth on top of the `ready`-hook gate.
 
 One handler stands alone: `foundry-mcp-bridge.addActorsToScene` (`handleAddActorsToScene` in
 `queries.ts`, `addActorsToScene` in `data-access/actor-creation.ts`) puts actors on the current
@@ -166,7 +166,7 @@ other direct write.
 
 There are **two** distinct socket layers, and keeping them separate is central to the design.
 
-### 3a. The control channel — `127.0.0.1:31414` (TCP, JSON-lines)
+### 3a. The control channel: `127.0.0.1:31414` (TCP, JSON-lines)
 
 This is the contract between the **MCP server's outer clients** (the stdio wrapper, and the
 dashboard) and the **backend**. It is a plain TCP socket carrying **newline-delimited
@@ -190,7 +190,7 @@ run as a `call_tool`.
 
 ```json
 {"id":"<same id>","result":{...}}
-        — or —
+        or
 {"id":"<same id>","error":{"message":"..."}}
 ```
 
@@ -218,12 +218,18 @@ most once per connection every 6 hours. The backend also answers
 calls that are not listed here: `link_status` (whether the module's socket is connected; the Pi
 health check and the Assistant GM probe it), `character_sheet`, `player_roll`, `player_portrait`, the
 switch views `session_switches` and `feature_switches`, `session_notes`, `record_handout_seen`,
-`live_sweep` and the player connector's `list_player_tools` and `player_tool`; see `backend.ts`.
+`live_sweep`, the player connector's `list_player_tools` and `player_tool`, and the two "who uses
+what" calls (D-146): `record_client` (`{ piece, who, install?, name?, version }`, result `{ ok }`;
+keeps which version of the connectors, the Claude app, the player helper or the Obsidian plugin a
+person runs in `_usage/clients.json`) and `who_uses_what` (`{ days }`, clamped to 1 to 90; the
+counts report behind the dashboard's GM-only `GET /api/who-uses-what`); see `backend.ts`. The bridge
+also writes the tool call log (`_usage/<date>.calls.jsonl`), so it sits with the bridge, on the Pi
+when the connectors point there.
 
 A `call_tool` result always wraps the tool's output as MCP content: the first text block holds the
 tool's output, either a plain string or a JSON-serialized object; the backend may append one
 outdated-version line as a later block (section 3a). Errors are returned **in-band** as
-a successful frame with `isError: true` and the message in the text block — not as a transport
+a successful frame with `isError: true` and the message in the text block, not as a transport
 `error`. (A transport-level `error` is reserved for malformed requests / unknown methods.)
 Callers unwrap `content[0].text` and `JSON.parse` it opportunistically.
 
@@ -346,7 +352,7 @@ stdio** and does almost nothing itself:
 
 Splitting the wrapper from the backend means the _backend can be shared_. Claude Desktop spawns
 the wrapper, the wrapper spawns the backend, and the **dashboard connects to that same backend's
-control channel** — one Foundry link, many consumers.
+control channel**: one Foundry link, many consumers.
 
 ### 4b. The backend (`backend.ts`)
 
@@ -363,7 +369,7 @@ The long-lived workhorse. Responsibilities:
    `ping` / `list_tools` / `call_tool` (§3a).
 3. **Tool dispatch.** `call_tool` looks the tool name up in a null-prototype name → handler
    map (`tool-router.ts`) and calls the matching handler on one of the **tool classes**. Each domain is a class constructed once at
-   startup — `CharacterTools`, `CompendiumTools`, `SceneTools`, `CombatTools`,
+   startup: `CharacterTools`, `CompendiumTools`, `SceneTools`, `CombatTools`,
    `TokenManipulationTools`, `CombatResolutionTools`, `EncounterTools`,
    `DiagnosticsTools`, the D&D-5e-specific creators, and so on. A tool handler typically
    validates its args, then calls `foundryClient.query('foundry-mcp-bridge.<handler>', data)`
@@ -384,7 +390,7 @@ The long-lived workhorse. Responsibilities:
 5. **Bridge vault, guarded writes and the event pump** (§4d).
 
 Tool handlers never see the transport. They call `FoundryClient.query()`, which throws a clear
-"module not connected" error if Foundry isn't linked — and that specific error is what lets the
+"module not connected" error if Foundry isn't linked, and that specific error is what lets the
 dashboard distinguish "backend up, Foundry down" from "channel down" (§7).
 
 ### 4c. Configuration (`config.ts`)
@@ -425,7 +431,7 @@ snapshots in `backups/`). The **module** only snapshots targets (`snapshotGuarde
 executes (`applyGuardedOps`), re-checking on its own: a GM client, "AI Tool: Allow Write Operations",
 the feature's own switch (`feature.<id>.enabled`, off unless the feature registers `defaultEnabled`; live play, ownership,
 player portrait, table viewer, rules check and change undo start on; not needed for undo), and that
-every target still matches the plan-time snapshot — otherwise nothing is written. Actors and
+every target still matches the plan-time snapshot; otherwise nothing is written. Actors and
 Items it touches get the 2014/2024 rules tag; a failing op rolls back the ones before it;
 success is logged as a GM-only `gm-change` session event. Undo sends the inverse ops
 (`inverseGuardedOp` in `shared`) expecting the state the apply left behind, so a document
@@ -512,24 +518,24 @@ live backend's `list_tools`. To add a prompt: a new file, an entry in `PROMPTS`,
 ## 5. The D&D 5e system adapter (behind the registry)
 
 Foundry is system-agnostic; "an actor" means something different in D&D 5e than in any other
-system. The tools that _reason about creatures_ — search the compendium, list creatures by
-criteria, extract character stats — need system-specific knowledge: where the Challenge Rating
+system. The tools that _reason about creatures_ (search the compendium, list creatures by
+criteria, extract character stats) need system-specific knowledge: where the Challenge Rating
 lives, what counts as a creature type, how to describe a filter in English.
 
 Rather than hard-code D&D 5e throughout the tool layer, the design isolates that knowledge
 behind a **registry + adapter interface** (`packages/mcp-server/src/systems`):
 
-- **`SystemAdapter`** (`types.ts`) — the interface every system implements:
+- **`SystemAdapter`** (`types.ts`): the interface every system implements:
   `getMetadata()`, `canHandle(systemId)`, `getFilterSchema()` (a Zod schema),
   `matchesFilters(creature, filters)`, `getDataPaths()` (e.g.
   `challengeRating → "system.details.cr"`), `getPowerLevel(creature)`,
   `extractCharacterStats(actorData)`, and the formatters. The interface is written in terms of
   _concepts_ (power level, creature index, filters) rather than D&D nouns, so it isn't a D&D
   interface wearing a generic name.
-- **`SystemRegistry`** (`system-registry.ts`) — a `Map<SystemId, SystemAdapter>` with
+- **`SystemRegistry`** (`system-registry.ts`): a `Map<SystemId, SystemAdapter>` with
   `register()`, `getAdapter(systemId)` (exact match, then `canHandle()` fallback for aliases),
   and `getSupportedSystems()`. A single global instance via `getSystemRegistry(logger)`.
-- **`DnD5eAdapter`** (`systems/dnd5e/adapter.ts`) — the **one** registered adapter. It owns the
+- **`DnD5eAdapter`** (`systems/dnd5e/adapter.ts`): the **one** registered adapter. It owns the
   5e filter schema (CR, creature type, size, spellcasting, legendary actions…), the 5e data
   paths, and the 5e formatting. `SystemId` is now `'dnd5e' | 'other'`.
 
@@ -547,7 +553,7 @@ and the registry is injected into `CharacterTools` and `CompendiumTools`. Those 
 _honest_. The tool layer talks to an interface, not to D&D constants; the 5e knowledge is
 quarantined in one folder; and the cost of the abstraction is one `register()` call. The
 project is D&D-only _by product decision_, not because 5e assumptions have leaked everywhere.
-Adding a system later means writing an adapter and registering it — not editing the tools. The
+Adding a system later means writing an adapter and registering it, not editing the tools. The
 parallel `IndexBuilder` interface exists for the same reason on the Foundry side, where the
 creature index is actually built in the browser against live compendiums.
 
@@ -574,7 +580,7 @@ can drive it, and that even the GM can't fat-finger a destructive bulk operation
    table, never in `CONFIG.queries` (§2), so a player's `User#query` cannot reach them.
 3. **Socket-message GM checks (module).** The game-socket listener that syncs player roll
    state only performs world-writing actions (`ChatMessage.update`, settings writes) when
-   `game.user.isGM` — so a player client receiving the broadcast can't be tricked into writing.
+   `game.user.isGM`, so a player client receiving the broadcast can't be tricked into writing.
 4. **The write gate (`write-gate.ts`).** The master `allowWriteOperations` setting disables every
    classified write handler at once (§2), and the data-access write functions below the bridge
    call `requireWriteOperations()` too. Creating actors from a compendium is bounded by the
@@ -592,7 +598,7 @@ can drive it, and that even the GM can't fat-finger a destructive bulk operation
 ## 7. The dashboard (`packages/cogm-dashboard`)
 
 A standalone product that turns the same bridge into a **live session companion**. It is
-original work (not derived from upstream) and has **no Claude Desktop dependency at runtime** —
+original work (not derived from upstream) and has **no Claude Desktop dependency at runtime**:
 it talks to the backend's control channel directly and makes no Anthropic API calls.
 
 **Two halves:**
@@ -611,9 +617,9 @@ that cycles and can go _half-open_ (TCP still ESTABLISHED while the process is d
 keepalive, a connect timeout, an application-level `ping` heartbeat that forces a reconnect on
 silence, a per-request timeout that **tears down the socket** (so one stall doesn't loop
 forever), and a _liveness-aware_ `isConnected` that reports false once the channel goes quiet.
-`PollingGameFeed` polls three tools on independent cadences — `get-recent-events` (incremental,
-using the returned `latestTimestamp` as a cursor), `get-combat-state`, and `get-module-errors`
-— with re-entrancy guards, cursor re-seeding on reconnect, and **hysteresis** so a transient
+`PollingGameFeed` polls three tools on independent cadences: `get-recent-events` (incremental,
+using the returned `latestTimestamp` as a cursor), `get-combat-state`, and `get-module-errors`,
+with re-entrancy guards, cursor re-seeding on reconnect, and **hysteresis** so a transient
 failure doesn't flap the "Foundry reachable" badge. It distinguishes channel-down (report
 `unknown`) from "backend up, Foundry module not connected" (report `unreachable`) using the
 typed errors from §4b.
@@ -635,7 +641,7 @@ AI work happens when someone asks Claude through the MCP tools (subscription-fir
   stream.
 - **Reads are always free.** Writes require a master **GM Actions** switch (off by default) to
   be on **and** an explicit `confirm`. Destructive tools require a _second_ `confirmDestructive`.
-  Gating is enforced on the **server**, not in CSS — a hostile browser can't bypass it.
+  Gating is enforced on the **server**, not in CSS, so a hostile browser can't bypass it.
 
 This is also where the **player vs GM split** lives (built in Phase 6: `auth.ts`, `redact.ts`,
 role-aware `sse.ts`, `requireGm`, `/player`): GM-only data is filtered off the SSE stream and the
@@ -647,7 +653,7 @@ redaction is planned as M2 (campaign plan in the private vault, feature 2).
 
 ## 8. Two end-to-end flows
 
-### Flow A — Claude asks "what undead of CR 5 are in my compendiums?"
+### Flow A: Claude asks "what undead of CR 5 are in my compendiums?"
 
 ```text
 Claude → (MCP/stdio) → wrapper → (control 31414: call_tool list-creatures-by-criteria)
@@ -669,7 +675,7 @@ Key points: the **registry** decides what "CR 5 undead" means; the **enhanced cr
 (prebuilt in the browser) makes the filter fast; the result crosses _both_ wire contracts, each
 correlating its own id.
 
-### Flow B — Dashboard GM clicks "advance combat turn"
+### Flow B: Dashboard GM clicks "advance combat turn"
 
 ```text
 Browser → POST /api/tool {name:"advance-combat-turn", confirm:true}
@@ -705,7 +711,7 @@ sees_ in the UI comes from the live SSE feed, not from the tool's return value.
   writes, reversible transactions, and server-side gating on the dashboard. Secrets never reach
   the browser.
 - **Built to survive a flaky backend.** Half-open detection, heartbeats, request timeouts that
-  reconnect, cursor re-seeding, and reachability hysteresis — because the backend cycles and the
+  reconnect, cursor re-seeding, and reachability hysteresis, because the backend cycles and the
   Foundry tab is just a browser tab.
 - **Naming.** "co-GM" in prose (docs, UI text, comments); `cogm` in ids, paths, packages and
   environment variables (`packages/cogm-dashboard`, `COGM_*`); `CoGM` only inside a camelCase
@@ -714,12 +720,12 @@ sees_ in the UI comes from the live SSE feed, not from the tool's return value.
 
 ---
 
-## Appendix — package map
+## Appendix: package map
 
 | Package                    | Role                                                                              | Runs in           |
 | -------------------------- | --------------------------------------------------------------------------------- | ----------------- |
 | `packages/mcp-server`      | stdio MCP wrapper + backend (control channel, tools, registry, Foundry connector) | Node.js (Windows) |
-| `packages/foundry-module`  | `foundry-mcp-bridge` — the in-Foundry gateway                                     | Foundry's browser |
+| `packages/foundry-module`  | `foundry-mcp-bridge`: the in-Foundry gateway                                      | Foundry's browser |
 | `packages/cogm-dashboard`  | standalone dashboard (Node SSE server + browser client)                           | Node.js + browser |
 | `packages/discord-bot`     | Discord bot (voice recording, session-over post)                                  | Node.js           |
 | `packages/obsidian-plugin` | Obsidian plugin (open notes in Foundry)                                           | Obsidian          |

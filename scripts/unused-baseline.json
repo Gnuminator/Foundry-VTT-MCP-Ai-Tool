@@ -1,5 +1,5 @@
 {
-  "total": 642,
+  "total": 641,
   "counts": {
     "packages/cogm-dashboard: exports": 11,
     "packages/cogm-dashboard: types": 102,
@@ -8,7 +8,7 @@
     "packages/foundry-module: exports": 91,
     "packages/foundry-module: types": 128,
     "packages/mcp-server: exports": 103,
-    "packages/mcp-server: types": 144,
+    "packages/mcp-server: types": 143,
     "packages/obsidian-plugin: exports": 6,
     "packages/obsidian-plugin: types": 6
   }

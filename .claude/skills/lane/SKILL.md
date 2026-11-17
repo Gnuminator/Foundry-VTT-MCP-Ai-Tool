@@ -67,13 +67,10 @@ status -Server B`, take a free one with `-Server X` and pass it to start, stop, 
 scripts/heavy-lock.mjs status`). `SKIP_PREPUSH=1 git push ...` skips the em-dash pre-push.
 - **Dashboard change (anything under `packages/cogm-dashboard/` or a `package-lock.json` change such
   as a Playwright bump):** full-page shots are not committed (CI uploads them as the artifacts
-  `dashboard-page-shots-N`; look there). Only a change to a component with a story moves a story
-  baseline: then push the branch, run `npm run visual:baselines -- <branch>` (about 15
-  minutes on GitHub; a branch cut before the workflow merged needs `git merge aitool/main` first),
-  look at the changed PNGs under `packages/cogm-dashboard/web/visual/__screenshots__/`, commit
-  them, push, and only then open the PR. The helper logs to
-  `%TEMP%\visual-baselines-<branch>-<6 hex>.log` (printed first). If it writes nothing, read that log. Never copy
-  baselines from a failed PR run; re-run after a later change that moves pixels.
+  `dashboard-page-shots-N`; look there). No story baseline is committed either: CI renders main
+  and the PR head and the artifact `dashboard-visual-diff` shows what changed. A change to a
+  component with a story needs no PNG; open the diff page and, once the changes look intended, put
+  the `visual: accepted <n> <hash>` line in the review note.
 - `changelog.d/<topic>.md` added; `git status --short`: add explicit paths; no binaries, archives, audio, `.env`, downloads.
 - PR description = the handover: what changed, how it was verified (commands, live checks, kit
   report with its `run.gitSha`), what is open, follow-ups. Put a line `Backlog: <id>` (the item's

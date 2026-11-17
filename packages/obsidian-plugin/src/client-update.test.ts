@@ -4,6 +4,7 @@ import {
   clientHeaderValue,
   compareVersions,
   installUpdateNotice,
+  localInstallId,
   updateNotice,
 } from './client-update.js';
 import { DashboardClient, type HttpRequest } from './dashboard.js';
@@ -41,6 +42,30 @@ describe('client header', () => {
     );
     await bare.clientVersions();
     expect(calls[0]?.headers['x-foundry-client']).toBeUndefined();
+  });
+});
+
+describe('install id', () => {
+  it('makes 12 random hex once and keeps it', () => {
+    const data = new Map<string, string>();
+    const storage = {
+      getItem: (k: string): string | null => data.get(k) ?? null,
+      setItem: (k: string, v: string): void => void data.set(k, v),
+    };
+    const first = localInstallId(storage);
+    expect(first).toMatch(/^[0-9a-f]{12}$/);
+    expect(localInstallId(storage)).toBe(first);
+  });
+
+  it('is null when storage is missing or throws', () => {
+    expect(localInstallId(undefined)).toBeNull();
+    const broken = {
+      getItem: (): string | null => {
+        throw new Error('blocked');
+      },
+      setItem: (): void => undefined,
+    };
+    expect(localInstallId(broken)).toBeNull();
   });
 });
 

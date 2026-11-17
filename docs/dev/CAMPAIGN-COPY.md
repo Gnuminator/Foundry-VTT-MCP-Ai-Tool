@@ -5,13 +5,13 @@ campaign-specific problems can be reproduced, fixed and tested without touching 
 It is a test server like A, B and C, but its data is the live world, so the copy is ours to change
 and the Pi is never changed.
 
-| What              | Value                                                                           |
-| ----------------- | ------------------------------------------------------------------------------- |
-| Foundry           | `http://localhost:30004`, data folder `C:\FoundryCampaign\data`                 |
-| Bridge, dashboard | none (Foundry only). Module copy dials 31545, where nothing listens             |
-| Join as           | `Gamemaster` (role 4) or `Assistant GM`; every user has an empty password       |
-| App               | the shared Foundry app from `C:\FoundryTest\appdir.txt` (same 14.370 as the Pi) |
-| Licence           | server A's `license.json`, copied into the copy                                 |
+| What              | Value                                                                                                  |
+| ----------------- | ------------------------------------------------------------------------------------------------------ |
+| Foundry           | `http://localhost:30004`, data folder `C:\FoundryCampaign\data` (or inside `FVTT_DATA_DIR` once moved) |
+| Bridge, dashboard | none (Foundry only). Module copy dials 31545, where nothing listens                                    |
+| Join as           | `Gamemaster` (role 4) or `Assistant GM`; every user has an empty password                              |
+| App               | the shared Foundry app from `C:\FoundryTest\appdir.txt` (same 14.370 as the Pi)                        |
+| Licence           | server A's `license.json`, copied into the copy                                                        |
 
 ## Commands
 

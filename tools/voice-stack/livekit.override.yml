@@ -12,9 +12,9 @@ services:
     profiles: ['livekit']
     volumes: !override
       - ./egress.yaml:/etc/egress.yaml:ro
-      - ${FVTT_SESSIONS_DIR:-${USERPROFILE}/Documents/FoundrySessions}/livekit-recordings:/out
+      - ${FVTT_SESSIONS_DIR:-${FVTT_DATA_DIR:-${USERPROFILE}/Documents}/FoundrySessions}/livekit-recordings:/out
   recorder:
     profiles: ['livekit']
     volumes: !override
-      - ${FVTT_SESSIONS_DIR:-${USERPROFILE}/Documents/FoundrySessions}/livekit-recordings:/out
+      - ${FVTT_SESSIONS_DIR:-${FVTT_DATA_DIR:-${USERPROFILE}/Documents}/FoundrySessions}/livekit-recordings:/out
       - ./recorder-config:/config:ro

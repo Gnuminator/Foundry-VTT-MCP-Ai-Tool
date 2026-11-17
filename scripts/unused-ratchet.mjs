@@ -95,12 +95,13 @@ export function itemsInFiles(report, files) {
 function changedFiles() {
   for (const base of ['aitool/main', 'origin/main', 'main']) {
     try {
-      const out = execFileSync('git', ['diff', '--name-only', base], {
-        cwd: repoRoot,
-        encoding: 'utf8',
-        stdio: ['ignore', 'pipe', 'ignore'],
-      });
-      return out.split(/\r?\n/).filter(Boolean);
+      const git = args =>
+        execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+      // The merge base, so a branch behind main does not list main's own changes; plus new untracked files.
+      const mergeBase = git(['merge-base', base, 'HEAD']).trim();
+      const changed = git(['diff', '--name-only', '-z', mergeBase]).split('\0');
+      const added = git(['ls-files', '-z', '--others', '--exclude-standard']).split('\0');
+      return [...changed, ...added].filter(Boolean);
     } catch {
       /* try the next base */
     }

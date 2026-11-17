@@ -10,7 +10,7 @@
 
 /** Inputs of the unused-code ratchet (knip reads every TypeScript source and the workspace manifests). */
 const UNUSED_RATCHET_INPUT =
-  /^(?:packages\/.+\.tsx?|shared\/.+\.tsx?|knip\.json|package\.json|packages\/[^/]+\/package\.json|scripts\/unused-(?:baseline\.json|ratchet\.mjs))$/;
+  /^(?:packages\/.+\.tsx?|shared\/.+\.tsx?|knip\.json|package\.json|packages\/[^/]+\/package\.json|tsconfig[^/]*\.json|scripts\/unused-(?:baseline\.json|ratchet\.mjs))$/;
 
 /** Inputs of the live-sweep coverage test: the tool modules, the sets page, the sweep, the tool policy. */
 const SWEEP_COVERAGE_INPUT =

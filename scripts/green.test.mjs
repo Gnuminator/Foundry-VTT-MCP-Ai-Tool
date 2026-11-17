@@ -1440,7 +1440,14 @@ test('cheapCiQuickSteps: unused ratchet on source changes, sweep coverage on too
     cheapCiQuickSteps(['scripts/live-write-sweep.mjs']).map(s => s.name),
     ['sweep-coverage-quick']
   );
+  assert.deepEqual(
+    cheapCiQuickSteps(['tsconfig.json']).map(s => s.name),
+    ['unused-ratchet-quick']
+  );
   assert.ok(!HEAVY_STEPS.has('unused-ratchet-quick') && !HEAVY_STEPS.has('sweep-coverage-quick'));
+  // Same npm script as the CI step, so the quick run cannot drift from it.
+  const ci = ALL_CHECKS.find(c => c.name === 'unused-ratchet');
+  assert.ok(JSON.stringify(ci).includes('unused:ratchet'));
 });
 
 test('quickSteps: a deleted package file still triggers that package', () => {

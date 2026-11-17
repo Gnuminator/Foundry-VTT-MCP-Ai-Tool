@@ -431,6 +431,27 @@ describe('hazard', () => {
     delete (globalThis as any).CONFIG.RegionBehavior;
   });
 
+  it('antimagic uses the dnd5e behavior and needs dnd5e 6.1', async () => {
+    world.setActiveScene(scene('a', 'Hall').id);
+    const plan = await planRoomSetup({
+      action: 'hazard',
+      kind: 'antimagic',
+      name: 'Dead zone',
+      area,
+    });
+    expect((plan.ops[0] as any).data.behaviors[0]).toMatchObject({
+      type: 'dnd5e.antimagic',
+      system: {},
+    });
+    expect(plan.summary).toMatch(/antimagic field/);
+    expect(plan.regions[0].role).toBe('hazard');
+    (globalThis as any).CONFIG.RegionBehavior = { dataModels: { 'dnd5e.difficultTerrain': {} } };
+    await expect(
+      planRoomSetup({ action: 'hazard', kind: 'antimagic', name: 'Dead zone', area })
+    ).rejects.toThrow(/needs dnd5e 6.1/);
+    delete (globalThis as any).CONFIG.RegionBehavior;
+  });
+
   it('darkness maps the mode to Foundry numbers', async () => {
     world.setActiveScene(scene('a', 'Hall').id);
     const plan = await planRoomSetup({

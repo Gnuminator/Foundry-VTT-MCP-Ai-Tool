@@ -509,6 +509,7 @@ async function planSpawn(request: RoomSpawnRequest): Promise<RoomSetupPlan> {
 
 const MAX_LEVELS = 10;
 const DIFFICULT_TERRAIN = 'dnd5e.difficultTerrain';
+const ANTIMAGIC_BEHAVIOR = 'dnd5e.antimagic';
 const DARKNESS_MODES = ['override', 'brighten', 'darken'];
 
 function planLevels(request: RoomLevelsRequest): RoomSetupPlan {
@@ -700,8 +701,29 @@ async function planHazard(request: RoomHazardRequest): Promise<RoomSetupPlan> {
       what = `effect ${quoted(found.name)}`;
       break;
     }
+    case 'antimagic': {
+      // dnd5e 6.1 ships an Antimagic status effect and a region behavior that applies it to every
+      // token inside (no settings). The system's behavior type must exist.
+      const models = globals().CONFIG?.RegionBehavior?.dataModels;
+      if (models && !(ANTIMAGIC_BEHAVIOR in models)) {
+        throw new Error(
+          'Antimagic needs dnd5e 6.1 or later (its antimagic Region behavior is missing)'
+        );
+      }
+      behavior = {
+        _id: newId(),
+        type: ANTIMAGIC_BEHAVIOR,
+        name: `${name} (antimagic)`,
+        system: {},
+      };
+      what = 'antimagic field';
+      warnings.push(
+        'Tokens inside get the Antimagic status: their magic items and spells stop working, as in the antimagic field rules'
+      );
+      break;
+    }
     default:
-      throw new Error(`kind must be one of difficult, darkness, effect`);
+      throw new Error(`kind must be one of difficult, darkness, effect, antimagic`);
   }
   return {
     summary: `Add the hazard ${quoted(name)} (${what}) on ${quoted(scene.name)}`,

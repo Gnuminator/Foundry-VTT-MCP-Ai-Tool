@@ -140,7 +140,7 @@ export class RoomSetupTools {
       {
         name: 'plan-room-setup',
         description:
-          'Plan Region-based scene parts: "teleport" moves tokens entering one rectangle to another (same or other scene); "spawn" makes a room rectangle plus tokens from actors on free squares in it; "levels" adds Scene Levels; "stairs" joins levels; "hazard" makes difficult terrain, darkness or an existing effect. Apply with apply-planned-change, undo with undo-change. Needs the module switch "Room setup" (off by default).',
+          'Plan Region-based scene parts: "teleport" moves tokens entering one rectangle to another (same or other scene); "spawn" makes a room rectangle plus tokens from actors on free squares in it; "levels" adds Scene Levels; "stairs" joins levels; "hazard" makes difficult terrain, darkness, an antimagic field (dnd5e 6.1) or an existing effect. Apply with apply-planned-change, undo with undo-change. Needs the module switch "Room setup" (off by default).',
         inputSchema: {
           type: 'object',
           properties: {

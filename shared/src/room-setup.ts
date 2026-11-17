@@ -49,7 +49,7 @@ export interface RoomArea {
 }
 
 /** Hazard kinds: Foundry's own Region behaviors, no code. */
-export const ROOM_HAZARD_KINDS = ['difficult', 'darkness', 'effect'] as const;
+export const ROOM_HAZARD_KINDS = ['difficult', 'darkness', 'effect', 'antimagic'] as const;
 export type RoomHazardKind = (typeof ROOM_HAZARD_KINDS)[number];
 
 /** adjustDarknessLevel modes (Foundry's own 0, 1, 2). */

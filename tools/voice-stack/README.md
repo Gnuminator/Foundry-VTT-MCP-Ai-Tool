@@ -60,7 +60,9 @@ use ports 7880 to 7882.
 
 All on the host, outside the repo, in `FVTT_SESSIONS_DIR` (default `FoundrySessions` inside the
 data folder `FVTT_DATA_DIR`, else `%USERPROFILE%\Documents\FoundrySessions`). `FVTT_DATA_DIR` is an
-absolute path; set it as a Windows user environment variable so every tool sees it. The stack
+absolute path; set it as a Windows user environment variable so every tool sees it. The
+`FoundrySessions` folder must already exist inside `FVTT_DATA_DIR`: Docker Compose cannot fall back
+to the old `Documents` place the way the other tools do, so it would mount a missing path. The stack
 reads the sessions folder from its `.env` file (written once), so after moving the folder edit
 `FVTT_SESSIONS_DIR` there too. One subfolder per session:
 

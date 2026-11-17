@@ -113,7 +113,7 @@ your **Client Secret** into the second (the **My character** page has both with 
 
 To check it works, open a new chat and click the **+** or the tools icon near the message box.
 You should see **Foundry** (or **foundry-player**) listed with eight tools (the seven table tools and
-**get-helper-guide**). If you do, the plug is in. The helper's instructions come with the extension,
+**get-player-skill-guide**). If you do, the plug is in. The helper's instructions come with the extension,
 so you should not need to add a skill or switch on Code execution. If Claude does not follow the
 helper's steps, see Troubleshooting.
 
@@ -264,7 +264,7 @@ word ("grapple" and "grappled"), or ask for a search by what the thing does.
 
 **It does not follow the helper's steps (a build card, a sheet check).**
 Ask: "Read the Foundry helper guide first, then answer." Claude then opens the guide through the
-**get-helper-guide** tool. If it still does not, the extension may be an old version: download your
+**get-player-skill-guide** tool. If it still does not, the extension may be an old version: download your
 helper again from your **My character** page and install it over the old one.
 
 **Can I add the helper as a plugin too? (Pro and Max)**

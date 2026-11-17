@@ -15,7 +15,7 @@
  *   - `.default(…)` on scalar fields means the field is optional at parse
  *     time and the default is filled in on the output. This matches
  *     behaviour callers already rely on (e.g. `scaling: ScalingOptionsSchema
- *     .default({})` inside CampaignPartSchema).
+ *     .prefault({})` inside CampaignPartSchema).
  */
 
 import { z } from 'zod';

@@ -343,7 +343,9 @@ GM-only data filtered **server-side** (never just hidden in the browser).
   single-user GM mode (today's zero-config localhost behavior). Setting either turns the split on.
 - **GM view** (`/`): everything, as before. When the split is on, open it once with
   `http://host:3000/?token=<GM_DASHBOARD_TOKEN>`; the token is remembered in that browser.
-- **Player view** (`/player`): public **combat order** + public **event feed** only. Filtered
+- **Player view** (`/player`): the public **combat order** and **event feed**, plus the optional
+  extras next to Foundry (picking your name, **My character**, handouts and roll buttons; see
+  `docs/player/player-page.md`). Filtered
   server-side: exact enemy/NPC HP is removed, GM-hidden combatants are dropped, event details
   (which carry HP before/after) are stripped, and module diagnostics, settings, and the entire
   write/GM-action surface are never sent. Players still see the party's HP and the public feed.

@@ -183,7 +183,7 @@ export class CompendiumTools {
       {
         name: 'get-compendium-item',
         description:
-          'Use this to read one item, spell or creature; for a full stat block to build an NPC from, use get-compendium-entry-full (Build). Compact mode is lighter.',
+          'Use this to read one item, spell, creature or other compendium entry: the full stat block with items, effects and spells by default, or a lighter one with compact.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -210,7 +210,7 @@ export class CompendiumTools {
       {
         name: 'list-creatures-by-criteria',
         description:
-          'List creatures by Challenge Rating, type, size, spellcasting or legendary actions (D&D 5e). Returns minimal data for encounter building: pick by name, then pull full details only for the final choices with get-compendium-entry-full.',
+          'List creatures by Challenge Rating, type, size, spellcasting or legendary actions (D&D 5e). Returns minimal data for encounter building: pick by name, then pull full details only for the final choices with get-compendium-item.',
         inputSchema: {
           type: 'object',
           properties: {

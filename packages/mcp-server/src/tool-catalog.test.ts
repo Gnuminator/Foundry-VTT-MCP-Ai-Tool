@@ -1,3 +1,4 @@
+import { RENAMED_TOOLS } from './param-aliases.js';
 /**
  * The whole tool catalog, built from the real tool classes (with stub
  * dependencies: definitions do not touch them).
@@ -59,8 +60,9 @@ describe('tool catalog', () => {
     expect(new Set(names).size).toBe(names.length);
     // The player tools have no call_tool route: they run only through the player_tool message.
     const playerTools = TOOL_SETS[PLAYER_TOOL_SET].tools;
+    // A removed tool name stays as a router alias for one release (RENAMED_TOOLS).
     expect(Object.keys(buildToolRouter(deps)).sort()).toEqual(
-      names.filter(n => !playerTools.includes(n)).sort()
+      [...names.filter(n => !playerTools.includes(n)), ...Object.keys(RENAMED_TOOLS)].sort()
     );
   });
 

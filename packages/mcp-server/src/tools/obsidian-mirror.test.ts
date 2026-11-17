@@ -16,6 +16,7 @@ import {
   readMirrorSettings,
 } from '../obsidian/mirror-settings.js';
 import { FakeFoundry } from '../test-support/fake-foundry.js';
+import { makeLogger } from '../test-support/stub-tool-deps.js';
 import { AuditLog } from '../vault/audit.js';
 import { VaultStore } from '../vault/store.js';
 import { ObsidianMirrorTools, type ObsidianMirrorEnv } from './obsidian-mirror.js';
@@ -24,12 +25,6 @@ const WORLD = 'curse-of-strahd';
 const ID_A = 'aaaaaaaaaaaaaaaa';
 const ID_B = 'bbbbbbbbbbbbbbbb';
 const ID_C = 'cccccccccccccccc';
-
-function makeLogger(): any {
-  const logger: any = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
-  logger.child = (): unknown => logger;
-  return logger;
-}
 
 let dataDir: string;
 let store: VaultStore;

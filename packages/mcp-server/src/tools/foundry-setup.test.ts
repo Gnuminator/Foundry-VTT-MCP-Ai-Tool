@@ -1,5 +1,7 @@
 import { describe, expect, it, vi, type Mock } from 'vitest';
 
+import { makeLogger } from '../test-support/stub-tool-deps.js';
+
 import { FoundrySetupTools } from './foundry-setup.js';
 
 /**
@@ -124,8 +126,7 @@ function makeTools(): {
   const createPlan = vi.fn(
     (input: any): Promise<unknown> => Promise.resolve({ planId: 'p1', ...input, diff: [] })
   );
-  const logger: any = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
-  logger.child = (): unknown => logger;
+  const logger = makeLogger();
   const tools = new FoundrySetupTools({
     foundryClient: { query } as any,
     guardedWrites: { createPlan },

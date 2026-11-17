@@ -1,5 +1,7 @@
 import { describe, expect, it, vi, type Mock } from 'vitest';
 
+import { makeLogger } from '../test-support/stub-tool-deps.js';
+
 import { GuardedChangeTools } from './guarded-changes.js';
 
 function makeTools(): {
@@ -16,8 +18,7 @@ function makeTools(): {
     listRecentChanges: vi.fn(() => Promise.resolve([{ changeId: 'c1' }])),
   };
   const query = vi.fn(() => Promise.resolve({ opened: true }) as Promise<unknown>);
-  const logger: any = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
-  logger.child = (): unknown => logger;
+  const logger = makeLogger();
   const tools = new GuardedChangeTools({
     guardedWrites: guardedWrites as never,
     foundryClient: { query },

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { makeTools } from '../test-support/make-tool-harness.js';
+import { makeLogger, makeTools } from '../test-support/make-tool-harness.js';
 
 import { DiceRollTools } from './dice-roll.js';
 
@@ -231,8 +231,7 @@ describe('DiceRollTools.handleRequestAttackRoll', () => {
   it('appends an unclear or problem rules check to the reply and stays silent when legal', async () => {
     const { query } = makeTools(DiceRollTools, () => ({ success: true, message: 'Posted.' }));
     const args = { actor: 'Carol', weaponOrSpellName: 'Longsword', isPublic: true };
-    const logger: any = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
-    logger.child = (): unknown => logger;
+    const logger = makeLogger();
     const run = async (check: unknown): Promise<unknown> => {
       const tryCheck = vi.fn(async () => check);
       const t = new DiceRollTools({
@@ -253,8 +252,7 @@ describe('DiceRollTools.handleRequestAttackRoll', () => {
 
   it('request-player-rolls with rollType attack does the same rules check and card text', async () => {
     const { query } = makeTools(DiceRollTools, () => ({ success: true, message: 'Posted.' }));
-    const logger: any = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
-    logger.child = (): unknown => logger;
+    const logger = makeLogger();
     const tryCheck = vi.fn(async () => ({ verdict: 'problem', summary: 'no uses left.' }));
     const t = new DiceRollTools({
       foundryClient: { query } as any,

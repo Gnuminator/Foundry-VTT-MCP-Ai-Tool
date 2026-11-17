@@ -1,22 +1,17 @@
-// Story shots (UI-03): one screenshot of every story in the built Storybook (storybook-static/),
-// in the story's own theme and screen size (Veil stories only in part, see `photographed`), and an axe check of the same stories. Runs in the
-// `stories` project of playwright.visual.config.ts, which serves the folder (scripts/serve-static.mjs).
+// Story axe check (UI-03): an accessibility check of every story in the built Storybook
+// (storybook-static/), in the story's own theme and screen size. Runs in the `stories` project of
+// playwright.visual.config.ts, which serves the folder (scripts/serve-static.mjs). The pixel
+// comparison is the two-sided render in stories-diff.spec.ts (base against head, nothing committed).
 //
 //   npm run build-storybook -w @gnuminator/cogm-dashboard     once, on the host
 //   npm run test:visual -w @gnuminator/cogm-dashboard         then the checks, in Docker
 //
-// The stories are found in storybook-static/index.json, so a new story gets a baseline the next
-// time `npm run test:visual:update` runs, with no list to edit. Baselines live in
-// visual/__screenshots__/stories/<story id>.png (Linux only, like the app shots).
-import { readdirSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
+// The stories are found in storybook-static/index.json, so a new story is checked with no list to edit.
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 
 import { KNOWN_STORY_VIOLATIONS } from './axe-known-stories';
-import { contentClip, loadStories, photographed, showStory } from './stories';
+import { loadStories, showStory } from './stories';
 
 const FAILING = new Set(['serious', 'critical']);
 const stories = loadStories();
@@ -28,32 +23,7 @@ test('the stories are built', () => {
   ).toBeGreaterThan(0);
 });
 
-// A baseline no story produces any more (a renamed, removed or no longer photographed story) would
-// sit in the repo for ever, so list them. Uses the same `photographed` filter as the shots below.
-test('no story baseline is an orphan', () => {
-  // Not while baselines are being written, and not when Storybook is unbuilt (the test above says so).
-  test.skip(test.info().config.updateSnapshots !== 'none' || stories.length === 0);
-  const expected = new Set(stories.filter(photographed).map(story => `${story.id}.png`));
-  const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), '__screenshots__', 'stories');
-  const orphans = readdirSync(dir).filter(name => name.endsWith('.png') && !expected.has(name));
-  expect(
-    orphans,
-    'baselines no story produces: delete them from visual/__screenshots__/stories/'
-  ).toEqual([]);
-});
-
 for (const story of stories) {
-  if (photographed(story)) {
-    test(`story: ${story.id}`, async ({ page }) => {
-      await showStory(page, story);
-      const clip = await contentClip(page);
-      await expect(page).toHaveScreenshot(`${story.id}.png`, {
-        fullPage: true,
-        ...(clip ? { clip } : {}),
-      });
-    });
-  }
-
   test(`axe: ${story.id}`, async ({ page }) => {
     await showStory(page, story);
     // The preview iframe is the whole page, so axe sees the story and nothing of Storybook's UI.

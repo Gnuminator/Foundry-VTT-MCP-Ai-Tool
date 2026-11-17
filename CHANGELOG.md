@@ -4,7 +4,7 @@
 
 ## v0.30.0 (released 2026-11-17): renown tools, one roll-request tool, one name for the actor and a single-file module
 
-**Wire contracts:** changed, with fallbacks. Two new play tools, `get-renown` and `plan-renown-change`. `get-compendium-entry-full` leaves the tool list (the router still answers it for one release through `get-compendium-item`); `request-ability-check` and `request-attack-roll` stay as aliases of `request-player-rolls` for one release. Actor parameters are now `actor`, with the old names still accepted; `plan-scene-change` no longer takes `mood`. Bridge handlers now declare a kind, but no method name, module id or socket channel changed.
+**Wire contracts:** changed, with fallbacks. Two new play tools, `get-renown` and `plan-renown-change`. `get-compendium-entry-full` leaves the tool list (the router still answers it for one release through `get-compendium-item`); `request-ability-check` and `request-attack-roll` stay as aliases of `request-player-rolls` for one release. Actor parameters are now `actor`, with the old names still accepted; `plan-scene-change` no longer takes `mood`. Two new player-set tools, `get-my-handouts` and `get-my-play-stats`, and a new GM route `GET /api/who-uses-what`. Roll requests now default `isPublic` to true. Bridge handlers now declare a kind; the unused `validateWritePermissions` query is removed, and no other method name, the module id or the socket channel changed.
 
 ### Module
 

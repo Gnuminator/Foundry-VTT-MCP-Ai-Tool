@@ -250,7 +250,7 @@ the version banner, each in the neutral theme at 1440, 1080 and 390 pixels wide 
 too, at 1440). These are page shots: every run renders them (54 PNGs, written to `page-shots/<project>/`, which git
 ignores) and CI uploads them as the artifacts `dashboard-page-shots-N` (one per shard that ran page tests; today shard 1 holds all 54), but nothing compares them and no PNG
 of a page is committed, so adding a control to a page changes no committed file. Look at the artifact to see the
-page. The pixel guard is the story shots (see "Stories"); `src/visual-page-shots.test.ts` fails if a page PNG
+page. The pixel guard is the two-sided story render and the accept line (see "Stories"); `src/visual-page-shots.test.ts` fails if a page PNG
 returns to `web/visual/__screenshots__/`. The fakes are the e2e
 helpers (`web/e2e/support.ts`); the data in `web/visual/fixtures.ts` is made up, with the clock
 fixed, animations off and the browser in UTC and en-US, so a run is the same every time. The same
@@ -269,9 +269,9 @@ meant for one player, and with a fight running, plus `/me`. They are plain pages
 (the player stream and `/api/me`) stands in for the bridge. Screenshots are taken at 1080 and 390
 wide in the neutral theme; axe runs on them at 1440 with no known-violations list.
 
-- **Run them in Docker, not on the host.** The baselines are made on Linux only, in the Playwright
+- **Run them in Docker, not on the host.** The renders are Linux-only, in the Playwright
   image `mcr.microsoft.com/playwright:v<version>-noble`, because fonts and anti-aliasing differ per
-  operating system: a Windows or macOS run would differ from the PNGs and from CI.
+  operating system: a Windows or macOS run would differ from CI.
   `scripts/visual-docker.mjs` takes the image tag from the installed `@playwright/test` version.
 - `npm run build -w @gnuminator/cogm-dashboard` and
   `npm run build-storybook -w @gnuminator/cogm-dashboard` first (the container serves `dist/` and
@@ -282,12 +282,13 @@ wide in the neutral theme; axe runs on them at 1440 with no known-violations lis
   volumes per worktree (`foundry-ai-tool-visual-node-modules-<hash of the repo path>` and
   `foundry-ai-tool-visual-dashboard-node-modules-<hash>`, so two lanes never share them),
   filled by `npm ci --ignore-scripts` the first time and again when `package-lock.json` changes.
-  Remove them with `docker volume rm` to start clean. Snapshots and `test-results/visual` are
-  written into the repo.
+  Remove them with `docker volume rm` to start clean. `test-results/visual` is
+  written into the repo (git ignores it).
 - `npm run test:visual:ci` is what runs inside the container (CI uses it directly, in the job
   `dashboard-visual-shard`, 4 parallel shards; the check `dashboard-visual (screenshots)` sums
-  them up). A story diff fails a shard. The report with the expected, actual and diff
-  images is one artifact per shard, `dashboard-visual-report-1` to `-4`, on the run's summary page (kept 14 days);
+  them up). A failed axe check fails a shard; story pixel diffs do not (they are in the
+  artifact `dashboard-visual-diff`). The report with the traces and axe output
+  is one artifact per shard, `dashboard-visual-report-1` to `-4`, on the run's summary page (kept 14 days);
   the page shots are `dashboard-page-shots-N` there (only a shard that ran page tests uploads one). The
   checks are not in the ruleset's required list, but the merge gate refuses any red check, so a
   red shard blocks the merge. After a Playwright bump, change the image

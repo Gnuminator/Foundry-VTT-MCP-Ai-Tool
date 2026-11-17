@@ -302,7 +302,7 @@ jobs:
           retention-days: 14
 
       - name: Keep the visual report
-        # The HTML report and the diff images (expected, actual, diff) of a failed run.
+        # The HTML report and the traces of a failed run.
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:

@@ -19,6 +19,8 @@ import {
 test('the bridge log hint points at the Pi and prints only for an empty PC log', () => {
   assert.match(BRIDGE_LOG_HINT, /usage:calls -- --pi/);
   assert.deepEqual(emptyPcLogHints(3, null), []);
+  const stale = { config: 'c', stale: ['foundry-mcp'] };
+  assert.deepEqual(emptyPcLogHints(3, stale), [emptyLogHint(stale)]);
   assert.deepEqual(emptyPcLogHints(0, null), [BRIDGE_LOG_HINT]);
   const info = { config: 'c', stale: ['foundry-mcp'] };
   assert.deepEqual(emptyPcLogHints(0, info), [emptyLogHint(info), BRIDGE_LOG_HINT]);

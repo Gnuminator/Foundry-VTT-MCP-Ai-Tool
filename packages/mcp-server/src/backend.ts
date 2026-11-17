@@ -47,6 +47,7 @@ import { WrapperRegistry } from './wrapper-registry.js';
 import {
   ToolCallLog,
   buildCallLine,
+  recordedCallLine,
   gmCaller,
   skillFields,
   type CallCaller,
@@ -731,27 +732,9 @@ async function startBackend(): Promise<void> {
           // A call the dashboard answered itself (a player's get-my-handouts or get-my-play-stats):
           // the line for the call log, with the tool name checked against that fixed list.
           if (msg.method === 'record_call') {
-            const rc = (msg.params ?? {}) as Record<string, unknown>;
-            const known =
-              typeof rc.tool === 'string' &&
-              (PLAYER_DASHBOARD_TOOL_NAMES as readonly string[]).includes(rc.tool);
-            if (known) {
-              const ms = typeof rc.ms === 'number' && rc.ms >= 0 ? Math.min(rc.ms, 3_600_000) : 0;
-              const size = typeof rc.size === 'number' && rc.size >= 0 ? Math.floor(rc.size) : 0;
-              const line = buildCallLine(
-                rc.tool as string,
-                Date.now() - ms,
-                { content: [], isError: rc.ok === false },
-                Date.now(),
-                {
-                  who: 'player',
-                  ...(typeof rc.userId === 'string' ? { userId: rc.userId } : {}),
-                  via: 'connector',
-                }
-              );
-              void callLog.record({ ...line, size }).catch(() => undefined);
-            }
-            socket.write(`${JSON.stringify({ id: msg.id, result: { ok: known } })}\n`);
+            const line = recordedCallLine(msg.params, PLAYER_DASHBOARD_TOOL_NAMES);
+            if (line) void callLog.record(line).catch(() => undefined);
+            socket.write(`${JSON.stringify({ id: msg.id, result: { ok: line !== null } })}\n`);
 
             continue;
           }

@@ -13,6 +13,7 @@ import {
   skillFields,
   gmCaller,
   pruneCallLogs,
+  recordedCallLine,
 } from './tool-call-log.js';
 import { TOOL_SETS } from './tool-sets.js';
 
@@ -76,6 +77,42 @@ describe('tool call log', () => {
       'notes.txt',
     ]);
     expect(await pruneCallLogs(path.join(dataDir, 'missing'), now)).toBe(0);
+  });
+
+  it('builds the record_call line only for an allowed tool, with clamped numbers', () => {
+    const allowed = ['get-my-handouts', 'get-my-play-stats'];
+    const sent = { tool: 'get-my-handouts', userId: 'abc123', ms: 40, size: 500, ok: true };
+    expect(recordedCallLine(sent, allowed, 10_000)).toMatchObject({
+      tool: 'get-my-handouts',
+      set: 'player',
+      ms: 40,
+      size: 500,
+      ok: true,
+      who: 'player',
+      userId: 'abc123',
+      via: 'connector',
+    });
+    for (const bad of [
+      { tool: 'constructor' },
+      { tool: 7 },
+      { tool: 'get-world-info' },
+      null,
+      'x',
+    ]) {
+      expect(recordedCallLine(bad, allowed)).toBeNull();
+    }
+    const wild = recordedCallLine(
+      { ...sent, ms: 1e12, size: Infinity, userId: 'a b;c', ok: false },
+      allowed,
+      1e13
+    );
+    expect(wild).toMatchObject({ ms: 3_600_000, size: 0, ok: false });
+    expect(wild).not.toHaveProperty('userId');
+    expect(recordedCallLine({ ...sent, ms: -5, size: 1e300 }, allowed)).toMatchObject({
+      ms: 0,
+      size: 10_000_000,
+    });
+    expect(recordedCallLine({ tool: 'get-my-play-stats' }, allowed)?.ok).toBe(true);
   });
 
   it('cuts a very long client-supplied tool name', () => {

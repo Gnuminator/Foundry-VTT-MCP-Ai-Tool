@@ -167,10 +167,9 @@ export function connectorLogging(env = process.env) {
 export const BRIDGE_LOG_HINT =
   'Note: the bridge writes the call log (D-146), so with the connectors pointed at the Pi the calls are in the Pi folder: run "npm run usage:calls -- --pi".';
 
-/** The hints for an empty PC log: the stale connector note when it applies, then the bridge note. */
+/** The hints for a PC log: the stale connector note whenever it applies, the bridge note only when the log is empty. */
 export function emptyPcLogHints(total, info) {
-  if (total) return [];
-  return [emptyLogHint(info), BRIDGE_LOG_HINT].filter(Boolean);
+  return [emptyLogHint(info), total ? null : BRIDGE_LOG_HINT].filter(Boolean);
 }
 
 /** One line for an empty log when a connector build is the likely reason; null otherwise. */

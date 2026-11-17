@@ -37,21 +37,54 @@ export type TypedBridgeHandler<M extends BridgeMethod> = (
   data: BridgeRequest<M>
 ) => BridgeAnswer<M> | Promise<BridgeAnswer<M>>;
 
+/**
+ * What a handler does to the world. The write gate (write-gate.ts) reads this:
+ * - `write`: changes the world and makes a change-journal record; refused while "Allow Write
+ *   Operations" is off, and ends the change group first.
+ * - `recordless-write`: changes the world (chat, rolls, playlists, a page popup, a notice, a
+ *   folder, a portrait file) but makes no journal record; refused the same way and does not
+ *   break the change group.
+ * - `read`: does not change the world (reads, plans, the guarded-write plumbing that has its own
+ *   gate, the GM feed line, opening a sheet, clearing the local error list).
+ */
+export type BridgeHandlerKind = 'write' | 'recordless-write' | 'read';
+
 export class BridgeHandlerTable {
   private readonly handlers = new Map<string, BridgeHandler>();
+  private readonly kinds = new Map<string, BridgeHandlerKind>();
 
   /** Register a handler for a method of the bridge contract. */
-  on<M extends BridgeMethod>(method: M, handler: TypedBridgeHandler<M>): void {
+  on<M extends BridgeMethod>(
+    method: M,
+    kind: BridgeHandlerKind,
+    handler: TypedBridgeHandler<M>
+  ): void {
     this.handlers.set(method, handler as BridgeHandler);
+    this.kinds.set(method, kind);
   }
 
   /** Register a handler for a method the contract does not type yet. */
-  set<M extends string>(method: UntypedBridgeMethod<M>, handler: BridgeHandler): void {
+  set<M extends string>(
+    method: UntypedBridgeMethod<M>,
+    kind: BridgeHandlerKind,
+    handler: BridgeHandler
+  ): void {
     this.handlers.set(method, handler);
+    this.kinds.set(method, kind);
   }
 
   get(method: string): BridgeHandler | undefined {
     return this.handlers.get(method);
+  }
+
+  /** The kind a method was registered with. */
+  kindOf(method: string): BridgeHandlerKind | undefined {
+    return this.kinds.get(method);
+  }
+
+  /** Registered method names (full wire names) of the given kinds. */
+  methodsOfKind(...kinds: BridgeHandlerKind[]): string[] {
+    return [...this.kinds].filter(([, k]) => kinds.includes(k)).map(([m]) => m);
   }
 
   has(method: string): boolean {
@@ -61,7 +94,10 @@ export class BridgeHandlerTable {
   /** Remove every handler whose method name starts with `prefix`. */
   deleteByPrefix(prefix: string): void {
     for (const method of [...this.handlers.keys()]) {
-      if (method.startsWith(prefix)) this.handlers.delete(method);
+      if (method.startsWith(prefix)) {
+        this.handlers.delete(method);
+        this.kinds.delete(method);
+      }
     }
   }
 

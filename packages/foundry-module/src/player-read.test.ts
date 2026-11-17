@@ -12,7 +12,7 @@ import {
   warmPlayerIndexes,
   type PlayerReadDeps,
 } from './player-read.js';
-import { NON_WRITE_METHODS, WRITE_METHODS } from './write-gate.js';
+import { handlerKind } from './test-support/handler-kind.js';
 
 const g = globalThis as any;
 const savedGame = g.game;
@@ -304,8 +304,7 @@ describe('playerRead: user checks', () => {
 
   it('is classified as a read', () => {
     expect(PLAYER_READ_QUERY).toBe('playerRead');
-    expect(NON_WRITE_METHODS).toContain('playerRead');
-    expect(WRITE_METHODS).not.toContain('playerRead');
+    expect(handlerKind('playerRead')).toBe('read');
   });
 });
 

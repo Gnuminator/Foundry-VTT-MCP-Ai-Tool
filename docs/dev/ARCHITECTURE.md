@@ -150,15 +150,19 @@ bridge handler from the console. The only `CONFIG.queries` entries the module re
 narrow GM-to-GM helpers (`gm-helper-queries.ts`, e.g. "open this document on my screen"), on
 Foundry 14.352+ only, each rejecting a missing, unknown, forged or non-GM sender.
 
-`queries.ts` is a thin layer; the heavy lifting (reading actor sheets, building creature
-indexes, creating documents, attaching roll buttons to chat cards, etc.) lives in
-`data-access.ts`. Every handler routes through a `validateGMAccess()` check that **silently
-fails** for non-GM users, which is defense in depth on top of the `ready`-hook gate.
+`queries.ts` is a thin shell (the data access, the GM gate and `registerHandlers`); the handlers
+live in `queries/<domain>.ts` (actors, actor-authoring, compendium, scenes, combat, journals,
+chat-rolls, records, guarded, diagnostics). Each domain file starts with a registration table
+that gives every wire method its **kind**: `write`, `recordless-write` or `read`. The heavy
+lifting (reading actor sheets, building creature indexes, creating documents, attaching roll
+buttons to chat cards, etc.) lives in `data-access.ts`. Every handler routes through a
+`validateGMAccess()` check that **silently fails** for non-GM users, which is defense in depth on
+top of the `ready`-hook gate.
 
-One handler stands alone: `foundry-mcp-bridge.addActorsToScene` (`handleAddActorsToScene` in
-`queries.ts`, `addActorsToScene` in `data-access/actor-creation.ts`) puts actors on the current
-scene directly, with no plan step. It is a write, so it is listed in `write-gate.ts` like every
-other direct write.
+One handler stands alone: `foundry-mcp-bridge.addActorsToScene` (`addActorsToScene` in
+`queries/scenes.ts`, `addActorsToScene` in `data-access/actor-creation.ts`) puts actors on the
+current scene directly, with no plan step. It is a write, so its kind in the registration table
+is `write`, like every other direct write.
 
 ---
 
@@ -413,9 +417,10 @@ does not include it. `npm run vault -- forget-user <world> <user> [--chat-only] 
 removes one Foundry user's play-log and usage records (the player guide's removal promise); it
 refuses to write while a bridge backend holds its lock.
 
-**The write gate (module `write-gate.ts`, P-036).** Every bridge handler is classified as a write
-(it changes the world: documents, combat, chat or roll messages) or not; a test fails for an
-unclassified handler. `registerHandlers` wraps every write handler once, so it refuses with "Write
+**The write gate (module `write-gate.ts`, P-036).** Every bridge handler is registered with a kind
+(`write`, `recordless-write` for chat, rolls and other writes that make no change-journal record,
+or `read`; the kind is a required argument of `bridgeHandlers.on/set`, so none is unclassified).
+`registerHandlers` wraps every write kind once, so it refuses with "Write
 operations are disabled in the module settings" while "AI Tool: Allow Write Operations" is off, whoever
 calls (Claude or the dashboard). Guarded writes keep their own gate below. The data-access write
 functions call `requireWriteOperations()` too, and the actor quantity limit lives in

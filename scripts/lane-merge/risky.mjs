@@ -9,7 +9,7 @@
 export const RISKY_CATEGORIES = [
   {
     // Guarded writes: plan, apply and undo, in the module, the server and the shared contract.
-    // queries.ts holds the module handlers that call into guarded-write.
+    // queries/guarded.ts holds the module handlers that call into guarded-write.
     name: 'guarded writes',
     patterns: [
       'packages/foundry-module/src/data-access/guarded-write*',
@@ -17,6 +17,7 @@ export const RISKY_CATEGORIES = [
       'packages/foundry-module/src/guarded-features*',
       'packages/foundry-module/src/change-journal*',
       'packages/foundry-module/src/queries.ts',
+      'packages/foundry-module/src/queries/**',
       'packages/mcp-server/src/guarded-write/**',
       'packages/mcp-server/src/tools/guarded-changes*',
       'packages/mcp-server/src/tools/modules/guarded-changes*',
@@ -43,7 +44,11 @@ export const RISKY_CATEGORIES = [
   {
     // The write gate: what may change the world, and who may.
     name: 'the write gate',
-    patterns: ['packages/foundry-module/src/write-gate*'],
+    // queries/** registers every handler with its kind, which the gate reads.
+    patterns: [
+      'packages/foundry-module/src/write-gate*',
+      'packages/foundry-module/src/queries/**',
+    ],
   },
   {
     // Security: dashboard auth (server and React side) and redaction, secret stripping, the

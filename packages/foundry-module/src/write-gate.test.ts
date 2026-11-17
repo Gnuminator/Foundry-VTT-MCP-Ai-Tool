@@ -4,18 +4,13 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
-import { bridgeHandlers } from './bridge-handlers.js';
+import { bridgeHandlers, type BridgeHandlerKind } from './bridge-handlers.js';
 import { changeJournal } from './change-journal.js';
 import { MODULE_ID } from './constants.js';
 import { FoundryDataAccess } from './data-access.js';
 import { QueryHandlers } from './queries.js';
 import { createTestWorld, type TestWorld } from './test-support/foundry-mock/index.js';
-import {
-  NON_WRITE_METHODS,
-  RECORDLESS_WRITE_METHODS,
-  WRITE_METHODS,
-  WRITES_DISABLED_MESSAGE,
-} from './write-gate.js';
+import { WRITES_DISABLED_MESSAGE } from './write-gate.js';
 
 let world: TestWorld;
 let restore: () => void;
@@ -57,22 +52,200 @@ function stubEverything(): Mock {
   return calls;
 }
 
+/** Registered method names (without the module prefix) of the given kinds. */
+const namesOfKind = (...kinds: BridgeHandlerKind[]): string[] =>
+  bridgeHandlers
+    .methodsOfKind(...kinds)
+    .map(m => m.slice(MODULE_ID.length + 1))
+    .sort();
+
+/**
+ * The methods that change the world, pinned by name. The kind is a required argument of
+ * `bridgeHandlers.on/set`, so no handler can be left unclassified; this pins the answer, so a
+ * handler that moves between kinds (or a new write) shows up in a review as a test change.
+ */
+const PINNED_RECORDLESS_WRITES = [
+  'ensureJournalFolder',
+  'playPlaylist',
+  'playerRoll',
+  'postHandoutNotice',
+  'request-player-rolls',
+  'requestAbilityCheck',
+  'requestAttackRoll',
+  'rollNpcCheck',
+  'rollSavingThrows',
+  'sendChatMessage',
+  'showJournalPage',
+  'uploadActorImage',
+  'uploadPlayerPortrait',
+];
+const PINNED_WRITES = [
+  'addActorItems',
+  'addActorsToScene',
+  'addAttackToActor',
+  'addAttackWithSaveToActor',
+  'addAuraToActor',
+  'addFeaturesFromCompendium',
+  'addPassiveFeatureToActor',
+  'addSaveFeatureToActor',
+  'addSpellsToActor',
+  'advanceCombatTurn',
+  'createActorFromCompendium',
+  'createJournalEntry',
+  'createNpcActor',
+  'createWorldItems',
+  'liveSweep',
+  'manageRest',
+  'rollInitiativeForNpcs',
+  'setActorSpellcasting',
+  'setInitiative',
+  'switch-scene',
+  'updateCampaignProgress',
+  'updateJournalContent',
+  'updateWorldItems',
+  'useItem',
+  'useNpcActivity',
+];
+
+/**
+ * Every other registered handler, pinned by name. This is the wire contract of the read
+ * surface: a renamed or dropped read handler fails here, and a new handler has to be added to
+ * one of the three lists, so it shows up in a review of this write-gate file.
+ */
+const PINNED_READS = [
+  'aiChangesUpdated',
+  'applyGuardedOps',
+  'characterSheet',
+  'clearModuleErrors',
+  'findActor',
+  'findPlayers',
+  'get-available-conditions',
+  'get-token-details',
+  'getActiveEffects',
+  'getActiveScene',
+  'getActorOwnership',
+  'getAvailableConditions',
+  'getAvailablePacks',
+  'getChangeJournal',
+  'getCharacterEntity',
+  'getCharacterInfo',
+  'getCharacterResources',
+  'getChatLog',
+  'getCombatPlayByPlay',
+  'getCombatState',
+  'getCompendiumDocumentFull',
+  'getConnectedPlayers',
+  'getEnhancedCreatureIndex',
+  'getExportIndex',
+  'getFriendlyNPCs',
+  'getJournalContent',
+  'getJournalPageContent',
+  'getLevelUpOptions',
+  'getLibraryDocuments',
+  'getLibraryIndex',
+  'getModuleErrors',
+  'getModuleManifest',
+  'getModules',
+  'getPagesForPlayers',
+  'getPartyCharacters',
+  'getPartyState',
+  'getPlayRecords',
+  'getPlayerVisibility',
+  'getPreflightScan',
+  'getPrepScan',
+  'getRecentEvents',
+  'getRenownState',
+  'getSceneMoods',
+  'getSceneState',
+  'getSessionLog',
+  'getSetupInfo',
+  'getSpentActions',
+  'getTargets',
+  'getTokenDetails',
+  'getTokenPositions',
+  'getUsageRecords',
+  'getWorldInfo',
+  'guardedApplyOutcome',
+  'list-scenes',
+  'listActors',
+  'listCreaturesByCriteria',
+  'listGuardedFeatures',
+  'listJournals',
+  'listRefChoices',
+  'listWorldItems',
+  'logGmChange',
+  'measureDistance',
+  'openDocumentForGm',
+  'ping',
+  'planCombatChange',
+  'planLiveChange',
+  'planNpcTurn',
+  'planPaperSync',
+  'planPartyPlacement',
+  'planPcCreation',
+  'planRoomSetup',
+  'planSceneChange',
+  'planSceneMood',
+  'planTokenRings',
+  'playerRead',
+  'searchCharacterItems',
+  'searchCompendium',
+  'searchLinkCandidates',
+  'searchRules',
+  'sessionSwitches',
+  'snapshotGuardedOps',
+  'suggestBalancedEncounter',
+];
+
 describe('write gate: classification', () => {
-  it('classifies every registered handler as write or non-write, exactly once', () => {
+  it('registers every handler with a kind, and the wire names did not change', () => {
     qh.registerHandlers();
-    const registered = bridgeHandlers.methods().map(m => m.slice(MODULE_ID.length + 1));
-    const both = WRITE_METHODS.filter(m => NON_WRITE_METHODS.includes(m));
-    expect(both).toEqual([]);
-    const unclassified = registered.filter(
-      m => !WRITE_METHODS.includes(m) && !NON_WRITE_METHODS.includes(m)
+    const registered = bridgeHandlers.methods();
+    expect(registered.length).toBeGreaterThan(90);
+    for (const m of registered) {
+      expect(bridgeHandlers.kindOf(m), m).toMatch(/^(write|recordless-write|read)$/);
+      expect(m.startsWith(`${MODULE_ID}.`), m).toBe(true);
+    }
+    expect(bridgeHandlers.methodsOfKind('write', 'recordless-write', 'read').sort()).toEqual(
+      [...registered].sort()
     );
-    expect(unclassified, 'add new handlers to write-gate.ts').toEqual([]);
-    const stale = [...WRITE_METHODS, ...NON_WRITE_METHODS].filter(m => !registered.includes(m));
-    expect(stale, 'names in write-gate.ts that are not registered').toEqual([]);
+  });
+
+  it('pins which handlers write and which write without a change-journal record', () => {
+    qh.registerHandlers();
+    expect(namesOfKind('recordless-write')).toEqual([...PINNED_RECORDLESS_WRITES].sort());
+    expect(namesOfKind('write')).toEqual([...PINNED_WRITES].sort());
+    expect(namesOfKind('read')).toEqual([...PINNED_READS].sort());
+  });
+
+  it('keeps the reads that must work with writes off, and the plans, as reads', () => {
+    qh.registerHandlers();
+    const reads = namesOfKind('read');
+    for (const m of [
+      'getWorldInfo',
+      'ping',
+      'listActors',
+      'applyGuardedOps',
+      'snapshotGuardedOps',
+      'sessionSwitches',
+      'planSceneChange',
+      'planLiveChange',
+      'planPcCreation',
+      'getPlayerVisibility',
+      'clearModuleErrors',
+      'openDocumentForGm',
+      'playerRead',
+      'characterSheet',
+    ]) {
+      expect(reads, m).toContain(m);
+    }
   });
 
   it('covers the handlers named in P-036', () => {
-    for (const m of ['addActorItems', 'playPlaylist']) expect(WRITE_METHODS).toContain(m);
+    qh.registerHandlers();
+    expect(bridgeHandlers.kindOf(wire('addActorItems'))).toBe('write');
+    expect(bridgeHandlers.kindOf(wire('playPlaylist'))).toBe('recordless-write');
+    expect(bridgeHandlers.kindOf(wire('getWorldInfo'))).toBe('read');
   });
 
   it('has no direct token write handlers left (F5 L2: plan-token-change replaces them)', () => {
@@ -88,7 +261,6 @@ describe('write gate: classification', () => {
       'setTokenVisionLight',
     ]) {
       expect(registered, m).not.toContain(m);
-      expect(WRITE_METHODS, m).not.toContain(m);
     }
   });
 });
@@ -106,13 +278,13 @@ describe('write gate: scene dressing plans', () => {
       'dropLoot',
     ]) {
       expect(registered, m).not.toContain(m);
-      expect(WRITE_METHODS, m).not.toContain(m);
     }
   });
 
   it('classifies the scene plan query as a read and the playlist as a write', () => {
-    expect(NON_WRITE_METHODS).toContain('planSceneChange');
-    expect(WRITE_METHODS).toContain('playPlaylist');
+    qh.registerHandlers();
+    expect(bridgeHandlers.kindOf(wire('planSceneChange'))).toBe('read');
+    expect(bridgeHandlers.kindOf(wire('playPlaylist'))).toBe('recordless-write');
   });
 });
 
@@ -121,8 +293,10 @@ describe('write gate: behaviour', () => {
     const calls = stubEverything();
     world.setSetting(MODULE_ID, 'allowWriteOperations', false);
     qh.registerHandlers();
-    for (const method of WRITE_METHODS) {
-      await expect(bridgeHandlers.get(wire(method))!({}), method).rejects.toThrow(
+    const writes = bridgeHandlers.methodsOfKind('write', 'recordless-write');
+    expect(writes.length).toBe(PINNED_WRITES.length + PINNED_RECORDLESS_WRITES.length);
+    for (const method of writes) {
+      await expect(bridgeHandlers.get(method)!({}), method).rejects.toThrow(
         WRITES_DISABLED_MESSAGE
       );
     }
@@ -169,7 +343,8 @@ describe('write gate: behaviour', () => {
     await bridgeHandlers.get(wire('playPlaylist'))!({});
     await bridgeHandlers.get(wire('sendChatMessage'))!({ message: 'hi' });
     expect(brk).not.toHaveBeenCalled();
-    expect(RECORDLESS_WRITE_METHODS.filter(m => !WRITE_METHODS.includes(m))).toEqual([]);
+    expect(bridgeHandlers.kindOf(wire('playPlaylist'))).toBe('recordless-write');
+    expect(bridgeHandlers.kindOf(wire('sendChatMessage'))).toBe('recordless-write');
   });
 
   it('never gates reads', async () => {

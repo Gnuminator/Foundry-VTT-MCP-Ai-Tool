@@ -169,8 +169,9 @@ export function makeTrainRun(d) {
       /** @type {{ code: number, output: string } | undefined} */
       let ran;
       /** @type {string} */
-      let tip = '';
-      let st = st0;
+      let tip;
+      /** @type {NonNullable<ReturnType<typeof state>>} */
+      let st;
       let requeue = false;
       try {
         st = state() ?? st0;

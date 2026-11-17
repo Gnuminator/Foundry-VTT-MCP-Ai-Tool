@@ -110,7 +110,12 @@ export function parseConnectorFile(
     problem('two entries share one Foundry user id: /me shows only the first pair');
   }
   const appAud = rec.appAudience;
-  const appAudiences = (Array.isArray(appAud) ? appAud : [appAud]).map(str).filter(a => a !== '');
+  const appAudAll = (Array.isArray(appAud) ? appAud : [appAud]).map(str).filter(a => a !== '');
+  // A tag in both lists would let a service token pass as an app token: keep it in audience only.
+  const appAudiences = appAudAll.filter(a => !audiences.includes(a));
+  if (appAudiences.length < appAudAll.length) {
+    problem('appAudience repeats an audience tag: dropped from appAudience');
+  }
   const emailPlayers: EmailPlayer[] = [];
   const emailSeen = new Set<string>();
   const emailList = Array.isArray(rec.emailPlayers) ? (rec.emailPlayers as unknown[]) : [];

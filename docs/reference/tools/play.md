@@ -36,7 +36,7 @@ Parameters:
 
 ## request-player-rolls
 
-Direct write. Request dice rolls from players: posts roll buttons in Foundry chat that players click. Public by default; pass isPublic false only when the user asks for a private roll. Finds the player from the character; falls back to the GM.
+Direct write. The one tool to ask a player to roll: ability check, skill, save, attack, initiative or custom formula. Posts a roll button in Foundry chat (DC shown when given; for an attack put the weapon or spell name in rollTarget). Public by default; pass isPublic false only when the user asks for a private roll. Finds the player from the character; falls back to the GM.
 
 Kind: changes something. Title: Request player rolls.
 
@@ -48,12 +48,12 @@ Parameters:
 - `isPublic` (boolean): Default true: everyone sees the roll. false only when asked: just the target player and GM. Default: `true`.
 - `rollModifier` (string): Optional modifier to add to the roll (e.g., "+2", "-1", "+1d4"). Default: `""`.
 - `flavor` (string): Optional flavor text to describe the roll context. Default: `""`.
-- `dc` (integer)
+- `dc` (integer): Range: 1 to 99.
 - `advantage` (string): One of: `advantage`, `disadvantage`.
 
 ## request-ability-check
 
-Direct write. Request an ability check from a player, posting a clickable roll button to their chat. Shows the DC when provided. Use for checks like "Perception check to notice the ambush".
+Direct write. Old name: use request-player-rolls with rollType ability. Requests an ability check from a player (clickable roll button, DC shown when given).
 
 Kind: changes something. Title: Request ability check.
 
@@ -61,14 +61,14 @@ Parameters:
 
 - `actor` (string, required): Player name or character name to request the roll from.
 - `ability` (string, required): Ability to check. One of: `str`, `dex`, `con`, `int`, `wis`, `cha`.
-- `dc` (integer): Optional difficulty class to display with the request.
+- `dc` (integer): Optional difficulty class to display with the request. Range: 1 to 99.
 - `isPublic` (boolean): Default true: visible to all. false only when asked: target player + GM only. Default: `true`.
 - `reason` (string): Context for the check, e.g. "Perception check to notice the ambush".
 - `advantage` (string): One of: `advantage`, `disadvantage`.
 
 ## request-attack-roll
 
-Direct write. Request an attack roll for a specific weapon or spell from a player, posting a clickable roll button to their chat.
+Direct write. Old name: use request-player-rolls with rollType attack. Requests an attack roll for a weapon or spell from a player (clickable roll button).
 
 Kind: changes something. Title: Request attack roll.
 

@@ -1,6 +1,6 @@
 ---
 source: gm/claude-plans.md
-sourceHash: c6ebcd752bd3
+sourceHash: 28bef64f29ad
 title: Claude Free eller Pro
 description: Hvad der virker med den gratis Claude-plan, og hvad Claude Pro giver dig, når du kører et spil med Foundry AI Tool, med kilder og datoer.
 ---
@@ -20,7 +20,7 @@ ser forkert ud, så tjek de sider.
 | Claude Desktop-appen                                                     | Ja.                                                                                                                   |
 | At spørge Claude om regler, forberedelse og dine noter                   | Ja.                                                                                                                   |
 | Claude, der læser og ændrer spillet (værktøjets forbindelse til Foundry) | Forventes at virke, men mangler stadig at blive bekræftet på din PC (se [Ikke afklaret endnu](#ikke-afklaret-endnu)). |
-| Skills, inklusive **Foundry GM coach**-skillen, der er lavet til dig     | Ja. Du lægger dine egne skills ind under **Customize**, **Skills**.                                                   |
+| Skills, inklusive **Foundry GM coach**-skillen, der er lavet til dig     | Ja. Du lægger dine egne skills ind under **Settings**, **Plugins**, **Skills**.                                       |
 | Projects (et chatrum med dine egne filer og instruktioner)               | Op til 5.                                                                                                             |
 | Modeller                                                                 | Sonnet og Haiku. Ikke Opus.                                                                                           |
 | Claude Code (udviklerværktøjet)                                          | Nej. Du behøver det ikke: session notes bliver lavet på værktøjsadministratorens PC.                                  |

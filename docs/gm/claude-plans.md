@@ -18,7 +18,7 @@ here looks wrong, check those pages.
 | The Claude Desktop app                                                  | Yes.                                                                                      |
 | Asking Claude about rules, prep and your notes                          | Yes.                                                                                      |
 | Claude reading and changing the game (the tool's connection to Foundry) | Expected to work, still to be confirmed on your PC (see [Not clear yet](#not-clear-yet)). |
-| Skills, including the **Foundry GM coach** skill made for you           | Yes. You add your own skills under **Customize**, **Skills**.                             |
+| Skills, including the **Foundry GM coach** skill made for you           | Yes. You add your own skills under **Settings**, **Plugins**, **Skills**.                 |
 | Projects (a chat space with your own files and instructions)            | Up to 5.                                                                                  |
 | Models                                                                  | Sonnet and Haiku. Not Opus.                                                               |
 | Claude Code (the developer tool)                                        | No. You don't need it: the session notes are made on the tool admin's PC.                 |

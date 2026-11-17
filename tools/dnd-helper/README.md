@@ -20,7 +20,7 @@ Writes `tools/dnd-helper/dist/foundry-dnd-helper.zip` (GM edition, core connecto
 
 ## Set up in Claude Desktop
 
-1. **Skill:** Customize, Skills, add a skill, upload `foundry-dnd-helper.zip` (do not unpack it).
+1. **Skill:** Settings, Plugins, Skills, add a skill, upload `foundry-dnd-helper.zip` (do not unpack it).
 2. **Project:** create a project named "D&D helper", paste `project-instructions.md` into the
    project instructions.
 3. **Connector:** in a chat in that project, switch on the Foundry connector (core). Core is always

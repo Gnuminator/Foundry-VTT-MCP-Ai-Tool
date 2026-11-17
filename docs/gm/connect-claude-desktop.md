@@ -88,7 +88,7 @@ Without this step Claude Desktop asks "Allow?" on almost every Foundry tool call
 Claude Desktop keeps this choice in your account, not in a file, so the installer cannot set it for
 you. You do it once per connector.
 
-1. In Claude Desktop open **Customize**, then **Connectors**.
+1. In Claude Desktop open **Settings**, then **Plugins**, and pick the **Connectors** filter.
 2. Click one of the Foundry connectors (`foundry-mcp`, `foundry-mcp-play`, `foundry-mcp-prep`,
    `foundry-mcp-build`, `foundry-mcp-admin`).
 3. Under **Tool permissions**, click the drop-down on the right of the **Read-only tools** line

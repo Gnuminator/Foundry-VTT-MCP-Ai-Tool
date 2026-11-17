@@ -29,7 +29,7 @@ export class SessionLogTools {
       {
         name: 'get-session-log',
         description:
-          'The structured event log of the current session: combat start/end, HP changes, deaths and stabilizations, conditions, resources spent, scene changes, journal edits, and dice rolls (public rolls as roll/damage-roll with a full breakdown in details.breakdown; whispered, blind and self rolls as gm-roll), and item-use cards. Use this to recap the whole session; for only what is new since a timestamp use get-recent-events (Play), for chat text get-chat-log (Play).',
+          'The structured event log of the current session: combat start/end, HP changes, deaths and stabilizations, conditions, resources spent, scene changes, journal edits, and dice rolls (public rolls as roll/damage-roll with a full breakdown in details.breakdown; whispered, blind and self rolls as gm-roll), and item-use cards. Use this to recap the whole session; for only what is new since a timestamp use get-recent-events, for chat text get-chat-log.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -43,7 +43,7 @@ export class SessionLogTools {
               description:
                 'Optional event type filter (e.g. "combat-start", "combat-end", "damage", "healing", "death", "stabilize", "condition-applied", "condition-removed", "resource-spent", "scene-change", "journal-created", "journal-updated", "roll", "damage-roll", "gm-roll", "item-use").',
             },
-            actorName: {
+            actor: {
               type: 'string',
               description: 'Optional actor name filter (partial match).',
               // `damage-roll` events copy their actorName straight from the chat
@@ -59,7 +59,7 @@ export class SessionLogTools {
       {
         name: 'get-recent-events',
         description:
-          'Use this during play to poll "what happened since timestamp X"; for the full session history use get-session-log (Prep). Returns the events plus `latestTimestamp`, which you pass back as `sinceTimestamp` next time to poll incrementally for only new events.',
+          'Use this during play to poll "what happened since timestamp X"; for the full session history use get-session-log. Returns the events plus `latestTimestamp`, which you pass back as `sinceTimestamp` next time to poll incrementally for only new events.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -87,14 +87,14 @@ export class SessionLogTools {
     const schema = z.object({
       limit: z.number().int().min(1).max(1000).optional(),
       eventType: z.string().optional(),
-      actorName: z.string().optional(),
+      actor: z.string().optional(),
     });
     try {
-      const params = schema.parse(args ?? {});
-      const response = (await this.foundryClient.query(
-        'foundry-mcp-bridge.getSessionLog',
-        params
-      )) as SessionLogBridgeReply | undefined;
+      const { actor, ...params } = schema.parse(args ?? {});
+      const response = (await this.foundryClient.query('foundry-mcp-bridge.getSessionLog', {
+        ...params,
+        ...(actor !== undefined ? { actorName: actor } : {}),
+      })) as SessionLogBridgeReply | undefined;
       if (response?.success === false) {
         throw new Error(response.error || 'Failed to get session log');
       }

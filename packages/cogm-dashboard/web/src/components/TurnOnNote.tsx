@@ -1,7 +1,7 @@
 import type { JSX } from 'react';
 
-import type { LivePlay } from '../lib/livePlay';
-import { offReason } from '../lib/liveSwitches';
+import type { LivePlay } from '../lib/live-play';
+import { offReason } from '../lib/live-switches';
 import { Button } from '../ui';
 
 /**

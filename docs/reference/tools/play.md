@@ -16,7 +16,7 @@ Kind: changes something and can delete or overwrite. Title: Use item.
 
 Parameters:
 
-- `actorIdentifier` (string, required): Character using the item (name or ID)
+- `actor` (string, required): Character using the item (name or ID)
 - `itemIdentifier` (string, required): Item name or ID (spell, feat, equipment, consumable, etc.)
 - `targets` (array of string): Target character/token names or IDs. Use ["self"] to target the caster. If omitted, GM selects targets in Foundry.
 - `consume` (boolean): Whether to consume charges/uses (default: true)
@@ -31,12 +31,12 @@ Kind: changes something. Title: Switch scene.
 
 Parameters:
 
-- `scene_identifier` (string, required): Scene name or ID to switch to
+- `scene` (string, required): Scene name or ID to switch to
 - `optimize_view` (boolean): Automatically optimize the view for the scene. Default: `true`.
 
 ## request-player-rolls
 
-Direct write. Request dice rolls from players: posts roll buttons in Foundry chat that players click. Ask the user first whether the roll is public (everyone sees it) or private (player and GM only) unless they already said. Finds the player from the character; falls back to the GM.
+Direct write. The one tool to ask a player to roll: ability check, skill, save, attack, initiative or custom formula. Posts a roll button in Foundry chat (DC shown when given; for an attack put the weapon or spell name in rollTarget). Public by default; pass isPublic false only when the user asks for a private roll. Finds the player from the character; falls back to the GM.
 
 Kind: changes something. Title: Request player rolls.
 
@@ -44,40 +44,39 @@ Parameters:
 
 - `rollType` (string, required): Type of roll to request (ability, skill, save, attack, initiative, custom). One of: `ability`, `skill`, `save`, `attack`, `initiative`, `custom`.
 - `rollTarget` (string, required): An ability (str, dex, con, int, wis, cha), a skill (perception, stealth, ...) or a custom roll formula
-- `targetPlayer` (string, required): Player name or character name to request the roll from
-- `isPublic` (boolean, required): true: everyone sees the roll. false: only the target player and GM.
-- `userConfirmedVisibility` (boolean, required): Must be true. Set it only when the user said "public" or "private" or answered your question about it. Always `true`.
+- `actor` (string, required): Player name or character name to request the roll from
+- `isPublic` (boolean): Default true: everyone sees the roll. false only when asked: just the target player and GM. Default: `true`.
 - `rollModifier` (string): Optional modifier to add to the roll (e.g., "+2", "-1", "+1d4"). Default: `""`.
 - `flavor` (string): Optional flavor text to describe the roll context. Default: `""`.
-- `dc` (integer)
+- `dc` (integer): Range: 1 to 99.
 - `advantage` (string): One of: `advantage`, `disadvantage`.
 
 ## request-ability-check
 
-Direct write. Request an ability check from a player, posting a clickable roll button to their chat. Shows the DC when provided. Use for checks like "Perception check to notice the ambush".
+Direct write. Old name: use request-player-rolls with rollType ability. Requests an ability check from a player (clickable roll button, DC shown when given).
 
 Kind: changes something. Title: Request ability check.
 
 Parameters:
 
-- `targetPlayer` (string, required): Player name or character name to request the roll from.
+- `actor` (string, required): Player name or character name to request the roll from.
 - `ability` (string, required): Ability to check. One of: `str`, `dex`, `con`, `int`, `wis`, `cha`.
-- `dc` (integer): Optional difficulty class to display with the request.
-- `isPublic` (boolean, required): Whether the roll is public (visible to all) or private (target player + GM only).
+- `dc` (integer): Optional difficulty class to display with the request. Range: 1 to 99.
+- `isPublic` (boolean): Default true: visible to all. false only when asked: target player + GM only. Default: `true`.
 - `reason` (string): Context for the check, e.g. "Perception check to notice the ambush".
 - `advantage` (string): One of: `advantage`, `disadvantage`.
 
 ## request-attack-roll
 
-Direct write. Request an attack roll for a specific weapon or spell from a player, posting a clickable roll button to their chat.
+Direct write. Old name: use request-player-rolls with rollType attack. Requests an attack roll for a weapon or spell from a player (clickable roll button).
 
 Kind: changes something. Title: Request attack roll.
 
 Parameters:
 
-- `targetPlayer` (string, required): Player name or character name to request the roll from.
+- `actor` (string, required): Player name or character name to request the roll from.
 - `weaponOrSpellName` (string, required): Name of the weapon or spell attack.
-- `isPublic` (boolean, required): Whether the roll is public (visible to all) or private (target player + GM only).
+- `isPublic` (boolean): Default true: visible to all. false only when asked: target player + GM only. Default: `true`.
 - `advantage` (string): One of: `advantage`, `disadvantage`.
 
 ## roll-npc-check
@@ -88,7 +87,7 @@ Kind: changes something. Title: Roll NPC check.
 
 Parameters:
 
-- `actorName` (string, required): NPC actor name or ID.
+- `actor` (string, required): NPC actor name or ID.
 - `rollType` (string, required): Type of roll. One of: `ability`, `save`, `skill`, `attack`.
 - `rollTarget` (string, required): Target for the roll: ability (str/dex/...), skill name (perception, stealth, ...), or weapon/attack name.
 - `isPublic` (boolean, required): Whether the result is public (true) or whispered to the GM (false).
@@ -235,7 +234,7 @@ No parameters.
 
 ## get-chat-log
 
-Recent Foundry chat messages from the module's in-memory buffer: dice rolls, ability uses, damage and combat narration. Each has the speaker, type, content and flavor; rolls add formula, total, dice, critical/fumble, advantage/disadvantage and damage total and types. Use this to read the chat and rolls; for a combat recap use get-combat-play-by-play, for game events get-session-log (Prep).
+Recent Foundry chat messages from the module's in-memory buffer: dice rolls, ability uses, damage and combat narration. Each has the speaker, type, content and flavor; rolls add formula, total, dice, critical/fumble, advantage/disadvantage and damage total and types. Use this to read the chat and rolls; for a combat recap use get-combat-play-by-play, for game events get-session-log.
 
 Kind: read-only. Title: Get chat log.
 
@@ -276,7 +275,7 @@ Kind: read-only. Title: Get character resources.
 
 Parameters:
 
-- `identifier` (string, required): Character name or actor ID.
+- `actor` (string, required): Character name or actor ID.
 
 ## get-active-effects
 
@@ -286,7 +285,7 @@ Kind: read-only. Title: Get active effects.
 
 Parameters:
 
-- `identifier` (string, required): Actor name or ID.
+- `actor` (string, required): Actor name or ID.
 
 ## advance-combat-turn
 
@@ -341,7 +340,7 @@ No parameters.
 
 ## get-recent-events
 
-Use this during play to poll "what happened since timestamp X"; for the full session history use get-session-log (Prep). Returns the events plus `latestTimestamp`, which you pass back as `sinceTimestamp` next time to poll incrementally for only new events.
+Use this during play to poll "what happened since timestamp X"; for the full session history use get-session-log. Returns the events plus `latestTimestamp`, which you pass back as `sinceTimestamp` next time to poll incrementally for only new events.
 
 Kind: read-only. Title: Get recent events.
 
@@ -360,7 +359,7 @@ Kind: read-only. Title: Wait for a game event.
 Parameters:
 
 - `eventTypes` (array of string): Event types, e.g. ["combat-turn"], ["scene-change"], ["roll","damage-roll"]. Empty = any.
-- `actorName` (string): Actor name filter (partial match).
+- `actor` (string): Actor name filter (partial match).
 - `sinceTimestamp` (string): The latestTimestamp of the previous call (not an event time); matching events after it return at once. Omit = only new ones.
 - `timeoutSeconds` (integer): Default 25, max 45.
 
@@ -374,8 +373,8 @@ Parameters:
 
 - `targets` (array of string, required): Token names (preferred) or actor names/IDs to roll for.
 - `rollType` (string, required): One of: `save`, `check`, `skill`.
-- `ability` (string): Ability key for save/check (str/dex/con/int/wis/cha).
-- `skill` (string): dnd5e skill key for skill rolls: acr, ani, arc, ath, dec, his, ins, itm, inv, med, nat, prc, prf, per, rel, slt, ste, sur (e.g. "ste" for Stealth, "prc" for Perception).
+- `ability` (string): Ability key for save/check. One of: `str`, `dex`, `con`, `int`, `wis`, `cha`.
+- `skill` (string): dnd5e skill key for skill rolls (e.g. "ste" for Stealth, "prc" for Perception). One of: `acr`, `ani`, `arc`, `ath`, `dec`, `his`, `ins`, `itm`, `inv`, `med`, `nat`, `prc`, `prf`, `per`, `rel`, `slt`, `ste`, `sur`.
 - `dc` (integer): Optional difficulty class to test against.
 - `isPublic` (boolean): Public roll (true) or whispered to the GM only (false or omitted, the default).
 
@@ -387,7 +386,7 @@ Kind: changes something. Title: Use NPC attack or activity.
 
 Parameters:
 
-- `actorName` (string, required): NPC actor name or ID. A token on the current scene with this name or ID (or the only token made from this actor) is used first, so an unlinked token spends its own uses.
+- `actor` (string, required): NPC actor name or ID. A token on the current scene with this name or ID (or the only token made from this actor) is used first, so an unlinked token spends its own uses.
 - `itemName` (string, required): Name of the weapon/feature/spell to use (e.g. "Scimitar").
 - `activity` (string): Activity to run (name, id or type); a non-attack one is used (spends its cost) and its damage rolled.
 - `targetAC` (integer): Optional target AC to compute hit/miss against.
@@ -457,7 +456,7 @@ Parameters:
 - `action` (string, required): damage, healing, temp-hp, condition (on or off), resource (set a value) or clear-conditions. One of: `damage`, `healing`, `temp-hp`, `condition`, `resource`, `clear-conditions`.
 - `targets` (array of string, required): Token names on the current scene (preferred: unlinked NPC tokens have their own HP) or actor names.
 - `amount` (integer): damage, healing, temp-hp: the amount.
-- `damageType` (string): damage: acid, bludgeoning, cold, fire, force, lightning, necrotic, piercing, poison, psychic, radiant, slashing or thunder. Omit for untyped.
+- `damageType` (string): damage: acid, bludgeoning, cold, fire, force, lightning, necrotic, piercing, poison, psychic, radiant, slashing or thunder. Omit for untyped. One of: `acid`, `bludgeoning`, `cold`, `fire`, `force`, `lightning`, `necrotic`, `piercing`, `poison`, `psychic`, `radiant`, `slashing`, `thunder`.
 - `multiplier` (number): damage: 2 for a critical, 0.5 for half.
 - `ignoreResistance` (boolean): damage: ignore the target's resistances and immunities.
 - `condition` (string): condition: the id or name (prone, poisoned, exhaustion...).
@@ -502,13 +501,13 @@ Parameters:
 
 ## plan-scene-change
 
-Plan scene dressing on the current scene: an area-of-effect template ("template"), clearing templates ("clear-templates"), darkness and global light ("mood"), a map pin ("note", "remove-note") or loot for a character ("loot"). Apply it with apply-planned-change, revert it with undo-change; the GM sees every change in Recent Changes. A template result lists tokensInside; a loot result lists skippedItems that were left out (bad UUID, not an Item, or no target character).
+Plan scene dressing on the current scene: an area-of-effect template ("template"), clearing templates ("clear-templates"), a map pin ("note", "remove-note") or loot for a character ("loot"). For darkness, light, weather and music use plan-scene-mood. Apply it with apply-planned-change, revert it with undo-change; the GM sees every change in Recent Changes. A template result lists tokensInside; a loot result lists skippedItems that were left out (bad UUID, not an Item, or no target character).
 
 Kind: read-only. Title: Plan scene dressing.
 
 Parameters:
 
-- `action` (string, required): template, clear-templates, mood (darkness and global light), note, remove-note or loot. One of: `template`, `clear-templates`, `mood`, `note`, `remove-note`, `loot`.
+- `action` (string, required): template, clear-templates, note, remove-note or loot. One of: `template`, `clear-templates`, `note`, `remove-note`, `loot`.
 - `shape` (string): template: the shape (required). One of: `circle`, `cone`, `ray`, `rect`.
 - `distance` (number): template: size in grid distance units (radius for circle, length for cone/ray/rect; required).
 - `x` (number): template: origin X in pixels (or originTokenName). note: X in pixels (or tokenName).
@@ -520,8 +519,6 @@ Parameters:
 - `fillColor` (string): template: hex color, e.g. "#ff0000".
 - `templateId` (string): clear-templates: the template to remove.
 - `all` (boolean): clear-templates: remove all of this tool's own templates (never a hand-made GM region on Foundry 14).
-- `darkness` (number): mood: darkness level 0 (bright) to 1 (dark).
-- `globalLight` (boolean): mood: enable or disable global illumination.
 - `text` (string): note: the label. remove-note: remove the pins whose label is exactly this text.
 - `tokenName` (string): note: place the pin at this token instead of x/y.
 - `journalName` (string): note: link the pin to an existing journal entry by name.
@@ -562,3 +559,28 @@ Parameters:
 - `tokenIds` (array of string): start: the tokens to fight. Omit for player characters and Hostiles.
 - `sceneId` (string): start: scene (default: the viewed one).
 - `combatId` (string): end: the combat to close. Omit for the active one.
+
+## get-renown
+
+dnd5e 6.1 factions and renown: each faction actor (identifier, category, ranks with the renown each needs, members with rank and role) and each character or group that holds renown items, with its renown per faction and the rank that reaches. Says when the "Renown Scores" world setting is off. Read-only. GM only: not for player chat.
+
+Kind: read-only. Title: Get renown.
+
+No parameters.
+
+## plan-renown-change
+
+Plan one faction or renown change; nothing changes until apply-planned-change (the GM confirms; needs the "AI Tool: Party (writes)" switch and the dnd5e "Renown Scores" setting). action "adjust": add "amount" (may be negative) to an actor's renown with a faction. "set": make the actor's renown with the faction exactly "amount". Both create or update one renown item named "Renown adjustment: &lt;faction>" on the actor (a character or a group); the faction is its identifier or name. "set-member": put the actor "member" in the faction actor "factionId", or change its rank ("rank" is a rank id from get-renown) and role. Returns a planId; undo-change reverts it.
+
+Kind: read-only. Title: Plan renown change.
+
+Parameters:
+
+- `action` (string, required): What to plan: adjust, set or set-member. One of: `adjust`, `set`, `set-member`.
+- `actorId` (string): For adjust and set: the character or group actor id.
+- `faction` (string): For adjust and set: the faction identifier or name.
+- `amount` (integer): For adjust: the change (may be negative). For set: the new score.
+- `factionId` (string): For set-member: the faction actor id.
+- `member` (string): For set-member: the member actor id.
+- `rank` (string): For set-member: the rank id (empty for none).
+- `role` (string): For set-member: the role text.

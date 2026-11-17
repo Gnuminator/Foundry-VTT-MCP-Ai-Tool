@@ -7,7 +7,7 @@
  * A Windows scheduled task starts it at logon (scripts/register-merge-runner.ps1) from the main
  * checkout. Each round it reads vault Backlog.md from the upstream branch (fetch, `git show @{u}:`,
  * never the shared working tree) and takes every item whose progress line is a ready line
- * (`PR #<n> ready, head <40-hex sha>`, written by `backlog.mjs progress <id> --ready`; parseReady),
+ * (`PR #<n> ready, head <40-hex sha>`, written by `backlog.mjs progress <id> --ready`; parseReadyAll),
  * one PR at a time, in Backlog order. Before each PR the line is read again (an earlier gate run
  * can take half an hour); a line that changed meanwhile waits for the next round.
  *
@@ -39,9 +39,13 @@
  *     #pr-log line on a merge.
  *       merged (a `lane:merge: merged #<PR>` line, exit 0): `backlog.mjs done <id> <PR> --by
  *         merge-runner` (no --sha: done reads the merge commit from GitHub).
- *       merge train full: post "merge train full: ask a session to run live:roundtrip", exit 3; the
- *         ready line stays, so the next logon or a manual start after `--train-reset` merges it.
+ *       merge train full: that PR waits (its ready line stays, round key `train:<PR>@<sha>`) and the
+ *         PRs behind it in Backlog order are gated as usual; the train roundtrip below clears it.
  *       CI still running after the gate's wait (exit 5): left for the next round.
+ *       refused only for being behind main (not mergeable, or the drift check's moved lockfile): the
+ *         runner merges aitool/main into the lane branch, pushes it (lease on the old head) and
+ *         writes a ready line for the new head with the same review (merge-runner/refresh.mjs);
+ *         a real conflict, a fork or draft PR, or a head that is already a refresh commit refuse.
  *       any other refusal: `backlog.mjs progress <id> "PR #<n> refused by the merge gate: <why>"
  *         --if-ready <PR>@<sha>` (that replaces the ready line, so it is not tried again until a
  *         lane writes a new one; a newer ready line is never overwritten) and one #pr-log line.
@@ -49,7 +53,11 @@
  *       (the gate killed after `gh pr merge`) is marked done, not refused.
  *     A checkout problem (not the PR's fault) posts one line and exits 3.
  *
- * It never runs `live:roundtrip` or `--train-reset`; a session does that on demand (D-141). A lock
+ * Train roundtrip (the user, 2026-11-17): while a PR waits for the full train the runner queues for
+ * test server A's lock and, holding it, runs live:roundtrip (plus live:sweep) on main and
+ * `--train-reset`; red stops it with a bisect hint (merge-runner/train-run.mjs says how, server A
+ * only, never the live ports of shared/ports.json). One ready line per PR: an item with two PRs holds two lines
+ * (a runner write with --if-ready changes only its own PR's line). A lock
  * file (~/.foundry-ai-tool/merge-runner.lock, the holder's pid) lets one runner run; a second one
  * posts one line and exits 1. A holder pid that is gone or is no longer a merge runner (Windows
  * reuses pids after a logoff) is taken over. A vault write that fails is logged; the PR is not tried
@@ -65,7 +73,7 @@
  * stays the parent, so a change to this restart contract itself needs a manual Start-ScheduledTask.
  *
  * Exit codes: 0 --once finished, 1 another runner holds the lock, 2 usage, 3 stopped (main red,
- * merge train full, checkout problem, code changed but not updatable, restart loop), 75 a child that
+ * the train roundtrip red or its environment down, checkout problem, code changed but not updatable, restart loop), 75 a child that
  * wants new code (to its parent only). Every log line starts with
  * `merge-runner:` and a time.
  */
@@ -75,8 +83,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseBacklog, parseProgress, parseReady } from './backlog-items.mjs';
-import { pidAlive } from './heavy-lock.mjs';
+import { parseBacklog, parseProgress, parseReadyAll, readyOrEnqueuedPr } from './backlog-items.mjs';
 import { readUpstreamBacklog } from './planner-wake.mjs';
 import { queueQuery } from './lane-merge/constants.mjs';
 import {
@@ -86,7 +93,12 @@ import {
   findGhosts,
   makeQueueDeps,
 } from './merge-runner/queue.mjs';
+import { makeBaseDeps, runningInfo, skipMainWait } from './merge-runner/base-current.mjs';
+import { openLeft } from './merge-runner/open-steps.mjs';
+import { makeRefresh, refreshStep } from './merge-runner/refresh.mjs';
 import { EXIT_RESTART, makeSelfCheck, reexec } from './merge-runner/self-check.mjs';
+import { isRunnerProcess, takeRunnerLock } from './merge-runner/runner-lock.mjs';
+import { makeTrainDeps, makeTrainRun, trainTick } from './merge-runner/train-run.mjs';
 import { announceUnready, isPartOnly, makeUnreadyDeps } from './merge-runner/unready.mjs';
 
 export const REPO = 'Gnuminator/Foundry-VTT-MCP-Ai-Tool';
@@ -106,7 +118,10 @@ export const EXIT_STOPPED = 3;
 const GATE_WAIT_TIMEOUT = 5;
 /** What the gate dependency appends when it had to kill the gate at the time limit. */
 export const KILLED_LINE = 'merge-runner: gate killed at the time limit';
-export const TRAIN_FULL_LINE = 'merge train full: ask a session to run live:roundtrip';
+export const TRAIN_FULL_LINE =
+  'merge train full: the runner queues for the test server and runs live:roundtrip';
+/** `attempts` key prefix of a PR the gate refused for the full merge train. */
+export const TRAIN_KEY = 'train:';
 /** Written into the gate checkout's node_modules after an `npm ci`: the package-lock.json hash. */
 const LOCK_STAMP = path.join('node_modules', '.merge-runner-lock-hash');
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -129,8 +144,7 @@ export { isPartOnly };
 export function readyItems(backlogText) {
   const out = [];
   for (const [id, progress] of parseProgress(backlogText)) {
-    const r = parseReady(progress);
-    if (r) out.push({ id, ...r });
+    for (const r of parseReadyAll(progress)) out.push({ id, ...r });
   }
   return out;
 }
@@ -152,7 +166,7 @@ const TIP_WAIT_KEY = 'main-tip-wait';
  * on main is never cancelled by a newer push, so a cancelled tip run means the tip was not tested.
  * @param {string} json
  * @param {string} [tip]
- * @returns {{ red: boolean, wait: boolean, sha: string, why: string, tipWait?: boolean }}
+ * @returns {{ red: boolean, wait: boolean, sha: string, why: string, tipWait?: boolean, running?: boolean, prevGreen?: boolean }}
  */
 export function mainState(json, tip = '') {
   /** @type {{ conclusion?: string | null, status?: string, headSha?: string, event?: string }[]} */
@@ -190,7 +204,8 @@ export function mainState(json, tip = '') {
   if (!run) return { red: false, wait: true, sha: '', why: 'no CI run on main to judge' };
   const sha = String(run.headSha ?? '').slice(0, 7);
   if (!run.conclusion || (run.status && run.status !== 'completed')) {
-    return { red: false, wait: true, sha, why: `main's CI is still running at ${sha}` };
+    const why = `main's CI is still running at ${sha}`;
+    return { red: false, wait: true, sha, why, ...runningInfo(runs, run, tip) };
   }
   if (run.conclusion === 'success') return { red: false, wait: false, sha, why: '' };
   return { red: true, wait: false, sha, why: `main is red at ${sha} (CI ${run.conclusion})` };
@@ -259,6 +274,7 @@ const norm = p => {
  *   gh: (args: string[]) => Ran,
  *   prepare: (o: { pr: number, head: string }) => string | null,
  *   gate: (pr: number) => Ran,
+ *   refresh?: import('./merge-runner/refresh.mjs').Refresh,
  *   backlog: (args: string[]) => Ran,
  *   post: (text: string) => void,
  *   log: (line: string) => void,
@@ -267,9 +283,11 @@ const norm = p => {
  *   trainRemove?: (pr: number) => void,
  *   trainAdd?: (pr: number, head: string) => void,
  *   selfCheck?: () => import('./merge-runner/self-check.mjs').SelfCheckResult | null,
+ *   baseCurrent?: (r: { pr: number, head: string }, tip: string) => boolean,
  *   unready?: (backlogText: string) => import('./merge-runner/unready.mjs').Unready[],
  *   noticeSeen?: (key: string) => boolean,
  *   noticeMark?: (key: string) => void,
+ *   trainRun?: ReturnType<typeof makeTrainRun>,
  * }} Deps
  * `queueOn`: main's ruleset holds a merge queue (then a running main CI does not hold the next
  * PR back: the queue tests every PR on top of the ones ahead). `ghosts`: stuck checks, see
@@ -280,9 +298,10 @@ const norm = p => {
  * One round over the ready lines. `tried` holds `<PR>@<sha>` already handled in this run, so a
  * failed vault write cannot make the gate run twice on one head.
  * @param {Deps} d @param {Set<string>} tried @param {Map<string, number>} [attempts]
+ * @param {() => { stop?: string }} [tick] the train step, called before each gate while queued
  * @returns {{ stop: string | null, merged: number[] }}
  */
-export function round(d, tried, attempts) {
+export function round(d, tried, attempts, tick) {
   /** @type {number[]} */
   const merged = [];
   const text = d.readBacklog();
@@ -296,6 +315,7 @@ export function round(d, tried, attempts) {
     if (r.status !== 0) {
       d.log(`WARNING: ${what} for ${id} not written (${oneLine(r.stderr || r.stdout, 200)})`);
     }
+    return r.status === 0;
   };
   /**
    * The refusal replaces the ready line only while it is still that same line (`--if-ready`,
@@ -323,23 +343,27 @@ export function round(d, tried, attempts) {
    * @param {string} [sha] main's commit that holds the head, when GitHub has no merge commit for the PR
    */
   const markDone = (r, fromReady = true, sha = '') => {
-    // An item with a Pi run or a Waiting blocker left is not closed here: `done --pi-run` is the
-    // planner's call. It gets a "merged" progress line, which the status Pi list flag picks up.
+    // An item with a Pi run, a Waiting blocker, or a done-when that names a tag, publish, ruleset
+    // change or the user's OK is not closed here: it gets a "merged" progress line instead.
     const item = parseBacklog(d.readBacklog() ?? '').items.find(i => i.id === r.id);
-    const piLeft = item && /^yes\b/i.test(item.fields.get('pi')?.at(-1) ?? '');
-    const waiting = item && (item.fields.get('blocked by') ?? []).some(b => /\bW\d+\b/.test(b));
-    if (piLeft || waiting) {
-      d.log(`#${r.pr} (${r.id}) merged, but a Pi run or Waiting item is left; not closing it`);
-      write(
-        r.id,
-        [
-          'progress',
-          r.id,
-          `PR #${r.pr} merged; the item stays open for its Pi run or Waiting step: close it with done --pi-run (merge runner)`,
-          ...(fromReady ? ['--if-ready', `${r.pr}@${r.head}`] : []),
-        ],
-        'progress'
-      );
+    const left = item ? openLeft(item.fields, r.pr) : '';
+    // Every write names its PR: --if-ready while the ready line is ours, else --pr (M1: a write
+    // without either would wipe another PR's ready or enqueued line).
+    const ifReady = fromReady ? ['--if-ready', `${r.pr}@${r.head}`] : ['--pr', String(r.pr)];
+    // An item with another PR still ready or in the queue stays open (backlog.mjs keeps that
+    // PR's line when the write names this PR with --if-ready).
+    const otherPr = (item?.fields.get('progress') ?? []).some(l => {
+      const n = readyOrEnqueuedPr(l);
+      return n !== null && n !== r.pr;
+    });
+    if (otherPr && !left) {
+      d.log(`#${r.pr} (${r.id}) merged; another PR of the item is still ready, so it stays open`);
+      write(r.id, ['progress', r.id, `part PR #${r.pr} landed on main`, ...ifReady], 'progress');
+      return;
+    }
+    if (left) {
+      d.log(`#${r.pr} (${r.id}) merged, but a step is left; not closing it`);
+      write(r.id, ['progress', r.id, left, ...ifReady], 'progress');
       return;
     }
     // A PR body with `Backlog-part: <id>` is one part of a multi-PR item: it stays claimed and open.
@@ -354,7 +378,6 @@ export function round(d, tried, attempts) {
         /* unreadable: try again, then keep the item open */
       }
     }
-    const ifReady = fromReady ? ['--if-ready', `${r.pr}@${r.head}`] : [];
     if (!info) {
       d.log(`#${r.pr} (${r.id}): could not read the PR body; not closing the item`);
       write(
@@ -458,7 +481,7 @@ export function round(d, tried, attempts) {
       const why = `PR #${q.pr} left the merge queue without merging (a failed queue run, or taken out by hand); fix it, then write a new ready line`;
       d.log(`#${q.pr} (${q.id}): ${why}`);
       d.trainRemove?.(q.pr);
-      write(q.id, ['progress', q.id, why], 'progress');
+      write(q.id, ['progress', q.id, why, '--pr', String(q.pr)], 'progress');
       d.post(`merge runner: #${q.pr} left the merge queue without merging`);
     }
   }
@@ -483,11 +506,21 @@ export function round(d, tried, attempts) {
   let queueOn;
 
   for (const first of ready) {
+    // Queued for the train roundtrip: try server A's lock before each gate (a gate can run for
+    // hours). First, so the line is read after a roundtrip that may have run for hours.
+    const trainStop = tick?.().stop;
+    if (trainStop) return { stop: trainStop, merged };
     // Read the line again: an earlier gate run in this round can take half an hour, and the lane
     // may have written a newer ready line meanwhile. A changed line waits for the next round.
     const fresh = d.readBacklog();
-    const r = fresh === null ? undefined : readyItems(fresh).find(x => x.id === first.id);
-    if (!r || r.pr !== first.pr || r.head !== first.head) continue;
+    const r =
+      fresh === null
+        ? undefined
+        : readyItems(fresh).find(x => x.id === first.id && x.pr === first.pr);
+    if (!r || r.head !== first.head) continue;
+    // A PR the gate turned away for the full merge train waits for the train reset (the runner's
+    // roundtrip clears these keys); the PRs behind it in Backlog order are gated as usual.
+    if (attempts.has(`${TRAIN_KEY}${r.pr}@${r.head}`)) continue;
 
     // Main is read before each PR: an earlier merge in this round may have turned it red.
     const runs = d.gh([
@@ -502,7 +535,7 @@ export function round(d, tried, attempts) {
       '-L',
       '10',
       '--json',
-      'conclusion,headSha,status,event',
+      'conclusion,headSha,status,event,attempt',
     ]);
     const tipRead = d.gh(['api', `repos/${REPO}/git/ref/heads/main`, '--jq', '.object.sha']);
     const tip = tipRead.stdout.trim();
@@ -536,7 +569,8 @@ export function round(d, tried, attempts) {
     // With a merge queue a main CI run still going holds nothing back: the queue tested this PR on
     // top of everything ahead of it. Unreadable CI still waits (the gate reads main again itself).
     queueOn ??= d.queueOn?.() ?? false;
-    if (main.wait && !(queueOn && main.sha !== '')) {
+    const onTip = skipMainWait(d, main, queueOn, r, tip);
+    if (main.wait && !onTip && !(queueOn && main.sha !== '')) {
       d.log(`${main.why}; next round`);
       // A tip with no usable run does not clear itself when GitHub never started its CI: say so once.
       if ('tipWait' in main && main.tipWait) {
@@ -671,9 +705,9 @@ export function round(d, tried, attempts) {
         'progress'
       );
     } else if (out.kind === 'train-full') {
-      d.log(`stopped: ${TRAIN_FULL_LINE} (#${r.pr} waits)`);
-      d.post(`${TRAIN_FULL_LINE} (#${r.pr} waits; start the runner again after the train reset)`);
-      return { stop: 'merge train full', merged };
+      // Not a stop: this PR counts toward the train and waits for the roundtrip; the others go on.
+      attempts.set(`${TRAIN_KEY}${r.pr}@${r.head}`, 1);
+      d.log(`#${r.pr} (${r.id}): ${oneLine(out.reason, 160)}; waits for the train roundtrip`);
     } else if (out.kind === 'main-red') {
       d.log(`stopped: ${oneLine(out.reason, 200)} (#${r.pr} waits)`);
       d.post(
@@ -696,7 +730,13 @@ export function round(d, tried, attempts) {
       );
     } else {
       tried.add(key);
-      refuse(r, out.reason);
+      // Refused only for being behind main: merge main in, push, a ready line for the new head.
+      const fr = refreshStep(d.refresh, r, out.reason, parseProgress(fresh ?? '').get(r.id));
+      if ('refusal' in fr) refuse(r, fr.refusal);
+      else {
+        d.log(fr.log);
+        d.post(write(r.id, fr.args, 'progress') ? fr.post : fr.postFailed);
+      }
     }
   }
   return { stop: null, merged };
@@ -738,7 +778,11 @@ export function prepareCheckout(checkout, r, run = sh) {
   }
   const dirty = git(['status', '--porcelain']);
   if (dirty.status !== 0 || dirty.stdout.trim()) return `${checkout} is not clean`;
-  const fetched = git(['fetch', '-q', 'aitool', 'main', `refs/pull/${r.pr}/head`], 300_000);
+  // pr 0: main's tip itself (the train roundtrip), no PR ref to fetch.
+  const fetched = git(
+    ['fetch', '-q', 'aitool', 'main', ...(r.pr ? [`refs/pull/${r.pr}/head`] : [])],
+    300_000
+  );
   if (fetched.status !== 0) return `git fetch failed (${oneLine(fetched.stderr, 200)})`;
   const co = git(['checkout', '-q', '--detach', r.head]);
   if (co.status !== 0)
@@ -802,81 +846,7 @@ export function mainCopy(checkout, rel, folder) {
 /** The gate's argv after the script path. @param {number} pr @param {string} vault */
 export const gateArgs = (pr, vault) => [String(pr), ...GATE_FLAGS, '--vault', vault];
 
-/**
- * Is `pid` a live merge runner? A logoff leaves the lock behind and Windows reuses pids at the next
- * logon, so a live pid alone is not enough: its command line must name merge-runner.mjs. When the
- * command line cannot be read, the pid counts as a runner (never two runners).
- * @param {number} pid
- */
-export function isRunnerProcess(pid) {
-  if (!pidAlive(pid)) return false;
-  if (process.platform === 'win32') {
-    const r = spawnSync(
-      'powershell.exe',
-      [
-        '-NoProfile',
-        '-NonInteractive',
-        '-Command',
-        `(Get-CimInstance Win32_Process -Filter 'ProcessId=${Number(pid)}').CommandLine`,
-      ],
-      { encoding: 'utf8', timeout: 60_000 }
-    );
-    const line = (r.stdout ?? '').trim();
-    // An unreadable command line (empty answer) counts as a runner: never two runners.
-    if (r.status !== 0 || !line) return true;
-    return /merge-runner\.mjs/.test(line);
-  }
-  try {
-    return fs.readFileSync(`/proc/${pid}/cmdline`, 'utf8').includes('merge-runner.mjs');
-  } catch {
-    return true;
-  }
-}
-
-/**
- * Take the runner lock: `wx` create with our pid. A lock whose holder is not a live runner is taken
- * over.
- * @param {string} file @param {number} [pid] @param {(pid: number) => boolean} [isRunner]
- * @returns {{ ok: true, release: () => void } | { ok: false, holder: number }}
- */
-export function takeRunnerLock(file, pid = process.pid, isRunner = isRunnerProcess) {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  for (let i = 0; i < 2; i++) {
-    try {
-      fs.writeFileSync(file, `${pid}\n`, { flag: 'wx' });
-      // Two starters that read the same stale holder can both have removed it: a later starter's
-      // removal may have deleted this file, so the pid read back must still be ours.
-      if (fs.readFileSync(file, 'utf8').trim() !== String(pid)) return { ok: false, holder: 0 };
-      return {
-        ok: true,
-        release: () => {
-          try {
-            if (fs.readFileSync(file, 'utf8').trim() === String(pid)) fs.unlinkSync(file);
-          } catch {
-            // already gone
-          }
-        },
-      };
-    } catch (e) {
-      if (/** @type {NodeJS.ErrnoException} */ (e).code !== 'EEXIST') throw e;
-      const holder = Number(fs.readFileSync(file, 'utf8').trim());
-      // A lock older than the last boot is stale whatever its pid is now (a killed runner leaves
-      // it behind, and the pid may belong to a service whose command line cannot be read).
-      const bootMs = Date.now() - os.uptime() * 1000;
-      let stale = false;
-      try {
-        stale = fs.statSync(file).mtimeMs < bootMs - 60_000;
-      } catch {
-        // the lock vanished between read and stat; the forced rm below is harmless
-      }
-      if (!stale && Number.isInteger(holder) && holder > 0 && holder !== pid && isRunner(holder)) {
-        return { ok: false, holder };
-      }
-      fs.rmSync(file, { force: true });
-    }
-  }
-  return { ok: false, holder: 0 };
-}
+export { isRunnerProcess, takeRunnerLock };
 
 /**
  * @param {string[]} argv
@@ -918,7 +888,8 @@ const stamp = line => console.log(`merge-runner: ${new Date().toISOString()} ${l
 function realDeps(o) {
   const vaultGit = (/** @type {string[]} */ args) =>
     sh('git', ['-C', o.vault, ...args], { timeout: 60_000 });
-  return {
+  /** @type {Deps} */
+  const deps = {
     readBacklog: () => readUpstreamBacklog(vaultGit, m => stamp(`WARNING: ${m}`)),
     gh: args => sh('gh', args),
     prepare: r => {
@@ -928,6 +899,7 @@ function realDeps(o) {
         return e instanceof Error ? e.message : String(e);
       }
     },
+    refresh: makeRefresh({ checkout: o.checkout, run: sh, repo: REPO, mainRef: MAIN }),
     gate: pr => {
       const copy = mainCopy(o.checkout, 'scripts/lane-merge.mjs', 'scripts/lane-merge');
       if (!copy) return { status: 1, stdout: '', stderr: 'no scripts/lane-merge.mjs on main' };
@@ -966,6 +938,27 @@ function realDeps(o) {
     log: stamp,
     ...makeUnreadyDeps({ sh, repo: REPO, vault: o.vault }),
     ...makeQueueDeps({ sh, stamp, repo: REPO }),
+    ...makeBaseDeps({ sh, repo: REPO }),
+    trainRun: makeTrainRun(
+      makeTrainDeps({
+        sh,
+        stamp,
+        repo: REPO,
+        repoRoot: path.resolve(here, '..'),
+        checkout: o.checkout,
+        vault: o.vault,
+        prepare: r => {
+          try {
+            return prepareCheckout(o.checkout, r);
+          } catch (e) {
+            return e instanceof Error ? e.message : String(e);
+          }
+        },
+        mainCopy,
+        post: t => deps.post(t),
+        trainFile: path.join(os.homedir(), '.foundry-ai-tool', 'merge-train.json'),
+      })
+    ),
     selfCheck:
       makeSelfCheck({
         // backlog.mjs is started as its own process for every Backlog write: its code counts too.
@@ -977,6 +970,7 @@ function realDeps(o) {
         log: m => stamp(m),
       }) ?? undefined,
   };
+  return deps;
 }
 
 /**
@@ -1006,6 +1000,8 @@ export async function main(argv, inject = {}) {
   const sleep = inject.sleep ?? (ms => new Promise(res => setTimeout(res, ms)));
   try {
     d.log(`started (pid ${process.pid}, vault ${o.vault}, gate checkout ${o.checkout})`);
+    // A killed runner's lock, queue place and server A are cleaned up here (M3).
+    if (!o.once) d.trainRun?.start();
     /** @type {Set<string>} */
     const tried = new Set();
     /** @type {Map<string, number>} */
@@ -1020,15 +1016,24 @@ export async function main(argv, inject = {}) {
         );
         return EXIT_STOPPED;
       }
-      const r = round(d, tried, attempts);
+      const run = o.once ? undefined : d.trainRun;
+      const r = round(d, tried, attempts, () => trainTick(run, attempts, TRAIN_KEY, true));
       if (r.stop) {
         d.log(`exiting: ${r.stop}`);
+        return EXIT_STOPPED;
+      }
+      // PRs the gate turned away for the full train: the runner queues for test server A, runs the
+      // roundtrip and resets the train itself (merge-runner/train-run.mjs); the others went on above.
+      const tr = trainTick(run, attempts, TRAIN_KEY);
+      if (tr.stop) {
+        d.log(`exiting: ${tr.stop}`);
         return EXIT_STOPPED;
       }
       if (o.once) return 0;
       await sleep(o.interval * 1000);
     }
   } finally {
+    d.trainRun?.leave();
     lock.release();
   }
 }

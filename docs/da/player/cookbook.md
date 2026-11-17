@@ -1,6 +1,6 @@
 ---
 source: player/cookbook.md
-sourceHash: 02a9bda43f21
+sourceHash: 3cfe0fd79bce
 title: D&D-hjælperens kogebog
 description: Færdige forespørgsler til D&D-hjælperen, samlet efter hvornår du har brug for dem (planlæg en karakter, level op, tjek dit ark, regelspørgsmål), med hvad hjælperen gør og ét tip til hver.
 ---
@@ -135,8 +135,34 @@ Den fortæller dig, hvad du skal klikke på, og du klikker i Foundry. How-tos ti
 - **Tip:** tag spørgsmålet med til GM'en før sessionen, hvis bøgerne ikke afgør det. "Jeg ville
   afgøre det sådan her, er det OK?" er let at spørge om.
 
+## Det, bordet har vist dig
+
+### Kom med på sidste session
+
+- **Skriv:** "Læs det nyeste recap, GM'en har vist mig, op i fem linjer, og list mine åbne quests."
+- **Hvad der sker:** hjælperen læser det nyeste recap og de quests, GM'en har vist dig, og
+  opsummerer dem. Den ser kun det, din egen spillerside viser.
+- **Tip:** er intet vist endnu, siger den det. Bed GM'en om at vise recappet.
+
+### Find en handout eller et brev
+
+- **Skriv:** "Hvad stod der i det brev, jeg fik? Citér stykket om vejen."
+- **Hvad der sker:** den læser de handouts, der er vist til dig, nyeste først, med deres tekst, og
+  finder den, du mener.
+- **Tip:** giv et ord fra titlen. En handout til en anden spiller kan hverken du eller hjælperen se.
+
+### Se, hvordan min karakter har spillet
+
+- **Skriv:** "Hvordan gik det min karakter sidste session? Skade taget, healing, spells castet og
+  mit bedste offentlige slag."
+- **Hvad der sker:** den læser din egen karakters play stats og kampagnens totaler (sessioner,
+  kampe, runder). Kun offentlige slag tæller med.
+- **Tip:** bed om en sammenligning mellem sessioner eller et sjovt faktum til recappet. Tallene er
+  de samme, som dit bords spillervault viser, hvis det har en.
+
 ### Historien? Spørg GM'en
 
-Hjælperen kan ikke se eventyret, monsters, andre spilleres karakterer eller GM'ens noter. Til
-historien, et sted, en NPC eller det, der er planlagt, spørger du GM'en. Mere under
+Hjælperen kan ikke se eventyret, monsters, andre spilleres karakterer eller GM'ens noter. Det, GM'en
+har vist dig (handouts, recappet, quests), kan den læse, som ovenfor. Til resten af historien, et
+sted, en NPC eller det, der er planlagt, spørger du GM'en. Mere under
 [hvad hjælperen ikke kan se](dnd-helper.md#hvad-hjælperen-ikke-kan-se).

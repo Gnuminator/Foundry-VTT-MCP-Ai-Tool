@@ -6,7 +6,7 @@
 
 .DESCRIPTION
   Meant for a scheduled task (for example every hour while the PC is on). For each folder in the
-  sessions folder (FVTT_SESSIONS_DIR, default Documents\FoundrySessions):
+  sessions folder (FVTT_SESSIONS_DIR, default FoundrySessions in FVTT_DATA_DIR, else Documents):
 
   0. Consent gate: a session is skipped, with the reason in notes\status.json, unless every
      speaker in raw\session.json has a recorded yes in <sessions>\consent.json (D-097).
@@ -37,7 +37,8 @@ $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repo = Resolve-Path (Join-Path $here '..\..')
 # FVTT_VOICE_STACK lets a test put its own script in place of voice-stack.ps1.
 $voiceStack = if ($env:FVTT_VOICE_STACK) { $env:FVTT_VOICE_STACK } else { Join-Path $repo 'scripts\voice-stack.ps1' }
-$sessions = if ($env:FVTT_SESSIONS_DIR) { $env:FVTT_SESSIONS_DIR } else { Join-Path $env:USERPROFILE 'Documents\FoundrySessions' }
+. (Join-Path $PSScriptRoot '..\..\scripts\data-folder.ps1')
+$sessions = if ($env:FVTT_SESSIONS_DIR) { $env:FVTT_SESSIONS_DIR } else { Get-DataFolder 'FoundrySessions' }
 if (-not (Test-Path $sessions)) { Write-Host "No sessions folder at $sessions; nothing to do."; exit 0 }
 
 $log = Join-Path $sessions 'auto.log'
@@ -143,6 +144,12 @@ try {
   if ($env:FVTT_PI_HOST) {
     if ($DryRun) { & pwsh -NoProfile -File (Join-Path $here 'pull.ps1') -DryRun | ForEach-Object { Say "  pull: $_" } }
     else { & pwsh -NoProfile -File (Join-Path $here 'pull.ps1') | ForEach-Object { Say "  pull: $_" } }
+  }
+
+  # 0b. Recap inbox (I-132, off unless FVTT_RECAP_INBOX is set): take back notes a cloud routine
+  # wrote, and send new timelines (text only, consent checked) to the private inbox repo.
+  if ($env:FVTT_RECAP_INBOX -and -not $DryRun) {
+    [void](Invoke-Notes @('inbox', 'sync'))
   }
 
   foreach ($dir in Get-ChildItem $sessions -Directory | Where-Object { $_.Name -notlike '.*' } | Sort-Object Name) {

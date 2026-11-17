@@ -11,13 +11,14 @@ import * as path from 'path';
 import { fileURLToPath } from 'url';
 
 import type { ChangeRecord, PathValue } from '@gnuminator/shared';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { changeJournalFileName } from './change-journal-pump.js';
 import { ChangeHistory } from './change-history.js';
 import { localDateKey } from './event-pump.js';
 import type { RecentChange } from './guarded-write/service.js';
 import type { UndoState } from './guarded-write/undo-state.js';
+import { makeLogger } from './test-support/make-tool-harness.js';
 import { VaultStore } from './vault/store.js';
 
 const FIXTURE = path.resolve(
@@ -118,7 +119,7 @@ describe('change summary fixture', () => {
         undoneAt: new Date(NOW - 50 * MIN).toISOString(),
       }),
     ];
-    const logger: any = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
+    const logger = makeLogger();
     logger.child = (): unknown => logger;
     const history = new ChangeHistory({
       store,

@@ -16,7 +16,7 @@ people is still to come. Works through Discord's end-to-end voice encryption (DA
    ```ini
    DISCORD_TOKEN=...
    DISCORD_GUILD_ID=<your server id, so /record shows up at once>
-   # FVTT_SESSIONS_DIR=C:/Users/<you>/Documents/FoundrySessions (the default)
+   # FVTT_SESSIONS_DIR=C:/FoundryData/FoundrySessions (default: FoundrySessions in FVTT_DATA_DIR, else Documents)
    # DISCORD_OWNER_ID=<your Discord user id> (optional: who gets the storage space DMs)
    ```
 
@@ -201,7 +201,7 @@ node packages/discord-bot/dist/cli.js rehearse <folder of per-speaker tracks> [-
   the recorder's own clock, so the result is the real offset, not just a guess.
 
 The run prints PASS or CHECK and writes `rehearsal.json` next to the recording, in
-`FVTT_REHEARSAL_DIR` (default `Documents\FoundryRehearsals`, outside the sessions folder, so the
+`FVTT_REHEARSAL_DIR` (default `FoundryRehearsals` in `FVTT_DATA_DIR`, else `Documents\FoundryRehearsals`; outside the sessions folder, so the
 notes pipeline never picks a rehearsal up). PASS needs every track recorded, an alignment that
 wanders under 40 ms (95th percentile), tracks within 40 ms of each other, under 1 % packet loss
 outside the reconnect gap, and a rejoin after the drop. Needs ffmpeg on PATH.

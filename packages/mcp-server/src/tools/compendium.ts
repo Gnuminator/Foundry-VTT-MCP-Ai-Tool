@@ -65,7 +65,7 @@ export class CompendiumTools {
       {
         name: 'search-compendium',
         description:
-          'Search through compendium packs by name. IMPORTANT LIMITATIONS: (1) Text search only matches entity NAMES - descriptions and traits are NOT searchable. (2) Filters use name heuristics only (not actual system data) and only work on Actor packs - challengeRating and creatureType filters search for keywords like "ancient", "legendary", "humanoid", etc. in entity names. For accurate filtering by level/CR, traits, or rarity, use list-creatures-by-criteria (Build) instead. For best results, use broad name-based searches (e.g., "dragon", "knight") and inspect individual items with get-compendium-item.',
+          'Search through compendium packs by name. IMPORTANT LIMITATIONS: (1) Text search only matches entity NAMES - descriptions and traits are NOT searchable. (2) Filters use name heuristics only (not actual system data) and only work on Actor packs - challengeRating and creatureType filters search for keywords like "ancient", "legendary", "humanoid", etc. in entity names. For accurate filtering by level/CR, traits, or rarity, use list-creatures-by-criteria instead. For best results, use broad name-based searches (e.g., "dragon", "knight") and inspect individual items with get-compendium-item.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -81,7 +81,7 @@ export class CompendiumTools {
             filters: {
               type: 'object',
               description:
-                'LIMITED FUNCTIONALITY: Only works on Actor packs using name-based heuristics. challengeRating searches for keywords like "ancient" (CR 15+), "adult" (CR 10+), "captain" (CR 5+). creatureType searches for type keywords in names. Does NOT check actual system data. For accurate filtering, use list-creatures-by-criteria (Build) instead.',
+                'LIMITED FUNCTIONALITY: Only works on Actor packs using name-based heuristics. challengeRating searches for keywords like "ancient" (CR 15+), "adult" (CR 10+), "captain" (CR 5+). creatureType searches for type keywords in names. Does NOT check actual system data. For accurate filtering, use list-creatures-by-criteria instead.',
               properties: {
                 challengeRating: {
                   oneOf: [
@@ -183,7 +183,7 @@ export class CompendiumTools {
       {
         name: 'get-compendium-item',
         description:
-          'Use this to read one item, spell or creature; for a full stat block to build an NPC from, use get-compendium-entry-full (Build). Compact mode is lighter.',
+          'Use this to read one item, spell, creature or other compendium entry: the full stat block with items, effects and spells by default, or a lighter one with compact.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -210,7 +210,7 @@ export class CompendiumTools {
       {
         name: 'list-creatures-by-criteria',
         description:
-          'List creatures by Challenge Rating, type, size, spellcasting or legendary actions (D&D 5e). Returns minimal data for encounter building: pick by name, then pull full details only for the final choices with get-compendium-entry-full.',
+          'List creatures by Challenge Rating, type, size, spellcasting or legendary actions (D&D 5e). Returns minimal data for encounter building: pick by name, then pull full details only for the final choices with get-compendium-item.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -266,10 +266,10 @@ export class CompendiumTools {
             limit: {
               type: 'number',
               description:
-                'Maximum results to return (default: 500 for comprehensive surveys, max: 1000)',
+                'Maximum results to return (default 50, max 1000; raise it for a wide survey)',
               minimum: 1,
               maximum: 1000,
-              default: 500,
+              default: 50,
             },
           },
           required: [],
@@ -547,7 +547,7 @@ export class CompendiumTools {
             .transform(val => parseInt(val, 10)),
         ])
         .optional()
-        .default(100),
+        .default(50),
     });
 
     let params;
@@ -557,7 +557,7 @@ export class CompendiumTools {
     } catch (parseError) {
       this.logger.error('Failed to parse creature criteria parameters', { args, parseError });
       if (parseError instanceof z.ZodError) {
-        const errorDetails = parseError.errors
+        const errorDetails = parseError.issues
           .map(err => `${err.path.join('.')}: ${err.message}`)
           .join('; ');
         throw new Error(`Parameter validation failed: ${errorDetails}`, { cause: parseError });

@@ -27,7 +27,7 @@ function req(
   return { headers, query };
 }
 
-describe('resolveRole — single-user mode', () => {
+describe('resolveRole: single-user mode', () => {
   it('returns gm for everyone when the split is disabled', () => {
     const auth = authConfig({ splitEnabled: false, gmToken: '', gmEmails: [] });
     expect(resolveRole(req(), auth)).toBe('gm');
@@ -35,7 +35,7 @@ describe('resolveRole — single-user mode', () => {
   });
 });
 
-describe('resolveRole — GM token', () => {
+describe('resolveRole: GM token', () => {
   it('grants gm for the token in a header', () => {
     expect(resolveRole(req({ 'x-cogm-token': 'gm-secret' }), authConfig())).toBe('gm');
   });
@@ -57,7 +57,7 @@ describe('resolveRole — GM token', () => {
   });
 });
 
-describe('resolveRole — player token required', () => {
+describe('resolveRole: player token required', () => {
   const auth = authConfig({ playerToken: 'player-secret' });
 
   it('grants player for the correct player token', () => {
@@ -74,7 +74,7 @@ describe('resolveRole — player token required', () => {
   });
 });
 
-describe('resolveRole — Cloudflare Access email (I-022)', () => {
+describe('resolveRole: Cloudflare Access email (I-022)', () => {
   const access = { teamDomain: 'team.cloudflareaccess.com', audiences: ['aud-1'] };
   const auth = authConfig({ gmToken: '', gmEmails: ['gm@example.com'], access });
   const withEmail = (email: string): AuthRequest => ({

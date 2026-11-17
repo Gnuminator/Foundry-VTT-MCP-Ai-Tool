@@ -55,6 +55,7 @@ const shortShape = v => {
   } catch {}
 
   const KNOWN = {
+    actor: 'Silvera Frostmantle',
     identifier: 'Silvera Frostmantle',
     characterIdentifier: 'Silvera Frostmantle',
     characterName: 'Silvera Frostmantle',

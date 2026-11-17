@@ -182,6 +182,21 @@ export class LivePlayTools {
             amount: { type: 'integer', description: 'damage, healing, temp-hp: the amount.' },
             damageType: {
               type: 'string',
+              enum: [
+                'acid',
+                'bludgeoning',
+                'cold',
+                'fire',
+                'force',
+                'lightning',
+                'necrotic',
+                'piercing',
+                'poison',
+                'psychic',
+                'radiant',
+                'slashing',
+                'thunder',
+              ],
               description:
                 'damage: acid, bludgeoning, cold, fire, force, lightning, necrotic, piercing, poison, psychic, radiant, slashing or thunder. Omit for untyped.',
             },

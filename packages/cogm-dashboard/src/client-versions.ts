@@ -7,6 +7,7 @@
 import type { NextFunction, Express, Request, Response } from 'express';
 import {
   CLIENT_HEADER,
+  INSTALL_HEADER,
   CLIENT_NOTICE_INTERVAL_MS,
   TOOL_VERSION,
   clientDownloadUrl,
@@ -106,13 +107,25 @@ export class ClientRegistry {
 export function obsidianClientRecorder(
   registry: ClientRegistry,
   isGmRequest: (req: Request) => boolean,
-  now: () => number = Date.now
+  now: () => number = Date.now,
+  /** Hands the sighting to the bridge's client file (D-146); best effort. */
+  forward?: (entry: Record<string, unknown>) => void
 ): (req: Request, res: Response, next: NextFunction) => void {
   return (req, _res, next) => {
     try {
       const raw = req.headers[CLIENT_HEADER];
       const parsed = parseClientHeader(Array.isArray(raw) ? raw[0] : raw);
-      if (parsed && isGmRequest(req)) registry.record('obsidian', 'GM', parsed.version, now());
+      if (parsed && isGmRequest(req)) {
+        registry.record('obsidian', 'GM', parsed.version, now());
+        const rawInstall = req.headers[INSTALL_HEADER];
+        const install = Array.isArray(rawInstall) ? rawInstall[0] : rawInstall;
+        forward?.({
+          piece: 'obsidian',
+          who: 'gm',
+          install: typeof install === 'string' && /^[0-9a-f]{12}$/.test(install) ? install : '',
+          version: parsed.version,
+        });
+      }
     } catch {
       // Recording is best effort.
     }

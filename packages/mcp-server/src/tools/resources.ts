@@ -31,26 +31,25 @@ export class ResourceTools {
         inputSchema: {
           type: 'object',
           properties: {
-            identifier: {
+            actor: {
               type: 'string',
               description: 'Character name or actor ID.',
               ...toolRef('actor', 'id', { filter: AT_THE_TABLE }),
             },
           },
-          required: ['identifier'],
+          required: ['actor'],
         },
       },
     ];
   }
 
   async handleGetCharacterResources(args: unknown): Promise<ResourcesReply | undefined> {
-    const schema = z.object({ identifier: z.string() });
+    const schema = z.object({ actor: z.string() });
     try {
       const params = schema.parse(args ?? {});
-      const response = (await this.foundryClient.query(
-        'foundry-mcp-bridge.getCharacterResources',
-        params
-      )) as ResourcesReply | undefined;
+      const response = (await this.foundryClient.query('foundry-mcp-bridge.getCharacterResources', {
+        identifier: params.actor,
+      })) as ResourcesReply | undefined;
       if (response?.success === false) {
         throw new Error(response.error || 'Failed to get character resources');
       }

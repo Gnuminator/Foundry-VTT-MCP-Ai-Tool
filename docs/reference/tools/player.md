@@ -6,7 +6,7 @@ description: Every tool in the Player set with its description and parameters. G
 
 # Player tools
 
-A player's own read-only view: their character sheet, what their next level grants, and short passages from the books their Foundry user can see. Served only on /mcp/player, never on stdio. Part of the [tool reference](../tools.md); [Tool sets](../TOOL-SETS.md) explains how Claude Desktop loads the sets. Claude Desktop entry: none (served on /mcp/player only).
+A player's own read-only view: their character sheet, what their next level grants, short passages from the books their Foundry user can see, their revealed handouts, recap and quests, and their play stats. Served only on /mcp/player, never on stdio. Part of the [tool reference](../tools.md); [Tool sets](../TOOL-SETS.md) explains how Claude Desktop loads the sets. Claude Desktop entry: none (served on /mcp/player only).
 
 ## get-my-character
 
@@ -62,6 +62,25 @@ Parameters:
 
 - `packId` (string, required)
 - `entryId` (string, required)
+
+## get-my-handouts
+
+Handouts the GM revealed to you, newest first, with text. kind: recap (last session), quest or handout.
+
+Kind: read-only. Title: Get my handouts.
+
+Parameters:
+
+- `kind` (string): One of: `recap`, `quest`, `handout`.
+- `limit` (integer): 1 to 10 (default 5).
+
+## get-my-play-stats
+
+Play stats of your own characters (damage, healing, rolls, spells, XP) and campaign totals.
+
+Kind: read-only. Title: Get my play stats.
+
+No parameters.
 
 ## get-player-skill-guide
 

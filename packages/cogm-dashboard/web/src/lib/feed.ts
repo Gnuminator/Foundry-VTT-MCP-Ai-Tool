@@ -7,6 +7,8 @@
 // cannot put old events on top), "1 event" is singular, the class an event gets is made safe, a
 // feed shown while the bridge is away says so, and a screen reader hears new events.
 
+import { isRecord } from '../../../../../shared/src/util/record.js';
+
 /** One session event as the live feed shows it: what to print and what sorts it. */
 export interface FeedEvent {
   id: string;
@@ -55,9 +57,6 @@ export const MAX_FEED_ENTRIES = 120;
 export const MAX_SEEN_IDS = 1000;
 
 export const EMPTY_FEED: FeedLog = { entries: [], total: 0, seen: new Set() };
-
-const isRecord = (v: unknown): v is Record<string, unknown> =>
-  typeof v === 'object' && v !== null && !Array.isArray(v);
 
 /** The line for an event: a roll's full breakdown for the GM, else the event's description. */
 function lineOf(description: string, details: unknown): string {

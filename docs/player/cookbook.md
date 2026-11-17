@@ -130,8 +130,36 @@ to click, and you click in Foundry. The how-tos for the player page are in
 - **Tip:** bring the question to the GM before the session if the books do not settle it. "I would
   rule it like this, is that OK?" is an easy thing to ask.
 
+## What the table has shown you
+
+### Catch up on the last session
+
+- **Type:** "Read me the latest recap the GM revealed to me, in five lines, and list my open
+  quests."
+- **What happens:** the helper reads the newest recap and the quests the GM has revealed to you and
+  sums them up. It sees only what your own player page shows.
+- **Tip:** if nothing has been revealed yet, it says so. Ask the GM to reveal the recap.
+
+### Find a handout or a letter
+
+- **Type:** "What did the letter I got say? Quote the part about the road."
+- **What happens:** it reads the handouts revealed to you, newest first, with their text, and finds
+  the one you mean.
+- **Tip:** give a word from the title. A handout meant for another player is not visible to you or
+  the helper.
+
+### Review how my character has played
+
+- **Type:** "How did my character do last session? Damage taken, healing, spells cast and my best
+  public roll."
+- **What happens:** it reads your own character's play stats and campaign totals (sessions,
+  combats, rounds). It counts public rolls only.
+- **Tip:** ask for a comparison between sessions or a fun fact for the recap. The numbers are the
+  same ones your table's player vault shows, if it has one.
+
 ### The story? Ask the GM
 
-The helper cannot see the adventure, monsters, other players' characters or the GM's notes. For the
+The helper cannot see the adventure, monsters, other players' characters or the GM's notes. What
+the GM has revealed to you (handouts, the recap, quests) it can read, as above. For the rest of the
 story, a location, an NPC or what is planned, ask the GM. More in
 [what the helper cannot see](dnd-helper.md#what-the-helper-cannot-see).

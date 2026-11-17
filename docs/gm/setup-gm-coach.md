@@ -45,6 +45,18 @@ says it is using the GM coach pages.
 - **It describes a button you cannot find:** the zip is older than the feature. Ask the person who
   built the tool for a fresh zip, remove the old skill and upload the new one.
 
+## Optional: the D&D helper skill
+
+The D&D helper builds characters, advises level-ups and answers rules questions from the books in
+Foundry. It only reads; you change the game by clicking in Foundry. It works through the same
+Foundry connector as the coach.
+
+- **Pro and Max (plugin):** in the same marketplace, `Gnuminator/foundry-ai-tool-plugins`, install
+  **foundry-dnd-helper** next to the coach. Start a new chat. Later changes reach new chats by
+  themselves.
+- **Free plan (zip):** under **Customize**, then **Skills**, add a skill and upload
+  `foundry-dnd-helper.zip` from the person who built the tool. Do not unpack it first.
+
 ## Fallback: a Claude Project
 
 A Project loads all its files into every message, so on the free plan it uses your limit faster.

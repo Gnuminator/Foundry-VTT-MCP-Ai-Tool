@@ -34,7 +34,7 @@ export class DiceRollTools {
       {
         name: 'request-player-rolls',
         description:
-          'Direct write. Request dice rolls from players: posts roll buttons in Foundry chat that players click. Ask the user first whether the roll is public (everyone sees it) or private (player and GM only) unless they already said. Finds the player from the character; falls back to the GM.',
+          'Direct write. The one tool to ask a player to roll: ability check, skill, save, attack, initiative or custom formula. Posts a roll button in Foundry chat (DC shown when given; for an attack put the weapon or spell name in rollTarget). Public by default; pass isPublic false only when the user asks for a private roll. Finds the player from the character; falls back to the GM.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -50,7 +50,7 @@ export class DiceRollTools {
                 'An ability (str, dex, con, int, wis, cha), a skill (perception, stealth, ...) or a custom roll formula',
               ...toolRef(['ability', 'skill'], 'id'),
             },
-            targetPlayer: {
+            actor: {
               type: 'string',
               description: 'Player name or character name to request the roll from',
               ...toolRef(['user', 'actor'], 'name', {
@@ -59,13 +59,9 @@ export class DiceRollTools {
             },
             isPublic: {
               type: 'boolean',
-              description: 'true: everyone sees the roll. false: only the target player and GM.',
-            },
-            userConfirmedVisibility: {
-              type: 'boolean',
-              const: true,
+              default: true,
               description:
-                'Must be true. Set it only when the user said "public" or "private" or answered your question about it.',
+                'Default true: everyone sees the roll. false only when asked: just the target player and GM.',
             },
             rollModifier: {
               type: 'string',
@@ -78,26 +74,20 @@ export class DiceRollTools {
               default: '',
             },
             // No description: the play tool set is at its size budget; the name says it.
-            dc: { type: 'integer' },
+            dc: { type: 'integer', minimum: 1, maximum: 99 },
             advantage: advantageChoice,
           },
-          required: [
-            'rollType',
-            'rollTarget',
-            'targetPlayer',
-            'isPublic',
-            'userConfirmedVisibility',
-          ],
+          required: ['rollType', 'rollTarget', 'actor'],
         },
       },
       {
         name: 'request-ability-check',
         description:
-          'Direct write. Request an ability check from a player, posting a clickable roll button to their chat. Shows the DC when provided. Use for checks like "Perception check to notice the ambush".',
+          'Direct write. Old name: use request-player-rolls with rollType ability. Requests an ability check from a player (clickable roll button, DC shown when given).',
         inputSchema: {
           type: 'object',
           properties: {
-            targetPlayer: {
+            actor: {
               type: 'string',
               description: 'Player name or character name to request the roll from.',
               ...toolRef(['user', 'actor'], 'name', {
@@ -111,12 +101,15 @@ export class DiceRollTools {
             },
             dc: {
               type: 'integer',
+              minimum: 1,
+              maximum: 99,
               description: 'Optional difficulty class to display with the request.',
             },
             isPublic: {
               type: 'boolean',
+              default: true,
               description:
-                'Whether the roll is public (visible to all) or private (target player + GM only).',
+                'Default true: visible to all. false only when asked: target player + GM only.',
             },
             reason: {
               type: 'string',
@@ -124,17 +117,17 @@ export class DiceRollTools {
             },
             advantage: advantageChoice,
           },
-          required: ['targetPlayer', 'ability', 'isPublic'],
+          required: ['actor', 'ability'],
         },
       },
       {
         name: 'request-attack-roll',
         description:
-          'Direct write. Request an attack roll for a specific weapon or spell from a player, posting a clickable roll button to their chat.',
+          'Direct write. Old name: use request-player-rolls with rollType attack. Requests an attack roll for a weapon or spell from a player (clickable roll button).',
         inputSchema: {
           type: 'object',
           properties: {
-            targetPlayer: {
+            actor: {
               type: 'string',
               description: 'Player name or character name to request the roll from.',
               ...toolRef(['user', 'actor'], 'name', {
@@ -150,12 +143,13 @@ export class DiceRollTools {
             },
             isPublic: {
               type: 'boolean',
+              default: true,
               description:
-                'Whether the roll is public (visible to all) or private (target player + GM only).',
+                'Default true: visible to all. false only when asked: target player + GM only.',
             },
             advantage: advantageChoice,
           },
-          required: ['targetPlayer', 'weaponOrSpellName', 'isPublic'],
+          required: ['actor', 'weaponOrSpellName'],
         },
       },
       {
@@ -165,7 +159,7 @@ export class DiceRollTools {
         inputSchema: {
           type: 'object',
           properties: {
-            actorName: {
+            actor: {
               type: 'string',
               description: 'NPC actor name or ID.',
               ...toolRef('actor', 'id', { filter: { types: ['npc'] } }),
@@ -187,7 +181,7 @@ export class DiceRollTools {
             },
             advantage: advantageChoice,
           },
-          required: ['actorName', 'rollType', 'rollTarget', 'isPublic'],
+          required: ['actor', 'rollType', 'rollTarget', 'isPublic'],
         },
       },
     ];
@@ -197,66 +191,50 @@ export class DiceRollTools {
     args: unknown
   ): Promise<string | DiceRollBridgeReply | undefined> {
     const schema = z.object({
-      targetPlayer: z.string(),
+      actor: z.string(),
       ability: z.enum(['str', 'dex', 'con', 'int', 'wis', 'cha']),
-      dc: z.number().int().optional(),
-      isPublic: z.boolean(),
+      dc: z.number().int().min(1).max(99).optional(),
+      isPublic: z.boolean().default(true),
       reason: z.string().optional(),
       advantage: z.enum(['advantage', 'disadvantage']).optional(),
     });
-    try {
-      const params = schema.parse(args);
-      const response = (await this.foundryClient.query(
-        'foundry-mcp-bridge.requestAbilityCheck',
-        params
-      )) as DiceRollBridgeReply | undefined;
-      if (response?.success) {
-        return `Ability check requested. ${response.message}`;
-      }
-      throw new Error(response?.error || 'Failed to request ability check');
-    } catch (error: unknown) {
-      this.logger.error('Error requesting ability check', error);
-      if (error instanceof z.ZodError) {
-        return `Parameter error: ${error.errors.map(e => e.message).join(', ')}`;
-      }
-      throw error;
+    // Alias for one release: maps onto request-player-rolls.
+    const parsed = schema.safeParse(args);
+    if (!parsed.success) {
+      return `Parameter error: ${parsed.error.issues.map(e => e.message).join(', ')}`;
     }
+    const { ability, reason, ...rest } = parsed.data;
+    return this.handleRequestPlayerRolls({
+      ...rest,
+      rollType: 'ability',
+      rollTarget: ability,
+      flavor: reason ?? '',
+    });
   }
 
   async handleRequestAttackRoll(args: unknown): Promise<string | DiceRollBridgeReply | undefined> {
     const schema = z.object({
-      targetPlayer: z.string(),
+      actor: z.string(),
       weaponOrSpellName: z.string(),
-      isPublic: z.boolean(),
+      isPublic: z.boolean().default(true),
       advantage: z.enum(['advantage', 'disadvantage']).optional(),
     });
-    try {
-      const params = schema.parse(args);
-      const check = await this.rulesCheck?.tryCheck({
-        actor: params.targetPlayer,
-        item: params.weaponOrSpellName,
-      });
-      const response = (await this.foundryClient.query(
-        'foundry-mcp-bridge.requestAttackRoll',
-        params
-      )) as DiceRollBridgeReply | undefined;
-      if (response?.success) {
-        const note = check && check.verdict !== 'legal' ? ` Rules check: ${check.summary}` : '';
-        return `Attack roll requested. ${response.message}${note}`;
-      }
-      throw new Error(response?.error || 'Failed to request attack roll');
-    } catch (error: unknown) {
-      this.logger.error('Error requesting attack roll', error);
-      if (error instanceof z.ZodError) {
-        return `Parameter error: ${error.errors.map(e => e.message).join(', ')}`;
-      }
-      throw error;
+    // Alias for one release: maps onto request-player-rolls.
+    const parsed = schema.safeParse(args);
+    if (!parsed.success) {
+      return `Parameter error: ${parsed.error.issues.map(e => e.message).join(', ')}`;
     }
+    const { weaponOrSpellName, ...rest } = parsed.data;
+    return this.handleRequestPlayerRolls({
+      ...rest,
+      rollType: 'attack',
+      rollTarget: weaponOrSpellName,
+    });
   }
 
   async handleRollNpcCheck(args: unknown): Promise<string | DiceRollBridgeReply | undefined> {
     const schema = z.object({
-      actorName: z.string(),
+      actor: z.string(),
       rollType: z.enum(['ability', 'save', 'skill', 'attack']),
       rollTarget: z.string(),
       isPublic: z.boolean(),
@@ -264,10 +242,11 @@ export class DiceRollTools {
     });
     try {
       const params = schema.parse(args);
-      const response = (await this.foundryClient.query(
-        'foundry-mcp-bridge.rollNpcCheck',
-        params
-      )) as DiceRollBridgeReply | undefined;
+      const { actor, ...rest } = params;
+      const response = (await this.foundryClient.query('foundry-mcp-bridge.rollNpcCheck', {
+        actorName: actor,
+        ...rest,
+      })) as DiceRollBridgeReply | undefined;
       if (response?.success === false) {
         throw new Error(response.error || 'Failed to roll NPC check');
       }
@@ -275,7 +254,7 @@ export class DiceRollTools {
     } catch (error: unknown) {
       this.logger.error('Error rolling NPC check', error);
       if (error instanceof z.ZodError) {
-        return `Parameter error: ${error.errors.map(e => e.message).join(', ')}`;
+        return `Parameter error: ${error.issues.map(e => e.message).join(', ')}`;
       }
       throw error;
     }
@@ -285,9 +264,9 @@ export class DiceRollTools {
     const schema = z.object({
       rollType: z.enum(['ability', 'skill', 'save', 'attack', 'initiative', 'custom']),
       rollTarget: z.string(),
-      targetPlayer: z.string(),
-      isPublic: z.boolean(),
-      userConfirmedVisibility: z.literal(true),
+      actor: z.string(),
+      isPublic: z.boolean().default(true),
+      // An old client may still send userConfirmedVisibility: zod drops it (removed from the schema).
       rollModifier: z.string().default(''),
       flavor: z.string().default(''),
       dc: z.number().int().min(1).max(99).optional(),
@@ -297,39 +276,40 @@ export class DiceRollTools {
     try {
       const params = schema.parse(args);
 
-      // Validation should be handled by schema, but add extra safety checks
-      if (typeof params.isPublic !== 'boolean') {
-        return 'Please specify whether you want this to be a PUBLIC roll (visible to all players) or PRIVATE roll (visible only to the target player and GM). You must provide either "true" for public or "false" for private.';
-      }
+      const isAttack = params.rollType === 'attack';
+      const check = isAttack
+        ? await this.rulesCheck?.tryCheck({ actor: params.actor, item: params.rollTarget })
+        : undefined;
+      // An attack with no flavor gets the card text the old request-attack-roll gave.
+      const baseFlavor = params.flavor || (isAttack ? `${params.rollTarget} attack` : '');
 
-      if (params.userConfirmedVisibility !== true) {
-        return 'You must determine the roll visibility before calling this function. Either: 1) The user already specified "public" or "private" in their request, or 2) You need to ask: "Do you want this to be a PUBLIC roll or PRIVATE roll?" Set userConfirmedVisibility to true only when you are confident about the visibility preference.';
-      }
-
-      // The module keeps the DC off the card unless it is in the flavor (request-ability-check does
-      // the same fold); the dashboard already sends "DC n", so only add it when it is missing.
+      // The module keeps the DC off the card unless it is in the flavor; the dashboard already
+      // sends "DC n", so only add it when it is missing.
       const dcText = params.dc === undefined ? '' : `DC ${params.dc}`;
-      const flavor =
-        dcText === '' || new RegExp(`\\b${dcText}\\b`).test(params.flavor)
-          ? params.flavor
-          : [params.flavor, dcText].filter(Boolean).join(', ');
+      const cardFlavor =
+        dcText === '' || new RegExp(`\\b${dcText}\\b`).test(baseFlavor)
+          ? baseFlavor
+          : [baseFlavor, dcText].filter(Boolean).join(', ');
 
+      const { actor, ...rest } = params;
       const response = (await this.foundryClient.query('foundry-mcp-bridge.request-player-rolls', {
-        ...params,
-        flavor,
+        ...rest,
+        targetPlayer: actor,
+        flavor: cardFlavor,
       })) as DiceRollBridgeReply;
 
       if (response.success) {
-        return `Roll request sent successfully! ${response.message}`;
+        const note = check && check.verdict !== 'legal' ? ` Rules check: ${check.summary}` : '';
+        return `Roll request sent successfully! ${response.message}${note}`;
       } else {
         throw new Error(response.error || 'Failed to request player rolls');
       }
     } catch (error: unknown) {
       this.logger.error('Error requesting player rolls', error);
       if (error instanceof z.ZodError) {
-        const messages = error.errors.map(e => {
+        const messages = error.issues.map(e => {
           if (e.path.includes('isPublic')) {
-            return 'You must specify whether the roll should be PUBLIC (visible to all players) or PRIVATE (visible only to target player and GM). Check if the user already specified this in their request, or ask them to clarify.';
+            return 'isPublic must be true or false (default true).';
           }
           return e.message;
         });

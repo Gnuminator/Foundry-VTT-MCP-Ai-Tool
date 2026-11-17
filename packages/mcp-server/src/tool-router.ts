@@ -7,6 +7,7 @@
  * `capToolResult`, and so loads the tool modules (not their instances) through tool-hints.ts.
  */
 import { type ToolAnnotations, withToolHints } from './tool-hints.js';
+import { RENAMED_TOOLS, actorToolNames, applyParamAliases } from './param-aliases.js';
 import { type ToolInstances, instanceOf } from './tools/tool-module.js';
 
 /** The built tool instances the router dispatches to (tools/index.ts `createTools`). */
@@ -38,16 +39,37 @@ export type ToolHandler = (args: unknown, context?: ToolCallContext) => Promise<
  */
 export function buildToolRouter(deps: ToolRouterDeps): Record<string, ToolHandler> {
   const routes = Object.create(null) as Record<string, ToolHandler>;
+  const actorTools = actorToolNames(
+    deps.modules.flatMap(module => module.definitions(instanceOf(deps, module)))
+  );
   for (const module of deps.modules) {
     const tools = instanceOf(deps, module);
     for (const [name, route] of Object.entries(module.routes)) {
       if (Object.hasOwn(routes, name)) {
         throw new Error(`Tool route "${name}" is claimed twice (module ${module.id})`);
       }
-      routes[name] = (args, context): Promise<unknown> => route(tools, args, context);
+      routes[name] = (args, context): Promise<unknown> =>
+        route(tools, applyParamAliases(name, args, actorTools), context);
     }
   }
+  for (const [old, { to, params }] of Object.entries(RENAMED_TOOLS)) {
+    const target = routes[to];
+    if (!target || Object.hasOwn(routes, old)) continue;
+    routes[old] = (args, context): Promise<unknown> => target(applyRenames(args, params), context);
+  }
   return routes;
+}
+
+function applyRenames(args: unknown, params: Readonly<Record<string, string>>): unknown {
+  if (args === null || typeof args !== 'object' || Array.isArray(args)) return args;
+  const input = args as Record<string, unknown>;
+  const out: Record<string, unknown> = { ...input };
+  for (const [old, current] of Object.entries(params)) {
+    if (!Object.hasOwn(input, old)) continue;
+    if (!Object.hasOwn(out, current)) out[current] = input[old];
+    delete out[old];
+  }
+  return out;
 }
 
 /** A tool as the backend lists it (MCP `tools/list` shape). */
@@ -90,6 +112,7 @@ const NARROWING_PARAMS = [
   'since',
   'sinceTimestamp',
   'eventType',
+  'actor',
   'actorName',
   'session',
   'filter',

@@ -58,8 +58,11 @@ use ports 7880 to 7882.
 
 ## Where files go
 
-All on the host, outside the repo, in `FVTT_SESSIONS_DIR` (default
-`%USERPROFILE%\Documents\FoundrySessions`). One subfolder per session:
+All on the host, outside the repo, in `FVTT_SESSIONS_DIR` (default `FoundrySessions` inside the
+data folder `FVTT_DATA_DIR`, else `%USERPROFILE%\Documents\FoundrySessions`). `FVTT_DATA_DIR` is an
+absolute path; set it as a Windows user environment variable so every tool sees it. The stack
+reads the sessions folder from its `.env` file (written once), so after moving the folder edit
+`FVTT_SESSIONS_DIR` there too. One subfolder per session:
 
 ```text
 FoundrySessions/
@@ -90,7 +93,7 @@ so the token is never copied into an image or printed. Without the setting an em
 ## Other models (hviske-v6, saga-2-m)
 
 Set `TRANSCRIBER_EXTRAS=1` and `TRANSCRIBER_TAG=extras` in `.env`, run `up transcribe` (adds torch
-2.11.0 for CUDA 12.8 and transformers, several GB), and pass a model folder or Hugging Face id with
+2.14.1 for CUDA 13.0 and transformers, several GB), and pass a model folder or Hugging Face id with
 `-Model`. A model folder on the host must be mounted into the container; for now run the job by hand:
 
 ```powershell
@@ -152,7 +155,7 @@ and warns when more than 6 GB is already in use. The LiveKit services do not use
 | ---------------------------- | -------------------------------------------------------------------------------- |
 | Transcriber base image       | `nvidia/cuda:12.8.1-cudnn-runtime-ubuntu24.04` (CUDA 12.8, cuDNN 9, Python 3.12) |
 | faster-whisper / CTranslate2 | 1.2.1 / 4.8.2 (Blackwell, sm_120, runs on the RTX 5080)                          |
-| Extras (optional)            | torch 2.11.0 (cu128), transformers 4.57.6                                        |
+| Extras (optional)            | torch 2.14.1 (cu130), transformers 5.23.0                                        |
 | Pipeline base image          | `python:3.12-slim`                                                               |
 
 ## What stays on the host

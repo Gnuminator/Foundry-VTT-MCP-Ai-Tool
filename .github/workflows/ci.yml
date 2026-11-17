@@ -175,17 +175,16 @@ jobs:
     # UI-01: page shots of the React dashboard and player pages (every moment and drawer, three
     # widths, neutral theme) are rendered and uploaded as the artifact dashboard-page-shots-N, not
     # compared (nothing is committed for them), plus an axe accessibility check (both themes), and
-    # (UI-03) a compared shot and an axe check of every Storybook story, under
-    # web/visual/__screenshots__/stories. The story baselines are Linux-only, made in this same
+    # (UI-03) an axe check of every Storybook story and a two-sided render of the stories (base
+    # against head, the step below, reported by dashboard-visual-diff). No screenshot is
+    # committed. The renders are Linux-only, made in this same
     # Playwright image (the image tag must be the installed @playwright/test version; the first
     # step checks it). It runs as 4 parallel shards (--shard=i/4; fullyParallel splits the tests
-    # evenly by count; about 835 shots took 14 minutes in one job, the shards about 5). The summary
+    # evenly by count). The summary
     # job below keeps one check under the old name `dashboard-visual (screenshots)` for people and
-    # the lane skill; the gate judges every check, shards included. Not a required check in the ruleset, but a diff fails the job (no
-    # continue-on-error) and the merge gate (scripts/lane-merge.mjs) refuses any check that is not
-    # green, so a red dashboard-visual blocks the merge. The report with the diff images is kept as an artifact. Refresh the
-    # baselines with `npm run test:visual:update -w @gnuminator/cogm-dashboard` (Docker; see the
-    # dashboard README).
+    # the lane skill; the gate judges every check, shards included. Not a required check in the ruleset, but a failed axe
+    # check fails the job (no continue-on-error) and the merge gate (scripts/lane-merge.mjs) refuses
+    # any check that is not green.
     needs: visual-changes
     if: needs.visual-changes.outputs.run == 'true'
     runs-on: ubuntu-latest
@@ -201,6 +200,9 @@ jobs:
       HOME: /root
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # The second commit is the base of the two-sided story render (HEAD^1 of the merge commit).
+          fetch-depth: 2
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
@@ -219,7 +221,7 @@ jobs:
           installed=$(node -p "require('@playwright/test/package.json').version")
           image="1.64.0"
           if [ "$installed" != "$image" ]; then
-            echo "Installed @playwright/test is $installed but the job image is v$image-noble. Update the image tag in .github/workflows/ci.yml (and rebuild the baselines)."
+            echo "Installed @playwright/test is $installed but the job image is v$image-noble. Update the image tag in .github/workflows/ci.yml."
             exit 1
           fi
 
@@ -232,6 +234,58 @@ jobs:
         # UI-03: the story shots (and their axe check) photograph every story of the built
         # Storybook, so it is built before them.
         run: npm run build-storybook -w @gnuminator/cogm-dashboard
+
+      - name: Base side of the two-sided story render (main, built in a second folder)
+        # The base (on a pull request the merge commit's first parent, in the merge queue the
+        # queue's base) and the head are both rendered in this container and compared; nothing is
+        # committed. Every step of this render is continue-on-error: it reports and never turns the
+        # check red (the merge gate asks for the accept line).
+        id: base
+        continue-on-error: true
+        timeout-minutes: 10
+        env:
+          HUSKY: '0'
+          EVENT: ${{ github.event_name }}
+          QUEUE_BASE: ${{ github.event.merge_group.base_sha }}
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          if [ "$EVENT" = "merge_group" ]; then
+            base="$QUEUE_BASE"
+            git fetch --no-tags --depth=1 origin "$base"
+          else
+            base=$(git rev-parse HEAD^1)
+          fi
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+          mkdir -p visual-diff-raw
+          echo "$base" > visual-diff-raw/base-sha.txt
+          git worktree add --detach "$RUNNER_TEMP/base" "$base"
+          cd "$RUNNER_TEMP/base"
+          npm ci
+          npm run build:shared
+          npm run build-storybook -w @gnuminator/cogm-dashboard
+
+      - name: Render both sides and compare
+        if: steps.base.outcome == 'success'
+        id: diff
+        continue-on-error: true
+        timeout-minutes: 12
+        env:
+          VISUAL_BASE_DIR: ${{ runner.temp }}/base/packages/cogm-dashboard/storybook-static
+          VISUAL_DIFF_OUT: ${{ github.workspace }}/visual-diff-raw
+          VISUAL_SHARD: ${{ matrix.shard }}/4
+        run: npx playwright test -c web/playwright.visual.config.ts --project stories-diff
+        working-directory: packages/cogm-dashboard
+
+      - name: Keep this shard's two-sided render
+        # The summary job below merges the four shards into dashboard-visual-diff.
+        if: steps.base.outcome == 'success'
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dashboard-visual-diff-shard-${{ matrix.shard }}
+          path: visual-diff-raw
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Screenshot tests and axe
         run: npm run test:visual:ci -w @gnuminator/cogm-dashboard -- --shard=${{ matrix.shard }}/4
@@ -248,7 +302,7 @@ jobs:
           retention-days: 14
 
       - name: Keep the visual report
-        # The HTML report and the diff images (expected, actual, diff) of a failed run.
+        # The HTML report and the traces of a failed run.
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -279,6 +333,52 @@ jobs:
             success|skipped) ;;
             *) echo "A visual shard failed or was cancelled: see the dashboard-visual-report-N artifacts."; exit 1 ;;
           esac
+
+  dashboard-visual-diff:
+    # Merges the four shards' two-sided story renders into the artifact dashboard-visual-diff
+    # (visual-diff.json, index.html with before / after / diff, the PNGs) and a job summary. It
+    # reports and never fails: every step is continue-on-error, and the job is not in ci-all-green.
+    # A difference blocks nothing here; the merge gate (scripts/lane-merge.mjs) asks for the
+    # `visual: accepted <n> <hash>` line in the review note.
+    needs: [visual-changes, dashboard-visual-shard]
+    if: ${{ !cancelled() && needs.visual-changes.outputs.run == 'true' }}
+    runs-on: ubuntu-latest
+    name: dashboard-visual-diff (report)${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
+    steps:
+      # Every step has its own timeout and continue-on-error (no job timeout: that would turn the
+      # check red); later steps run only when the checkout worked.
+      - id: co
+        continue-on-error: true
+        timeout-minutes: 3
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Download the shard renders
+        if: steps.co.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 5
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: dashboard-visual-diff-shard-*
+          path: shards
+
+      - name: Merge them and write the summary
+        id: merge
+        if: steps.co.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 5
+        run: |
+          base=$(cat shards/*/base-sha.txt 2>/dev/null | head -n 1)
+          node scripts/visual-diff-report.mjs --out dashboard-visual-diff --base-sha "$base" --head-sha "${{ github.event.pull_request.head.sha || github.sha }}" --summary "$GITHUB_STEP_SUMMARY" shards/*
+
+      - name: Keep the merged diff
+        if: steps.merge.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 5
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dashboard-visual-diff
+          path: dashboard-visual-diff
+          retention-days: 14
 
   dashboard-e2e-changes:
     # Decides whether the dashboard browser tests are worth their minutes: only when the dashboard,

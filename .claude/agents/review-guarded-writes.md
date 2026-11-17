@@ -17,7 +17,8 @@ as READ (you opened the code) or INFERRED (you did not). Do not invent line numb
 ## Checklist
 
 1. **Write gate.** Every new or changed bridge handler that changes the world is in
-   `packages/foundry-module/src/write-gate.ts` (`WRITE_METHODS`, or `NON_WRITE_METHODS`). Guarded writes
+   registered with a kind (`write`, `recordless-write` or `read`) in its
+   `packages/foundry-module/src/queries/<domain>.ts` table; `write-gate.ts` wraps the write kinds. Guarded writes
    keep their own gate that also checks the feature switches: confirm apply checks the switch, not
    only plan.
 2. **Plan, confirm, undo.** An AI write returns a plan first and applies only on confirm; it is

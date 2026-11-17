@@ -12,9 +12,9 @@ The planner runs on Opus, on demand, for one outcome, then ends (D-141, see Endi
 
 - `node scripts/backlog.mjs status --planner` (claims and progress lines, open PRs with CI and review verdict, the merge train,
   main's CI, due Waiting), then `Waiting.md` and CLAUDE.md "Holds now". Lanes message nobody and the merge runner merges, so
-  read every progress line once, inherited lanes included. Message a lane only when it has been idle under 55 minutes. A lane
+  read every progress line once, inherited lanes included. Message a lane only when idle under 55 minutes. A lane
   that stopped with a handover and no running successor gets one (Sonnet; the brief points at its `Handoff/<lane> prompt <date>.md`;
-  a card if sessions cannot start); archive the stopped lane first (if the folder stays, `git checkout --detach` there once clean).
+  a card if sessions cannot start); archive it first (if the folder stays, `git checkout --detach` there once clean).
 - Main red: see Main is red. `list_sessions` without `linked` shows who runs; `get_usage` with each running lane's id (lanes
   underreport) and `"self"` for the plan percentages.
 
@@ -28,7 +28,7 @@ the top Backlog items with a bold recommended pick.
 Use `node scripts/backlog.mjs` (`add`, `done <id> <PR> --sha --pi-run`, `claim`, `progress`,
 `release`, `low`; format in the file's preamble): it pulls, edits one item, checks and pushes.
 `done` writes the `Backlog done.md` line. Reorder and triage by hand: pull first, keep each item's
-lines together. The board's Lanes zone warns on two lanes on one path or a claim before its dependency is done; check it before a start. Order is priority; G0 critical path first. A speed item's `done when` names before and after numbers for the PR. When an item leaves, repoint or drop a `Board.md` light naming the id. Triage `## Captured on the board
+lines together. The board's Lanes zone warns on two lanes on one path or a claim before its dependency is done; check it before a start. Order is priority; G0 critical path first. A speed item's `done when` names before and after numbers. When an item leaves, drop or repoint a `Board.md` light naming the id. Triage `## Captured on the board
 (triage)` on each update (fill `- board:`, `- done when:`, drop `- captured:`).
 
 ## Starting lanes
@@ -45,7 +45,7 @@ lines together. The board's Lanes zone warns on two lanes on one path or a claim
 ## Ending
 
 The planner ends after its outcome: no successor, no handover note. Before it stops it detaches
-every lane it started (`mcp__ccd_session_mgmt__detach_session`; irreversible; the app refuses one
+every lane it started (`mcp__ccd_session_mgmt__detach_session`; irreversible; refused for one
 the user placed), pushes the vault and archives itself (see Session cleanup).
 
 ## Decisions and holds
@@ -60,12 +60,12 @@ the user placed), pushes the vault and archives itself (see Session cleanup).
 
 ## Train
 
-The merge runner (`scripts/merge-runner.mjs`, D-140) merges ready lines and posts refusals and
-stops in #pr-log. At "merge train full" (4 module, bridge link or guarded-write merges): run
-`npm run live:roundtrip` (plus `live:sweep` when write handlers changed) on main through the test
-server lock, on green `npm run lane:merge -- --train-reset <main sha>`, bisect if red (`--train`
-shows the count), then restart the runner: `Stop-Process` the pid in `~/.foundry-ai-tool/merge-runner.lock` (Stop-ScheduledTask leaves node alive), `Start-ScheduledTask 'Foundry AI Tool merge runner'`.
-Run it before any Pi deploy.
+The merge runner (`scripts/merge-runner.mjs`, D-140) merges ready lines and posts in #pr-log. At "merge train full" (4 module, bridge link or guarded-write merges) it skips
+the PRs that count, merges the rest, queues for server A's lock, runs `live:roundtrip` (plus
+`live:sweep` when module or tool sources changed) on main and `--train-reset`. On red it
+posts a bisect hint and stops: bisect (`--train`), then restart it:
+`Stop-Process` the pid in `~/.foundry-ai-tool/merge-runner.lock` (Stop-ScheduledTask leaves node alive), `Start-ScheduledTask 'Foundry AI Tool merge runner'` (restart cleans up).
+An item with two PRs holds one ready line each.
 
 ## Main is red
 

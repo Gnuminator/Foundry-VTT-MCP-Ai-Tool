@@ -1,4 +1,6 @@
-import { describe, expect, it, vi, type Mock } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+import { makeTools } from '../test-support/make-tool-harness.js';
 
 import { CharacterTools } from './character.js';
 
@@ -17,24 +19,7 @@ import { CharacterTools } from './character.js';
  * extractStats) are exercised via the public handlers.
  */
 
-function makeTools(queryImpl?: (method: string, data: unknown) => unknown): {
-  tools: CharacterTools;
-  query: Mock;
-  logger: any;
-} {
-  const query = vi.fn(queryImpl ?? ((): unknown => ({ success: true })));
-  const foundryClient = { query } as any;
-  // Minimal Logger stub: `.child()` returns itself; level methods are no-ops.
-  const logger: any = {
-    error: vi.fn(),
-    warn: vi.fn(),
-    info: vi.fn(),
-    debug: vi.fn(),
-  };
-  logger.child = (): unknown => logger;
-  // No systemRegistry: tests run in legacy-extraction mode.
-  return { tools: new CharacterTools({ foundryClient, logger }), query, logger };
-}
+// No systemRegistry: tests run in legacy-extraction mode.
 
 // ---------------------------------------------------------------------------
 // getToolDefinitions
@@ -42,7 +27,7 @@ function makeTools(queryImpl?: (method: string, data: unknown) => unknown): {
 
 describe('CharacterTools.getToolDefinitions', () => {
   it('exposes the expected tools with object input schemas', () => {
-    const { tools } = makeTools();
+    const { tools } = makeTools(CharacterTools);
     const defs = tools.getToolDefinitions();
     expect(defs.map(d => d.name)).toEqual([
       'get-character',
@@ -57,46 +42,46 @@ describe('CharacterTools.getToolDefinitions', () => {
     }
   });
 
-  it('get-character requires identifier', () => {
-    const { tools } = makeTools();
+  it('get-character requires actor', () => {
+    const { tools } = makeTools(CharacterTools);
     const defs = tools.getToolDefinitions();
     const def = defs.find(d => d.name === 'get-character')!;
-    expect((def.inputSchema as any).required).toEqual(['identifier']);
+    expect((def.inputSchema as any).required).toEqual(['actor']);
   });
 
-  it('get-character-entity requires characterIdentifier and entityIdentifier', () => {
-    const { tools } = makeTools();
+  it('get-character-entity requires actor and entityIdentifier', () => {
+    const { tools } = makeTools(CharacterTools);
     const defs = tools.getToolDefinitions();
     const def = defs.find(d => d.name === 'get-character-entity')!;
-    expect((def.inputSchema as any).required).toEqual(['characterIdentifier', 'entityIdentifier']);
+    expect((def.inputSchema as any).required).toEqual(['actor', 'entityIdentifier']);
   });
 
   it('list-characters has no required fields', () => {
-    const { tools } = makeTools();
+    const { tools } = makeTools(CharacterTools);
     const defs = tools.getToolDefinitions();
     const def = defs.find(d => d.name === 'list-characters')!;
     expect((def.inputSchema as any).required).toBeUndefined();
   });
 
-  it('use-item requires actorIdentifier and itemIdentifier', () => {
-    const { tools } = makeTools();
+  it('use-item requires actor and itemIdentifier', () => {
+    const { tools } = makeTools(CharacterTools);
     const defs = tools.getToolDefinitions();
     const def = defs.find(d => d.name === 'use-item')!;
-    expect((def.inputSchema as any).required).toEqual(['actorIdentifier', 'itemIdentifier']);
+    expect((def.inputSchema as any).required).toEqual(['actor', 'itemIdentifier']);
   });
 
   it('manage-world-items requires action', () => {
-    const { tools } = makeTools();
+    const { tools } = makeTools(CharacterTools);
     const defs = tools.getToolDefinitions();
     const def = defs.find(d => d.name === 'manage-world-items')!;
     expect((def.inputSchema as any).required).toEqual(['action']);
   });
 
-  it('search-character-items requires characterIdentifier', () => {
-    const { tools } = makeTools();
+  it('search-character-items requires actor', () => {
+    const { tools } = makeTools(CharacterTools);
     const defs = tools.getToolDefinitions();
     const def = defs.find(d => d.name === 'search-character-items')!;
-    expect((def.inputSchema as any).required).toEqual(['characterIdentifier']);
+    expect((def.inputSchema as any).required).toEqual(['actor']);
   });
 });
 
@@ -115,8 +100,8 @@ describe('CharacterTools.handleGetCharacter', () => {
       effects: [],
       system: {},
     };
-    const { tools, query } = makeTools(() => rawChar);
-    const result = await tools.handleGetCharacter({ identifier: 'Elara' });
+    const { tools, query } = makeTools(CharacterTools, () => rawChar);
+    const result = await tools.handleGetCharacter({ actor: 'Elara' });
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getCharacterInfo', {
       characterName: 'Elara',
     });
@@ -132,22 +117,22 @@ describe('CharacterTools.handleGetCharacter', () => {
   });
 
   it('throws ZodError (not a string) when identifier is missing', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(CharacterTools);
     await expect(tools.handleGetCharacter({})).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
   });
 
-  it('throws ZodError when identifier is an empty string', async () => {
-    const { tools, query } = makeTools();
-    await expect(tools.handleGetCharacter({ identifier: '' })).rejects.toThrow();
+  it('throws ZodError when actor is an empty string', async () => {
+    const { tools, query } = makeTools(CharacterTools);
+    await expect(tools.handleGetCharacter({ actor: '' })).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
   });
 
   it('throws when Foundry query fails', async () => {
-    const { tools } = makeTools(() => {
+    const { tools } = makeTools(CharacterTools, () => {
       throw new Error('actor not found');
     });
-    await expect(tools.handleGetCharacter({ identifier: 'Ghost' })).rejects.toThrow(
+    await expect(tools.handleGetCharacter({ actor: 'Ghost' })).rejects.toThrow(
       'Failed to retrieve character "Ghost": actor not found'
     );
   });
@@ -181,8 +166,8 @@ describe('CharacterTools.handleGetCharacter', () => {
       effects: [],
       system: {},
     };
-    const { tools } = makeTools(() => rawChar);
-    const result = await tools.handleGetCharacter({ identifier: 'Thorn' });
+    const { tools } = makeTools(CharacterTools, () => rawChar);
+    const result = await tools.handleGetCharacter({ actor: 'Thorn' });
     // quantity === 1 is NOT included; quantity === 3 IS included
     const sword = result.items.find((i: any) => i.name === 'Longsword');
     expect(sword).toMatchObject({ id: 'item1', name: 'Longsword', type: 'weapon', equipped: true });
@@ -216,8 +201,8 @@ describe('CharacterTools.handleGetCharacter', () => {
       ],
       system: {},
     };
-    const { tools } = makeTools(() => rawChar);
-    const result = await tools.handleGetCharacter({ identifier: 'Caster' });
+    const { tools } = makeTools(CharacterTools, () => rawChar);
+    const result = await tools.handleGetCharacter({ actor: 'Caster' });
     expect(result.effects).toEqual([
       {
         id: 'eff1',
@@ -244,8 +229,8 @@ describe('CharacterTools.handleGetCharacter', () => {
       ],
       system: {},
     };
-    const { tools } = makeTools(() => rawChar);
-    const result = await tools.handleGetCharacter({ identifier: 'Fighter' });
+    const { tools } = makeTools(CharacterTools, () => rawChar);
+    const result = await tools.handleGetCharacter({ actor: 'Fighter' });
     expect(result.actions).toHaveLength(2);
     const attack = result.actions.find((a: any) => a.name === 'Attack');
     expect(attack).toMatchObject({
@@ -284,8 +269,8 @@ describe('CharacterTools.handleGetCharacter', () => {
       ],
       system: {},
     };
-    const { tools } = makeTools(() => rawChar);
-    const result = await tools.handleGetCharacter({ identifier: 'Wizard' });
+    const { tools } = makeTools(CharacterTools, () => rawChar);
+    const result = await tools.handleGetCharacter({ actor: 'Wizard' });
     expect(result.spellcasting).toHaveLength(1);
     const sc = result.spellcasting[0];
     expect(sc.name).toBe('Arcane Spellcasting');
@@ -314,8 +299,8 @@ describe('CharacterTools.handleGetCharacter', () => {
         },
       },
     };
-    const { tools } = makeTools(() => rawChar);
-    const result = await tools.handleGetCharacter({ identifier: 'Paladin' });
+    const { tools } = makeTools(CharacterTools, () => rawChar);
+    const result = await tools.handleGetCharacter({ actor: 'Paladin' });
     expect(result.basicInfo.hitPoints).toEqual({ current: 45, max: 52, temp: 5 });
     expect(result.basicInfo.armorClass).toBe(18);
   });
@@ -341,8 +326,8 @@ describe('CharacterTools.handleGetCharacter', () => {
         },
       },
     };
-    const { tools } = makeTools(() => rawChar);
-    const result = await tools.handleGetCharacter({ identifier: 'Rogue' });
+    const { tools } = makeTools(CharacterTools, () => rawChar);
+    const result = await tools.handleGetCharacter({ actor: 'Rogue' });
     expect(result.stats.abilities.dex).toEqual({ score: 18, modifier: 4 });
     expect(result.stats.skills.acr).toMatchObject({ value: 6, proficient: true });
     expect(result.stats.saves.dex).toMatchObject({ value: 5, proficient: true });
@@ -381,9 +366,9 @@ describe('CharacterTools.handleGetCharacterEntity', () => {
   };
 
   it('dispatches getCharacterEntity and returns the entity with its entityType', async () => {
-    const { tools, query } = makeTools(() => itemEnvelope);
+    const { tools, query } = makeTools(CharacterTools, () => itemEnvelope);
     const result = await tools.handleGetCharacterEntity({
-      characterIdentifier: 'Test Cleric',
+      actor: 'Test Cleric',
       entityIdentifier: 'Guiding Bolt',
     });
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getCharacterEntity', {
@@ -397,23 +382,27 @@ describe('CharacterTools.handleGetCharacterEntity', () => {
 
   it('returns an effect entity the same way', async () => {
     const effect = { id: 'eff1', name: 'Bless', disabled: false, changes: [] };
-    const { tools } = makeTools(() => ({ success: true, entityType: 'effect', entity: effect }));
+    const { tools } = makeTools(CharacterTools, () => ({
+      success: true,
+      entityType: 'effect',
+      entity: effect,
+    }));
     const result = await tools.handleGetCharacterEntity({
-      characterIdentifier: 'Test Cleric',
+      actor: 'Test Cleric',
       entityIdentifier: 'Bless',
     });
     expect(result).toEqual({ entityType: 'effect', ...effect });
   });
 
   it('turns a GM-gate refusal into an error', async () => {
-    const { tools } = makeTools(() => ({ error: 'Access denied', success: false }));
+    const { tools } = makeTools(CharacterTools, () => ({ error: 'Access denied', success: false }));
     await expect(
-      tools.handleGetCharacterEntity({ characterIdentifier: 'A', entityIdentifier: 'B' })
+      tools.handleGetCharacterEntity({ actor: 'A', entityIdentifier: 'B' })
     ).rejects.toThrow('Failed to retrieve entity "B" from character "A": Access denied');
   });
 
-  it('throws ZodError when characterIdentifier is missing', async () => {
-    const { tools, query } = makeTools();
+  it('throws ZodError when actor is missing', async () => {
+    const { tools, query } = makeTools(CharacterTools);
     await expect(
       tools.handleGetCharacterEntity({ entityIdentifier: 'Fireball' })
     ).rejects.toThrow();
@@ -421,20 +410,18 @@ describe('CharacterTools.handleGetCharacterEntity', () => {
   });
 
   it('throws ZodError when entityIdentifier is missing', async () => {
-    const { tools, query } = makeTools();
-    await expect(
-      tools.handleGetCharacterEntity({ characterIdentifier: 'Ember' })
-    ).rejects.toThrow();
+    const { tools, query } = makeTools(CharacterTools);
+    await expect(tools.handleGetCharacterEntity({ actor: 'Ember' })).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
   });
 
   it('wraps query errors as "Failed to retrieve entity …"', async () => {
-    const { tools } = makeTools(() => {
+    const { tools } = makeTools(CharacterTools, () => {
       throw new Error('Entity not found: "Axe" in character "Test Cleric"');
     });
     await expect(
       tools.handleGetCharacterEntity({
-        characterIdentifier: 'Test Cleric',
+        actor: 'Test Cleric',
         entityIdentifier: 'Axe',
       })
     ).rejects.toThrow(
@@ -443,11 +430,11 @@ describe('CharacterTools.handleGetCharacterEntity', () => {
   });
 
   it('says to update the module when it has no getCharacterEntity handler', async () => {
-    const { tools } = makeTools(() => {
+    const { tools } = makeTools(CharacterTools, () => {
       throw new Error('No handler found for query: foundry-mcp-bridge.getCharacterEntity');
     });
     await expect(
-      tools.handleGetCharacterEntity({ characterIdentifier: 'A', entityIdentifier: 'B' })
+      tools.handleGetCharacterEntity({ actor: 'A', entityIdentifier: 'B' })
     ).rejects.toThrow(/older than the bridge; update the module/);
   });
 });
@@ -458,7 +445,7 @@ describe('CharacterTools.handleListCharacters', () => {
       { id: 'a1', name: 'Elara', type: 'character', img: 'e.png' },
       { id: 'a2', name: 'Goblin', type: 'npc', img: null },
     ];
-    const { tools, query } = makeTools(() => actors);
+    const { tools, query } = makeTools(CharacterTools, () => actors);
     const result = await tools.handleListCharacters({ type: 'character' });
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.listActors', { type: 'character' });
     expect(result).toEqual({
@@ -472,20 +459,20 @@ describe('CharacterTools.handleListCharacters', () => {
   });
 
   it('dispatches with undefined type when called with empty object', async () => {
-    const { tools, query } = makeTools(() => []);
+    const { tools, query } = makeTools(CharacterTools, () => []);
     const result = await tools.handleListCharacters({});
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.listActors', { type: undefined });
     expect(result.filtered).toBe('All characters');
   });
 
   it('throws ZodError when called with undefined args (schema.parse requires an object)', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(CharacterTools);
     await expect(tools.handleListCharacters(undefined)).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
   });
 
   it('wraps query errors as "Failed to list characters: …"', async () => {
-    const { tools } = makeTools(() => {
+    const { tools } = makeTools(CharacterTools, () => {
       throw new Error('socket error');
     });
     await expect(tools.handleListCharacters({})).rejects.toThrow(
@@ -503,7 +490,7 @@ describe('CharacterTools.handleUseItem', () => {
 
   it('adds the advisory rules check and still uses the item when it says problem', async () => {
     const payload = { success: true, actorName: 'Elara' };
-    const { query, logger } = makeTools(() => payload);
+    const { query, logger } = makeTools(CharacterTools, () => payload);
     const tryCheck = vi.fn(async () => check);
     const tools = new CharacterTools({
       foundryClient: { query } as any,
@@ -511,7 +498,7 @@ describe('CharacterTools.handleUseItem', () => {
       rulesCheck: { tryCheck } as any,
     });
     const result = await tools.handleUseItem({
-      actorIdentifier: 'Elara',
+      actor: 'Elara',
       itemIdentifier: 'Fireball',
       targets: ['self', 'Wolf'],
       spellLevel: 4,
@@ -526,9 +513,9 @@ describe('CharacterTools.handleUseItem', () => {
 
   it('dispatches useItem with consume defaulting to true and skipDialog defaulting to true', async () => {
     const payload = { success: true, actorName: 'Elara', itemName: 'Fireball', targets: [] };
-    const { tools, query } = makeTools(() => payload);
+    const { tools, query } = makeTools(CharacterTools, () => payload);
     const result = await tools.handleUseItem({
-      actorIdentifier: 'Elara',
+      actor: 'Elara',
       itemIdentifier: 'Fireball',
     });
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.useItem', {
@@ -541,9 +528,9 @@ describe('CharacterTools.handleUseItem', () => {
   });
 
   it('dispatches with explicit targets, consume=false, spellLevel, skipDialog=false', async () => {
-    const { tools, query } = makeTools(() => ({ success: true }));
+    const { tools, query } = makeTools(CharacterTools, () => ({ success: true }));
     await tools.handleUseItem({
-      actorIdentifier: 'Elara',
+      actor: 'Elara',
       itemIdentifier: 'Fireball',
       targets: ['Goblin', 'Orc'],
       consume: false,
@@ -558,24 +545,24 @@ describe('CharacterTools.handleUseItem', () => {
     });
   });
 
-  it('throws ZodError when actorIdentifier is missing', async () => {
-    const { tools, query } = makeTools();
+  it('throws ZodError when actor is missing', async () => {
+    const { tools, query } = makeTools(CharacterTools);
     await expect(tools.handleUseItem({ itemIdentifier: 'Fireball' })).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
   });
 
   it('throws ZodError when itemIdentifier is missing', async () => {
-    const { tools, query } = makeTools();
-    await expect(tools.handleUseItem({ actorIdentifier: 'Elara' })).rejects.toThrow();
+    const { tools, query } = makeTools(CharacterTools);
+    await expect(tools.handleUseItem({ actor: 'Elara' })).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
   });
 
   it('wraps query errors as "Failed to use item …"', async () => {
-    const { tools } = makeTools(() => {
+    const { tools } = makeTools(CharacterTools, () => {
       throw new Error('item not found on actor');
     });
     await expect(
-      tools.handleUseItem({ actorIdentifier: 'Elara', itemIdentifier: 'Fireball' })
+      tools.handleUseItem({ actor: 'Elara', itemIdentifier: 'Fireball' })
     ).rejects.toThrow('Failed to use item "Fireball": item not found on actor');
   });
 });
@@ -586,13 +573,13 @@ describe('CharacterTools.handleUseItem', () => {
 
 describe('CharacterTools.handleManageWorldItems (dispatcher)', () => {
   it('throws ZodError on invalid action enum value', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(CharacterTools);
     await expect(tools.handleManageWorldItems({ action: 'delete' })).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
   });
 
   it('throws ZodError when action is missing', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(CharacterTools);
     await expect(tools.handleManageWorldItems({})).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
   });
@@ -605,7 +592,7 @@ describe('CharacterTools.handleManageWorldItems (dispatcher)', () => {
 describe('CharacterTools.handleManageWorldItems action=create', () => {
   it('dispatches createWorldItems with items and optional folder', async () => {
     const payload = { folderId: 'fold1', created: ['id1', 'id2'] };
-    const { tools, query } = makeTools(() => payload);
+    const { tools, query } = makeTools(CharacterTools, () => payload);
     const result = await tools.handleManageWorldItems({
       action: 'create',
       items: [
@@ -625,19 +612,19 @@ describe('CharacterTools.handleManageWorldItems action=create', () => {
   });
 
   it('throws ZodError when items array is empty', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(CharacterTools);
     await expect(tools.handleManageWorldItems({ action: 'create', items: [] })).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
   });
 
   it('throws ZodError when items is missing', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(CharacterTools);
     await expect(tools.handleManageWorldItems({ action: 'create' })).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
   });
 
   it('wraps query errors as "Failed to create world items: …"', async () => {
-    const { tools } = makeTools(() => {
+    const { tools } = makeTools(CharacterTools, () => {
       throw new Error('insufficient permissions');
     });
     await expect(
@@ -656,7 +643,7 @@ describe('CharacterTools.handleManageWorldItems action=create', () => {
 describe('CharacterTools.handleManageWorldItems action=list', () => {
   it('dispatches listWorldItems with optional filters and wraps result', async () => {
     const rawItems = [{ id: 'i1', name: 'Dagger', type: 'weapon' }];
-    const { tools, query } = makeTools(() => rawItems);
+    const { tools, query } = makeTools(CharacterTools, () => rawItems);
     const result = await tools.handleManageWorldItems({
       action: 'list',
       type: 'weapon',
@@ -672,19 +659,19 @@ describe('CharacterTools.handleManageWorldItems action=list', () => {
   });
 
   it('omits undefined optional filters from the query params', async () => {
-    const { tools, query } = makeTools(() => []);
+    const { tools, query } = makeTools(CharacterTools, () => []);
     await tools.handleManageWorldItems({ action: 'list' });
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.listWorldItems', {});
   });
 
   it('returns {items:[], total:0} when query returns null', async () => {
-    const { tools } = makeTools(() => null);
+    const { tools } = makeTools(CharacterTools, () => null);
     const result = await tools.handleManageWorldItems({ action: 'list' });
     expect(result).toEqual({ items: [], total: 0 });
   });
 
   it('wraps query errors as "Failed to list world items: …"', async () => {
-    const { tools } = makeTools(() => {
+    const { tools } = makeTools(CharacterTools, () => {
       throw new Error('world not loaded');
     });
     await expect(tools.handleManageWorldItems({ action: 'list' })).rejects.toThrow(
@@ -700,7 +687,7 @@ describe('CharacterTools.handleManageWorldItems action=list', () => {
 describe('CharacterTools.handleManageWorldItems action=update', () => {
   it('dispatches updateWorldItems with updates array', async () => {
     const payload = { updated: ['i1'] };
-    const { tools, query } = makeTools(() => payload);
+    const { tools, query } = makeTools(CharacterTools, () => payload);
     const result = await tools.handleManageWorldItems({
       action: 'update',
       updates: [{ id: 'i1', name: 'Shortsword' }],
@@ -712,13 +699,13 @@ describe('CharacterTools.handleManageWorldItems action=update', () => {
   });
 
   it('throws ZodError when updates array is empty', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(CharacterTools);
     await expect(tools.handleManageWorldItems({ action: 'update', updates: [] })).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
   });
 
   it('throws ZodError when updates entry is missing id', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(CharacterTools);
     await expect(
       tools.handleManageWorldItems({ action: 'update', updates: [{ name: 'Shortsword' }] })
     ).rejects.toThrow();
@@ -726,7 +713,7 @@ describe('CharacterTools.handleManageWorldItems action=update', () => {
   });
 
   it('wraps query errors as "Failed to update world items: …"', async () => {
-    const { tools } = makeTools(() => {
+    const { tools } = makeTools(CharacterTools, () => {
       throw new Error('item not found');
     });
     await expect(
@@ -740,12 +727,12 @@ describe('CharacterTools.handleManageWorldItems action=update', () => {
 // ---------------------------------------------------------------------------
 
 describe('CharacterTools.handleManageWorldItems action=add-to-actor', () => {
-  it('dispatches addActorItems with actorIdentifier and items', async () => {
+  it('dispatches addActorItems with the actor as actorIdentifier and items', async () => {
     const payload = { actorName: 'Elara', created: ['i2'] };
-    const { tools, query } = makeTools(() => payload);
+    const { tools, query } = makeTools(CharacterTools, () => payload);
     const result = await tools.handleManageWorldItems({
       action: 'add-to-actor',
-      actorIdentifier: 'Elara',
+      actor: 'Elara',
       items: [{ name: 'Dagger', type: 'weapon' }],
     });
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.addActorItems', {
@@ -755,8 +742,8 @@ describe('CharacterTools.handleManageWorldItems action=add-to-actor', () => {
     expect(result).toBe(payload);
   });
 
-  it('throws ZodError when actorIdentifier is missing', async () => {
-    const { tools, query } = makeTools();
+  it('throws ZodError when actor is missing', async () => {
+    const { tools, query } = makeTools(CharacterTools);
     await expect(
       tools.handleManageWorldItems({
         action: 'add-to-actor',
@@ -767,21 +754,21 @@ describe('CharacterTools.handleManageWorldItems action=add-to-actor', () => {
   });
 
   it('throws ZodError when items array is empty', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(CharacterTools);
     await expect(
-      tools.handleManageWorldItems({ action: 'add-to-actor', actorIdentifier: 'Elara', items: [] })
+      tools.handleManageWorldItems({ action: 'add-to-actor', actor: 'Elara', items: [] })
     ).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
   });
 
   it('wraps query errors as "Failed to add items to …"', async () => {
-    const { tools } = makeTools(() => {
+    const { tools } = makeTools(CharacterTools, () => {
       throw new Error('actor not found');
     });
     await expect(
       tools.handleManageWorldItems({
         action: 'add-to-actor',
-        actorIdentifier: 'Elara',
+        actor: 'Elara',
         items: [{ name: 'Dagger', type: 'weapon' }],
       })
     ).rejects.toThrow('Failed to add items to "Elara": actor not found');
@@ -795,9 +782,9 @@ describe('CharacterTools.handleManageWorldItems action=add-to-actor', () => {
 describe('CharacterTools.handleSearchCharacterItems', () => {
   it('dispatches searchCharacterItems with all params and returns result', async () => {
     const payload = { characterName: 'Elara', matches: [{ id: 'sp1', name: 'Fireball' }] };
-    const { tools, query } = makeTools(() => payload);
+    const { tools, query } = makeTools(CharacterTools, () => payload);
     const result = await tools.handleSearchCharacterItems({
-      characterIdentifier: 'Elara',
+      actor: 'Elara',
       query: 'fire',
       type: 'spell',
       category: 'prepared',
@@ -814,8 +801,8 @@ describe('CharacterTools.handleSearchCharacterItems', () => {
   });
 
   it('defaults limit to 20 when not provided', async () => {
-    const { tools, query } = makeTools(() => ({ matches: [] }));
-    await tools.handleSearchCharacterItems({ characterIdentifier: 'Elara' });
+    const { tools, query } = makeTools(CharacterTools, () => ({ matches: [] }));
+    await tools.handleSearchCharacterItems({ actor: 'Elara' });
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.searchCharacterItems', {
       characterIdentifier: 'Elara',
       query: undefined,
@@ -825,25 +812,25 @@ describe('CharacterTools.handleSearchCharacterItems', () => {
     });
   });
 
-  it('throws ZodError when characterIdentifier is missing', async () => {
-    const { tools, query } = makeTools();
+  it('throws ZodError when actor is missing', async () => {
+    const { tools, query } = makeTools(CharacterTools);
     await expect(tools.handleSearchCharacterItems({})).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
   });
 
-  it('throws ZodError when characterIdentifier is empty string', async () => {
-    const { tools, query } = makeTools();
-    await expect(tools.handleSearchCharacterItems({ characterIdentifier: '' })).rejects.toThrow();
+  it('throws ZodError when actor is empty string', async () => {
+    const { tools, query } = makeTools(CharacterTools);
+    await expect(tools.handleSearchCharacterItems({ actor: '' })).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
   });
 
   it('wraps query errors as "Failed to search items for …"', async () => {
-    const { tools } = makeTools(() => {
+    const { tools } = makeTools(CharacterTools, () => {
       throw new Error('actor missing');
     });
-    await expect(
-      tools.handleSearchCharacterItems({ characterIdentifier: 'Elara' })
-    ).rejects.toThrow('Failed to search items for "Elara": actor missing');
+    await expect(tools.handleSearchCharacterItems({ actor: 'Elara' })).rejects.toThrow(
+      'Failed to search items for "Elara": actor missing'
+    );
   });
 });
 
@@ -866,8 +853,8 @@ describe('CharacterTools effects tolerate Foundry 14 shapes (M3)', () => {
       ...baseChar,
       effects: [{ id: 'e1', name: 'Blessed', disabled: false, img: 'icons/bless.png' }],
     };
-    const { tools } = makeTools(() => rawChar);
-    const result = await tools.handleGetCharacter({ identifier: 'Caster' });
+    const { tools } = makeTools(CharacterTools, () => rawChar);
+    const result = await tools.handleGetCharacter({ actor: 'Caster' });
     expect(result.effects[0].hasIcon).toBe(true);
   });
 
@@ -878,8 +865,8 @@ describe('CharacterTools effects tolerate Foundry 14 shapes (M3)', () => {
         { id: 'e1', name: 'Blessed', disabled: false, duration: { units: 'rounds', value: 10 } },
       ],
     };
-    const { tools } = makeTools(() => rawChar);
-    const result = await tools.handleGetCharacter({ identifier: 'Caster' });
+    const { tools } = makeTools(CharacterTools, () => rawChar);
+    const result = await tools.handleGetCharacter({ actor: 'Caster' });
     expect(result.effects[0].duration).toMatchObject({ type: 'rounds', duration: 10 });
   });
 
@@ -896,8 +883,8 @@ describe('CharacterTools effects tolerate Foundry 14 shapes (M3)', () => {
         },
       ],
     };
-    const { tools } = makeTools(() => rawChar);
-    const result = await tools.handleGetCharacter({ identifier: 'Caster' });
+    const { tools } = makeTools(CharacterTools, () => rawChar);
+    const result = await tools.handleGetCharacter({ actor: 'Caster' });
     expect(result.effects[0]).toMatchObject({
       hasIcon: true,
       duration: { type: 'seconds', duration: 60, remaining: 30 },

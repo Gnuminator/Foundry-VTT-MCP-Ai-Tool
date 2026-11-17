@@ -41,7 +41,7 @@ export class WaitForEventTools {
               description:
                 'Event types, e.g. ["combat-turn"], ["scene-change"], ["roll","damage-roll"]. Empty = any.',
             },
-            actorName: {
+            actor: {
               type: 'string',
               description: 'Actor name filter (partial match).',
               ...toolRef(['actor', 'token', 'user'], 'name'),
@@ -64,7 +64,7 @@ export class WaitForEventTools {
   async handleWaitForGameEvent(args: unknown, signal?: AbortSignal): Promise<unknown> {
     const schema = z.object({
       eventTypes: z.array(z.string()).max(30).optional(),
-      actorName: z.string().optional(),
+      actor: z.string().optional(),
       sinceTimestamp: z.string().optional(),
       timeoutSeconds: z
         .number()
@@ -83,7 +83,7 @@ export class WaitForEventTools {
     }
     const result = await this.hub.wait({
       ...(params.eventTypes ? { eventTypes: params.eventTypes } : {}),
-      ...(params.actorName ? { actorName: params.actorName } : {}),
+      ...(params.actor ? { actorName: params.actor } : {}),
       ...(sinceMs !== undefined ? { sinceMs } : {}),
       timeoutMs: (params.timeoutSeconds ?? DEFAULT_WAIT_MS / 1000) * 1000,
       ...(signal ? { signal } : {}),

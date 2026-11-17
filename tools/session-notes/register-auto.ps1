@@ -42,7 +42,8 @@ $repo = (Resolve-Path (Join-Path $PSScriptRoot '..' '..')).Path -replace '[\\/]\
 $script = Join-Path $repo 'tools' 'session-notes' 'auto.ps1'
 if (-not (Test-Path $script)) { throw "No $script in the main checkout; merge this change and pull main there first." }
 $pwsh = (Get-Command pwsh -ErrorAction Stop).Source
-$sessions = if ($env:FVTT_SESSIONS_DIR) { $env:FVTT_SESSIONS_DIR } else { Join-Path $env:USERPROFILE 'Documents\FoundrySessions' }
+. (Join-Path $PSScriptRoot '..\..\scripts\data-folder.ps1')
+$sessions = if ($env:FVTT_SESSIONS_DIR) { $env:FVTT_SESSIONS_DIR } else { Get-DataFolder 'FoundrySessions' }
 $log = Join-Path $sessions 'auto-task.log'
 
 $command = "`"$pwsh`" -NoProfile -File `"$script`" >> `"$log`" 2>&1"

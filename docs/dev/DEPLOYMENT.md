@@ -2,12 +2,12 @@
 
 The bridge has two halves that are deployed differently:
 
-1. **Foundry module** — installs into the Foundry server (incl. hosted, e.g. Molten-Hosting).
-2. **MCP server** — runs locally next to Claude Desktop.
+1. **Foundry module**: installs into the Foundry server (incl. hosted, e.g. Molten-Hosting).
+2. **MCP server**: runs locally next to Claude Desktop.
 
 ---
 
-## 1. Foundry module — Manifest URL install (recommended)
+## 1. Foundry module: Manifest URL install (recommended)
 
 The module is published as a GitHub Release on the aitool repository, so it installs like any other Foundry module.
 
@@ -18,13 +18,13 @@ field → Install:
 https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases/latest/download/module.json
 ```
 
-This works on hosted Foundry (Molten-Hosting) — no file-manager/SFTP access needed. Foundry reads the
+This works on hosted Foundry (Molten-Hosting), so no file-manager/SFTP access needed. Foundry reads the
 manifest, downloads `foundry-mcp-bridge.zip`, and installs it. "Check for Updates" will pull future
 releases automatically because the manifest uses `releases/latest/download/`.
 
-> The module folder **must** stay named `foundry-mcp-bridge` — the MCP backend routes sockets to that id.
+> The module folder **must** stay named `foundry-mcp-bridge`, because the MCP backend routes sockets to that id.
 
-## 2. MCP server — Claude Desktop
+## 2. MCP server: Claude Desktop
 
 The server runs locally. Point Claude Desktop's `claude_desktop_config.json` at the bundled entry,
 once per tool set (see [TOOL-SETS.md](../reference/TOOL-SETS.md)):
@@ -141,5 +141,5 @@ Nothing is sent to foundryvtt.com: the package id belongs to the upstream projec
 
 ## Repository
 
-- Remote `aitool` → `https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool` (canonical — push here).
+- Remote `aitool` → `https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool` (canonical, push here).
 - Push a work branch with `git push -u aitool <branch>:<branch>`, open a PR, and merge it only through `scripts/lane-merge.mjs`. `main` is protected (PR, CI checks, no force-push), so never push to it directly.

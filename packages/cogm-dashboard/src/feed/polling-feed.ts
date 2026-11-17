@@ -33,7 +33,7 @@ import type {
  *  - Typed-error classification with hysteresis so a transient/contended failure
  *    or a dead transport doesn't flap the Foundry-reachability badge.
  *
- * A failed poll never throws out of the feed — it downgrades the reported status
+ * A failed poll never throws out of the feed: it downgrades the reported status
  * and retries on the next tick.
  */
 
@@ -129,7 +129,7 @@ export class PollingGameFeed implements GameFeed {
     this.started = true;
 
     this.client.on('connected', () => {
-      // A reconnect may mean a restarted/cleared backend event buffer — re-seed
+      // A reconnect may mean a restarted/cleared backend event buffer, so re-seed
       // so a stale cursor can't suppress live events, and re-backfill history.
       this.foundry = 'unknown';
       this.generation += 1;
@@ -350,16 +350,16 @@ export class PollingGameFeed implements GameFeed {
     this.lastError = message;
 
     if (error instanceof ChannelError || error instanceof TimeoutError) {
-      // The control channel/transport is the problem — we know nothing about
+      // The control channel/transport is the problem: we know nothing about
       // Foundry, so report 'unknown' rather than blaming the game.
       this.foundry = 'unknown';
       this.consecutiveFailures = 0;
     } else if (error instanceof ToolError && /module not connected/i.test(message)) {
-      // The backend is up but Foundry's module link is down — genuinely unreachable.
+      // The backend is up but Foundry's module link is down, so it is genuinely unreachable.
       this.foundry = 'unreachable';
       this.consecutiveFailures = 0;
     } else {
-      // Transient/unknown tool error — keep the last verdict sticky and only
+      // Transient/unknown tool error: keep the last verdict sticky and only
       // downgrade after sustained failures, to avoid flapping on one bad tick.
       this.consecutiveFailures += 1;
       if (this.consecutiveFailures >= FOUNDRY_FAILURE_THRESHOLD) {

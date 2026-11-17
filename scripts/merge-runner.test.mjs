@@ -1,6 +1,7 @@
 // Tests for scripts/merge-runner.mjs: fake gh, gate, backlog and Discord; real lock files and a
 // real git checkout for prepareCheckout. No network, no vault, no merge.
 import { isMerged } from './backlog-items.mjs';
+import { makeBaseDeps, testedOnTip } from './merge-runner/base-current.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
@@ -11,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import {
   GATE_FLAGS,
   TRAIN_FULL_LINE,
+  TRAIN_KEY,
   gateArgs,
   gateOutcome,
   main,
@@ -251,6 +253,60 @@ test('a refusal writes the reason as a progress line and posts one line; it is n
   assert.equal(f.calls.gate.length, 1, 'the same head is not gated twice in one run');
 });
 
+test('a refusal for being behind main: the refreshed head gets a new ready line with the same review; a failed refresh refuses', () => {
+  const NEW = 'c'.repeat(40);
+  const gates = {
+    5: {
+      status: 1,
+      stdout:
+        'lane:merge: NOT merged #5\nlane:merge: refused because pr: mergeable is CONFLICTING; merge main into the branch and resolve conflicts',
+    },
+  };
+  const f = fakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}, review C:\\v\\note.md`]]),
+    prs: { 5: open() },
+    gates,
+  });
+  const asked = [];
+  f.deps.refresh = (r, reason, progress) => {
+    asked.push([r.pr, r.head, reason, progress]);
+    return { head: NEW };
+  };
+  round(f.deps, new Set());
+  assert.equal(asked.length, 1);
+  assert.match(asked[0][2], /^pr: mergeable is CONFLICTING/);
+  assert.deepEqual(f.calls.backlog, [
+    [
+      'progress',
+      'one',
+      '--ready',
+      '5',
+      '--head',
+      NEW,
+      '--review',
+      'C:\\v\\note.md',
+      '--if-ready',
+      `5@${SHA}`,
+    ],
+  ]);
+  assert.match(f.calls.post[0], /merged main into #5's branch/);
+
+  const g = fakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: open() },
+    gates,
+  });
+  g.deps.refresh = () => ({
+    why: 'not refreshed: a real conflict in a.txt: the lane has to resolve it',
+  });
+  round(g.deps, new Set());
+  assert.match(
+    g.calls.backlog[0][2],
+    /^PR #5 refused by the merge gate: pr: mergeable is CONFLICTING.*real conflict in a\.txt/
+  );
+  assert.equal(g.calls.backlog[0][3], '--if-ready');
+});
+
 test('a failed CI check (exit 3) and a moved head under --wait-ci (exit 4) are refusals', () => {
   for (const [code, line] of [
     [3, 'lane:merge: wait-ci ended: exit 3, a CI check failed'],
@@ -268,7 +324,7 @@ test('a failed CI check (exit 3) and a moved head under --wait-ci (exit 4) are r
   }
 });
 
-test('train limit: one Discord line, the ready line stays, the runner stops', () => {
+test('train limit: the PR waits, the ones behind it are gated and merged, the runner stays up', () => {
   const f = fakes({
     text: backlog([
       ['one', `PR #5 ready, head ${SHA}`],
@@ -281,14 +337,50 @@ test('train limit: one Discord line, the ready line stays, the runner stops', ()
         stdout:
           'lane:merge: refused because train: merge train full (4/4): the planner runs npm run live:roundtrip on main',
       },
+      6: merged(6),
     },
   });
-  const r = round(f.deps, new Set());
-  assert.equal(r.stop, 'merge train full');
-  assert.deepEqual(f.calls.gate, [5], 'nothing after the full train');
-  assert.deepEqual(f.calls.backlog, [], 'the ready line stays for the next start');
-  assert.equal(f.calls.post.length, 1);
-  assert.ok(f.calls.post[0].startsWith(TRAIN_FULL_LINE));
+  const attempts = new Map();
+  const r = round(f.deps, new Set(), attempts);
+  assert.equal(r.stop, null);
+  assert.deepEqual(r.merged, [6]);
+  assert.deepEqual(f.calls.gate, [5, 6], 'the PR behind the train-blocked one is still gated');
+  assert.ok(attempts.has(`${TRAIN_KEY}5@${SHA}`));
+  assert.deepEqual(
+    f.calls.backlog.map(b => b[0]),
+    ['done'],
+    'the blocked ready line stays; only #6 is closed'
+  );
+  // The next round does not gate the blocked PR again until the train is reset.
+  const f2 = fakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: open() },
+  });
+  round(f2.deps, new Set(), attempts);
+  assert.deepEqual(f2.calls.gate, []);
+});
+
+test('readyItems: an item with two PRs holds one ready line each, both are read', () => {
+  const text = backlog([
+    ['one', `PR #5 ready, head ${SHA}\n- progress: PR #6 ready, head ${SHA2}`],
+  ]);
+  assert.deepEqual(readyItems(text), [
+    { id: 'one', pr: 5, head: SHA },
+    { id: 'one', pr: 6, head: SHA2 },
+  ]);
+});
+
+test('a merge of one PR of a two-PR item keeps the other PR open (part line, --if-ready)', () => {
+  const text = backlog([
+    ['one', `PR #5 ready, head ${SHA}\n- progress: PR #6 ready, head ${SHA2}`],
+  ]);
+  const f = fakes({ text, prs: { 5: open() }, gates: { 5: merged(5) } });
+  round(f.deps, new Set());
+  const b = f.calls.backlog.at(-1);
+  assert.equal(b[0], 'progress');
+  assert.match(b[2], /part PR #5 landed/);
+  assert.deepEqual(b.slice(3), ['--if-ready', `5@${SHA}`]);
+  assert.ok(!f.calls.backlog.some(x => x[0] === 'done'));
 });
 
 test('main red: one line, no gate, no Backlog write, the runner stops', () => {
@@ -418,7 +510,8 @@ test('main tip with no run: after the waiting rounds the runner starts main CI o
     assert.equal(dispatches().length, i < TIP_WAIT_ROUNDS ? 0 : 1, `round ${i}`);
   }
   // Still no run after another full wait (cancelled or never appeared): started again.
-  for (let i = TIP_WAIT_ROUNDS + 4; i <= TIP_WAIT_ROUNDS * 2; i += 1) round(h.deps, tried, attempts);
+  for (let i = TIP_WAIT_ROUNDS + 4; i <= TIP_WAIT_ROUNDS * 2; i += 1)
+    round(h.deps, tried, attempts);
   assert.equal(dispatches().length, 2);
   assert.deepEqual(dispatches()[0], [
     'workflow',
@@ -519,6 +612,36 @@ test('an already merged item with pi: yes or a Waiting blocker is not closed wit
       ['progress', 'two', 'PR #6 merged', '--if-ready', `6@${SHA2}`],
     ]
   );
+});
+
+test('a merged item whose done-when names a tag, publish, ruleset step or the user OK stays open', () => {
+  const f = fakes({
+    text: backlog(
+      [
+        ['rel', `PR #5 ready, head ${SHA}`],
+        ['que', `PR #6 ready, head ${SHA2}`],
+      ],
+      {
+        rel: ['- done when: v0.29.2 tagged and published on GitHub'],
+        que: ['- done when: the main ruleset has a merge_queue rule; the gate enqueues'],
+      }
+    ),
+    prs: { 5: { state: 'MERGED', headRefOid: SHA }, 6: { state: 'MERGED', headRefOid: SHA2 } },
+  });
+  round(f.deps, new Set());
+  assert.equal(
+    f.calls.backlog.some(a => a[0] === 'done'),
+    false
+  );
+  assert.deepEqual(
+    f.calls.backlog.map(a => [a[0], a[1], a[2].slice(0, 12), a[3], a[4]]),
+    [
+      ['progress', 'rel', 'PR #5 merged', '--if-ready', `5@${SHA}`],
+      ['progress', 'que', 'PR #6 merged', '--if-ready', `6@${SHA2}`],
+    ]
+  );
+  assert.match(f.calls.backlog[0][2], /names a tag/);
+  assert.match(f.calls.backlog[1][2], /names a ruleset change/);
 });
 
 test('a line rewritten while an earlier gate ran is read again: no gate and no refusal on the old head', () => {
@@ -861,6 +984,153 @@ test('main CI still running at the newest push: no gate, no stop, next round', (
   assert.deepEqual(f.calls.post, []);
 });
 
+/** Main's tip CI is running; the run before it is `prev`. */
+const RUNNING = prev =>
+  JSON.stringify([
+    { conclusion: '', status: 'in_progress', headSha: SHA2, event: 'push' },
+    { conclusion: prev, status: 'completed', headSha: 'c'.repeat(40), event: 'push' },
+  ]);
+
+test('main CI running, last completed run green, the PR CI ran on main tip: no wait, the gate runs', () => {
+  const asked = [];
+  const f = fakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: open() },
+    gates: { 5: merged(5) },
+    main: RUNNING('success'),
+  });
+  f.deps.baseCurrent = (r, tip) => (asked.push([r.pr, tip]), true);
+  assert.deepEqual(round(f.deps, new Set()), { stop: null, merged: [5] });
+  assert.deepEqual(f.calls.gate, [5]);
+  assert.deepEqual(asked, [[5, SHA2]]);
+});
+
+test('main CI running and the PR CI ran on an older main (stale base): waits as before', () => {
+  const f = fakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: open() },
+    main: RUNNING('success'),
+  });
+  f.deps.baseCurrent = () => false;
+  assert.deepEqual(round(f.deps, new Set()), { stop: null, merged: [] });
+  assert.deepEqual(f.calls.gate, []);
+  // no dependency at all (older callers): waits too
+  delete f.deps.baseCurrent;
+  assert.deepEqual(round(f.deps, new Set()), { stop: null, merged: [] });
+  assert.deepEqual(f.calls.gate, []);
+});
+
+test('main CI running after a red run: no skip, the base is not even asked', () => {
+  const f = fakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: open() },
+    main: RUNNING('failure'),
+  });
+  f.deps.baseCurrent = () => assert.fail('must not be asked');
+  assert.deepEqual(round(f.deps, new Set()), { stop: null, merged: [] });
+  assert.deepEqual(f.calls.gate, []);
+});
+
+test('a finished red main still stops the runner, whatever the PR base is', () => {
+  const f = fakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: open() },
+    main: RED,
+  });
+  f.deps.baseCurrent = () => true;
+  const r = round(f.deps, new Set());
+  assert.match(r.stop, /main is red/);
+  assert.deepEqual(f.calls.gate, []);
+});
+
+test('mainState: a running tip run reports whether the run before it passed', () => {
+  assert.deepEqual(
+    [mainState(RUNNING('success'), SHA2).running, mainState(RUNNING('success'), SHA2).prevGreen],
+    [true, true]
+  );
+  assert.equal(mainState(RUNNING('failure'), SHA2).prevGreen, false);
+  const three = (mid, last, attempt = 1) =>
+    JSON.stringify([
+      { conclusion: '', status: 'in_progress', headSha: SHA2, event: 'push', attempt },
+      { conclusion: mid, status: 'completed', headSha: 'e'.repeat(40), event: 'push' },
+      { conclusion: last, status: 'completed', headSha: 'c'.repeat(40), event: 'push' },
+    ]);
+  assert.equal(mainState(three('cancelled', 'success'), SHA2).prevGreen, true);
+  assert.equal(mainState(three('cancelled', 'failure'), SHA2).prevGreen, false);
+  // a running rerun (attempt 2) is main red to the gate: never skipped
+  assert.equal(mainState(three('success', 'success', 2), SHA2).prevGreen, false);
+});
+
+test('testedOnTip: head contains the tip, or a green PR run was created after the tip commit', () => {
+  const tipDate = '2026-11-16T18:00:00Z';
+  const run = (createdAt, conclusion = 'success', event = 'pull_request') => ({
+    createdAt,
+    conclusion,
+    event,
+  });
+  assert.equal(testedOnTip({ behindBy: 0, tipDate: '', runs: [] }), true);
+  assert.equal(testedOnTip({ behindBy: 2, tipDate, runs: [run('2026-11-16T18:05:00Z')] }), true);
+  assert.equal(testedOnTip({ behindBy: 2, tipDate, runs: [run('2026-11-16T17:59:00Z')] }), false);
+  // two minutes of slack after the tip commit
+  assert.equal(testedOnTip({ behindBy: 2, tipDate, runs: [run('2026-11-16T18:01:00Z')] }), false);
+  assert.equal(testedOnTip({ behindBy: 2, tipDate, runs: [run('2026-11-16T18:03:00Z')] }), true);
+  assert.equal(
+    testedOnTip({ behindBy: 2, tipDate, runs: [run('2026-11-16T18:05:00Z', 'failure')] }),
+    false
+  );
+  assert.equal(
+    testedOnTip({
+      behindBy: null,
+      tipDate,
+      runs: [run('2026-11-16T18:05:00Z', 'success', 'push')],
+    }),
+    false
+  );
+  assert.equal(
+    testedOnTip({ behindBy: 1, tipDate: 'nope', runs: [run('2026-11-16T18:05:00Z')] }),
+    false
+  );
+});
+
+test('makeBaseDeps: reads compare, tip date and the head runs; a failed read is false', () => {
+  const seen = [];
+  const answers = (cmp, tipDate, runs) => (cmd, args) => {
+    seen.push(args);
+    if (args[1].includes('/compare/')) return cmp;
+    if (args[1].includes('/commits/')) return tipDate;
+    return runs;
+  };
+  const ok = s => ({ status: 0, stdout: s, stderr: '' });
+  const bad = { status: 1, stdout: '', stderr: 'x' };
+  const green = ok(
+    JSON.stringify([
+      { event: 'pull_request', conclusion: 'success', createdAt: '2026-11-16T19:00:00Z' },
+    ])
+  );
+  const mk = sh => makeBaseDeps({ sh, repo: 'o/r' }).baseCurrent({ head: SHA }, SHA2);
+  assert.equal(mk(answers(ok('0\n'), bad, bad)), true);
+  assert.equal(mk(answers(ok('3\n'), ok('2026-11-16T18:00:00Z\n'), green)), true);
+  assert.deepEqual(seen[0], ['api', `repos/o/r/compare/${SHA2}...${SHA}`, '--jq', '.behind_by']);
+  assert.equal(mk(answers(ok('3\n'), ok('2026-11-16T18:00:00Z\n'), green)), true);
+  assert.deepEqual(seen.at(-1), [
+    'run',
+    'list',
+    '-R',
+    'o/r',
+    '-w',
+    'ci.yml',
+    '--commit',
+    SHA,
+    '-L',
+    '10',
+    '--json',
+    'event,conclusion,createdAt',
+  ]);
+  assert.equal(mk(answers(ok('\n'), bad, bad)), false, 'an empty answer is not 0 behind');
+  assert.equal(mk(answers(ok('3\n'), bad, green)), false);
+  assert.equal(mk(answers(bad, ok('2026-11-16T18:00:00Z\n'), ok('not json'))), false);
+});
+
 test('main CI unreadable (gh fails): wait, do not stop', () => {
   const f = fakes({ text: backlog([['one', `PR #5 ready, head ${SHA}`]]), prs: { 5: open() } });
   const gh = f.deps.gh;
@@ -1043,6 +1313,7 @@ test('queue: a failed group (open, out of the queue) is confirmed in a second ro
   assert.deepEqual(f.calls.train, [5]);
   assert.equal(f.calls.backlog.length, 1);
   assert.match(f.calls.backlog[0][2], /left the merge queue without merging/);
+  assert.deepEqual(f.calls.backlog[0].slice(-2), ['--pr', '5'], 'M1: names its PR, keeps others');
   assert.equal(f.calls.post.length, 1);
   round(f.deps, tried, attempts);
   assert.equal(f.calls.backlog.length, 1, 'not handled twice');
@@ -1232,7 +1503,7 @@ test('Backlog-part: an unreadable PR body keeps the item open (a progress line, 
   assert.match(f.calls.backlog[0][2], /body unreadable/);
 });
 
-test('Backlog-part through the merge queue: no --if-ready, sha from the PR', () => {
+test('Backlog-part through the merge queue: --pr instead of --if-ready (M1), sha from the PR', () => {
   const f = fakes({
     text: backlog([['one', enqueuedLine(5, SHA)]]),
     prs: { 5: { ...open(), body: 'Backlog-part: one', mergeCommit: { oid: 'abcdef0123' } } },
@@ -1247,7 +1518,25 @@ test('Backlog-part through the merge queue: no --if-ready, sha from the PR', () 
         }
       : gh(args);
   round(f.deps, new Set());
-  assert.deepEqual(f.calls.backlog, [['progress', 'one', 'part PR #5 landed on main (abcdef0)']]);
+  assert.deepEqual(f.calls.backlog, [
+    ['progress', 'one', 'part PR #5 landed on main (abcdef0)', '--pr', '5'],
+  ]);
+});
+
+test('M5: the train tick runs before each gate, and a stop from it ends the round before the gate', () => {
+  const f = fakes({
+    text: backlog([
+      ['one', `PR #5 ready, head ${SHA}`],
+      ['two', `PR #6 ready, head ${'b'.repeat(40)}`],
+    ]),
+    prs: { 5: { ...open(), body: 'Backlog: one' } },
+    gates: { 5: merged(5) },
+  });
+  let ticks = 0;
+  const r = roundWith(f.deps, new Set(), new Map(), () => (++ticks === 2 ? { stop: 'red' } : {}));
+  assert.equal(ticks, 2, 'before the first gate and before the second');
+  assert.equal(r.stop, 'red');
+  assert.deepEqual(r.merged, [5]);
 });
 
 test('Backlog line PR merged: done, as before', () => {

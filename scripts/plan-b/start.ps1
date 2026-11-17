@@ -5,7 +5,7 @@
   restored backup (docs/dev/PLAN-B.md).
 
 .DESCRIPTION
-  Runs restore.ps1's copy in <Root> (default C:\FoundryPlanB), in the background, with logs in
+  Runs restore.ps1's copy in <Root> (default C:\FoundryPlanB, or inside FVTT_DATA_DIR once moved), in the background, with logs in
   <Root>\logs. The services are the Pi's, run the Pi's way:
     foundry      Foundry with --dataPath <Root>\data and the world
     bridge       the MCP bridge (control and Foundry link on 127.0.0.1), vault <Root>\tool\vault

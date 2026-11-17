@@ -1,4 +1,6 @@
-import { describe, expect, it, vi, type Mock } from 'vitest';
+import { describe, expect, it } from 'vitest';
+
+import { makeTools } from '../test-support/make-tool-harness.js';
 
 import { SceneTools } from './scene.js';
 
@@ -11,30 +13,13 @@ import { SceneTools } from './scene.js';
  * key transformations on representative mock responses.
  */
 
-function makeTools(queryImpl?: (method: string, data: unknown) => unknown): {
-  tools: SceneTools;
-  query: Mock;
-} {
-  const query = vi.fn(queryImpl ?? ((): unknown => ({ success: true })));
-  const foundryClient = { query } as any;
-  // Minimal Logger stub: `.child()` returns itself; level methods are no-ops.
-  const logger: any = {
-    error: vi.fn(),
-    warn: vi.fn(),
-    info: vi.fn(),
-    debug: vi.fn(),
-  };
-  logger.child = (): unknown => logger;
-  return { tools: new SceneTools({ foundryClient, logger }), query };
-}
-
 // ---------------------------------------------------------------------------
 // getToolDefinitions
 // ---------------------------------------------------------------------------
 
 describe('SceneTools.getToolDefinitions', () => {
   it('exposes the four scene tools with object input schemas', () => {
-    const { tools } = makeTools();
+    const { tools } = makeTools(SceneTools);
     const defs = tools.getToolDefinitions();
     expect(defs.map(d => d.name)).toEqual([
       'get-current-scene',
@@ -48,33 +33,33 @@ describe('SceneTools.getToolDefinitions', () => {
   });
 
   it('list-scenes has no required fields', () => {
-    const { tools } = makeTools();
+    const { tools } = makeTools(SceneTools);
     const def = tools.getToolDefinitions().find(d => d.name === 'list-scenes')!;
     expect((def.inputSchema as any).required).toBeUndefined();
   });
 
-  it('switch-scene requires scene_identifier', () => {
-    const { tools } = makeTools();
+  it('switch-scene requires scene', () => {
+    const { tools } = makeTools(SceneTools);
     const def = tools.getToolDefinitions().find(d => d.name === 'switch-scene')!;
-    expect((def.inputSchema as any).required).toEqual(['scene_identifier']);
+    expect((def.inputSchema as any).required).toEqual(['scene']);
   });
 
   it('get-current-scene has no required fields', () => {
-    const { tools } = makeTools();
+    const { tools } = makeTools(SceneTools);
     const defs = tools.getToolDefinitions();
     const def = defs.find(d => d.name === 'get-current-scene')!;
     expect((def.inputSchema as any).required).toBeUndefined();
   });
 
   it('get-world-info has no required fields', () => {
-    const { tools } = makeTools();
+    const { tools } = makeTools(SceneTools);
     const defs = tools.getToolDefinitions();
     const def = defs.find(d => d.name === 'get-world-info')!;
     expect((def.inputSchema as any).required).toBeUndefined();
   });
 
   it('get-current-scene declares includeTokens and includeHidden properties', () => {
-    const { tools } = makeTools();
+    const { tools } = makeTools(SceneTools);
     const defs = tools.getToolDefinitions();
     const def = defs.find(d => d.name === 'get-current-scene')!;
     const props = (def.inputSchema as any).properties;
@@ -106,14 +91,14 @@ describe('SceneTools.handleGetCurrentScene', () => {
   };
 
   it('dispatches foundry-mcp-bridge.getActiveScene with no extra params', async () => {
-    const { tools, query } = makeTools(() => minimalScene);
+    const { tools, query } = makeTools(SceneTools, () => minimalScene);
     await tools.handleGetCurrentScene({});
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getActiveScene');
     expect(query).toHaveBeenCalledTimes(1);
   });
 
   it('shapes the response: top-level fields id/name/active/dimensions/hasBackground/navigation/elements', async () => {
-    const { tools } = makeTools(() => minimalScene);
+    const { tools } = makeTools(SceneTools, () => minimalScene);
     const result = await tools.handleGetCurrentScene({});
     expect(result.id).toBe('scene-abc');
     expect(result.name).toBe('Dungeon Level 1');
@@ -125,7 +110,7 @@ describe('SceneTools.handleGetCurrentScene', () => {
   });
 
   it('hasBackground is false when background is falsy', async () => {
-    const { tools } = makeTools(() => ({ ...minimalScene, background: undefined }));
+    const { tools } = makeTools(SceneTools, () => ({ ...minimalScene, background: undefined }));
     const result = await tools.handleGetCurrentScene({});
     expect(result.hasBackground).toBe(false);
   });
@@ -160,7 +145,7 @@ describe('SceneTools.handleGetCurrentScene', () => {
         },
       ],
     };
-    const { tools } = makeTools(() => scene);
+    const { tools } = makeTools(SceneTools, () => scene);
     const result = await tools.handleGetCurrentScene({ includeTokens: true });
     expect(result.tokens).toHaveLength(2);
     expect(result.tokenSummary.total).toBe(2);
@@ -188,7 +173,7 @@ describe('SceneTools.handleGetCurrentScene', () => {
         },
       ],
     };
-    const { tools } = makeTools(() => scene);
+    const { tools } = makeTools(SceneTools, () => scene);
     const result = await tools.handleGetCurrentScene({ includeTokens: false });
     expect(result.tokens).toBeUndefined();
     expect(result.tokenSummary).toBeUndefined();
@@ -224,7 +209,7 @@ describe('SceneTools.handleGetCurrentScene', () => {
         },
       ],
     };
-    const { tools } = makeTools(() => scene);
+    const { tools } = makeTools(SceneTools, () => scene);
     const result = await tools.handleGetCurrentScene({ includeTokens: true, includeHidden: false });
     expect(result.tokens).toHaveLength(1);
     expect(result.tokens[0].name).toBe('Goblin');
@@ -261,7 +246,7 @@ describe('SceneTools.handleGetCurrentScene', () => {
         },
       ],
     };
-    const { tools } = makeTools(() => scene);
+    const { tools } = makeTools(SceneTools, () => scene);
     const result = await tools.handleGetCurrentScene({ includeTokens: true, includeHidden: true });
     expect(result.tokens).toHaveLength(2);
     expect(result.tokenSummary.total).toBe(2);
@@ -285,7 +270,7 @@ describe('SceneTools.handleGetCurrentScene', () => {
         },
       ],
     };
-    const { tools } = makeTools(() => scene);
+    const { tools } = makeTools(SceneTools, () => scene);
     const result = await tools.handleGetCurrentScene({ includeTokens: true });
     const token = result.tokens[0];
     expect(token).toEqual({
@@ -317,7 +302,7 @@ describe('SceneTools.handleGetCurrentScene', () => {
       ...minimalScene,
       tokens: [makeToken('h', -1), makeToken('n', 0), makeToken('f', 1), makeToken('u', 99)],
     };
-    const { tools } = makeTools(() => scene);
+    const { tools } = makeTools(SceneTools, () => scene);
     const result = await tools.handleGetCurrentScene({ includeTokens: true });
     const names = result.tokens.map((t: any) => t.disposition);
     expect(names).toEqual(['hostile', 'neutral', 'friendly', 'unknown']);
@@ -331,7 +316,7 @@ describe('SceneTools.handleGetCurrentScene', () => {
         { id: 'n2', text: 'x'.repeat(200), x: 300, y: 400 },
       ],
     };
-    const { tools } = makeTools(() => scene);
+    const { tools } = makeTools(SceneTools, () => scene);
     const result = await tools.handleGetCurrentScene({});
     expect(result.notes).toHaveLength(2);
     expect(result.notes[0]).toEqual({
@@ -352,7 +337,7 @@ describe('SceneTools.handleGetCurrentScene', () => {
         { id: 'n2', text: 'Note 2', x: 0, y: 0 },
       ],
     };
-    const { tools } = makeTools(() => scene);
+    const { tools } = makeTools(SceneTools, () => scene);
     const result = await tools.handleGetCurrentScene({});
     expect(result.elements.notes).toBe(2);
   });
@@ -375,7 +360,7 @@ describe('SceneTools.handleGetCurrentScene', () => {
         },
       ],
     };
-    const { tools } = makeTools(() => scene);
+    const { tools } = makeTools(SceneTools, () => scene);
     const result = await tools.handleGetCurrentScene({});
     // includeTokens defaults true → tokens present
     expect(result.tokens).toHaveLength(1);
@@ -384,7 +369,7 @@ describe('SceneTools.handleGetCurrentScene', () => {
   });
 
   it('throws (wraps message) when the Foundry client throws', async () => {
-    const { tools } = makeTools(() => {
+    const { tools } = makeTools(SceneTools, () => {
       throw new Error('bridge offline');
     });
     await expect(tools.handleGetCurrentScene({})).rejects.toThrow(
@@ -393,7 +378,7 @@ describe('SceneTools.handleGetCurrentScene', () => {
   });
 
   it('throws with Unknown error message when client throws a non-Error', async () => {
-    const { tools } = makeTools(() => {
+    const { tools } = makeTools(SceneTools, () => {
       // eslint-disable-next-line @typescript-eslint/only-throw-error -- the test throws a non-Error on purpose
       throw 'oops';
     });
@@ -403,7 +388,7 @@ describe('SceneTools.handleGetCurrentScene', () => {
   });
 
   it('throws (ZodError) when includeTokens is not a boolean', async () => {
-    const { tools } = makeTools(() => minimalScene);
+    const { tools } = makeTools(SceneTools, () => minimalScene);
     await expect(tools.handleGetCurrentScene({ includeTokens: 'yes' })).rejects.toThrow();
   });
 });
@@ -428,33 +413,33 @@ describe('SceneTools.handleGetWorldInfo', () => {
   };
 
   it('dispatches foundry-mcp-bridge.getWorldInfo with no params', async () => {
-    const { tools, query } = makeTools(() => worldPayload);
+    const { tools, query } = makeTools(SceneTools, () => worldPayload);
     await tools.handleGetWorldInfo({});
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getWorldInfo');
     expect(query).toHaveBeenCalledTimes(1);
   });
 
   it('shapes top-level id and title', async () => {
-    const { tools } = makeTools(() => worldPayload);
+    const { tools } = makeTools(SceneTools, () => worldPayload);
     const result = await tools.handleGetWorldInfo({});
     expect(result.id).toBe('world-1');
     expect(result.title).toBe('The Forgotten Realm');
   });
 
   it('shapes system object with id and version', async () => {
-    const { tools } = makeTools(() => worldPayload);
+    const { tools } = makeTools(SceneTools, () => worldPayload);
     const result = await tools.handleGetWorldInfo({});
     expect(result.system).toEqual({ id: 'dnd5e', version: '3.3.1' });
   });
 
   it('shapes foundry object with version', async () => {
-    const { tools } = makeTools(() => worldPayload);
+    const { tools } = makeTools(SceneTools, () => worldPayload);
     const result = await tools.handleGetWorldInfo({});
     expect(result.foundry).toEqual({ version: '11.315' });
   });
 
   it('computes users summary: total, active, gms, players', async () => {
-    const { tools } = makeTools(() => worldPayload);
+    const { tools } = makeTools(SceneTools, () => worldPayload);
     const result = await tools.handleGetWorldInfo({});
     expect(result.users).toEqual({ total: 3, active: 2, gms: 1, players: 2 });
   });
@@ -464,14 +449,14 @@ describe('SceneTools.handleGetWorldInfo', () => {
       ...worldPayload.users,
       { id: 'u9', name: 'Table', active: true, isGM: false, tableViewer: true },
     ];
-    const { tools } = makeTools(() => ({ ...worldPayload, users }));
+    const { tools } = makeTools(SceneTools, () => ({ ...worldPayload, users }));
     const result = await tools.handleGetWorldInfo({});
     expect(result.users).toEqual({ total: 4, active: 3, gms: 1, players: 2 });
     expect(result.playerUsers.map((u: { name: string }) => u.name)).not.toContain('Table');
   });
 
   it('computes activeUsers list filtered to active users only', async () => {
-    const { tools } = makeTools(() => worldPayload);
+    const { tools } = makeTools(SceneTools, () => worldPayload);
     const result = await tools.handleGetWorldInfo({});
     expect(result.activeUsers).toEqual([
       { id: 'u1', name: 'GM Chris', isGM: true },
@@ -480,27 +465,27 @@ describe('SceneTools.handleGetWorldInfo', () => {
   });
 
   it('handles empty users array gracefully', async () => {
-    const { tools } = makeTools(() => ({ ...worldPayload, users: [] }));
+    const { tools } = makeTools(SceneTools, () => ({ ...worldPayload, users: [] }));
     const result = await tools.handleGetWorldInfo({});
     expect(result.users).toEqual({ total: 0, active: 0, gms: 0, players: 0 });
     expect(result.activeUsers).toEqual([]);
   });
 
   it('handles missing users (undefined) gracefully', async () => {
-    const { tools } = makeTools(() => ({ ...worldPayload, users: undefined }));
+    const { tools } = makeTools(SceneTools, () => ({ ...worldPayload, users: undefined }));
     const result = await tools.handleGetWorldInfo({});
     expect(result.users.total).toBe(0);
     expect(result.activeUsers).toEqual([]);
   });
 
   it('is callable with undefined args (ignores args entirely)', async () => {
-    const { tools, query } = makeTools(() => worldPayload);
+    const { tools, query } = makeTools(SceneTools, () => worldPayload);
     await tools.handleGetWorldInfo(undefined);
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getWorldInfo');
   });
 
   it('throws (wraps message) when the Foundry client throws', async () => {
-    const { tools } = makeTools(() => {
+    const { tools } = makeTools(SceneTools, () => {
       throw new Error('connection refused');
     });
     await expect(tools.handleGetWorldInfo({})).rejects.toThrow(
@@ -509,7 +494,7 @@ describe('SceneTools.handleGetWorldInfo', () => {
   });
 
   it('throws with Unknown error message when client throws a non-Error', async () => {
-    const { tools } = makeTools(() => {
+    const { tools } = makeTools(SceneTools, () => {
       // eslint-disable-next-line @typescript-eslint/only-throw-error -- the test throws a non-Error on purpose
       throw 42;
     });
@@ -552,7 +537,7 @@ describe('SceneTools token disposition: secret (M3)', () => {
   };
 
   it('names -2 "secret" (TOKEN_DISPOSITIONS.SECRET) instead of "unknown"', async () => {
-    const { tools } = makeTools(() => scene);
+    const { tools } = makeTools(SceneTools, () => scene);
     const result = await tools.handleGetCurrentScene({ includeTokens: true });
     expect(result.tokens.map((t: any) => t.disposition)).toEqual([
       'secret',
@@ -563,7 +548,7 @@ describe('SceneTools token disposition: secret (M3)', () => {
   });
 
   it('counts secret tokens under byDisposition.secret, not unknown', async () => {
-    const { tools } = makeTools(() => scene);
+    const { tools } = makeTools(SceneTools, () => scene);
     const result = await tools.handleGetCurrentScene({ includeTokens: true });
     expect(result.tokenSummary.byDisposition).toMatchObject({
       secret: 1,
@@ -580,10 +565,15 @@ describe('SceneTools token disposition: secret (M3)', () => {
 // ---------------------------------------------------------------------------
 
 describe('SceneTools.listScenes', () => {
-  it('dispatches list-scenes to foundryClient.query with filter and include_active_only', async () => {
+  it('throws when the module refuses', async () => {
+    const { tools } = makeTools(SceneTools, () => ({ success: false, error: 'Access denied' }));
+    await expect(tools.listScenes({})).rejects.toThrow('Failed to list scenes: Access denied');
+  });
+
+  it('dispatches list-scenes to foundryClient.query with filter and activeOnly', async () => {
     const payload = { success: true, scenes: [] };
-    const { tools, query } = makeTools(() => payload);
-    const result = await tools.listScenes({ filter: 'tavern', include_active_only: true });
+    const { tools, query } = makeTools(SceneTools, () => payload);
+    const result = await tools.listScenes({ filter: 'tavern', activeOnly: true });
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.list-scenes', {
       filter: 'tavern',
       include_active_only: true,
@@ -591,8 +581,8 @@ describe('SceneTools.listScenes', () => {
     expect(result).toBe(payload);
   });
 
-  it('omits filter when not a string and defaults include_active_only to false', async () => {
-    const { tools, query } = makeTools(() => ({ success: true, scenes: [] }));
+  it('omits filter when not a string and defaults activeOnly to false', async () => {
+    const { tools, query } = makeTools(SceneTools, () => ({ success: true, scenes: [] }));
     await tools.listScenes({});
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.list-scenes', {
       filter: undefined,
@@ -601,7 +591,7 @@ describe('SceneTools.listScenes', () => {
   });
 
   it('handles null/undefined input gracefully', async () => {
-    const { tools, query } = makeTools(() => ({ success: true, scenes: [] }));
+    const { tools, query } = makeTools(SceneTools, () => ({ success: true, scenes: [] }));
     await tools.listScenes(undefined);
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.list-scenes', {
       filter: undefined,
@@ -609,12 +599,11 @@ describe('SceneTools.listScenes', () => {
     });
   });
 
-  it('returns an error object (not a throw) when query throws', async () => {
-    const { tools } = makeTools(() => {
+  it('throws when query throws', async () => {
+    const { tools } = makeTools(SceneTools, () => {
       throw new Error('bridge offline');
     });
-    const result = await tools.listScenes({});
-    expect(result).toMatchObject({ success: false, error: 'bridge offline' });
+    await expect(tools.listScenes({})).rejects.toThrow('Failed to list scenes: bridge offline');
   });
 });
 
@@ -623,11 +612,11 @@ describe('SceneTools.listScenes', () => {
 // ---------------------------------------------------------------------------
 
 describe('SceneTools.switchScene', () => {
-  it('dispatches switch-scene to foundryClient.query with scene_identifier', async () => {
+  it('dispatches switch-scene to foundryClient.query with the scene', async () => {
     const payload = { success: true };
-    const { tools, query } = makeTools(() => payload);
+    const { tools, query } = makeTools(SceneTools, () => payload);
     const result = await tools.switchScene({
-      scene_identifier: 'Tavern Scene',
+      scene: 'Tavern Scene',
       optimize_view: false,
     });
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.switch-scene', {
@@ -638,49 +627,45 @@ describe('SceneTools.switchScene', () => {
   });
 
   it('defaults optimize_view to true when not provided', async () => {
-    const { tools, query } = makeTools(() => ({ success: true }));
-    await tools.switchScene({ scene_identifier: 'Forest' });
+    const { tools, query } = makeTools(SceneTools, () => ({ success: true }));
+    await tools.switchScene({ scene: 'Forest' });
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.switch-scene', {
       scene_identifier: 'Forest',
       optimize_view: true,
     });
   });
 
-  it('accepts sceneId as alias for scene_identifier', async () => {
-    const { tools, query } = makeTools(() => ({ success: true }));
-    await tools.switchScene({ sceneId: 'scene-001' });
-    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.switch-scene', {
-      scene_identifier: 'scene-001',
-      optimize_view: true,
-    });
+  it('throws when the module refuses', async () => {
+    const { tools } = makeTools(SceneTools, () => ({ success: false, error: 'Access denied' }));
+    await expect(tools.switchScene({ scene: 'Forest' })).rejects.toThrow(
+      'Failed to switch scene: Access denied'
+    );
   });
 
-  it('returns an error object (not a throw) when scene_identifier is missing', async () => {
-    const { tools, query } = makeTools();
-    const result = await tools.switchScene({});
-    expect(result).toMatchObject({ success: false, error: 'scene_identifier is required' });
+  it('throws when scene is missing', async () => {
+    const { tools, query } = makeTools(SceneTools);
+    await expect(tools.switchScene({})).rejects.toThrow('scene is required');
     expect(query).not.toHaveBeenCalled();
   });
 
-  it('returns an error object when called with null/undefined input', async () => {
-    const { tools, query } = makeTools();
-    const result = await tools.switchScene(undefined);
-    expect(result).toMatchObject({ success: false, error: 'scene_identifier is required' });
+  it('throws when called with null/undefined input', async () => {
+    const { tools, query } = makeTools(SceneTools);
+    await expect(tools.switchScene(undefined)).rejects.toThrow('scene is required');
     expect(query).not.toHaveBeenCalled();
   });
 
-  it('returns an error object when scene_identifier is only whitespace', async () => {
-    const { tools, query } = makeTools();
-    const result = await tools.switchScene({ scene_identifier: '   ' });
-    expect(result).toMatchObject({ success: false, error: 'scene_identifier is required' });
+  it('throws when scene is only whitespace', async () => {
+    const { tools, query } = makeTools(SceneTools);
+    await expect(tools.switchScene({ scene: '   ' })).rejects.toThrow('scene is required');
     expect(query).not.toHaveBeenCalled();
   });
 
-  it('returns an error object (not a throw) when query throws', async () => {
-    const { tools } = makeTools(() => {
+  it('throws when query throws', async () => {
+    const { tools } = makeTools(SceneTools, () => {
       throw new Error('scene not found');
     });
-    const result = await tools.switchScene({ scene_identifier: 'Ghost Scene' });
-    expect(result).toMatchObject({ success: false, error: 'scene not found' });
+    await expect(tools.switchScene({ scene: 'Ghost Scene' })).rejects.toThrow(
+      'Failed to switch scene: scene not found'
+    );
   });
 });

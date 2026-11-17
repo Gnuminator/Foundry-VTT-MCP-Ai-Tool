@@ -28,8 +28,8 @@ import {
   sentSummary,
   type Advantage,
   type RollPick,
-} from '../lib/quickRoll';
-import { latestRound, roundHeadline, rowLine, useRollRows } from '../lib/rollStatus';
+} from '../lib/quick-roll';
+import { latestRound, roundHeadline, rowLine, useRollRows } from '../lib/roll-status';
 import { usage } from '../lib/usage';
 import { useToast } from './Toasts';
 import styles from './QuickRoll.module.css';

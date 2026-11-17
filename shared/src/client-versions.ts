@@ -17,6 +17,9 @@ export type ClientPiece = 'connectors' | 'player-extension' | 'obsidian';
 /** The header the Obsidian plugin (and any later client) sends: `<piece token>/<version>`. */
 export const CLIENT_HEADER = 'x-foundry-client';
 
+/** A random id per Obsidian install (12 hex), so the table can tell two PCs apart. Never a name. */
+export const INSTALL_HEADER = 'x-foundry-install';
+
 /** At most one outdated line per connection or player in a tool answer within this window. */
 export const CLIENT_NOTICE_INTERVAL_MS = 6 * 3600 * 1000;
 

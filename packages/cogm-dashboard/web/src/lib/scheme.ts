@@ -3,7 +3,7 @@
 // then by a message whenever the setting changes. Only the page that frames this one is heard, and
 // the message carries one word. Without either, the strip keeps the dashboard's dark look.
 
-import { frameParentOrigin } from './mapPick';
+import { frameParentOrigin } from './map-pick';
 
 /** The `type` the Foundry module posts (packages/foundry-module/src/live-window.ts). */
 const LIVE_SCHEME_MESSAGE = 'fmb-live-scheme';

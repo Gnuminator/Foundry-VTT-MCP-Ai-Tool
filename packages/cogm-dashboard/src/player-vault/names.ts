@@ -5,7 +5,7 @@
  */
 
 /** Longest name we write, before the extension. */
-export const MAX_NAME_LENGTH = 120;
+const MAX_NAME_LENGTH = 120;
 
 const UNSAFE = /[\\/:*?"<>|#^[\]{}%~`$]/g;
 // eslint-disable-next-line no-control-regex

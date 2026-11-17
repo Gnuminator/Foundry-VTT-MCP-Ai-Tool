@@ -51,7 +51,7 @@ describe('SessionLogTools.handleGetSessionLog', () => {
 
   it('dispatches with provided params', async () => {
     const { tools, query } = makeTools(SessionLogTools);
-    await tools.handleGetSessionLog({ limit: 50, eventType: 'damage', actorName: 'Frodo' });
+    await tools.handleGetSessionLog({ limit: 50, eventType: 'damage', actor: 'Frodo' });
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getSessionLog', {
       limit: 50,
       eventType: 'damage',

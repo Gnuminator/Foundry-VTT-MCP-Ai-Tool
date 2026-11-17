@@ -105,6 +105,46 @@ export function parseReady(progress) {
   return m ? { pr: Number(m[1]), head: m[2] } : null;
 }
 
+const READY_LINE = /^(?:\d{4}-\d{2}-\d{2} )?PR #(\d+) ready, head ([0-9a-f]{40})\b/;
+const ENQUEUED_LINE =
+  /^(?:\d{4}-\d{2}-\d{2} )?PR #(\d+) enqueued in the merge queue, head ([0-9a-f]{40})\b/;
+
+/**
+ * Every ready line of a progress text, one per PR (an item with two PRs holds two lines).
+ * @param {string} progress
+ * @returns {{ pr: number, head: string }[]}
+ */
+export function parseReadyAll(progress) {
+  const out = [];
+  for (const l of progress.split('\n')) {
+    const m = READY_LINE.exec(l.trim());
+    if (m) out.push({ pr: Number(m[1]), head: m[2] });
+  }
+  return out;
+}
+
+/**
+ * The PR a progress line is a ready or enqueued line of, or null.
+ * @param {string} line
+ */
+export function readyOrEnqueuedPr(line) {
+  const m = READY_LINE.exec(line.trim()) ?? ENQUEUED_LINE.exec(line.trim());
+  return m ? Number(m[1]) : null;
+}
+
+/**
+ * Prose that says a PR is ready to merge but is not a ready line (2026-11-17: "PR 1129 ready, head
+ * ..." typed by hand, which the runner skips). `progress` refuses it: use `--ready`.
+ * @param {string} text
+ */
+export function looksLikeReadyProse(text) {
+  const t = text.trim();
+  if (READY_LINE.test(t) || ENQUEUED_LINE.test(t) || /\bnot ready\b/i.test(t)) return false;
+  return (
+    /\bPR\s*#?\d+\b[^.;:]{0,20}\bready\b/i.test(t) || /\bready (to|for) (the )?merge\b/i.test(t)
+  );
+}
+
 /**
  * Item id -> its `- progress:` text, for every `## S|M|L` item that has both lines.
  * @param {string} text

@@ -6,6 +6,7 @@
 import type { PreflightCheck, PreflightChecksResult } from '@gnuminator/shared';
 
 import { gmPageInfo } from './gm-page.js';
+import type { PlayerVaultHealth } from './player-vault/service.js';
 import { readyCheck, type SessionSwitches } from './session-switches.js';
 
 /** The checks this file adds to the bridge's list. */
@@ -13,7 +14,8 @@ export type DashboardPreflightCheckId =
   | 'ready'
   | 'player-page'
   | 'bridge-checks'
-  | 'foundry-address';
+  | 'foundry-address'
+  | 'player-vault';
 
 export interface DashboardPreflightCheck extends Omit<PreflightCheck, 'id'> {
   id: PreflightCheck['id'] | DashboardPreflightCheckId;
@@ -35,6 +37,66 @@ export interface DashboardPreflightInput {
   playerState: unknown;
   /** `DASHBOARD_FOUNDRY_URL` as configured; unset or empty gives a warning. */
   foundryUrl?: string | undefined;
+  /** How the player vault passes went; null or absent when the player vaults are off. */
+  playerVaultHealth?: PlayerVaultHealth | null;
+  /** Tests only: the clock (default Date.now). */
+  now?: () => number;
+}
+
+/** A player vault with no clean pass for this long (Foundry connected) is stale. */
+const PLAYER_VAULT_STALE_MS = 10 * 60_000;
+
+/**
+ * Whether the Pi-side player vault folders are being kept current (D-134). Nobody opens the vault
+ * to see its age, so a service that stopped or fails for one player would look current. The
+ * Syncthing hop to each player's PC is a separate read-only check (`scripts/pi/remote/sync-check.sh`).
+ */
+function playerVaultCheck(
+  input: DashboardPreflightInput,
+  foundryConnected: boolean
+): DashboardPreflightCheck | null {
+  const health = input.playerVaultHealth;
+  if (!health) return null;
+  const label = 'Player vaults up to date';
+  const now = (input.now ?? Date.now)();
+  const at = (ms: number): string => {
+    const d = new Date(ms);
+    const p = (n: number): string => String(n).padStart(2, '0');
+    const clock = `${p(d.getHours())}:${p(d.getMinutes())}`;
+    if (d.toDateString() === new Date(now).toDateString()) return clock;
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${clock}`;
+  };
+  if (health.failed.length > 0) {
+    return {
+      id: 'player-vault',
+      label,
+      status: 'warn',
+      detail: `The vault of ${health.failed.join(', ')} was not written in the last pass, so ${health.failed.length === 1 ? 'that player sees' : 'those players see'} older notes${health.lastCleanPassAt ? ` (last clean pass ${at(health.lastCleanPassAt)})` : ''}.`,
+    };
+  }
+  if (health.lastCleanPassAt === null) {
+    return {
+      id: 'player-vault',
+      label,
+      status: 'unknown',
+      detail: 'No player vault pass has finished since the dashboard started.',
+    };
+  }
+  // Nothing is rebuilt while Foundry is closed, and nothing in it changes: an old pass is not stale then.
+  if (foundryConnected && now - health.lastCleanPassAt > PLAYER_VAULT_STALE_MS) {
+    return {
+      id: 'player-vault',
+      label,
+      status: 'warn',
+      detail: `The player vaults were last checked at ${at(health.lastCleanPassAt)}, so they may be out of date.`,
+    };
+  }
+  return {
+    id: 'player-vault',
+    label,
+    status: 'ok',
+    detail: `Checked at ${at(health.lastCleanPassAt)}${health.lastWriteAt ? `; last changed at ${at(health.lastWriteAt)}` : ''}.`,
+  };
 }
 
 /** Foundry's address for the GM page and the Live window: both stay blank without it. */
@@ -162,6 +224,11 @@ export async function runDashboardPreflight(
     foundryAddressCheck(input.foundryUrl),
     await playerPageCheck(input)
   );
+  const vault = playerVaultCheck(
+    input,
+    bridge?.checks.some(c => c.id === 'foundry-link' && c.status === 'ok') ?? false
+  );
+  if (vault) checks.push(vault);
   return {
     ready: bridge !== null && !checks.some(c => c.status === 'fail'),
     checks,

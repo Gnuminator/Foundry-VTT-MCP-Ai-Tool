@@ -2,7 +2,7 @@
  * Quick roll requests in the Party window (item quick-roll-buttons-foundry): the one-click
  * "ask for a check, save or skill" bar for one character or the whole party, the group save, and
  * the per-character results as the rolls come in. The dashboard has the same bar (its
- * `quickRoll.ts`); this one runs inside Foundry, so the GM stays on one screen.
+ * `quick-roll.ts`); this one runs inside Foundry, so the GM stays on one screen.
  *
  * A request is the module's own `requestPlayerRolls` (the handler behind the `request-player-rolls`
  * tool), so every roll lands in the play log, recap, stats and Live Feed exactly as one asked for by

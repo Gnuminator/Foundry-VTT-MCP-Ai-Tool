@@ -8,7 +8,7 @@ import {
   CLIENT_VERSIONS_REFETCH_MS,
   clientBanners,
   splitAtLink,
-} from '../lib/clientNotices';
+} from '../lib/client-notices';
 
 function Line({ text, link }: { text: string; link: string | null }): JSX.Element {
   const [before, url] = splitAtLink(text, link);

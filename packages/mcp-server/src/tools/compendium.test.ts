@@ -1,4 +1,6 @@
-import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+
+import { makeTools } from '../test-support/make-tool-harness.js';
 
 import { CompendiumTools } from './compendium.js';
 import { clearSystemCache } from '../utils/system-detection.js';
@@ -27,26 +29,8 @@ import { clearSystemCache } from '../utils/system-detection.js';
  * different responses per method (e.g., first call returns world info, second
  * returns the payload).
  */
-function makeTools(queryImpl?: (method: string, data?: unknown) => unknown): {
-  tools: CompendiumTools;
-  query: Mock;
-} {
-  const query = vi.fn(queryImpl ?? ((): unknown => ({ success: true })));
-  const foundryClient = { query } as any;
-
-  // Minimal Logger stub: .child() returns itself; level methods are no-ops.
-  const logger: any = {
-    error: vi.fn(),
-    warn: vi.fn(),
-    info: vi.fn(),
-    debug: vi.fn(),
-  };
-  logger.child = (): unknown => logger;
-
-  // systemRegistry is optional; we pass undefined here (handlers don't use it
-  // for their core dispatch logic, they rely on detectGameSystem instead).
-  return { tools: new CompendiumTools({ foundryClient, logger }), query };
-}
+// systemRegistry is optional; the harness passes none (handlers don't use it
+// for their core dispatch logic, they rely on detectGameSystem instead).
 
 /**
  * Build a query mock that:
@@ -82,7 +66,7 @@ afterEach(() => {
 
 describe('CompendiumTools.getToolDefinitions', () => {
   it('exposes exactly five compendium tools in the correct order', () => {
-    const { tools } = makeTools();
+    const { tools } = makeTools(CompendiumTools);
     const defs = tools.getToolDefinitions();
     expect(defs.map(d => d.name)).toEqual([
       'search-compendium',
@@ -94,39 +78,39 @@ describe('CompendiumTools.getToolDefinitions', () => {
   });
 
   it('all tool definitions have object input schemas', () => {
-    const { tools } = makeTools();
+    const { tools } = makeTools(CompendiumTools);
     for (const d of tools.getToolDefinitions()) {
       expect((d.inputSchema as any).type).toBe('object');
     }
   });
 
   it('search-compendium requires only "query"', () => {
-    const { tools } = makeTools();
+    const { tools } = makeTools(CompendiumTools);
     const def = tools.getToolDefinitions().find(d => d.name === 'search-compendium')!;
     expect((def.inputSchema as any).required).toEqual(['query']);
   });
 
   it('get-compendium-item requires packId and itemId', () => {
-    const { tools } = makeTools();
+    const { tools } = makeTools(CompendiumTools);
     const def = tools.getToolDefinitions().find(d => d.name === 'get-compendium-item')!;
     expect((def.inputSchema as any).required).toEqual(['packId', 'itemId']);
   });
 
   it('list-creatures-by-criteria has an empty required array (all fields optional)', () => {
-    const { tools } = makeTools();
+    const { tools } = makeTools(CompendiumTools);
     const def = tools.getToolDefinitions().find(d => d.name === 'list-creatures-by-criteria')!;
     // The source schema declares required: [] (empty array, no required fields).
     expect((def.inputSchema as any).required).toEqual([]);
   });
 
   it('list-compendium-packs has no required fields', () => {
-    const { tools } = makeTools();
+    const { tools } = makeTools(CompendiumTools);
     const def = tools.getToolDefinitions().find(d => d.name === 'list-compendium-packs')!;
     expect((def.inputSchema as any).required).toBeUndefined();
   });
 
   it('search-compendium declares packType, filters, and limit properties', () => {
-    const { tools } = makeTools();
+    const { tools } = makeTools(CompendiumTools);
     const def = tools.getToolDefinitions().find(d => d.name === 'search-compendium')!;
     const props = (def.inputSchema as any).properties;
     expect(props).toHaveProperty('query');
@@ -136,14 +120,14 @@ describe('CompendiumTools.getToolDefinitions', () => {
   });
 
   it('get-compendium-item declares compact property', () => {
-    const { tools } = makeTools();
+    const { tools } = makeTools(CompendiumTools);
     const def = tools.getToolDefinitions().find(d => d.name === 'get-compendium-item')!;
     const props = (def.inputSchema as any).properties;
     expect(props).toHaveProperty('compact');
   });
 
   it('list-creatures-by-criteria declares challengeRating, creatureType, hasSpells', () => {
-    const { tools } = makeTools();
+    const { tools } = makeTools(CompendiumTools);
     const def = tools.getToolDefinitions().find(d => d.name === 'list-creatures-by-criteria')!;
     const props = (def.inputSchema as any).properties;
     expect(props).toHaveProperty('challengeRating');
@@ -152,7 +136,7 @@ describe('CompendiumTools.getToolDefinitions', () => {
   });
 
   it('list-compendium-packs declares type property', () => {
-    const { tools } = makeTools();
+    const { tools } = makeTools(CompendiumTools);
     const def = tools.getToolDefinitions().find(d => d.name === 'list-compendium-packs')!;
     const props = (def.inputSchema as any).properties;
     expect(props).toHaveProperty('type');
@@ -195,7 +179,10 @@ describe('CompendiumTools.handleSearchCompendium', () => {
   ];
 
   it('dispatches foundry-mcp-bridge.searchCompendium with query and packType', async () => {
-    const { tools, query } = makeTools(makeQueryWithSystem('dnd5e', searchResults));
+    const { tools, query } = makeTools(
+      CompendiumTools,
+      makeQueryWithSystem('dnd5e', searchResults)
+    );
     await tools.handleSearchCompendium({ query: 'dragon', packType: 'Actor' });
 
     const compendiumCall = query.mock.calls.find(
@@ -206,7 +193,10 @@ describe('CompendiumTools.handleSearchCompendium', () => {
   });
 
   it('dispatches foundry-mcp-bridge.searchCompendium without packType when omitted', async () => {
-    const { tools, query } = makeTools(makeQueryWithSystem('dnd5e', searchResults));
+    const { tools, query } = makeTools(
+      CompendiumTools,
+      makeQueryWithSystem('dnd5e', searchResults)
+    );
     await tools.handleSearchCompendium({ query: 'goblin' });
 
     const compendiumCall = query.mock.calls.find(
@@ -217,7 +207,7 @@ describe('CompendiumTools.handleSearchCompendium', () => {
   });
 
   it('returns top-level envelope fields: query, gameSystem, filterDescription, results, totalFound, showing, hasMore', async () => {
-    const { tools } = makeTools(makeQueryWithSystem('dnd5e', searchResults));
+    const { tools } = makeTools(CompendiumTools, makeQueryWithSystem('dnd5e', searchResults));
     const result = await tools.handleSearchCompendium({ query: 'dragon' });
 
     expect(result).toHaveProperty('query', 'dragon');
@@ -230,13 +220,13 @@ describe('CompendiumTools.handleSearchCompendium', () => {
   });
 
   it('filterDescription is "no filters" when no filters provided', async () => {
-    const { tools } = makeTools(makeQueryWithSystem('dnd5e', searchResults));
+    const { tools } = makeTools(CompendiumTools, makeQueryWithSystem('dnd5e', searchResults));
     const result = await tools.handleSearchCompendium({ query: 'dragon' });
     expect(result.filterDescription).toBe('no filters');
   });
 
   it('filterDescription reflects CR filter when filters.challengeRating is provided', async () => {
-    const { tools } = makeTools(makeQueryWithSystem('dnd5e', searchResults));
+    const { tools } = makeTools(CompendiumTools, makeQueryWithSystem('dnd5e', searchResults));
     const result = await tools.handleSearchCompendium({
       query: 'dragon',
       filters: { challengeRating: 10 },
@@ -245,7 +235,7 @@ describe('CompendiumTools.handleSearchCompendium', () => {
   });
 
   it('shapes each result item: id, name, type, pack object, description, hasImage, summary', async () => {
-    const { tools } = makeTools(makeQueryWithSystem('dnd5e', searchResults));
+    const { tools } = makeTools(CompendiumTools, makeQueryWithSystem('dnd5e', searchResults));
     const result = await tools.handleSearchCompendium({ query: 'dragon' });
 
     const first = result.results[0];
@@ -259,14 +249,14 @@ describe('CompendiumTools.handleSearchCompendium', () => {
   });
 
   it('shapes hasImage=false for item with empty img string', async () => {
-    const { tools } = makeTools(makeQueryWithSystem('dnd5e', searchResults));
+    const { tools } = makeTools(CompendiumTools, makeQueryWithSystem('dnd5e', searchResults));
     const result = await tools.handleSearchCompendium({ query: 'dragon' });
     const second = result.results[1];
     expect(second.hasImage).toBe(false);
   });
 
   it('shapes NPC stats block: challengeRating and creatureType for dnd5e', async () => {
-    const { tools } = makeTools(makeQueryWithSystem('dnd5e', searchResults));
+    const { tools } = makeTools(CompendiumTools, makeQueryWithSystem('dnd5e', searchResults));
     const result = await tools.handleSearchCompendium({ query: 'dragon' });
 
     const first = result.results[0];
@@ -277,7 +267,7 @@ describe('CompendiumTools.handleSearchCompendium', () => {
   });
 
   it('respects limit: slices results and sets hasMore=true when there are more', async () => {
-    const { tools } = makeTools(makeQueryWithSystem('dnd5e', searchResults));
+    const { tools } = makeTools(CompendiumTools, makeQueryWithSystem('dnd5e', searchResults));
     // limit=1 → only first result returned; totalFound=2 → hasMore=true
     const result = await tools.handleSearchCompendium({ query: 'dragon', limit: 1 });
     expect(result.results).toHaveLength(1);
@@ -287,14 +277,14 @@ describe('CompendiumTools.handleSearchCompendium', () => {
   });
 
   it('hasMore=false when results fit within limit', async () => {
-    const { tools } = makeTools(makeQueryWithSystem('dnd5e', searchResults));
+    const { tools } = makeTools(CompendiumTools, makeQueryWithSystem('dnd5e', searchResults));
     const result = await tools.handleSearchCompendium({ query: 'dragon', limit: 50 });
     expect(result.hasMore).toBe(false);
   });
 
   it('throws when the Foundry client throws during search', async () => {
     let callCount = 0;
-    const { tools } = makeTools((method: string) => {
+    const { tools } = makeTools(CompendiumTools, (method: string) => {
       if (method === 'foundry-mcp-bridge.getWorldInfo') {
         callCount++;
         if (callCount === 1) return { system: 'dnd5e' };
@@ -307,17 +297,20 @@ describe('CompendiumTools.handleSearchCompendium', () => {
   });
 
   it('throws (ZodError) when query is shorter than 2 characters', async () => {
-    const { tools } = makeTools(makeQueryWithSystem('dnd5e', []));
+    const { tools } = makeTools(CompendiumTools, makeQueryWithSystem('dnd5e', []));
     await expect(tools.handleSearchCompendium({ query: 'x' })).rejects.toThrow();
   });
 
   it('throws (ZodError) when query is missing', async () => {
-    const { tools } = makeTools(makeQueryWithSystem('dnd5e', []));
+    const { tools } = makeTools(CompendiumTools, makeQueryWithSystem('dnd5e', []));
     await expect(tools.handleSearchCompendium({})).rejects.toThrow();
   });
 
   it('accepts string args (MCP fallback): wraps string as { query }', async () => {
-    const { tools, query } = makeTools(makeQueryWithSystem('dnd5e', searchResults));
+    const { tools, query } = makeTools(
+      CompendiumTools,
+      makeQueryWithSystem('dnd5e', searchResults)
+    );
     // handleSearchCompendium catches ZodError and retries when args is a plain string
     const result = await tools.handleSearchCompendium('goblin');
     expect(result.query).toBe('goblin');
@@ -373,7 +366,7 @@ describe('CompendiumTools.handleGetCompendiumItem', () => {
   };
 
   it('dispatches foundry-mcp-bridge.getCompendiumDocumentFull with packId and documentId', async () => {
-    const { tools, query } = makeTools(() => fullItem);
+    const { tools, query } = makeTools(CompendiumTools, () => fullItem);
     await tools.handleGetCompendiumItem({ packId: 'dnd5e.monsters', itemId: 'abc123' });
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getCompendiumDocumentFull', {
       packId: 'dnd5e.monsters',
@@ -382,7 +375,7 @@ describe('CompendiumTools.handleGetCompendiumItem', () => {
   });
 
   it('returns base fields: id, name, type, pack, description, hasImage, imageUrl in full mode', async () => {
-    const { tools } = makeTools(() => fullItem);
+    const { tools } = makeTools(CompendiumTools, () => fullItem);
     const result = await tools.handleGetCompendiumItem({
       packId: 'dnd5e.monsters',
       itemId: 'abc123',
@@ -397,7 +390,7 @@ describe('CompendiumTools.handleGetCompendiumItem', () => {
   });
 
   it('full mode includes system, properties, items, effects, fullData', async () => {
-    const { tools } = makeTools(() => fullItem);
+    const { tools } = makeTools(CompendiumTools, () => fullItem);
     const result = await tools.handleGetCompendiumItem({
       packId: 'dnd5e.monsters',
       itemId: 'abc123',
@@ -415,7 +408,7 @@ describe('CompendiumTools.handleGetCompendiumItem', () => {
   });
 
   it('full mode description strips HTML tags from system.description.value', async () => {
-    const { tools } = makeTools(() => fullItem);
+    const { tools } = makeTools(CompendiumTools, () => fullItem);
     const result = await tools.handleGetCompendiumItem({
       packId: 'dnd5e.monsters',
       itemId: 'abc123',
@@ -430,7 +423,7 @@ describe('CompendiumTools.handleGetCompendiumItem', () => {
       ...fullItem,
       system: { description: { value: '<scr<script>ipt>alert(1)</scr</script>ipt>safe' } },
     };
-    const { tools } = makeTools(() => nested);
+    const { tools } = makeTools(CompendiumTools, () => nested);
     const result = await tools.handleGetCompendiumItem({
       packId: 'dnd5e.monsters',
       itemId: 'abc123',
@@ -441,7 +434,7 @@ describe('CompendiumTools.handleGetCompendiumItem', () => {
   });
 
   it('compact mode returns stats block and properties; sets mode="compact"', async () => {
-    const { tools } = makeTools(() => fullItem);
+    const { tools } = makeTools(CompendiumTools, () => fullItem);
     const result = await tools.handleGetCompendiumItem({
       packId: 'dnd5e.monsters',
       itemId: 'abc123',
@@ -457,7 +450,7 @@ describe('CompendiumTools.handleGetCompendiumItem', () => {
 
   it('compact mode limits items to 5', async () => {
     const manyItems = [1, 2, 3, 4, 5, 6, 7].map(i => ({ name: `Item ${i}`, type: 'weapon' }));
-    const { tools } = makeTools(() => ({ ...fullItem, items: manyItems }));
+    const { tools } = makeTools(CompendiumTools, () => ({ ...fullItem, items: manyItems }));
     const result = await tools.handleGetCompendiumItem({
       packId: 'dnd5e.monsters',
       itemId: 'abc123',
@@ -467,7 +460,7 @@ describe('CompendiumTools.handleGetCompendiumItem', () => {
   });
 
   it('compact mode extractCompactStats includes speed when movement defined', async () => {
-    const { tools } = makeTools(() => fullItem);
+    const { tools } = makeTools(CompendiumTools, () => fullItem);
     const result = await tools.handleGetCompendiumItem({
       packId: 'dnd5e.monsters',
       itemId: 'abc123',
@@ -478,7 +471,7 @@ describe('CompendiumTools.handleGetCompendiumItem', () => {
   });
 
   it('compact mode extractCompactStats includes abilities with significant modifiers (|mod|>=2)', async () => {
-    const { tools } = makeTools(() => fullItem);
+    const { tools } = makeTools(CompendiumTools, () => fullItem);
     const result = await tools.handleGetCompendiumItem({
       packId: 'dnd5e.monsters',
       itemId: 'abc123',
@@ -493,14 +486,14 @@ describe('CompendiumTools.handleGetCompendiumItem', () => {
   });
 
   it('throws when item is not found (null returned by bridge)', async () => {
-    const { tools } = makeTools(() => null);
+    const { tools } = makeTools(CompendiumTools, () => null);
     await expect(
       tools.handleGetCompendiumItem({ packId: 'dnd5e.monsters', itemId: 'missing-id' })
     ).rejects.toThrow('Item missing-id in pack dnd5e.monsters not found. Use search-compendium');
   });
 
   it('throws (wraps message) when the Foundry client throws', async () => {
-    const { tools } = makeTools(() => {
+    const { tools } = makeTools(CompendiumTools, () => {
       throw new Error('pack not found');
     });
     await expect(
@@ -509,22 +502,22 @@ describe('CompendiumTools.handleGetCompendiumItem', () => {
   });
 
   it('throws (ZodError) when packId is missing', async () => {
-    const { tools } = makeTools(() => fullItem);
+    const { tools } = makeTools(CompendiumTools, () => fullItem);
     await expect(tools.handleGetCompendiumItem({ itemId: 'abc123' })).rejects.toThrow();
   });
 
   it('throws (ZodError) when itemId is missing', async () => {
-    const { tools } = makeTools(() => fullItem);
+    const { tools } = makeTools(CompendiumTools, () => fullItem);
     await expect(tools.handleGetCompendiumItem({ packId: 'dnd5e.monsters' })).rejects.toThrow();
   });
 
   it('throws (ZodError) when packId is an empty string', async () => {
-    const { tools } = makeTools(() => fullItem);
+    const { tools } = makeTools(CompendiumTools, () => fullItem);
     await expect(tools.handleGetCompendiumItem({ packId: '', itemId: 'abc123' })).rejects.toThrow();
   });
 
   it('defaults compact to false when not specified', async () => {
-    const { tools } = makeTools(() => fullItem);
+    const { tools } = makeTools(CompendiumTools, () => fullItem);
     const result = await tools.handleGetCompendiumItem({
       packId: 'dnd5e.monsters',
       itemId: 'abc123',
@@ -579,7 +572,10 @@ describe('CompendiumTools.handleListCreaturesByCriteria', () => {
   };
 
   it('dispatches foundry-mcp-bridge.listCreaturesByCriteria with parsed params', async () => {
-    const { tools, query } = makeTools(makeQueryWithSystem('dnd5e', bridgeResponse));
+    const { tools, query } = makeTools(
+      CompendiumTools,
+      makeQueryWithSystem('dnd5e', bridgeResponse)
+    );
     await tools.handleListCreaturesByCriteria({ challengeRating: 1, creatureType: 'humanoid' });
 
     const listCall = query.mock.calls.find(
@@ -591,19 +587,22 @@ describe('CompendiumTools.handleListCreaturesByCriteria', () => {
 
   it('accepts a size as the display word or the dnd5e key and passes it on unchanged (M3)', async () => {
     for (const size of ['medium', 'med', 'grg']) {
-      const { tools, query } = makeTools(makeQueryWithSystem('dnd5e', bridgeResponse));
+      const { tools, query } = makeTools(
+        CompendiumTools,
+        makeQueryWithSystem('dnd5e', bridgeResponse)
+      );
       await tools.handleListCreaturesByCriteria({ size });
       const listCall = query.mock.calls.find(
         ([m]) => m === 'foundry-mcp-bridge.listCreaturesByCriteria'
       );
       expect(listCall![1]).toMatchObject({ size });
     }
-    const { tools } = makeTools(makeQueryWithSystem('dnd5e', bridgeResponse));
+    const { tools } = makeTools(CompendiumTools, makeQueryWithSystem('dnd5e', bridgeResponse));
     await expect(tools.handleListCreaturesByCriteria({ size: 'enormous' })).rejects.toThrow();
   });
 
   it('offers both size spellings in the tool schemas (M3)', () => {
-    const { tools } = makeTools(makeQueryWithSystem('dnd5e', bridgeResponse));
+    const { tools } = makeTools(CompendiumTools, makeQueryWithSystem('dnd5e', bridgeResponse));
     const defs = tools.getToolDefinitions() as Array<{ name: string; inputSchema: any }>;
     const list = defs.find(d => d.name === 'list-creatures-by-criteria')!;
     const search = defs.find(d => d.name === 'search-compendium')!;
@@ -616,7 +615,10 @@ describe('CompendiumTools.handleListCreaturesByCriteria', () => {
   });
 
   it('dispatches with empty params when called with no args', async () => {
-    const { tools, query } = makeTools(makeQueryWithSystem('dnd5e', bridgeResponse));
+    const { tools, query } = makeTools(
+      CompendiumTools,
+      makeQueryWithSystem('dnd5e', bridgeResponse)
+    );
     await tools.handleListCreaturesByCriteria({});
 
     const listCall = query.mock.calls.find(
@@ -626,7 +628,7 @@ describe('CompendiumTools.handleListCreaturesByCriteria', () => {
   });
 
   it('returns top-level envelope: gameSystem, criteriaDescription, creatures, totalFound, criteria, searchSummary, optimizationNote', async () => {
-    const { tools } = makeTools(makeQueryWithSystem('dnd5e', bridgeResponse));
+    const { tools } = makeTools(CompendiumTools, makeQueryWithSystem('dnd5e', bridgeResponse));
     const result = await tools.handleListCreaturesByCriteria({ challengeRating: 1 });
 
     expect(result).toHaveProperty('gameSystem', 'dnd5e');
@@ -639,19 +641,19 @@ describe('CompendiumTools.handleListCreaturesByCriteria', () => {
   });
 
   it('criteriaDescription includes CR when challengeRating number provided', async () => {
-    const { tools } = makeTools(makeQueryWithSystem('dnd5e', bridgeResponse));
+    const { tools } = makeTools(CompendiumTools, makeQueryWithSystem('dnd5e', bridgeResponse));
     const result = await tools.handleListCreaturesByCriteria({ challengeRating: 5 });
     expect(result.criteriaDescription).toMatch(/CR 5/);
   });
 
   it('criteriaDescription is "no criteria" when no filters passed', async () => {
-    const { tools } = makeTools(makeQueryWithSystem('dnd5e', bridgeResponse));
+    const { tools } = makeTools(CompendiumTools, makeQueryWithSystem('dnd5e', bridgeResponse));
     const result = await tools.handleListCreaturesByCriteria({});
     expect(result.criteriaDescription).toBe('no criteria');
   });
 
   it('shapes creature list items: name, id, pack with D&D 5e fields (challengeRating, creatureType, size, flags)', async () => {
-    const { tools } = makeTools(makeQueryWithSystem('dnd5e', bridgeResponse));
+    const { tools } = makeTools(CompendiumTools, makeQueryWithSystem('dnd5e', bridgeResponse));
     const result = await tools.handleListCreaturesByCriteria({});
 
     const goblin = result.creatures[0];
@@ -671,13 +673,13 @@ describe('CompendiumTools.handleListCreaturesByCriteria', () => {
   });
 
   it('totalFound reflects response.creatures.length from bridge response', async () => {
-    const { tools } = makeTools(makeQueryWithSystem('dnd5e', bridgeResponse));
+    const { tools } = makeTools(CompendiumTools, makeQueryWithSystem('dnd5e', bridgeResponse));
     const result = await tools.handleListCreaturesByCriteria({});
     expect(result.totalFound).toBe(2);
   });
 
   it('searchSummary merges bridge searchSummary with D&D 5e searchStrategy text', async () => {
-    const { tools } = makeTools(makeQueryWithSystem('dnd5e', bridgeResponse));
+    const { tools } = makeTools(CompendiumTools, makeQueryWithSystem('dnd5e', bridgeResponse));
     const result = await tools.handleListCreaturesByCriteria({});
     expect(result.searchSummary.packsSearched).toBe(3);
     expect(result.searchSummary.searchStrategy).toMatch(/D&D 5e/);
@@ -702,7 +704,7 @@ describe('CompendiumTools.handleListCreaturesByCriteria', () => {
         system: {},
       },
     ];
-    const { tools } = makeTools(makeQueryWithSystem('dnd5e', flatArray));
+    const { tools } = makeTools(CompendiumTools, makeQueryWithSystem('dnd5e', flatArray));
     const result = await tools.handleListCreaturesByCriteria({});
     // Falls back to legacy shaping (gameSystem passed but creature has no system.details.cr)
     expect(result.creatures).toHaveLength(1);
@@ -710,7 +712,10 @@ describe('CompendiumTools.handleListCreaturesByCriteria', () => {
   });
 
   it('parses challengeRating as string number ("5") via union transform', async () => {
-    const { tools, query } = makeTools(makeQueryWithSystem('dnd5e', bridgeResponse));
+    const { tools, query } = makeTools(
+      CompendiumTools,
+      makeQueryWithSystem('dnd5e', bridgeResponse)
+    );
     await tools.handleListCreaturesByCriteria({ challengeRating: '5' });
     const listCall = query.mock.calls.find(
       ([m]) => m === 'foundry-mcp-bridge.listCreaturesByCriteria'
@@ -720,14 +725,17 @@ describe('CompendiumTools.handleListCreaturesByCriteria', () => {
   });
 
   it('throws with Parameter validation failed when challengeRating is invalid', async () => {
-    const { tools } = makeTools(makeQueryWithSystem('dnd5e', bridgeResponse));
+    const { tools } = makeTools(CompendiumTools, makeQueryWithSystem('dnd5e', bridgeResponse));
     await expect(
       tools.handleListCreaturesByCriteria({ challengeRating: 'not-a-number' })
     ).rejects.toThrow(/Parameter validation failed/);
   });
 
   it('does not dispatch bridge call when validation fails', async () => {
-    const { tools, query } = makeTools(makeQueryWithSystem('dnd5e', bridgeResponse));
+    const { tools, query } = makeTools(
+      CompendiumTools,
+      makeQueryWithSystem('dnd5e', bridgeResponse)
+    );
     try {
       await tools.handleListCreaturesByCriteria({ challengeRating: 'bad' });
     } catch {
@@ -741,7 +749,7 @@ describe('CompendiumTools.handleListCreaturesByCriteria', () => {
 
   it('throws (wraps message) when the Foundry client throws during listing', async () => {
     let firstCall = true;
-    const { tools } = makeTools((method: string) => {
+    const { tools } = makeTools(CompendiumTools, (method: string) => {
       if (method === 'foundry-mcp-bridge.getWorldInfo' && firstCall) {
         firstCall = false;
         return { system: 'dnd5e' };
@@ -754,7 +762,10 @@ describe('CompendiumTools.handleListCreaturesByCriteria', () => {
   });
 
   it('accepts challengeRating as object { min, max }', async () => {
-    const { tools, query } = makeTools(makeQueryWithSystem('dnd5e', bridgeResponse));
+    const { tools, query } = makeTools(
+      CompendiumTools,
+      makeQueryWithSystem('dnd5e', bridgeResponse)
+    );
     await tools.handleListCreaturesByCriteria({ challengeRating: { min: 5, max: 10 } });
     const listCall = query.mock.calls.find(
       ([m]) => m === 'foundry-mcp-bridge.listCreaturesByCriteria'
@@ -762,13 +773,16 @@ describe('CompendiumTools.handleListCreaturesByCriteria', () => {
     expect(listCall![1]).toMatchObject({ challengeRating: { min: 5, max: 10 } });
   });
 
-  it('default limit is 100 when not specified', async () => {
-    const { tools, query } = makeTools(makeQueryWithSystem('dnd5e', bridgeResponse));
+  it('default limit is 50 when not specified', async () => {
+    const { tools, query } = makeTools(
+      CompendiumTools,
+      makeQueryWithSystem('dnd5e', bridgeResponse)
+    );
     await tools.handleListCreaturesByCriteria({});
     const listCall = query.mock.calls.find(
       ([m]) => m === 'foundry-mcp-bridge.listCreaturesByCriteria'
     );
-    expect((listCall![1] as { limit: number }).limit).toBe(100);
+    expect((listCall![1] as { limit: number }).limit).toBe(50);
   });
 });
 
@@ -803,20 +817,20 @@ describe('CompendiumTools.handleListCompendiumPacks', () => {
   ];
 
   it('dispatches foundry-mcp-bridge.getAvailablePacks with no params', async () => {
-    const { tools, query } = makeTools(() => allPacks);
+    const { tools, query } = makeTools(CompendiumTools, () => allPacks);
     await tools.handleListCompendiumPacks({});
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getAvailablePacks');
   });
 
   it('returns all packs when no type filter given', async () => {
-    const { tools } = makeTools(() => allPacks);
+    const { tools } = makeTools(CompendiumTools, () => allPacks);
     const result = await tools.handleListCompendiumPacks({});
     expect(result.total).toBe(3);
     expect(result.packs).toHaveLength(3);
   });
 
   it('filters by type when type argument is provided', async () => {
-    const { tools } = makeTools(() => allPacks);
+    const { tools } = makeTools(CompendiumTools, () => allPacks);
     const result = await tools.handleListCompendiumPacks({ type: 'Actor' });
     expect(result.total).toBe(1);
     expect(result.packs[0].id).toBe('dnd5e.monsters');
@@ -824,7 +838,7 @@ describe('CompendiumTools.handleListCompendiumPacks', () => {
   });
 
   it('shapes each pack with id, label, type, system, private fields', async () => {
-    const { tools } = makeTools(() => allPacks);
+    const { tools } = makeTools(CompendiumTools, () => allPacks);
     const result = await tools.handleListCompendiumPacks({});
     const first = result.packs[0];
     expect(first).toEqual({
@@ -837,7 +851,7 @@ describe('CompendiumTools.handleListCompendiumPacks', () => {
   });
 
   it('availableTypes lists all unique types across all packs (before filter)', async () => {
-    const { tools } = makeTools(() => allPacks);
+    const { tools } = makeTools(CompendiumTools, () => allPacks);
     const result = await tools.handleListCompendiumPacks({});
     // Set deduplication: Actor, Item, JournalEntry
     expect(result.availableTypes).toHaveLength(3);
@@ -847,7 +861,7 @@ describe('CompendiumTools.handleListCompendiumPacks', () => {
   });
 
   it('availableTypes still lists all types even when filter is applied', async () => {
-    const { tools } = makeTools(() => allPacks);
+    const { tools } = makeTools(CompendiumTools, () => allPacks);
     // Type filter → only Actor pack in result, but availableTypes reflects the full pack list
     const result = await tools.handleListCompendiumPacks({ type: 'Item' });
     expect(result.total).toBe(1);
@@ -855,14 +869,14 @@ describe('CompendiumTools.handleListCompendiumPacks', () => {
   });
 
   it('returns empty packs and total=0 when no packs match the type filter', async () => {
-    const { tools } = makeTools(() => allPacks);
+    const { tools } = makeTools(CompendiumTools, () => allPacks);
     const result = await tools.handleListCompendiumPacks({ type: 'RollTable' });
     expect(result.total).toBe(0);
     expect(result.packs).toHaveLength(0);
   });
 
   it('handles empty packs list from bridge gracefully', async () => {
-    const { tools } = makeTools(() => []);
+    const { tools } = makeTools(CompendiumTools, () => []);
     const result = await tools.handleListCompendiumPacks({});
     expect(result.total).toBe(0);
     expect(result.packs).toEqual([]);
@@ -870,7 +884,7 @@ describe('CompendiumTools.handleListCompendiumPacks', () => {
   });
 
   it('throws (wraps message) when the Foundry client throws', async () => {
-    const { tools } = makeTools(() => {
+    const { tools } = makeTools(CompendiumTools, () => {
       throw new Error('Foundry unavailable');
     });
     await expect(tools.handleListCompendiumPacks({})).rejects.toThrow(
@@ -879,7 +893,7 @@ describe('CompendiumTools.handleListCompendiumPacks', () => {
   });
 
   it('throws with Unknown error message when client throws a non-Error', async () => {
-    const { tools } = makeTools(() => {
+    const { tools } = makeTools(CompendiumTools, () => {
       // eslint-disable-next-line @typescript-eslint/only-throw-error -- the test throws a non-Error on purpose
       throw 'something bad';
     });
@@ -889,7 +903,7 @@ describe('CompendiumTools.handleListCompendiumPacks', () => {
   });
 
   it('throws (ZodError) when called with undefined args (schema.parse does not default to {})', async () => {
-    const { tools } = makeTools(() => allPacks);
+    const { tools } = makeTools(CompendiumTools, () => allPacks);
     // handleListCompendiumPacks calls schema.parse(args) directly; passing undefined
     // causes Zod to throw because it expects an object.
     await expect(tools.handleListCompendiumPacks(undefined)).rejects.toThrow();
@@ -898,7 +912,7 @@ describe('CompendiumTools.handleListCompendiumPacks', () => {
 
 describe('CompendiumTools.handleSearchRules', () => {
   it('dispatches foundry-mcp-bridge.searchRules with the defaults filled in and a long timeout', async () => {
-    const { tools, query } = makeTools(() => ({ results: [] }));
+    const { tools, query } = makeTools(CompendiumTools, () => ({ results: [] }));
     await tools.handleSearchRules({ query: 'grappling' });
     expect(query).toHaveBeenCalledWith(
       'foundry-mcp-bridge.searchRules',
@@ -914,13 +928,13 @@ describe('CompendiumTools.handleSearchRules', () => {
   });
 
   it('accepts a bare string as the query', async () => {
-    const { tools, query } = makeTools(() => ({ results: [] }));
+    const { tools, query } = makeTools(CompendiumTools, () => ({ results: [] }));
     await tools.handleSearchRules('how does grappling work');
     expect((query.mock.calls[0][1] as { query: string }).query).toBe('how does grappling work');
   });
 
   it('rejects arguments outside the limits before calling Foundry', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(CompendiumTools);
     await expect(tools.handleSearchRules({ query: 'a' })).rejects.toThrow();
     await expect(tools.handleSearchRules({ query: 'grapple', limit: 26 })).rejects.toThrow();
     await expect(tools.handleSearchRules({ query: 'grapple', excerptChars: 79 })).rejects.toThrow();
@@ -928,7 +942,7 @@ describe('CompendiumTools.handleSearchRules', () => {
   });
 
   it('wraps a Foundry failure', async () => {
-    const { tools } = makeTools(() => {
+    const { tools } = makeTools(CompendiumTools, () => {
       throw new Error('link down');
     });
     await expect(tools.handleSearchRules({ query: 'grapple' })).rejects.toThrow(

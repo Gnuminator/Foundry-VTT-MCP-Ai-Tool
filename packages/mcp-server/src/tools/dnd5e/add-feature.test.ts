@@ -58,7 +58,7 @@ function makeQueryForDnd5e(overrides: Record<string, unknown> = {}): Mock {
   });
 }
 
-function makeAddFeatureTools(
+function addFeatureHarness(
   queryImpl?: (method: string, data: unknown) => unknown
 ): ToolHarness<DnD5eAddFeatureTool> {
   return makeTools(DnD5eAddFeatureTool, queryImpl ?? makeQueryForDnd5e());
@@ -82,25 +82,25 @@ afterEach(() => {
 
 describe('DnD5eAddFeatureTool.getToolDefinitions', () => {
   it('exposes exactly one tool: dnd5e-add-feature', () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     const defs = tools.getToolDefinitions();
     expect(defs.map(d => d.name)).toEqual(['dnd5e-add-feature']);
   });
 
   it('tool has an object inputSchema', () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     const [def] = tools.getToolDefinitions();
     expect((def.inputSchema as any).type).toBe('object');
   });
 
-  it('required fields are featureType and actorIdentifier', () => {
-    const { tools } = makeAddFeatureTools();
+  it('required fields are featureType and actor', () => {
+    const { tools } = addFeatureHarness();
     const [def] = tools.getToolDefinitions();
-    expect((def.inputSchema as any).required).toEqual(['featureType', 'actorIdentifier']);
+    expect((def.inputSchema as any).required).toEqual(['featureType', 'actor']);
   });
 
   it('featureType enum contains all seven modes', () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     const [def] = tools.getToolDefinitions();
     const featureTypeProp = (def.inputSchema as any).properties.featureType;
     expect(featureTypeProp.enum).toEqual([
@@ -115,34 +115,34 @@ describe('DnD5eAddFeatureTool.getToolDefinitions', () => {
   });
 
   it('description is a non-empty string', () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     const [def] = tools.getToolDefinitions();
     expect(typeof def.description).toBe('string');
     expect(def.description.length).toBeGreaterThan(0);
   });
 
   it('damageParts items schema has required number, denomination, type', () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     const [def] = tools.getToolDefinitions();
     const dp = (def.inputSchema as any).properties.damageParts;
     expect(dp.items.required).toEqual(['number', 'denomination', 'type']);
   });
 
   it('attackType enum is ["melee", "ranged"]', () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     const [def] = tools.getToolDefinitions();
     expect((def.inputSchema as any).properties.attackType.enum).toEqual(['melee', 'ranged']);
   });
 
   it('saveAbility enum contains all six abilities', () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     const [def] = tools.getToolDefinitions();
     const sa = (def.inputSchema as any).properties.saveAbility;
     expect(sa.enum).toEqual(['str', 'dex', 'con', 'int', 'wis', 'cha']);
   });
 
   it('spellcastingClass enum lists nine classes', () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     const [def] = tools.getToolDefinitions();
     const sc = (def.inputSchema as any).properties.spellcastingClass;
     expect(sc.enum).toHaveLength(9);
@@ -157,15 +157,15 @@ describe('DnD5eAddFeatureTool.getToolDefinitions', () => {
 
 describe('DnD5eAddFeatureTool.handleAddFeature: dispatcher', () => {
   it('throws ZodError for an unknown featureType', async () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     await expect(
-      tools.handleAddFeature({ featureType: 'unknown', actorIdentifier: 'Goblin' })
+      tools.handleAddFeature({ featureType: 'unknown', actor: 'Goblin' })
     ).rejects.toThrow();
   });
 
   it('throws ZodError when featureType is missing', async () => {
-    const { tools } = makeAddFeatureTools();
-    await expect(tools.handleAddFeature({ actorIdentifier: 'Goblin' })).rejects.toThrow();
+    const { tools } = addFeatureHarness();
+    await expect(tools.handleAddFeature({ actor: 'Goblin' })).rejects.toThrow();
   });
 });
 
@@ -176,12 +176,12 @@ describe('DnD5eAddFeatureTool.handleAddFeature: dispatcher', () => {
 describe('DnD5eAddFeatureTool: passive', () => {
   const BASE_ARGS = {
     featureType: 'passive' as const,
-    actorIdentifier: 'Flame Drake',
+    actor: 'Flame Drake',
     featureName: 'Magic Resistance',
   };
 
   it('calls addPassiveFeatureToActor with parsed args', async () => {
-    const { tools, query } = makeAddFeatureTools();
+    const { tools, query } = addFeatureHarness();
 
     await tools.handleAddFeature({ ...BASE_ARGS });
 
@@ -196,7 +196,7 @@ describe('DnD5eAddFeatureTool: passive', () => {
   });
 
   it('issues getWorldInfo before addPassiveFeatureToActor', async () => {
-    const { tools, query } = makeAddFeatureTools();
+    const { tools, query } = addFeatureHarness();
 
     await tools.handleAddFeature({ ...BASE_ARGS });
 
@@ -208,7 +208,7 @@ describe('DnD5eAddFeatureTool: passive', () => {
   });
 
   it('returns success:true with item and actor from the bridge', async () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     const result = await tools.handleAddFeature({ ...BASE_ARGS });
 
     expect(result.success).toBe(true);
@@ -217,7 +217,7 @@ describe('DnD5eAddFeatureTool: passive', () => {
   });
 
   it('response shape has summary, success, item, actor, message', async () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     const result = await tools.handleAddFeature({ ...BASE_ARGS });
 
     expect(result).toHaveProperty('summary');
@@ -228,7 +228,7 @@ describe('DnD5eAddFeatureTool: passive', () => {
   });
 
   it('summary contains item name and actor name', async () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     const result = await tools.handleAddFeature({ ...BASE_ARGS });
 
     expect(result.summary).toContain(ITEM_RESULT.name);
@@ -236,14 +236,14 @@ describe('DnD5eAddFeatureTool: passive', () => {
   });
 
   it('message contains "passive / descriptive" type line', async () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     const result = await tools.handleAddFeature({ ...BASE_ARGS });
 
     expect(result.message).toContain('passive / descriptive');
   });
 
   it('passes default sourceRules "2014" when omitted', async () => {
-    const { tools, query } = makeAddFeatureTools();
+    const { tools, query } = addFeatureHarness();
 
     await tools.handleAddFeature({ ...BASE_ARGS });
 
@@ -254,7 +254,7 @@ describe('DnD5eAddFeatureTool: passive', () => {
   });
 
   it('passes sourceBook through when provided', async () => {
-    const { tools, query } = makeAddFeatureTools();
+    const { tools, query } = addFeatureHarness();
 
     await tools.handleAddFeature({ ...BASE_ARGS, sourceBook: "MM'14", sourcePage: '312' });
 
@@ -265,21 +265,21 @@ describe('DnD5eAddFeatureTool: passive', () => {
   });
 
   it('sourceBook appears in message when provided', async () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     const result = await tools.handleAddFeature({ ...BASE_ARGS, sourceBook: "MM'14" });
 
     expect(result.message).toContain("MM'14");
   });
 
-  it('throws ZodError when actorIdentifier is empty string', async () => {
-    const { tools, query } = makeAddFeatureTools();
+  it('throws ZodError when actor is empty string', async () => {
+    const { tools, query } = addFeatureHarness();
 
-    await expect(tools.handleAddFeature({ ...BASE_ARGS, actorIdentifier: '' })).rejects.toThrow();
+    await expect(tools.handleAddFeature({ ...BASE_ARGS, actor: '' })).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
   });
 
   it('throws ZodError when featureName is empty string', async () => {
-    const { tools, query } = makeAddFeatureTools();
+    const { tools, query } = addFeatureHarness();
 
     await expect(tools.handleAddFeature({ ...BASE_ARGS, featureName: '' })).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
@@ -301,7 +301,7 @@ describe('DnD5eAddFeatureTool: passive', () => {
         if (method === 'foundry-mcp-bridge.getWorldInfo') return { system: 'pf2e' };
         return BASE_RESULT;
       });
-      const { tools } = makeAddFeatureTools(query);
+      const { tools } = addFeatureHarness(query);
 
       await expect(tools.handleAddFeature({ ...BASE_ARGS })).rejects.toThrow();
       expect(query).not.toHaveBeenCalledWith(
@@ -315,7 +315,7 @@ describe('DnD5eAddFeatureTool: passive', () => {
         if (method === 'foundry-mcp-bridge.getWorldInfo') return { system: 'dnd5e' };
         throw new Error('actor not found');
       });
-      const { tools } = makeAddFeatureTools(query);
+      const { tools } = addFeatureHarness(query);
 
       await expect(tools.handleAddFeature({ ...BASE_ARGS })).rejects.toThrow();
     });
@@ -329,7 +329,7 @@ describe('DnD5eAddFeatureTool: passive', () => {
 describe('DnD5eAddFeatureTool: save', () => {
   const BASE_ARGS = {
     featureType: 'save' as const,
-    actorIdentifier: 'Flame Drake',
+    actor: 'Flame Drake',
     featureName: 'Fire Breath',
     saveAbility: 'dex' as const,
     saveDC: 15,
@@ -337,7 +337,7 @@ describe('DnD5eAddFeatureTool: save', () => {
   };
 
   it('calls addSaveFeatureToActor with parsed args', async () => {
-    const { tools, query } = makeAddFeatureTools();
+    const { tools, query } = addFeatureHarness();
 
     await tools.handleAddFeature({ ...BASE_ARGS });
 
@@ -355,7 +355,7 @@ describe('DnD5eAddFeatureTool: save', () => {
   });
 
   it('returns success:true with item and actor', async () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     const result = await tools.handleAddFeature({ ...BASE_ARGS });
 
     expect(result.success).toBe(true);
@@ -364,7 +364,7 @@ describe('DnD5eAddFeatureTool: save', () => {
   });
 
   it('response has summary, success, item, actor, message', async () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     const result = await tools.handleAddFeature({ ...BASE_ARGS });
 
     expect(result).toHaveProperty('summary');
@@ -375,7 +375,7 @@ describe('DnD5eAddFeatureTool: save', () => {
   });
 
   it('message contains save description with DC and ability', async () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     const result = await tools.handleAddFeature({ ...BASE_ARGS });
 
     expect(result.message).toContain('DC 15');
@@ -383,7 +383,7 @@ describe('DnD5eAddFeatureTool: save', () => {
   });
 
   it('message contains damage description', async () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     const result = await tools.handleAddFeature({ ...BASE_ARGS });
 
     // "3d6 fire"
@@ -391,21 +391,21 @@ describe('DnD5eAddFeatureTool: save', () => {
   });
 
   it('message says "half damage on save" when halfOnSave defaults to true', async () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     const result = await tools.handleAddFeature({ ...BASE_ARGS });
 
     expect(result.message).toContain('half damage on save');
   });
 
   it('message says "no damage on save" when halfOnSave is false', async () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     const result = await tools.handleAddFeature({ ...BASE_ARGS, halfOnSave: false });
 
     expect(result.message).toContain('no damage on save');
   });
 
   it('passes halfOnSave default true when omitted', async () => {
-    const { tools, query } = makeAddFeatureTools();
+    const { tools, query } = addFeatureHarness();
 
     await tools.handleAddFeature({ ...BASE_ARGS });
 
@@ -416,7 +416,7 @@ describe('DnD5eAddFeatureTool: save', () => {
   });
 
   it('passes areaSize and areaType when provided', async () => {
-    const { tools, query } = makeAddFeatureTools();
+    const { tools, query } = addFeatureHarness();
 
     await tools.handleAddFeature({ ...BASE_ARGS, areaType: 'cone', areaSize: 30 });
 
@@ -427,28 +427,28 @@ describe('DnD5eAddFeatureTool: save', () => {
   });
 
   it('message contains area description when areaType is set', async () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     const result = await tools.handleAddFeature({ ...BASE_ARGS, areaType: 'cone', areaSize: 30 });
 
     expect(result.message).toContain('30ft cone');
   });
 
   it('throws ZodError when saveDC > 30', async () => {
-    const { tools, query } = makeAddFeatureTools();
+    const { tools, query } = addFeatureHarness();
 
     await expect(tools.handleAddFeature({ ...BASE_ARGS, saveDC: 31 })).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
   });
 
   it('throws ZodError when damageParts is empty array', async () => {
-    const { tools, query } = makeAddFeatureTools();
+    const { tools, query } = addFeatureHarness();
 
     await expect(tools.handleAddFeature({ ...BASE_ARGS, damageParts: [] })).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
   });
 
   it('throws ZodError when denomination is not in valid set', async () => {
-    const { tools, query } = makeAddFeatureTools();
+    const { tools, query } = addFeatureHarness();
 
     await expect(
       tools.handleAddFeature({
@@ -460,7 +460,7 @@ describe('DnD5eAddFeatureTool: save', () => {
   });
 
   it('throws ZodError when areaType is set but areaSize is missing (superRefine)', async () => {
-    const { tools, query } = makeAddFeatureTools();
+    const { tools, query } = addFeatureHarness();
 
     await expect(tools.handleAddFeature({ ...BASE_ARGS, areaType: 'cone' })).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
@@ -482,7 +482,7 @@ describe('DnD5eAddFeatureTool: save', () => {
         if (method === 'foundry-mcp-bridge.getWorldInfo') return { system: 'other' };
         return BASE_RESULT;
       });
-      const { tools } = makeAddFeatureTools(query);
+      const { tools } = addFeatureHarness(query);
 
       await expect(tools.handleAddFeature({ ...BASE_ARGS })).rejects.toThrow();
       expect(query).not.toHaveBeenCalledWith(
@@ -496,7 +496,7 @@ describe('DnD5eAddFeatureTool: save', () => {
         if (method === 'foundry-mcp-bridge.getWorldInfo') return { system: 'dnd5e' };
         throw new Error('save feature creation failed');
       });
-      const { tools } = makeAddFeatureTools(query);
+      const { tools } = addFeatureHarness(query);
 
       await expect(tools.handleAddFeature({ ...BASE_ARGS })).rejects.toThrow();
     });
@@ -510,7 +510,7 @@ describe('DnD5eAddFeatureTool: save', () => {
 describe('DnD5eAddFeatureTool: attack', () => {
   const BASE_ARGS = {
     featureType: 'attack' as const,
-    actorIdentifier: 'Flame Drake',
+    actor: 'Flame Drake',
     featureName: 'Claw',
     attackType: 'melee' as const,
     damageParts: [PIERCE_DAMAGE],
@@ -518,7 +518,7 @@ describe('DnD5eAddFeatureTool: attack', () => {
 
   const BASE_ARGS_RANGED = {
     featureType: 'attack' as const,
-    actorIdentifier: 'Archer',
+    actor: 'Archer',
     featureName: 'Longbow',
     attackType: 'ranged' as const,
     damageParts: [{ number: 1, denomination: 8, type: 'piercing' }],
@@ -526,7 +526,7 @@ describe('DnD5eAddFeatureTool: attack', () => {
   };
 
   it('calls addAttackToActor with parsed args including effectiveAbility', async () => {
-    const { tools, query } = makeAddFeatureTools();
+    const { tools, query } = addFeatureHarness();
 
     await tools.handleAddFeature({ ...BASE_ARGS });
 
@@ -543,7 +543,7 @@ describe('DnD5eAddFeatureTool: attack', () => {
   });
 
   it('effectiveAbility is dex for ranged attacks when abilityModifier is omitted', async () => {
-    const { tools, query } = makeAddFeatureTools();
+    const { tools, query } = addFeatureHarness();
 
     await tools.handleAddFeature({ ...BASE_ARGS_RANGED });
 
@@ -554,7 +554,7 @@ describe('DnD5eAddFeatureTool: attack', () => {
   });
 
   it('effectiveAbility reflects explicit abilityModifier override', async () => {
-    const { tools, query } = makeAddFeatureTools();
+    const { tools, query } = addFeatureHarness();
 
     await tools.handleAddFeature({ ...BASE_ARGS, abilityModifier: 'cha' });
 
@@ -565,7 +565,7 @@ describe('DnD5eAddFeatureTool: attack', () => {
   });
 
   it('returns success:true with item and actor', async () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     const result = await tools.handleAddFeature({ ...BASE_ARGS });
 
     expect(result.success).toBe(true);
@@ -574,7 +574,7 @@ describe('DnD5eAddFeatureTool: attack', () => {
   });
 
   it('response shape has summary, success, item, actor, warnings, message', async () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     const result = await tools.handleAddFeature({ ...BASE_ARGS });
 
     expect(result).toHaveProperty('summary');
@@ -586,14 +586,14 @@ describe('DnD5eAddFeatureTool: attack', () => {
   });
 
   it('warnings is empty array for canonical damage types', async () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     const result = await tools.handleAddFeature({ ...BASE_ARGS });
 
     expect(result.warnings).toEqual([]);
   });
 
   it('warnings contains entry for non-canonical damage type', async () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     const result = await tools.handleAddFeature({
       ...BASE_ARGS,
       damageParts: [{ number: 1, denomination: 6, type: 'silver' }],
@@ -604,7 +604,7 @@ describe('DnD5eAddFeatureTool: attack', () => {
   });
 
   it('warnings contains entry for non-canonical weapon property', async () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     const result = await tools.handleAddFeature({
       ...BASE_ARGS,
       properties: ['foobar'],
@@ -614,7 +614,7 @@ describe('DnD5eAddFeatureTool: attack', () => {
   });
 
   it('warning section appears in message when warnings exist', async () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     const result = await tools.handleAddFeature({
       ...BASE_ARGS,
       damageParts: [{ number: 1, denomination: 6, type: 'silver' }],
@@ -624,21 +624,21 @@ describe('DnD5eAddFeatureTool: attack', () => {
   });
 
   it('message contains reach description for melee', async () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     const result = await tools.handleAddFeature({ ...BASE_ARGS });
 
     expect(result.message).toContain('reach 5 ft.');
   });
 
   it('message contains range description for ranged attack', async () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     const result = await tools.handleAddFeature({ ...BASE_ARGS_RANGED });
 
     expect(result.message).toContain('range 150');
   });
 
   it('message contains long range when longRangeFt provided', async () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     const result = await tools.handleAddFeature({
       ...BASE_ARGS_RANGED,
       longRangeFt: 600,
@@ -648,28 +648,28 @@ describe('DnD5eAddFeatureTool: attack', () => {
   });
 
   it('message contains STR modifier for melee default', async () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     const result = await tools.handleAddFeature({ ...BASE_ARGS });
 
     expect(result.message).toContain('STR');
   });
 
   it('message contains bonus to hit when attackBonus > 0', async () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     const result = await tools.handleAddFeature({ ...BASE_ARGS, attackBonus: 2 });
 
     expect(result.message).toContain('+2 to hit');
   });
 
   it('no bonus string in message when attackBonus is 0', async () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     const result = await tools.handleAddFeature({ ...BASE_ARGS });
 
     expect(result.message).not.toContain('to hit');
   });
 
   it('passes default proficient:true and equipped:true when omitted', async () => {
-    const { tools, query } = makeAddFeatureTools();
+    const { tools, query } = addFeatureHarness();
 
     await tools.handleAddFeature({ ...BASE_ARGS });
 
@@ -680,12 +680,12 @@ describe('DnD5eAddFeatureTool: attack', () => {
   });
 
   it('throws ZodError for ranged attack without rangeFt (superRefine)', async () => {
-    const { tools, query } = makeAddFeatureTools();
+    const { tools, query } = addFeatureHarness();
 
     await expect(
       tools.handleAddFeature({
         featureType: 'attack',
-        actorIdentifier: 'Archer',
+        actor: 'Archer',
         featureName: 'Arrow',
         attackType: 'ranged',
         damageParts: [PIERCE_DAMAGE],
@@ -696,7 +696,7 @@ describe('DnD5eAddFeatureTool: attack', () => {
   });
 
   it('throws ZodError when longRangeFt <= rangeFt (superRefine)', async () => {
-    const { tools, query } = makeAddFeatureTools();
+    const { tools, query } = addFeatureHarness();
 
     await expect(
       tools.handleAddFeature({
@@ -708,7 +708,7 @@ describe('DnD5eAddFeatureTool: attack', () => {
   });
 
   it('throws ZodError when featureName is empty', async () => {
-    const { tools, query } = makeAddFeatureTools();
+    const { tools, query } = addFeatureHarness();
 
     await expect(tools.handleAddFeature({ ...BASE_ARGS, featureName: '' })).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
@@ -730,7 +730,7 @@ describe('DnD5eAddFeatureTool: attack', () => {
         if (method === 'foundry-mcp-bridge.getWorldInfo') return { system: 'pf2e' };
         return BASE_RESULT;
       });
-      const { tools } = makeAddFeatureTools(query);
+      const { tools } = addFeatureHarness(query);
 
       await expect(tools.handleAddFeature({ ...BASE_ARGS })).rejects.toThrow();
       expect(query).not.toHaveBeenCalledWith(
@@ -744,7 +744,7 @@ describe('DnD5eAddFeatureTool: attack', () => {
         if (method === 'foundry-mcp-bridge.getWorldInfo') return { system: 'dnd5e' };
         throw new Error('attack creation failed');
       });
-      const { tools } = makeAddFeatureTools(query);
+      const { tools } = addFeatureHarness(query);
 
       await expect(tools.handleAddFeature({ ...BASE_ARGS })).rejects.toThrow();
     });
@@ -758,7 +758,7 @@ describe('DnD5eAddFeatureTool: attack', () => {
 describe('DnD5eAddFeatureTool: attack-with-save', () => {
   const BASE_ARGS = {
     featureType: 'attack-with-save' as const,
-    actorIdentifier: 'Stinger Scorpion',
+    actor: 'Stinger Scorpion',
     featureName: 'Stinger',
     attackType: 'melee' as const,
     damageParts: [PIERCE_DAMAGE],
@@ -768,7 +768,7 @@ describe('DnD5eAddFeatureTool: attack-with-save', () => {
   };
 
   it('calls addAttackWithSaveToActor with correct args', async () => {
-    const { tools, query } = makeAddFeatureTools();
+    const { tools, query } = addFeatureHarness();
 
     await tools.handleAddFeature({ ...BASE_ARGS });
 
@@ -786,7 +786,7 @@ describe('DnD5eAddFeatureTool: attack-with-save', () => {
   });
 
   it('includes effectiveAbility in query payload (str for melee default)', async () => {
-    const { tools, query } = makeAddFeatureTools();
+    const { tools, query } = addFeatureHarness();
 
     await tools.handleAddFeature({ ...BASE_ARGS });
 
@@ -797,7 +797,7 @@ describe('DnD5eAddFeatureTool: attack-with-save', () => {
   });
 
   it('returns success:true with item, actor, warnings', async () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     const result = await tools.handleAddFeature({ ...BASE_ARGS });
 
     expect(result.success).toBe(true);
@@ -807,7 +807,7 @@ describe('DnD5eAddFeatureTool: attack-with-save', () => {
   });
 
   it('response shape has summary, success, item, actor, warnings, message', async () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     const result = await tools.handleAddFeature({ ...BASE_ARGS });
 
     expect(result).toHaveProperty('summary');
@@ -819,14 +819,14 @@ describe('DnD5eAddFeatureTool: attack-with-save', () => {
   });
 
   it('summary starts with "✅ Attack+Save"', async () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     const result = await tools.handleAddFeature({ ...BASE_ARGS });
 
     expect(result.summary).toContain('Attack+Save');
   });
 
   it('message contains save DC and ability', async () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     const result = await tools.handleAddFeature({ ...BASE_ARGS });
 
     expect(result.message).toContain('DC 12');
@@ -834,7 +834,7 @@ describe('DnD5eAddFeatureTool: attack-with-save', () => {
   });
 
   it('message contains attack damage and save damage', async () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     const result = await tools.handleAddFeature({ ...BASE_ARGS });
 
     expect(result.message).toContain('1d6 piercing');
@@ -842,21 +842,21 @@ describe('DnD5eAddFeatureTool: attack-with-save', () => {
   });
 
   it('saveOnSave defaults to "none": message says "no damage on save"', async () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     const result = await tools.handleAddFeature({ ...BASE_ARGS });
 
     expect(result.message).toContain('no damage on save');
   });
 
   it('saveOnSave "half": message says "half on save"', async () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     const result = await tools.handleAddFeature({ ...BASE_ARGS, saveOnSave: 'half' });
 
     expect(result.message).toContain('half on save');
   });
 
   it('deduplicates warnings across damageParts and saveDamageParts', async () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     // Use the same non-canonical type in both arrays
     const result = await tools.handleAddFeature({
       ...BASE_ARGS,
@@ -870,7 +870,7 @@ describe('DnD5eAddFeatureTool: attack-with-save', () => {
   });
 
   it('throws ZodError for ranged attack-with-save without rangeFt', async () => {
-    const { tools, query } = makeAddFeatureTools();
+    const { tools, query } = addFeatureHarness();
 
     await expect(
       tools.handleAddFeature({
@@ -883,7 +883,7 @@ describe('DnD5eAddFeatureTool: attack-with-save', () => {
   });
 
   it('throws ZodError when saveDamageParts is empty array', async () => {
-    const { tools, query } = makeAddFeatureTools();
+    const { tools, query } = addFeatureHarness();
 
     await expect(tools.handleAddFeature({ ...BASE_ARGS, saveDamageParts: [] })).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
@@ -905,7 +905,7 @@ describe('DnD5eAddFeatureTool: attack-with-save', () => {
         if (method === 'foundry-mcp-bridge.getWorldInfo') return { system: 'other' };
         return BASE_RESULT;
       });
-      const { tools } = makeAddFeatureTools(query);
+      const { tools } = addFeatureHarness(query);
 
       await expect(tools.handleAddFeature({ ...BASE_ARGS })).rejects.toThrow();
       expect(query).not.toHaveBeenCalledWith(
@@ -923,7 +923,7 @@ describe('DnD5eAddFeatureTool: attack-with-save', () => {
 describe('DnD5eAddFeatureTool: aura', () => {
   const BASE_ARGS = {
     featureType: 'aura' as const,
-    actorIdentifier: 'Flame Drake',
+    actor: 'Flame Drake',
     featureName: 'Fire Aura',
     damageParts: [FIRE_DAMAGE],
     areaType: 'emanation' as const,
@@ -931,7 +931,7 @@ describe('DnD5eAddFeatureTool: aura', () => {
   };
 
   it('calls addAuraToActor with parsed args', async () => {
-    const { tools, query } = makeAddFeatureTools();
+    const { tools, query } = addFeatureHarness();
 
     await tools.handleAddFeature({ ...BASE_ARGS });
 
@@ -948,7 +948,7 @@ describe('DnD5eAddFeatureTool: aura', () => {
   });
 
   it('returns success:true with item and actor', async () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     const result = await tools.handleAddFeature({ ...BASE_ARGS });
 
     expect(result.success).toBe(true);
@@ -957,7 +957,7 @@ describe('DnD5eAddFeatureTool: aura', () => {
   });
 
   it('response shape has summary, success, item, actor, warnings, message', async () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     const result = await tools.handleAddFeature({ ...BASE_ARGS });
 
     expect(result).toHaveProperty('summary');
@@ -969,7 +969,7 @@ describe('DnD5eAddFeatureTool: aura', () => {
   });
 
   it('message contains area description: size + units + type', async () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     const result = await tools.handleAddFeature({ ...BASE_ARGS });
 
     // "10ft emanation" from formatAuraResponse
@@ -977,7 +977,7 @@ describe('DnD5eAddFeatureTool: aura', () => {
   });
 
   it('message contains "(automatic: no attack roll, no saving throw)"', async () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     const result = await tools.handleAddFeature({ ...BASE_ARGS });
 
     expect(result.message).toContain('automatic');
@@ -986,14 +986,14 @@ describe('DnD5eAddFeatureTool: aura', () => {
   });
 
   it('warnings is empty for canonical damage type', async () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     const result = await tools.handleAddFeature({ ...BASE_ARGS });
 
     expect(result.warnings).toEqual([]);
   });
 
   it('warnings contains entry for non-canonical damage type', async () => {
-    const { tools } = makeAddFeatureTools();
+    const { tools } = addFeatureHarness();
     const result = await tools.handleAddFeature({
       ...BASE_ARGS,
       damageParts: [{ number: 1, denomination: 6, type: 'necrotic-shadow' }],
@@ -1003,7 +1003,7 @@ describe('DnD5eAddFeatureTool: aura', () => {
   });
 
   it('passes default affectsType "creature" when omitted', async () => {
-    const { tools, query } = makeAddFeatureTools();
+    const { tools, query } = addFeatureHarness();
 
     await tools.handleAddFeature({ ...BASE_ARGS });
 
@@ -1014,7 +1014,7 @@ describe('DnD5eAddFeatureTool: aura', () => {
   });
 
   it('throws ZodError when areaType is empty string (required for aura)', async () => {
-    const { tools, query } = makeAddFeatureTools();
+    const { tools, query } = addFeatureHarness();
 
     // The aura schema requires areaType without the '' option
     await expect(tools.handleAddFeature({ ...BASE_ARGS, areaType: '' as any })).rejects.toThrow();
@@ -1022,14 +1022,14 @@ describe('DnD5eAddFeatureTool: aura', () => {
   });
 
   it('throws ZodError when areaSize is zero (must be positive)', async () => {
-    const { tools, query } = makeAddFeatureTools();
+    const { tools, query } = addFeatureHarness();
 
     await expect(tools.handleAddFeature({ ...BASE_ARGS, areaSize: 0 })).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
   });
 
   it('throws ZodError when damageParts is empty', async () => {
-    const { tools, query } = makeAddFeatureTools();
+    const { tools, query } = addFeatureHarness();
 
     await expect(tools.handleAddFeature({ ...BASE_ARGS, damageParts: [] })).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
@@ -1051,7 +1051,7 @@ describe('DnD5eAddFeatureTool: aura', () => {
         if (method === 'foundry-mcp-bridge.getWorldInfo') return { system: 'pf2e' };
         return BASE_RESULT;
       });
-      const { tools } = makeAddFeatureTools(query);
+      const { tools } = addFeatureHarness(query);
 
       await expect(tools.handleAddFeature({ ...BASE_ARGS })).rejects.toThrow();
       expect(query).not.toHaveBeenCalledWith(
@@ -1065,7 +1065,7 @@ describe('DnD5eAddFeatureTool: aura', () => {
         if (method === 'foundry-mcp-bridge.getWorldInfo') return { system: 'dnd5e' };
         throw new Error('aura creation failed');
       });
-      const { tools } = makeAddFeatureTools(query);
+      const { tools } = addFeatureHarness(query);
 
       await expect(tools.handleAddFeature({ ...BASE_ARGS })).rejects.toThrow();
     });
@@ -1079,7 +1079,7 @@ describe('DnD5eAddFeatureTool: aura', () => {
 describe('DnD5eAddFeatureTool: spellcasting', () => {
   const BASE_ARGS = {
     featureType: 'spellcasting' as const,
-    actorIdentifier: 'Wizard NPC',
+    actor: 'Wizard NPC',
     spellcastingClass: 'wizard' as const,
     spellcastingLevel: 5,
   };
@@ -1093,8 +1093,8 @@ describe('DnD5eAddFeatureTool: spellcasting', () => {
     warnings: [],
   };
 
-  function makeSpellcastingTools(): ReturnType<typeof makeAddFeatureTools> {
-    return makeAddFeatureTools(
+  function spellcastingHarness(): ReturnType<typeof addFeatureHarness> {
+    return addFeatureHarness(
       vi.fn((method: string) => {
         if (method === 'foundry-mcp-bridge.getWorldInfo') return { system: 'dnd5e' };
         if (method === 'foundry-mcp-bridge.setActorSpellcasting') return SPELLCASTING_RESULT;
@@ -1104,7 +1104,7 @@ describe('DnD5eAddFeatureTool: spellcasting', () => {
   }
 
   it('calls setActorSpellcasting with correct args', async () => {
-    const { tools, query } = makeSpellcastingTools();
+    const { tools, query } = spellcastingHarness();
 
     await tools.handleAddFeature({ ...BASE_ARGS });
 
@@ -1120,7 +1120,7 @@ describe('DnD5eAddFeatureTool: spellcasting', () => {
   });
 
   it('effectiveAbility defaults to "int" for wizard', async () => {
-    const { tools, query } = makeSpellcastingTools();
+    const { tools, query } = spellcastingHarness();
 
     await tools.handleAddFeature({ ...BASE_ARGS });
 
@@ -1131,7 +1131,7 @@ describe('DnD5eAddFeatureTool: spellcasting', () => {
   });
 
   it('effectiveAbility defaults to "wis" for cleric', async () => {
-    const { tools, query } = makeSpellcastingTools();
+    const { tools, query } = spellcastingHarness();
 
     await tools.handleAddFeature({ ...BASE_ARGS, spellcastingClass: 'cleric' });
 
@@ -1142,7 +1142,7 @@ describe('DnD5eAddFeatureTool: spellcasting', () => {
   });
 
   it('effectiveAbility defaults to "cha" for warlock', async () => {
-    const { tools, query } = makeSpellcastingTools();
+    const { tools, query } = spellcastingHarness();
 
     await tools.handleAddFeature({ ...BASE_ARGS, spellcastingClass: 'warlock' });
 
@@ -1153,7 +1153,7 @@ describe('DnD5eAddFeatureTool: spellcasting', () => {
   });
 
   it('explicit spellcastingAbility overrides class default', async () => {
-    const { tools, query } = makeSpellcastingTools();
+    const { tools, query } = spellcastingHarness();
 
     await tools.handleAddFeature({ ...BASE_ARGS, spellcastingAbility: 'cha' });
 
@@ -1164,7 +1164,7 @@ describe('DnD5eAddFeatureTool: spellcasting', () => {
   });
 
   it('returns success:true with actor and spellcasting', async () => {
-    const { tools } = makeSpellcastingTools();
+    const { tools } = spellcastingHarness();
     const result = await tools.handleAddFeature({ ...BASE_ARGS });
 
     expect(result.success).toBe(true);
@@ -1173,7 +1173,7 @@ describe('DnD5eAddFeatureTool: spellcasting', () => {
   });
 
   it('response shape has summary, success, actor, spellcasting, warnings, message', async () => {
-    const { tools } = makeSpellcastingTools();
+    const { tools } = spellcastingHarness();
     const result = await tools.handleAddFeature({ ...BASE_ARGS });
 
     expect(result).toHaveProperty('summary');
@@ -1185,7 +1185,7 @@ describe('DnD5eAddFeatureTool: spellcasting', () => {
   });
 
   it('summary contains class and level', async () => {
-    const { tools } = makeSpellcastingTools();
+    const { tools } = spellcastingHarness();
     const result = await tools.handleAddFeature({ ...BASE_ARGS });
 
     expect(result.summary).toContain('wizard');
@@ -1193,14 +1193,14 @@ describe('DnD5eAddFeatureTool: spellcasting', () => {
   });
 
   it('message contains ability in uppercase', async () => {
-    const { tools } = makeSpellcastingTools();
+    const { tools } = spellcastingHarness();
     const result = await tools.handleAddFeature({ ...BASE_ARGS });
 
     expect(result.message).toContain('INT');
   });
 
   it('message contains slot summary for non-warlock', async () => {
-    const { tools } = makeSpellcastingTools();
+    const { tools } = spellcastingHarness();
     const result = await tools.handleAddFeature({ ...BASE_ARGS });
 
     // formatSpellcastingResponse produces e.g. "L1: 4, L2: 3, L3: 2"
@@ -1215,7 +1215,7 @@ describe('DnD5eAddFeatureTool: spellcasting', () => {
       },
       warnings: [],
     };
-    const tools_query = makeAddFeatureTools(
+    const tools_query = addFeatureHarness(
       vi.fn((method: string) => {
         if (method === 'foundry-mcp-bridge.getWorldInfo') return { system: 'dnd5e' };
         if (method === 'foundry-mcp-bridge.setActorSpellcasting') return warlockResult;
@@ -1232,7 +1232,7 @@ describe('DnD5eAddFeatureTool: spellcasting', () => {
   });
 
   it('throws ZodError when spellcastingLevel > 20', async () => {
-    const { tools, query } = makeSpellcastingTools();
+    const { tools, query } = spellcastingHarness();
 
     await expect(tools.handleAddFeature({ ...BASE_ARGS, spellcastingLevel: 21 })).rejects.toThrow();
     expect(query).not.toHaveBeenCalledWith(
@@ -1242,7 +1242,7 @@ describe('DnD5eAddFeatureTool: spellcasting', () => {
   });
 
   it('throws ZodError when spellcastingLevel < 1', async () => {
-    const { tools, query } = makeSpellcastingTools();
+    const { tools, query } = spellcastingHarness();
 
     await expect(tools.handleAddFeature({ ...BASE_ARGS, spellcastingLevel: 0 })).rejects.toThrow();
     expect(query).not.toHaveBeenCalledWith(
@@ -1267,7 +1267,7 @@ describe('DnD5eAddFeatureTool: spellcasting', () => {
         if (method === 'foundry-mcp-bridge.getWorldInfo') return { system: 'dsa5' };
         return SPELLCASTING_RESULT;
       });
-      const { tools } = makeAddFeatureTools(query);
+      const { tools } = addFeatureHarness(query);
 
       await expect(tools.handleAddFeature({ ...BASE_ARGS })).rejects.toThrow();
       expect(query).not.toHaveBeenCalledWith(
@@ -1285,7 +1285,7 @@ describe('DnD5eAddFeatureTool: spellcasting', () => {
 describe('DnD5eAddFeatureTool: spells', () => {
   const BASE_ARGS = {
     featureType: 'spells' as const,
-    actorIdentifier: 'Wizard NPC',
+    actor: 'Wizard NPC',
     spellNames: ['Fireball', 'Counterspell', 'Shield'],
   };
 
@@ -1298,10 +1298,10 @@ describe('DnD5eAddFeatureTool: spells', () => {
     warnings: [] as string[],
   };
 
-  function makeSpellsTools(
+  function spellsHarness(
     overrideResult?: typeof SPELLS_RESULT
-  ): ReturnType<typeof makeAddFeatureTools> {
-    return makeAddFeatureTools(
+  ): ReturnType<typeof addFeatureHarness> {
+    return addFeatureHarness(
       vi.fn((method: string) => {
         if (method === 'foundry-mcp-bridge.getWorldInfo') return { system: 'dnd5e' };
         if (method === 'foundry-mcp-bridge.addSpellsToActor')
@@ -1312,7 +1312,7 @@ describe('DnD5eAddFeatureTool: spells', () => {
   }
 
   it('calls addSpellsToActor with spell names and compendium packs', async () => {
-    const { tools, query } = makeSpellsTools();
+    const { tools, query } = spellsHarness();
 
     await tools.handleAddFeature({ ...BASE_ARGS });
 
@@ -1327,7 +1327,7 @@ describe('DnD5eAddFeatureTool: spells', () => {
   });
 
   it('passes custom compendiumPacks when provided', async () => {
-    const { tools, query } = makeSpellsTools();
+    const { tools, query } = spellsHarness();
 
     await tools.handleAddFeature({
       ...BASE_ARGS,
@@ -1341,14 +1341,14 @@ describe('DnD5eAddFeatureTool: spells', () => {
   });
 
   it('returns success:true when at least one spell was added', async () => {
-    const { tools } = makeSpellsTools();
+    const { tools } = spellsHarness();
     const result = await tools.handleAddFeature({ ...BASE_ARGS });
 
     expect(result.success).toBe(true);
   });
 
   it('response shape has summary, success, actor, added, skipped, notFound, failed, warnings, message', async () => {
-    const { tools } = makeSpellsTools();
+    const { tools } = spellsHarness();
     const result = await tools.handleAddFeature({ ...BASE_ARGS });
 
     expect(result).toHaveProperty('summary');
@@ -1363,14 +1363,14 @@ describe('DnD5eAddFeatureTool: spells', () => {
   });
 
   it('actor matches the bridge return value', async () => {
-    const { tools } = makeSpellsTools();
+    const { tools } = spellsHarness();
     const result = await tools.handleAddFeature({ ...BASE_ARGS });
 
     expect(result.actor).toEqual(ACTOR_RESULT);
   });
 
   it('added/skipped/notFound/failed/warnings arrays pass through from bridge result', async () => {
-    const { tools } = makeSpellsTools();
+    const { tools } = spellsHarness();
     const result = await tools.handleAddFeature({ ...BASE_ARGS });
 
     expect(result.added).toEqual(SPELLS_RESULT.added);
@@ -1381,7 +1381,7 @@ describe('DnD5eAddFeatureTool: spells', () => {
   });
 
   it('summary contains "1 added, 1 skipped" for the fixture result', async () => {
-    const { tools } = makeSpellsTools();
+    const { tools } = spellsHarness();
     const result = await tools.handleAddFeature({ ...BASE_ARGS });
 
     expect(result.summary).toContain('1 added');
@@ -1389,14 +1389,14 @@ describe('DnD5eAddFeatureTool: spells', () => {
   });
 
   it('message contains actor name', async () => {
-    const { tools } = makeSpellsTools();
+    const { tools } = spellsHarness();
     const result = await tools.handleAddFeature({ ...BASE_ARGS });
 
     expect(result.message).toContain(ACTOR_RESULT.name);
   });
 
   it('message lists added spell name', async () => {
-    const { tools } = makeSpellsTools();
+    const { tools } = spellsHarness();
     const result = await tools.handleAddFeature({ ...BASE_ARGS });
 
     expect(result.message).toContain('Fireball');
@@ -1411,7 +1411,7 @@ describe('DnD5eAddFeatureTool: spells', () => {
       failed: [],
       warnings: [],
     };
-    const { tools } = makeSpellsTools(noSpellsResult);
+    const { tools } = spellsHarness(noSpellsResult);
     const result = await tools.handleAddFeature({ ...BASE_ARGS });
 
     // success = added.length > 0 || (notFound.length === 0 && failed.length === 0)
@@ -1428,7 +1428,7 @@ describe('DnD5eAddFeatureTool: spells', () => {
       failed: [{ name: 'Fireball', error: 'import error' }],
       warnings: [],
     };
-    const { tools } = makeSpellsTools(failedResult);
+    const { tools } = spellsHarness(failedResult);
     const result = await tools.handleAddFeature({ ...BASE_ARGS });
 
     expect(result.success).toBe(false);
@@ -1443,7 +1443,7 @@ describe('DnD5eAddFeatureTool: spells', () => {
       failed: [],
       warnings: [],
     };
-    const { tools } = makeSpellsTools(notFoundResult);
+    const { tools } = spellsHarness(notFoundResult);
     const result = await tools.handleAddFeature({ ...BASE_ARGS });
 
     expect(result.message).toContain('Not found in compendium');
@@ -1451,7 +1451,7 @@ describe('DnD5eAddFeatureTool: spells', () => {
   });
 
   it('throws ZodError when spellNames is empty array', async () => {
-    const { tools, query } = makeSpellsTools();
+    const { tools, query } = spellsHarness();
 
     await expect(tools.handleAddFeature({ ...BASE_ARGS, spellNames: [] })).rejects.toThrow();
     expect(query).not.toHaveBeenCalledWith(
@@ -1461,7 +1461,7 @@ describe('DnD5eAddFeatureTool: spells', () => {
   });
 
   it('throws ZodError when a spell name is empty string', async () => {
-    const { tools, query } = makeSpellsTools();
+    const { tools, query } = spellsHarness();
 
     await expect(
       tools.handleAddFeature({ ...BASE_ARGS, spellNames: ['Fireball', ''] })
@@ -1488,7 +1488,7 @@ describe('DnD5eAddFeatureTool: spells', () => {
         if (method === 'foundry-mcp-bridge.getWorldInfo') return { system: 'pf2e' };
         return SPELLS_RESULT;
       });
-      const { tools } = makeAddFeatureTools(query);
+      const { tools } = addFeatureHarness(query);
 
       await expect(tools.handleAddFeature({ ...BASE_ARGS })).rejects.toThrow();
       expect(query).not.toHaveBeenCalledWith(
@@ -1502,7 +1502,7 @@ describe('DnD5eAddFeatureTool: spells', () => {
         if (method === 'foundry-mcp-bridge.getWorldInfo') return { system: 'dnd5e' };
         throw new Error('spell import failed');
       });
-      const { tools } = makeAddFeatureTools(query);
+      const { tools } = addFeatureHarness(query);
 
       await expect(tools.handleAddFeature({ ...BASE_ARGS })).rejects.toThrow();
     });

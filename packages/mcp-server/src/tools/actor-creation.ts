@@ -5,8 +5,6 @@ import { Logger } from '../logger.js';
 import { ErrorHandler } from '../utils/error-handler.js';
 import type {
   ActorCreationResponse,
-  CompendiumEntryBridgeReply,
-  CompendiumEntryResponse,
   CreateActorBridgeReply,
 } from './types/actor-creation-types.js';
 
@@ -103,27 +101,6 @@ export class ActorCreationTools {
           required: ['packId', 'itemId', 'names'],
         },
       },
-      {
-        name: 'get-compendium-entry-full',
-        description:
-          'Use this for a complete stat block (items, spells, abilities) when creating an actor; to just read an entry use get-compendium-item.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            packId: {
-              type: 'string',
-              description: 'Compendium pack identifier',
-              ...toolRef('compendium-pack', 'id'),
-            },
-            entryId: {
-              type: 'string',
-              description: 'Entry identifier within the pack',
-              ...toolRef('compendium-entry', 'id', { parent: 'packId' }),
-            },
-          },
-          required: ['packId', 'entryId'],
-        },
-      },
     ];
   }
 
@@ -206,70 +183,6 @@ export class ActorCreationTools {
     } catch (error) {
       this.errorHandler.handleToolError(error, 'create-actor-from-compendium', 'actor creation');
     }
-  }
-
-  /**
-   * Handle getting full compendium entry data
-   */
-  async handleGetCompendiumEntryFull(args: unknown): Promise<CompendiumEntryResponse> {
-    const schema = z.object({
-      packId: z.string().min(1, 'Pack ID cannot be empty'),
-      entryId: z.string().min(1, 'Entry ID cannot be empty'),
-    });
-
-    const { packId, entryId } = schema.parse(args);
-
-    this.logger.info('Getting full compendium entry', { packId, entryId });
-
-    try {
-      const fullEntry = (await this.foundryClient.query(
-        'foundry-mcp-bridge.getCompendiumDocumentFull',
-        {
-          packId,
-          documentId: entryId,
-        }
-      )) as CompendiumEntryBridgeReply;
-
-      this.logger.debug('Successfully retrieved full compendium entry', {
-        packId,
-        entryId,
-        name: fullEntry.name,
-        hasItems: !!fullEntry.items?.length,
-        hasEffects: !!fullEntry.effects?.length,
-      });
-
-      return this.formatCompendiumEntryResponse(fullEntry);
-    } catch (error) {
-      this.errorHandler.handleToolError(error, 'get-compendium-entry-full', 'compendium retrieval');
-    }
-  }
-
-  /**
-   * Format compendium entry response
-   */
-  private formatCompendiumEntryResponse(
-    entry: CompendiumEntryBridgeReply
-  ): CompendiumEntryResponse {
-    const itemsInfo =
-      entry.items && entry.items.length > 0
-        ? `\n📦 Items: ${entry.items.map(item => item.name).join(', ')}`
-        : '';
-
-    const effectsInfo =
-      entry.effects && entry.effects.length > 0
-        ? `\n✨ Effects: ${entry.effects.map(effect => effect.name).join(', ')}`
-        : '';
-
-    return {
-      name: entry.name,
-      type: entry.type,
-      pack: entry.packLabel,
-      system: entry.system,
-      fullData: entry.fullData,
-      items: entry.items ?? [],
-      effects: entry.effects ?? [],
-      summary: `📊 **${String(entry.name)}** (${String(entry.type)} from ${String(entry.packLabel)})${itemsInfo}${effectsInfo}`,
-    };
   }
 
   /**

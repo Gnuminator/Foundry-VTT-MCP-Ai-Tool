@@ -11,6 +11,10 @@
  *                                         the ready line the merge runner acts on (readyText)
  *   node scripts/backlog.mjs progress <id> <text> --if-ready <PR>@<sha>
  *                                         only while that ready line is still the item's line
+ *   node scripts/backlog.mjs progress <id> <text> --pr <PR>
+ *                                         names the PR (no ready-line check): only that PR's ready
+ *                                         or enqueued line is replaced; a ready line for a PR also
+ *                                         keeps the item's other PRs' lines (one line per PR)
  *   node scripts/backlog.mjs release <id>                  removes the claimed and link lines
  *   node scripts/backlog.mjs done <id> <PR> [--sha <sha>] [--summary <text>] [--by <who>]
  *                                         [--pi-run <text>]
@@ -55,7 +59,9 @@ import {
   newestProgress,
   newlineOf,
   parseBacklog,
-  parseReady,
+  parseReadyAll,
+  readyOrEnqueuedPr,
+  looksLikeReadyProse,
   readyText,
   setField,
   splice,
@@ -118,21 +124,41 @@ export function claimEdit(text, o) {
  * `ifReady`: write only while the item's progress is still that PR's ready line at that head (the
  * merge runner's refusals must not overwrite a newer ready line).
  * @param {string} text
- * @param {{ id: string, text: string, date: string, ifReady?: { pr: number, head: string } }} o
+ * `pr`: the write names that PR without the ready-line check (the runner's merged/left-the-queue
+ * lines), so only that PR's lines are replaced and another PR's ready line stays.
+ * @param {{ id: string, text: string, date: string, ifReady?: { pr: number, head: string }, pr?: number }} o
  */
 export function progressEdit(text, o) {
   const p = parseBacklog(text);
   const item = findItem(p, o.id);
   if (o.ifReady) {
-    const now = parseReady(field(item, 'progress'));
-    if (!now || now.pr !== o.ifReady.pr || now.head !== o.ifReady.head)
+    const now = parseReadyAll((item.fields.get('progress') ?? []).join('\n'));
+    if (!now.some(r => r.pr === o.ifReady?.pr && r.head === o.ifReady?.head))
       throw new Error(
         `${o.id}: the progress line is no longer the ready line of PR #${o.ifReady.pr} at ${o.ifReady.head.slice(0, 7)}; not written`
       );
   }
+  if (looksLikeReadyProse(o.text) && !o.ifReady)
+    throw new Error(
+      `${o.id}: that text says a PR is ready but is not a ready line (the merge runner would skip it); use progress ${o.id} --ready <PR> --head <40-character sha>`
+    );
   const { body, tail } = trimBlock(item);
+  // One ready or enqueued line per PR: a ready line (or a runner write under --if-ready) replaces
+  // only its own PR's lines; other PRs' lines stay. Plain text replaces the whole progress (a lane
+  // that takes back its ready line must not leave it for the runner).
+  const ownPr = o.ifReady?.pr ?? o.pr ?? readyOrEnqueuedPr(oneLine(o.text));
+  const keep =
+    ownPr === null
+      ? []
+      : (item.fields.get('progress') ?? [])
+          .filter(Boolean)
+          .filter(l => {
+            const pr = readyOrEnqueuedPr(l);
+            return pr !== null && pr !== ownPr;
+          })
+          .map(l => `- progress: ${l}`);
   const line = `- progress: ${dated(o.date, oneLine(o.text))}`;
-  const next = setField(body, 'progress', [line], ['link', 'claimed']);
+  const next = setField(body, 'progress', [line, ...keep], ['link', 'claimed']);
   const out = splice(p, item.start, item.end, [...next, ...tail]);
   checkEdit(text, out, { id: o.id, items: 0 });
   return { text: out, notes: [] };
@@ -719,11 +745,16 @@ export function run(argv, env = {}) {
           if (!m) throw new Usage('--if-ready <PR>@<40-character sha>');
           ifReady = { pr: Number(m[1]), head: m[2] };
         }
+        let pr;
+        if (typeof flags.pr === 'string') {
+          if (!/^\d+$/.test(flags.pr)) throw new Usage('--pr <PR number>');
+          pr = Number(flags.pr);
+        }
         job = {
           paths: [BACKLOG],
           message: `Backlog: progress ${id}`,
           edit: read => ({
-            [BACKLOG]: progressEdit(read(BACKLOG), { id, text, date, ifReady }).text,
+            [BACKLOG]: progressEdit(read(BACKLOG), { id, text, date, ifReady, pr }).text,
           }),
         };
         break;

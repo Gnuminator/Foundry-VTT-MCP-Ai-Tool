@@ -35,20 +35,13 @@ export interface SessionNotesRouteOptions {
   requireGm: (req: Request, res: Response, next: () => void) => void;
   /** The GM Actions switch (put and approve need it on). */
   gmActionsEnabled: () => boolean;
-  /** Where recordings go (default `FVTT_SESSIONS_DIR`, else `Documents/FoundrySessions`). */
+  /** Where recordings go (default `FVTT_SESSIONS_DIR`, else `FoundrySessions` in `FVTT_DATA_DIR`, else in Documents). */
   sessionsDir?: string;
   /** Where the detail of a failed bridge call goes (the GM sees a fixed sentence). */
   logger?: Logger;
 }
 
-export const PIPELINE_STATES = [
-  'done',
-  'paused',
-  'incomplete',
-  'failed',
-  'waiting',
-  'published',
-] as const;
+const PIPELINE_STATES = ['done', 'paused', 'incomplete', 'failed', 'waiting', 'published'] as const;
 
 export interface PipelineStatus {
   session: string;

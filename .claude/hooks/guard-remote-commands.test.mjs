@@ -88,6 +88,13 @@ test('switch-world.sh (the world switch) passes the guard as documented, dry run
   }
 });
 
+test('sync-check.sh (the read-only Syncthing report) passes the guard as documented, strict or not', () => {
+  for (const env of ['bash -s', 'STRICT=1 bash -s']) {
+    const command = `cat scripts/pi/remote/lib.sh scripts/pi/remote/sync-check.sh | ssh foundry-pi '${env}'`;
+    assert.equal(kind(command), 'allow', `${env}: ${JSON.stringify(decide(command, repo))}`);
+  }
+});
+
 test('every script in scripts/pi/remote is one of the kinds checked above', () => {
   const dir = path.join(repo, 'scripts', 'pi', 'remote');
   const known = n =>
@@ -101,6 +108,7 @@ test('every script in scripts/pi/remote is one of the kinds checked above', () =
       'kit-session.sh',
       'put-runner-token.sh',
       'switch-world.sh',
+      'sync-check.sh',
     ].includes(n);
   const unchecked = readdirSync(dir).filter(n => n.endsWith('.sh') && !known(n));
   assert.deepEqual(unchecked, [], 'add a guard test for each new script the user runs over SSH');

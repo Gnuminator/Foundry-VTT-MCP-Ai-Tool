@@ -40,7 +40,7 @@ export type ToolSetName = (typeof ALL_TOOL_SET_NAMES)[number];
 /** The sets a stdio wrapper may serve (everything but `player`). */
 export type ServedToolSetName = (typeof TOOL_SET_NAMES)[number];
 
-export interface ToolSetSpec {
+interface ToolSetSpec {
   /** Short label, for docs and the server instructions. */
   title: string;
   /** One sentence: what the set is for. */
@@ -77,7 +77,7 @@ const SET_TEXT: Readonly<Record<ToolSetName, Omit<ToolSetSpec, 'tools'>>> = {
   player: {
     title: 'Player',
     purpose:
-      "A player's own read-only view: their character sheet, what their next level grants, and short passages from the books their Foundry user can see. Served only on /mcp/player, never on stdio.",
+      "A player's own read-only view: their character sheet, what their next level grants, short passages from the books their Foundry user can see, their revealed handouts, recap and quests, and their play stats. Served only on /mcp/player, never on stdio.",
   },
 };
 
@@ -127,7 +127,7 @@ export function toolSetOf(toolName: string): ToolSetName | undefined {
   return SET_OF_TOOL.get(toolName);
 }
 
-export interface ToolSetSelection {
+interface ToolSetSelection {
   /** The sets this wrapper serves, in canonical order. All four when nothing narrows it. */
   sets: readonly ServedToolSetName[];
   /** True when every tool is served (unset, blank, `all`, or nothing valid named). */

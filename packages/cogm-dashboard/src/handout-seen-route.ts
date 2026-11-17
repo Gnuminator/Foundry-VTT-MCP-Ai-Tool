@@ -10,6 +10,7 @@ import express, { type Express, type Request, type Response } from 'express';
 import { resolveRole } from './auth.js';
 import type { Config } from './config.js';
 import type { Logger } from './logger.js';
+import { asRecord } from './routes/util.js';
 import type { PlayerDirectory } from './usage-route.js';
 
 export interface HandoutSeenClient {
@@ -17,10 +18,6 @@ export interface HandoutSeenClient {
 }
 
 const PAGE_ID_RE = /^[A-Za-z0-9]{16}$/;
-
-function asRecord(value: unknown): Record<string, unknown> {
-  return value !== null && typeof value === 'object' ? (value as Record<string, unknown>) : {};
-}
 
 export interface HandoutSeenRouteOptions {
   config: Config;

@@ -36,7 +36,7 @@ export class MovementTools {
       {
         name: 'get-token-positions',
         description:
-          'Use this to see where all tokens are on a scene (default: active): name, actor ID, token ID, x/y and grid cell, elevation, category (pc/npc/enemy), hidden or visible, HP, conditions. For full data on one token use get-token-details (Play).',
+          'Use this to see where all tokens are on a scene (default: active): name, actor ID, token ID, x/y and grid cell, elevation, category (pc/npc/enemy), hidden or visible, HP, conditions. For full data on one token use get-token-details.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -129,7 +129,7 @@ export class MovementTools {
     } catch (error) {
       this.logger.error('Error measuring distance', error);
       if (error instanceof z.ZodError) {
-        return `Parameter error: ${error.errors.map(e => e.message).join(', ')}`;
+        return `Parameter error: ${error.issues.map(e => e.message).join(', ')}`;
       }
       throw error;
     }

@@ -1,4 +1,6 @@
-import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { makeTools, type ToolHarness } from '../test-support/make-tool-harness.js';
 
 import { QuestCreationTools } from './quest-creation.js';
 
@@ -21,39 +23,19 @@ import { QuestCreationTools } from './quest-creation.js';
  * and also throw.
  */
 
-interface TestTools {
-  tools: QuestCreationTools;
-  query: Mock<(method: string, data: unknown) => unknown>;
-  logger: any;
-}
-
-function makeTools(queryImpl?: (method: string, data: unknown) => unknown): TestTools {
-  const query = vi.fn(queryImpl ?? ((): unknown => ({ success: true })));
-  const foundryClient = { query } as any;
-  // Minimal Logger stub: `.child()` returns itself; level methods are no-ops.
-  const logger: any = {
-    error: vi.fn(),
-    warn: vi.fn(),
-    info: vi.fn(),
-    debug: vi.fn(),
-  };
-  logger.child = (): unknown => logger;
-  return { tools: new QuestCreationTools({ foundryClient, logger }), query, logger };
-}
-
 // ---------------------------------------------------------------------------
 // getToolDefinitions
 // ---------------------------------------------------------------------------
 
 describe('QuestCreationTools.getToolDefinitions', () => {
   it('exposes exactly five tools', () => {
-    const { tools } = makeTools();
+    const { tools } = makeTools(QuestCreationTools);
     const defs = tools.getToolDefinitions();
     expect(defs).toHaveLength(5);
   });
 
   it('has the correct tool names in order', () => {
-    const { tools } = makeTools();
+    const { tools } = makeTools(QuestCreationTools);
     const defs = tools.getToolDefinitions();
     expect(defs.map(d => d.name)).toEqual([
       'create-quest-journal',
@@ -65,7 +47,7 @@ describe('QuestCreationTools.getToolDefinitions', () => {
   });
 
   it('all tools have object input schemas', () => {
-    const { tools } = makeTools();
+    const { tools } = makeTools(QuestCreationTools);
     const defs = tools.getToolDefinitions();
     for (const d of defs) {
       expect((d.inputSchema as any).type).toBe('object');
@@ -73,14 +55,14 @@ describe('QuestCreationTools.getToolDefinitions', () => {
   });
 
   it('create-quest-journal requires questTitle and questDescription', () => {
-    const { tools } = makeTools();
+    const { tools } = makeTools(QuestCreationTools);
     const defs = tools.getToolDefinitions();
     const def = defs.find(d => d.name === 'create-quest-journal')!;
     expect((def.inputSchema as any).required).toEqual(['questTitle', 'questDescription']);
   });
 
   it('create-quest-journal questType property enumerates the eight quest types', () => {
-    const { tools } = makeTools();
+    const { tools } = makeTools(QuestCreationTools);
     const defs = tools.getToolDefinitions();
     const def = defs.find(d => d.name === 'create-quest-journal')!;
     const questTypeProp = (def.inputSchema as any).properties.questType;
@@ -97,7 +79,7 @@ describe('QuestCreationTools.getToolDefinitions', () => {
   });
 
   it('create-quest-journal difficulty property enumerates the four difficulty levels', () => {
-    const { tools } = makeTools();
+    const { tools } = makeTools(QuestCreationTools);
     const defs = tools.getToolDefinitions();
     const def = defs.find(d => d.name === 'create-quest-journal')!;
     const difficultyProp = (def.inputSchema as any).properties.difficulty;
@@ -105,14 +87,14 @@ describe('QuestCreationTools.getToolDefinitions', () => {
   });
 
   it('link-quest-to-npc requires journalId, npcName, and relationship', () => {
-    const { tools } = makeTools();
+    const { tools } = makeTools(QuestCreationTools);
     const defs = tools.getToolDefinitions();
     const def = defs.find(d => d.name === 'link-quest-to-npc')!;
     expect((def.inputSchema as any).required).toEqual(['journalId', 'npcName', 'relationship']);
   });
 
   it('link-quest-to-npc relationship enumerates the five relationship types', () => {
-    const { tools } = makeTools();
+    const { tools } = makeTools(QuestCreationTools);
     const defs = tools.getToolDefinitions();
     const def = defs.find(d => d.name === 'link-quest-to-npc')!;
     const relProp = (def.inputSchema as any).properties.relationship;
@@ -120,14 +102,14 @@ describe('QuestCreationTools.getToolDefinitions', () => {
   });
 
   it('update-quest-journal requires journalId, newContent, and updateType', () => {
-    const { tools } = makeTools();
+    const { tools } = makeTools(QuestCreationTools);
     const defs = tools.getToolDefinitions();
     const def = defs.find(d => d.name === 'update-quest-journal')!;
     expect((def.inputSchema as any).required).toEqual(['journalId', 'newContent', 'updateType']);
   });
 
   it('update-quest-journal updateType enumerates the four update types', () => {
-    const { tools } = makeTools();
+    const { tools } = makeTools(QuestCreationTools);
     const defs = tools.getToolDefinitions();
     const def = defs.find(d => d.name === 'update-quest-journal')!;
     const updateTypeProp = (def.inputSchema as any).properties.updateType;
@@ -135,21 +117,21 @@ describe('QuestCreationTools.getToolDefinitions', () => {
   });
 
   it('list-journals has no required fields', () => {
-    const { tools } = makeTools();
+    const { tools } = makeTools(QuestCreationTools);
     const defs = tools.getToolDefinitions();
     const def = defs.find(d => d.name === 'list-journals')!;
     expect((def.inputSchema as any).required).toBeUndefined();
   });
 
   it('search-journals requires searchQuery', () => {
-    const { tools } = makeTools();
+    const { tools } = makeTools(QuestCreationTools);
     const defs = tools.getToolDefinitions();
     const def = defs.find(d => d.name === 'search-journals')!;
     expect((def.inputSchema as any).required).toEqual(['searchQuery']);
   });
 
   it('search-journals searchType property enumerates the three search types', () => {
-    const { tools } = makeTools();
+    const { tools } = makeTools(QuestCreationTools);
     const defs = tools.getToolDefinitions();
     const def = defs.find(d => d.name === 'search-journals')!;
     const searchTypeProp = (def.inputSchema as any).properties.searchType;
@@ -163,7 +145,7 @@ describe('QuestCreationTools.getToolDefinitions', () => {
 
 describe('QuestCreationTools.handleCreateQuestJournal: dispatch', () => {
   it('dispatches foundry-mcp-bridge.createJournalEntry with questTitle as name', async () => {
-    const { tools, query } = makeTools(() => ({
+    const { tools, query } = makeTools(QuestCreationTools, () => ({
       success: true,
       id: 'journal-abc',
       name: 'Rescue the Merchant',
@@ -182,7 +164,7 @@ describe('QuestCreationTools.handleCreateQuestJournal: dispatch', () => {
   });
 
   it('passes folderName when provided', async () => {
-    const { tools, query } = makeTools(() => ({
+    const { tools, query } = makeTools(QuestCreationTools, () => ({
       id: 'j1',
       name: 'Test Quest',
       pageCount: 1,
@@ -197,7 +179,7 @@ describe('QuestCreationTools.handleCreateQuestJournal: dispatch', () => {
   });
 
   it('does NOT pass folderName when not provided', async () => {
-    const { tools, query } = makeTools(() => ({
+    const { tools, query } = makeTools(QuestCreationTools, () => ({
       id: 'j1',
       name: 'Test Quest',
       pageCount: 1,
@@ -211,7 +193,7 @@ describe('QuestCreationTools.handleCreateQuestJournal: dispatch', () => {
   });
 
   it('passes additionalPages when provided', async () => {
-    const { tools, query } = makeTools(() => ({
+    const { tools, query } = makeTools(QuestCreationTools, () => ({
       id: 'j1',
       name: 'Multipage Quest',
       pageCount: 2,
@@ -227,7 +209,7 @@ describe('QuestCreationTools.handleCreateQuestJournal: dispatch', () => {
   });
 
   it('returns success:true with journalId, journalName, pageCount, content, and message', async () => {
-    const { tools } = makeTools(() => ({
+    const { tools } = makeTools(QuestCreationTools, () => ({
       id: 'journal-abc',
       name: 'Rescue the Merchant',
       pageCount: 1,
@@ -245,7 +227,7 @@ describe('QuestCreationTools.handleCreateQuestJournal: dispatch', () => {
   });
 
   it('defaults pageCount to 1 when not returned by Foundry', async () => {
-    const { tools } = makeTools(() => ({ id: 'j2', name: 'Quest X' }));
+    const { tools } = makeTools(QuestCreationTools, () => ({ id: 'j2', name: 'Quest X' }));
     const result = await tools.handleCreateQuestJournal({
       questTitle: 'Quest X',
       questDescription: 'Desc.',
@@ -256,7 +238,7 @@ describe('QuestCreationTools.handleCreateQuestJournal: dispatch', () => {
 
 describe('QuestCreationTools.handleCreateQuestJournal: result shaping (HTML generation)', () => {
   it('generated content contains the quest title in an h1 tag', async () => {
-    const { tools } = makeTools(() => ({
+    const { tools } = makeTools(QuestCreationTools, () => ({
       id: 'j3',
       name: 'The Dark Forest',
       pageCount: 1,
@@ -270,7 +252,7 @@ describe('QuestCreationTools.handleCreateQuestJournal: result shaping (HTML gene
   });
 
   it('generated content is wrapped in mcp-journal section', async () => {
-    const { tools } = makeTools(() => ({ id: 'j3', name: 'Q', pageCount: 1 }));
+    const { tools } = makeTools(QuestCreationTools, () => ({ id: 'j3', name: 'Q', pageCount: 1 }));
     const result = await tools.handleCreateQuestJournal({
       questTitle: 'Q',
       questDescription: 'Some description.',
@@ -280,7 +262,7 @@ describe('QuestCreationTools.handleCreateQuestJournal: result shaping (HTML gene
   });
 
   it('generated content includes the quest description as lead paragraph', async () => {
-    const { tools } = makeTools(() => ({ id: 'j4', name: 'Q', pageCount: 1 }));
+    const { tools } = makeTools(QuestCreationTools, () => ({ id: 'j4', name: 'Q', pageCount: 1 }));
     const result = await tools.handleCreateQuestJournal({
       questTitle: 'Q',
       questDescription: 'Investigate the crystal caves.',
@@ -289,7 +271,7 @@ describe('QuestCreationTools.handleCreateQuestJournal: result shaping (HTML gene
   });
 
   it('generated content includes Background section when location is provided', async () => {
-    const { tools } = makeTools(() => ({ id: 'j5', name: 'Q', pageCount: 1 }));
+    const { tools } = makeTools(QuestCreationTools, () => ({ id: 'j5', name: 'Q', pageCount: 1 }));
     const result = await tools.handleCreateQuestJournal({
       questTitle: 'Q',
       questDescription: 'A quest in the forest.',
@@ -300,7 +282,7 @@ describe('QuestCreationTools.handleCreateQuestJournal: result shaping (HTML gene
   });
 
   it('generated content includes quest type in details when provided', async () => {
-    const { tools } = makeTools(() => ({ id: 'j6', name: 'Q', pageCount: 1 }));
+    const { tools } = makeTools(QuestCreationTools, () => ({ id: 'j6', name: 'Q', pageCount: 1 }));
     const result = await tools.handleCreateQuestJournal({
       questTitle: 'Q',
       questDescription: 'Fetch the artifact.',
@@ -312,7 +294,7 @@ describe('QuestCreationTools.handleCreateQuestJournal: result shaping (HTML gene
   });
 
   it('generated content includes Adventure Hook section', async () => {
-    const { tools } = makeTools(() => ({ id: 'j7', name: 'Q', pageCount: 1 }));
+    const { tools } = makeTools(QuestCreationTools, () => ({ id: 'j7', name: 'Q', pageCount: 1 }));
     const result = await tools.handleCreateQuestJournal({
       questTitle: 'Q',
       questDescription: 'Escort the princess.',
@@ -323,7 +305,7 @@ describe('QuestCreationTools.handleCreateQuestJournal: result shaping (HTML gene
   });
 
   it('generated content includes Quest Objectives section', async () => {
-    const { tools } = makeTools(() => ({ id: 'j8', name: 'Q', pageCount: 1 }));
+    const { tools } = makeTools(QuestCreationTools, () => ({ id: 'j8', name: 'Q', pageCount: 1 }));
     const result = await tools.handleCreateQuestJournal({
       questTitle: 'Q',
       questDescription: 'Stop the bandit leader.',
@@ -332,7 +314,7 @@ describe('QuestCreationTools.handleCreateQuestJournal: result shaping (HTML gene
   });
 
   it('generated content includes Progress Notes section', async () => {
-    const { tools } = makeTools(() => ({ id: 'j9', name: 'Q', pageCount: 1 }));
+    const { tools } = makeTools(QuestCreationTools, () => ({ id: 'j9', name: 'Q', pageCount: 1 }));
     const result = await tools.handleCreateQuestJournal({
       questTitle: 'Q',
       questDescription: 'Track the thief.',
@@ -341,7 +323,7 @@ describe('QuestCreationTools.handleCreateQuestJournal: result shaping (HTML gene
   });
 
   it('generated content includes rewards when provided', async () => {
-    const { tools } = makeTools(() => ({ id: 'j10', name: 'Q', pageCount: 1 }));
+    const { tools } = makeTools(QuestCreationTools, () => ({ id: 'j10', name: 'Q', pageCount: 1 }));
     const result = await tools.handleCreateQuestJournal({
       questTitle: 'Q',
       questDescription: 'Complete the dungeon.',
@@ -358,7 +340,7 @@ describe('QuestCreationTools.handleCreateQuestJournal: failure handling', () => 
   });
 
   it('throws when Foundry returns an error field', async () => {
-    const { tools } = makeTools(() => ({ error: 'Failed to create journal' }));
+    const { tools } = makeTools(QuestCreationTools, () => ({ error: 'Failed to create journal' }));
     await expect(
       tools.handleCreateQuestJournal({
         questTitle: 'Quest',
@@ -369,7 +351,7 @@ describe('QuestCreationTools.handleCreateQuestJournal: failure handling', () => 
   });
 
   it('throws when Foundry returns null', async () => {
-    const { tools } = makeTools(() => null);
+    const { tools } = makeTools(QuestCreationTools, () => null);
     await expect(
       tools.handleCreateQuestJournal({
         questTitle: 'Quest',
@@ -380,7 +362,7 @@ describe('QuestCreationTools.handleCreateQuestJournal: failure handling', () => 
   });
 
   it('throws when query itself rejects', async () => {
-    const { tools } = makeTools(() => {
+    const { tools } = makeTools(QuestCreationTools, () => {
       throw new Error('connection refused');
     });
     await expect(
@@ -393,21 +375,21 @@ describe('QuestCreationTools.handleCreateQuestJournal: failure handling', () => 
   });
 
   it('throws (not returns string) on missing questTitle: query not called', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(QuestCreationTools);
     await expect(tools.handleCreateQuestJournal({ questDescription: 'Desc.' })).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
     consoleErr.mockRestore();
   });
 
   it('throws (not returns string) on missing questDescription: query not called', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(QuestCreationTools);
     await expect(tools.handleCreateQuestJournal({ questTitle: 'Quest' })).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
     consoleErr.mockRestore();
   });
 
   it('throws on empty questTitle: query not called', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(QuestCreationTools);
     await expect(
       tools.handleCreateQuestJournal({ questTitle: '', questDescription: 'Desc.' })
     ).rejects.toThrow();
@@ -416,7 +398,7 @@ describe('QuestCreationTools.handleCreateQuestJournal: failure handling', () => 
   });
 
   it('throws on invalid questType enum: query not called', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(QuestCreationTools);
     await expect(
       tools.handleCreateQuestJournal({
         questTitle: 'Quest',
@@ -429,7 +411,7 @@ describe('QuestCreationTools.handleCreateQuestJournal: failure handling', () => 
   });
 
   it('throws on invalid difficulty enum: query not called', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(QuestCreationTools);
     await expect(
       tools.handleCreateQuestJournal({
         questTitle: 'Quest',
@@ -456,7 +438,7 @@ describe('QuestCreationTools.handleLinkQuestToNPC: dispatch', () => {
   /** A journal whose first text page keeps what updateJournalContent writes. */
   function makeLinker(
     content = JOURNAL_CONTENT
-  ): ReturnType<typeof makeTools> & { page: () => string } {
+  ): ToolHarness<QuestCreationTools> & { page: () => string } {
     let page = content;
     const queryImpl = (method: string, data: unknown): Record<string, unknown> => {
       if (method === 'foundry-mcp-bridge.getJournalContent') {
@@ -467,7 +449,7 @@ describe('QuestCreationTools.handleLinkQuestToNPC: dispatch', () => {
       }
       return { success: true };
     };
-    return { ...makeTools(queryImpl), page: (): string => page };
+    return { ...makeTools(QuestCreationTools, queryImpl), page: (): string => page };
   }
 
   it('reads the page, writes the same page, then reads it again to verify', async () => {
@@ -569,7 +551,7 @@ describe('QuestCreationTools.handleLinkQuestToNPC: failure handling', () => {
 
   it('throws when the saved page does not hold the link (no silent success, P-040)', async () => {
     const page = '<p>Notes</p>';
-    const { tools } = makeTools((method: string) =>
+    const { tools } = makeTools(QuestCreationTools, (method: string) =>
       method === 'foundry-mcp-bridge.getJournalContent' ? { content: page } : { success: true }
     );
     await expect(
@@ -579,7 +561,7 @@ describe('QuestCreationTools.handleLinkQuestToNPC: failure handling', () => {
   });
 
   it('throws when getJournalContent returns error', async () => {
-    const { tools } = makeTools(() => ({ error: 'journal not found' }));
+    const { tools } = makeTools(QuestCreationTools, () => ({ error: 'journal not found' }));
     await expect(
       tools.handleLinkQuestToNPC({
         journalId: 'bad-id',
@@ -591,7 +573,7 @@ describe('QuestCreationTools.handleLinkQuestToNPC: failure handling', () => {
   });
 
   it('throws when getJournalContent returns null', async () => {
-    const { tools } = makeTools(() => null);
+    const { tools } = makeTools(QuestCreationTools, () => null);
     await expect(
       tools.handleLinkQuestToNPC({
         journalId: 'j1',
@@ -604,7 +586,7 @@ describe('QuestCreationTools.handleLinkQuestToNPC: failure handling', () => {
 
   it('throws when updateJournalContent returns error', async () => {
     let callCount = 0;
-    const { tools } = makeTools(() => {
+    const { tools } = makeTools(QuestCreationTools, () => {
       callCount++;
       if (callCount === 1)
         return { content: '<section class="mcp-journal"></div></section>', success: true };
@@ -621,7 +603,7 @@ describe('QuestCreationTools.handleLinkQuestToNPC: failure handling', () => {
   });
 
   it('throws on missing journalId: query not called', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(QuestCreationTools);
     await expect(
       tools.handleLinkQuestToNPC({ npcName: 'NPC', relationship: 'ally' })
     ).rejects.toThrow();
@@ -630,7 +612,7 @@ describe('QuestCreationTools.handleLinkQuestToNPC: failure handling', () => {
   });
 
   it('throws on missing npcName: query not called', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(QuestCreationTools);
     await expect(
       tools.handleLinkQuestToNPC({ journalId: 'j1', relationship: 'ally' })
     ).rejects.toThrow();
@@ -639,14 +621,14 @@ describe('QuestCreationTools.handleLinkQuestToNPC: failure handling', () => {
   });
 
   it('throws on missing relationship: query not called', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(QuestCreationTools);
     await expect(tools.handleLinkQuestToNPC({ journalId: 'j1', npcName: 'NPC' })).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
     consoleErr.mockRestore();
   });
 
   it('throws on invalid relationship enum: query not called', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(QuestCreationTools);
     await expect(
       tools.handleLinkQuestToNPC({ journalId: 'j1', npcName: 'NPC', relationship: 'sidekick' })
     ).rejects.toThrow();
@@ -661,7 +643,7 @@ describe('QuestCreationTools.handleLinkQuestToNPC: failure handling', () => {
 
 describe('QuestCreationTools.handleUpdateQuestJournal: newPageName path (no read cycle)', () => {
   it('dispatches only one updateJournalContent call with newPageName', async () => {
-    const { tools, query } = makeTools(() => ({
+    const { tools, query } = makeTools(QuestCreationTools, () => ({
       success: true,
       pageId: 'page-new',
       pageName: 'Session 2 Notes',
@@ -680,7 +662,7 @@ describe('QuestCreationTools.handleUpdateQuestJournal: newPageName path (no read
   });
 
   it('returns success:true with pageId, pageName, and verified:true', async () => {
-    const { tools } = makeTools(() => ({
+    const { tools } = makeTools(QuestCreationTools, () => ({
       success: true,
       pageId: 'page-new',
       pageName: 'Session 2 Notes',
@@ -698,7 +680,7 @@ describe('QuestCreationTools.handleUpdateQuestJournal: newPageName path (no read
   });
 
   it('newPageName content is wrapped in section tag with appropriate heading for progress', async () => {
-    const { tools, query } = makeTools(() => ({
+    const { tools, query } = makeTools(QuestCreationTools, () => ({
       success: true,
       pageId: 'p1',
       pageName: 'P',
@@ -734,7 +716,7 @@ describe('QuestCreationTools.handleUpdateQuestJournal: pageId path (targeted pag
       }
       return { content: VERIFY_CONTENT, success: true };
     };
-    return makeTools(queryImpl);
+    return makeTools(QuestCreationTools, queryImpl);
   }
 
   it('reads page first with getJournalPageContent then updates then verifies', async () => {
@@ -809,7 +791,7 @@ describe('QuestCreationTools.handleUpdateQuestJournal: no-pageId path (first pag
       // verify call
       return { content: verifyContent, success: true };
     };
-    return makeTools(queryImpl);
+    return makeTools(QuestCreationTools, queryImpl);
   }
 
   it('reads journal first with getJournalContent then updates then verifies', async () => {
@@ -895,7 +877,7 @@ describe('QuestCreationTools.handleUpdateQuestJournal: failure handling', () => 
   });
 
   it('throws when getJournalContent returns error (no pageId path)', async () => {
-    const { tools } = makeTools(() => ({ error: 'journal not found' }));
+    const { tools } = makeTools(QuestCreationTools, () => ({ error: 'journal not found' }));
     await expect(
       tools.handleUpdateQuestJournal({
         journalId: 'bad-id',
@@ -907,7 +889,7 @@ describe('QuestCreationTools.handleUpdateQuestJournal: failure handling', () => 
   });
 
   it('throws when getJournalPageContent returns error (pageId path)', async () => {
-    const { tools } = makeTools(() => ({ error: 'page not found' }));
+    const { tools } = makeTools(QuestCreationTools, () => ({ error: 'page not found' }));
     await expect(
       tools.handleUpdateQuestJournal({
         journalId: 'j1',
@@ -921,7 +903,7 @@ describe('QuestCreationTools.handleUpdateQuestJournal: failure handling', () => 
 
   it('throws when updateJournalContent returns null', async () => {
     let callCount = 0;
-    const { tools } = makeTools(() => {
+    const { tools } = makeTools(QuestCreationTools, () => {
       callCount++;
       if (callCount === 1)
         return { content: '<section class="mcp-journal"></div>\n    </section>', success: true };
@@ -939,7 +921,7 @@ describe('QuestCreationTools.handleUpdateQuestJournal: failure handling', () => 
 
   it('throws when updateJournalContent returns error field', async () => {
     let callCount = 0;
-    const { tools } = makeTools(() => {
+    const { tools } = makeTools(QuestCreationTools, () => {
       callCount++;
       if (callCount === 1)
         return { content: '<section class="mcp-journal"></div>\n    </section>', success: true };
@@ -956,7 +938,10 @@ describe('QuestCreationTools.handleUpdateQuestJournal: failure handling', () => 
   });
 
   it('throws when newPageName update returns success:false', async () => {
-    const { tools } = makeTools(() => ({ success: false, error: 'page create failed' }));
+    const { tools } = makeTools(QuestCreationTools, () => ({
+      success: false,
+      error: 'page create failed',
+    }));
     await expect(
       tools.handleUpdateQuestJournal({
         journalId: 'j1',
@@ -969,7 +954,7 @@ describe('QuestCreationTools.handleUpdateQuestJournal: failure handling', () => 
   });
 
   it('throws on missing journalId: query not called', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(QuestCreationTools);
     await expect(
       tools.handleUpdateQuestJournal({ newContent: 'Content.', updateType: 'progress' })
     ).rejects.toThrow();
@@ -978,7 +963,7 @@ describe('QuestCreationTools.handleUpdateQuestJournal: failure handling', () => 
   });
 
   it('throws on missing newContent: query not called', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(QuestCreationTools);
     await expect(
       tools.handleUpdateQuestJournal({ journalId: 'j1', updateType: 'progress' })
     ).rejects.toThrow();
@@ -987,7 +972,7 @@ describe('QuestCreationTools.handleUpdateQuestJournal: failure handling', () => 
   });
 
   it('throws on missing updateType: query not called', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(QuestCreationTools);
     await expect(
       tools.handleUpdateQuestJournal({ journalId: 'j1', newContent: 'Content.' })
     ).rejects.toThrow();
@@ -996,7 +981,7 @@ describe('QuestCreationTools.handleUpdateQuestJournal: failure handling', () => 
   });
 
   it('throws on invalid updateType enum: query not called', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(QuestCreationTools);
     await expect(
       tools.handleUpdateQuestJournal({
         journalId: 'j1',
@@ -1016,7 +1001,7 @@ describe('QuestCreationTools.handleUpdateQuestJournal: failure handling', () => 
 describe('QuestCreationTools.handleListJournals: page mode (journalId + pageId)', () => {
   it('dispatches getJournalPageContent with journalId and pageId', async () => {
     const pagePayload = { id: 'page-1', name: 'Quest Overview', content: '<p>Content</p>' };
-    const { tools, query } = makeTools(() => pagePayload);
+    const { tools, query } = makeTools(QuestCreationTools, () => pagePayload);
     await tools.handleListJournals({ journalId: 'j1', pageId: 'page-1' });
     expect(query).toHaveBeenCalledOnce();
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getJournalPageContent', {
@@ -1027,7 +1012,7 @@ describe('QuestCreationTools.handleListJournals: page mode (journalId + pageId)'
 
   it('returns mode:"page" with journalId and page data', async () => {
     const pagePayload = { id: 'page-1', name: 'Quest Overview', content: '<p>Content</p>' };
-    const { tools } = makeTools(() => pagePayload);
+    const { tools } = makeTools(QuestCreationTools, () => pagePayload);
     const result = await tools.handleListJournals({ journalId: 'j1', pageId: 'page-1' });
     expect(result.success).toBe(true);
     expect(result.mode).toBe('page');
@@ -1044,7 +1029,7 @@ describe('QuestCreationTools.handleListJournals: journal mode (journalId only)',
       allPages: [{ id: 'p1', name: 'Overview' }],
       pageCount: 1,
     };
-    const { tools, query } = makeTools(() => journalPayload);
+    const { tools, query } = makeTools(QuestCreationTools, () => journalPayload);
     await tools.handleListJournals({ journalId: 'j1' });
     expect(query).toHaveBeenCalledOnce();
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getJournalContent', { journalId: 'j1' });
@@ -1058,7 +1043,7 @@ describe('QuestCreationTools.handleListJournals: journal mode (journalId only)',
       pageCount: 1,
       note: 'Showing first text page',
     };
-    const { tools } = makeTools(() => journalPayload);
+    const { tools } = makeTools(QuestCreationTools, () => journalPayload);
     const result = await tools.handleListJournals({ journalId: 'j1' });
     expect(result.success).toBe(true);
     expect(result.mode).toBe('journal');
@@ -1078,13 +1063,13 @@ describe('QuestCreationTools.handleListJournals: list mode (no journalId)', () =
   ];
 
   it('dispatches listJournals with empty object when no journalId', async () => {
-    const { tools, query } = makeTools(() => JOURNALS);
+    const { tools, query } = makeTools(QuestCreationTools, () => JOURNALS);
     await tools.handleListJournals({});
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.listJournals', {});
   });
 
   it('returns mode:"list" with journals array and total count', async () => {
-    const { tools } = makeTools(() => JOURNALS);
+    const { tools } = makeTools(QuestCreationTools, () => JOURNALS);
     const result = await tools.handleListJournals({});
     expect(result.success).toBe(true);
     expect(result.mode).toBe('list');
@@ -1094,7 +1079,7 @@ describe('QuestCreationTools.handleListJournals: list mode (no journalId)', () =
   });
 
   it('filters quest-related journals when filterQuests:true', async () => {
-    const { tools } = makeTools(() => JOURNALS);
+    const { tools } = makeTools(QuestCreationTools, () => JOURNALS);
     const result = await tools.handleListJournals({ filterQuests: true });
     // Only journals with quest keywords: 'The Main Quest' (has 'quest'), 'Side Mission...' (no keyword), 'Random Notes' (no keyword)
     // questKeywords = ['quest', 'mission', 'task', 'adventure', 'job', 'contract']
@@ -1107,7 +1092,7 @@ describe('QuestCreationTools.handleListJournals: list mode (no journalId)', () =
   });
 
   it('includes contentPreview when includeContent:true (makes additional getJournalContent calls)', async () => {
-    const { tools, query } = makeTools((method: string, _data: unknown) => {
+    const { tools, query } = makeTools(QuestCreationTools, (method: string, _data: unknown) => {
       if (method === 'foundry-mcp-bridge.listJournals') {
         return [{ id: 'j1', name: 'The Quest', pages: [] }];
       }
@@ -1131,7 +1116,7 @@ describe('QuestCreationTools.handleListJournals: failure handling', () => {
   });
 
   it('throws when getJournalPageContent returns error (page mode)', async () => {
-    const { tools } = makeTools(() => ({ error: 'page not found' }));
+    const { tools } = makeTools(QuestCreationTools, () => ({ error: 'page not found' }));
     await expect(
       tools.handleListJournals({ journalId: 'j1', pageId: 'bad-page' })
     ).rejects.toThrow();
@@ -1139,19 +1124,19 @@ describe('QuestCreationTools.handleListJournals: failure handling', () => {
   });
 
   it('throws when getJournalContent returns error (journal mode)', async () => {
-    const { tools } = makeTools(() => ({ error: 'journal not found' }));
+    const { tools } = makeTools(QuestCreationTools, () => ({ error: 'journal not found' }));
     await expect(tools.handleListJournals({ journalId: 'bad-j' })).rejects.toThrow();
     consoleErr.mockRestore();
   });
 
   it('throws when listJournals returns error (list mode)', async () => {
-    const { tools } = makeTools(() => ({ error: 'database error' }));
+    const { tools } = makeTools(QuestCreationTools, () => ({ error: 'database error' }));
     await expect(tools.handleListJournals({})).rejects.toThrow();
     consoleErr.mockRestore();
   });
 
   it('throws when listJournals returns null', async () => {
-    const { tools } = makeTools(() => null);
+    const { tools } = makeTools(QuestCreationTools, () => null);
     await expect(tools.handleListJournals({})).rejects.toThrow();
     consoleErr.mockRestore();
   });
@@ -1190,7 +1175,7 @@ describe('QuestCreationTools.handleSearchJournals: dispatch and result shaping',
       }
       return { success: true };
     };
-    return makeTools(queryImpl);
+    return makeTools(QuestCreationTools, queryImpl);
   }
 
   it('dispatches listJournals first then getJournalPageContent for each text page', async () => {
@@ -1280,7 +1265,7 @@ describe('QuestCreationTools.handleSearchJournals: dispatch and result shaping',
         ],
       },
     ];
-    const { tools, query } = makeTools((method: string, _data: unknown) => {
+    const { tools, query } = makeTools(QuestCreationTools, (method: string, _data: unknown) => {
       if (method === 'foundry-mcp-bridge.listJournals') {
         return journalsWithImagePage;
       }
@@ -1332,33 +1317,33 @@ describe('QuestCreationTools.handleSearchJournals: failure handling', () => {
   });
 
   it('throws when listJournals returns error', async () => {
-    const { tools } = makeTools(() => ({ error: 'database error' }));
+    const { tools } = makeTools(QuestCreationTools, () => ({ error: 'database error' }));
     await expect(tools.handleSearchJournals({ searchQuery: 'dragon' })).rejects.toThrow();
     consoleErr.mockRestore();
   });
 
   it('throws when listJournals returns null', async () => {
-    const { tools } = makeTools(() => null);
+    const { tools } = makeTools(QuestCreationTools, () => null);
     await expect(tools.handleSearchJournals({ searchQuery: 'dragon' })).rejects.toThrow();
     consoleErr.mockRestore();
   });
 
   it('throws on missing searchQuery: query not called', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(QuestCreationTools);
     await expect(tools.handleSearchJournals({})).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
     consoleErr.mockRestore();
   });
 
   it('throws on empty searchQuery string: query not called', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(QuestCreationTools);
     await expect(tools.handleSearchJournals({ searchQuery: '' })).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
     consoleErr.mockRestore();
   });
 
   it('throws on invalid searchType enum: query not called', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(QuestCreationTools);
     await expect(
       tools.handleSearchJournals({ searchQuery: 'dragon', searchType: 'everywhere' })
     ).rejects.toThrow();
@@ -1367,7 +1352,7 @@ describe('QuestCreationTools.handleSearchJournals: failure handling', () => {
   });
 
   it('skips pages that error during content fetch (no throw)', async () => {
-    const { tools } = makeTools((method: string, _data: unknown) => {
+    const { tools } = makeTools(QuestCreationTools, (method: string, _data: unknown) => {
       if (method === 'foundry-mcp-bridge.listJournals') {
         return [
           {

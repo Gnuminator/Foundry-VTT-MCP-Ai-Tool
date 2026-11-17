@@ -2,30 +2,28 @@
   "limit": 1000,
   "files": {
     ".claude/hooks/guard-remote-commands.mjs": 1020,
-    "packages/cogm-dashboard/web/src/styles/styles.css": 2400,
-    "packages/foundry-module/src/data-access/actor-builder.ts": 2241,
+    "packages/foundry-module/src/data-access/actor-builder.ts": 1418,
     "packages/foundry-module/src/data-access/guarded-write.ts": 1094,
-    "packages/foundry-module/src/data-access/player-rolls.ts": 1640,
-    "packages/foundry-module/src/export-index.ts": 1433,
+    "packages/foundry-module/src/data-access/player-rolls.ts": 1252,
+    "packages/foundry-module/src/export-index.ts": 1425,
     "packages/foundry-module/src/npc-turn.ts": 1158,
-    "packages/foundry-module/src/play-recorder.ts": 2131,
-    "packages/foundry-module/src/queries.ts": 1824,
+    "packages/foundry-module/src/play-recorder.ts": 2127,
     "packages/foundry-module/src/session-events.ts": 1301,
     "packages/mcp-server/src/change-history.ts": 1443,
-    "packages/mcp-server/src/guarded-write/service.ts": 1546,
+    "packages/mcp-server/src/guarded-write/service.ts": 1543,
     "packages/mcp-server/src/handouts/service.ts": 1210,
     "packages/mcp-server/src/obsidian/library-sync.ts": 1240,
     "packages/mcp-server/src/obsidian/mirror-pump.ts": 2146,
     "packages/mcp-server/src/obsidian/mirror-render.ts": 1503,
     "packages/mcp-server/src/obsidian/render.ts": 1172,
     "packages/mcp-server/src/stats/build.ts": 1035,
-    "packages/mcp-server/src/tools/character.ts": 1058,
+    "packages/mcp-server/src/tools/character.ts": 1051,
     "packages/mcp-server/src/tools/compendium.ts": 1079,
     "packages/mcp-server/src/tools/dnd5e/add-feature.ts": 1189,
     "packages/mcp-server/src/tools/quest-creation.ts": 1346,
     "scripts/green.mjs": 1210,
     "scripts/live-write-sweep.mjs": 1690,
-    "scripts/merge-runner.mjs": 1050,
+    "scripts/merge-runner.mjs": 1064,
     "scripts/test-kit/lib/dashboard-controls.mjs": 1252,
     "scripts/test-kit/lib/fake/origins.mjs": 1051,
     "scripts/test-kit/lib/features.mjs": 1387,
@@ -40,6 +38,24 @@
       "lines": 1050,
       "reason": "5xx retry on merge adds 56 lines to a file that was 994; a split of the runner is its own item",
       "pr": "1026"
+    },
+    {
+      "file": "scripts/merge-runner.mjs",
+      "lines": 1059,
+      "reason": "runner wiring for the refresh step (dep, import, round call, header doc); the logic lives in merge-runner/refresh.mjs",
+      "pr": "1092"
+    },
+    {
+      "file": "scripts/merge-runner.mjs",
+      "lines": 1064,
+      "reason": "five wiring lines for the no-wait check; the logic is in merge-runner/base-current.mjs",
+      "pr": "1104"
+    },
+    {
+      "file": "packages/foundry-module/src/queries.ts",
+      "lines": 1812,
+      "reason": "one more read-only query registration (getRenownState); the file is the registration table",
+      "pr": "1126"
     }
   ]
 }

@@ -7,7 +7,7 @@
  * (`recap.player.*.md`) and never a transcript.
  *
  * The sessions folder sits on the PC that records (FVTT_SESSIONS_DIR, else
- * Documents/FoundrySessions). A bridge on another host cannot see it, and then says so.
+ * FoundrySessions in FVTT_DATA_DIR or Documents). A bridge on another host cannot see it, and then says so.
  */
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';

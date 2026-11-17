@@ -57,8 +57,29 @@ export function mountRawBodyRoutes(
   // the GM check. Runs after the Access identity (app.ts mounts these routes after it); never
   // rejects a request.
   app.use(
-    obsidianClientRecorder(clientsOf(f), req => isGm(resolveRole(req as AuthRequest, config.auth)))
+    obsidianClientRecorder(
+      clientsOf(f),
+      req => isGm(resolveRole(req as AuthRequest, config.auth)),
+      Date.now,
+      entry => {
+        if (typeof client.recordClient === 'function')
+          void client.recordClient(entry).catch(() => undefined);
+      }
+    )
   );
+  // "Who uses what" (D-146): GM only; the bridge builds the report from its own counts.
+  app.get('/api/who-uses-what', requireGm, (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    if (typeof client.whoUsesWhat !== 'function') {
+      res.status(501).json({ error: 'The bridge cannot build this report.' });
+      return;
+    }
+    const days = Number(req.query.days);
+    client
+      .whoUsesWhat(Number.isFinite(days) ? days : 7)
+      .then(report => res.json(report))
+      .catch(() => res.status(502).json({ error: 'The bridge did not answer. Try again.' }));
+  });
   // "Open in Foundry" (O4, open-route.ts). Before the JSON parser: its POST parses its own
   // body after its guards.
   mountOpenRoute(app, { ...deps.openRoute, config, client, logger: logger.child('open') });
@@ -82,12 +103,33 @@ export function mountRawBodyRoutes(
   const playerConnector =
     deps.playerConnector ??
     playerConnectorFromEnv(process.env, message => logger.child('player-connector').warn(message));
+  // Handouts and play stats for a player's Claude come from the player page's own filters.
+  let statsCache: { worldId: string; raw: unknown; at: number } | null = null;
   mountPlayerRoute(app, {
     config,
     connector: playerConnector,
     client,
     directory,
     logger,
+    local: {
+      handoutsFor: userId => ctx.playerView.handoutsFor(userId),
+      handoutsReady: () => ctx.playerView.handoutsReady,
+      worldId: () => ctx.world()?.id ?? null,
+      characterSheet: userId =>
+        typeof client.characterSheet === 'function'
+          ? client.characterSheet(userId)
+          : Promise.reject(new Error('No character sheets')),
+      // The stats rebuild from the logs: reuse one answer for a minute.
+      playStats: async () => {
+        const worldId = ctx.world()?.id ?? '';
+        if (statsCache?.worldId === worldId && Date.now() - statsCache.at < 60_000) {
+          return statsCache.raw;
+        }
+        const raw = await client.callTool('get-play-stats', {});
+        statsCache = { worldId, raw, at: Date.now() };
+        return raw;
+      },
+    },
     clients: clientsOf(f),
     ...(deps.accessFetch ? { accessFetch: deps.accessFetch } : {}),
   });

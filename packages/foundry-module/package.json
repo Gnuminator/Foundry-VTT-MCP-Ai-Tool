@@ -1,12 +1,12 @@
 {
   "name": "@gnuminator/foundry-module",
-  "version": "0.29.2",
+  "version": "0.30.0",
   "author": "Gnuminator <gnuminator@users.noreply.github.com>",
   "description": "Foundry VTT module for MCP bridge integration",
   "type": "module",
   "scripts": {
-    "build": "node ../../scripts/tsc7.mjs",
-    "dev": "node ../../node_modules/typescript/bin/tsc --watch",
+    "build": "node ../../scripts/tsc7.mjs --noEmit && node esbuild.config.mjs",
+    "dev": "node ../../node_modules/typescript/bin/tsc --watch --noEmit",
     "test": "vitest run",
     "typecheck": "node ../../scripts/tsc7.mjs --noEmit --customConditions development --types jquery,node",
     "lint": "eslint src",
@@ -17,6 +17,7 @@
     "@types/jquery": "^3.5.34",
     "@types/node": "^24.0.0",
     "@types/sanitize-html": "^2.16.2",
+    "esbuild": "^0.28.2",
     "parse5": "^8.0.1",
     "sanitize-html": "^2.17.5",
     "typescript": "~6.0.3"

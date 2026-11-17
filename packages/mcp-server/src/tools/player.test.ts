@@ -22,6 +22,7 @@ import {
 } from '../tool-sets.js';
 import {
   PLAYER_ENTRY_CHARS,
+  PLAYER_DASHBOARD_TOOL_NAMES,
   PLAYER_TOOL_NAMES,
   PLAYER_EXCERPT_CHARS,
   PlayerTools,
@@ -65,8 +66,14 @@ describe('the player set is never served on stdio and has no call_tool route', (
   const deps = stubToolRouterDeps();
   const names = TOOL_SETS[PLAYER_TOOL_SET].tools;
 
+  it('the tools the dashboard answers itself match its PLAYER_LOCAL_TOOLS list', () => {
+    expect([...PLAYER_DASHBOARD_TOOL_NAMES]).toEqual(['get-my-handouts', 'get-my-play-stats']);
+  });
+
   it('tags exactly the runtime allowlist as the player set', () => {
-    expect([...names].sort()).toEqual([...PLAYER_TOOL_NAMES].sort());
+    expect([...names].sort()).toEqual(
+      [...PLAYER_TOOL_NAMES, ...PLAYER_DASHBOARD_TOOL_NAMES].sort()
+    );
   });
 
   it('resolveToolSets drops "player" and "all" excludes it', () => {
@@ -83,7 +90,7 @@ describe('the player set is never served on stdio and has no call_tool route', (
       expect(filterToolsBySets(all, resolveToolSets(raw))).toEqual([]);
   });
 
-  it('list_tools leaves them out; list_player_tools carries exactly the five', () => {
+  it('list_tools leaves them out; list_player_tools carries exactly the player tools', () => {
     const { listed, player } = splitPlayerTools(collectToolDefinitions(deps));
     expect(listed.map(t => t.name)).not.toEqual(expect.arrayContaining([names[0]]));
     for (const name of names) expect(listed.map(t => t.name)).not.toContain(name);
@@ -157,6 +164,17 @@ describe('the user id comes from the message only', () => {
     expect(data).not.toHaveProperty('includeWorld');
     expect(data).not.toHaveProperty('includeOtherBooks');
     expect(JSON.stringify(data)).not.toContain('EVIL');
+  });
+
+  it('get-player-skill-guide ignores an injected skill argument and serves the player guide', async () => {
+    const { tools } = make({});
+    const plain = await tools.run('get-player-skill-guide', {}, 'u1');
+    const injected = await tools.run(
+      'get-player-skill-guide',
+      { skill: 'gm-coach', userId: 'X' },
+      'u1'
+    );
+    expect(injected).toEqual(plain);
   });
 
   it('does not pass a client identifier through for the character tools', async () => {

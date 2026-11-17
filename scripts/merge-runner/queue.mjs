@@ -26,12 +26,13 @@ export const enqueuedLine = (/** @type {number} */ pr, /** @type {string} */ hea
 export function enqueuedItems(backlogText) {
   const out = [];
   for (const [id, progress] of parseProgress(backlogText)) {
-    const last = progress.split('\n').at(-1) ?? '';
-    const m =
-      /^(?:\d{4}-\d{2}-\d{2} )?PR #(\d+) enqueued in the merge queue, head ([0-9a-f]{40})\b/.exec(
-        last.trim()
-      );
-    if (m) out.push({ id, pr: Number(m[1]), head: m[2] });
+    for (const line of progress.split('\n')) {
+      const m =
+        /^(?:\d{4}-\d{2}-\d{2} )?PR #(\d+) enqueued in the merge queue, head ([0-9a-f]{40})\b/.exec(
+          line.trim()
+        );
+      if (m) out.push({ id, pr: Number(m[1]), head: m[2] });
+    }
   }
   return out;
 }

@@ -1,7 +1,9 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { stat } from 'node:fs/promises';
+import { join } from 'node:path';
 import {
+  rootFolder,
   SCENE_RESTORE_FEATURE_ID,
   SCENE_RESTORE_PARTS,
   toolRef,
@@ -54,7 +56,7 @@ export interface SceneRestorePlanResult extends PlanView {
 function defaultBackupPath(env: NodeJS.ProcessEnv, worldId: string): string {
   const fromEnv = env.FOUNDRY_AI_SCENE_BACKUP_DIR;
   if (fromEnv) return fromEnv;
-  return `C:\\FoundryPlanB\\data\\Data\\worlds\\${worldId}`;
+  return join(rootFolder('FoundryPlanB'), 'data', 'Data', 'worlds', worldId);
 }
 
 /**

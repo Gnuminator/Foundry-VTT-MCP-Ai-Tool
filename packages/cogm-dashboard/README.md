@@ -5,16 +5,16 @@ and shows it in the browser. It does not call the Anthropic API: AI work happens
 Claude through the MCP tools.
 
 > **Why a separate app?** MCP / Claude Desktop can only respond when _you_
-> prompt it — it cannot react to the game on its own. This dashboard **pulls**
+> prompt it, so it cannot react to the game on its own. This dashboard **pulls**
 > the game feed off the bridge's control channel and shows it live.
 
 ## What it does
 
-- **Live event feed** — polls the bridge's `get-recent-events` delta (~every 4s)
+- **Live event feed**: polls the bridge's `get-recent-events` delta (~every 4s)
   using the returned `latestTimestamp` as an incremental cursor.
-- **Combat tracker** — initiative order, HP bars, conditions, and death saves
+- **Combat tracker**: initiative order, HP bars, conditions, and death saves
   from `get-combat-state`.
-- **Live module diagnostics** — polls `get-module-errors` and streams other
+- **Live module diagnostics**: polls `get-module-errors` and streams other
   modules' errors/warnings to a diagnostics pane.
 
 Everything else is strictly read-only.
@@ -38,7 +38,7 @@ without touching the rest of the app.
 | Path                             | Role                                                        |
 | -------------------------------- | ----------------------------------------------------------- |
 | `src/feed/mcp-control-client.ts` | Reconnecting JSON-lines client for the control channel      |
-| `src/feed/polling-feed.ts`       | `GameFeed` impl — incremental event + combat polling        |
+| `src/feed/polling-feed.ts`       | `GameFeed` impl: incremental event + combat polling         |
 | `src/state.ts`                   | Bounded view of the game (rolling events + combat snapshot) |
 | `src/sse.ts`                     | Server-Sent Events hub                                      |
 | `src/server.ts`                  | Express wiring, REST + SSE endpoints                        |
@@ -88,7 +88,7 @@ redirect to `/`, and the React build's own files still load from
 window. `/player`, `/me` and `/open` are separate pages and did not move.
 
 The React page uses Radix UI primitives (unstyled), TanStack Query for the
-data, and the old stylesheets and themes as they are (`web/src/styles/` bundles `styles.css`, `moments.css` and
+data, and the old stylesheets and themes as they are (`web/src/styles/` bundles `base.css`, `tools.css`, `changes.css`, `moments.css` and
 the shared `public/themes/`), so it looks the same. It talks to the same routes with the same GM
 token. Ported so far: Player links, Module diagnostics, Pre-flight (with Ready for session),
 Prep, Party, Handouts, Tarokka, the Tool Runner, the Advanced menu (its panel, During screen and
@@ -152,7 +152,7 @@ Tooltip } from 'radix-ui'`), not the single `@radix-ui/react-*` ones. `web/src/u
   `public/themes/brand.css` (The Veil's overrides in `veil.css`). Use them in new rules instead of
   numbers; never write a `z-index` number in a component or in `next.css`.
 - **Styles:** a new rule goes in a CSS Module next to its component (`Thing.module.css`, Vite
-  built in) and reads the tokens. Only delete rules from `web/src/styles/styles.css` or `moments.css`
+  built in) and reads the tokens. Only delete rules from `web/src/styles/base.css`, `tools.css`, `changes.css` or `moments.css`
   when nothing renders them. The components render the old class names (`.pane`, `.drawer`, `.pane-title`,
   `.empty`, `.btn`, ...), so those files still style them.
 - **Keep what the tests and the guide rely on:** the outer classes, the DOM where an old CSS
@@ -175,7 +175,7 @@ production dependencies only) and the bundle budget do not change.
 - `npm run build-storybook -w @gnuminator/cogm-dashboard` writes the static site to
   `storybook-static/` (not committed). The wiki workflow builds it and publishes it under
   `/storybook/` next to the wiki.
-- The preview loads the same stylesheets as the real page, in the same order (`web/src/styles/index.css`: `styles.css`,
+- The preview loads the same stylesheets as the real page, in the same order (`web/src/styles/index.css`: `base.css`, `tools.css`, `changes.css`,
   `moments.css`, `themes/brand.css`, `themes/veil.css`, `themes/light.css`, `next.css`), so a story looks as the panel
   does in the dashboard. The toolbar's **Theme** sets `data-theme` (neutral or veil) on `<html>`
   and **Mist** sets `data-mist` (calm, drift, clear), as `theme.ts` does.
@@ -230,14 +230,15 @@ export const BridgeDown: StoryObj<typeof meta> = {
   Tarokka stories use placeholder cards, not the deck. Times are absolute, so a story looks the
   same on every day.
 
-**Story shots.** `web/visual/stories.spec.ts` reads `storybook-static/index.json` and, for each
-story, takes one screenshot (cropped to the story's content and anything open over it) in the
-story's own theme and size, then runs axe on it. Veil stories get a screenshot only when they
-are `ui-` primitives, phone stories or the heal form; the rest only get axe. A new story gets a baseline the next time
-`npm run test:visual:update` runs; there is no list to edit. They run in the `stories` project of
-the same Playwright config, so `npm run test:visual` (Docker) and the CI job `dashboard-visual`
-cover them; build the Storybook first (`npm run build-storybook`), and rebuild it after a
-change to a story or a component. Baselines are in `web/visual/__screenshots__/stories/`.
+**Story shots.** `web/visual/stories.spec.ts` reads `storybook-static/index.json` and runs axe on
+every story in the story's own theme and size. The pixels are not committed: in CI
+`web/visual/stories-diff.spec.ts` renders every photographed story (Veil stories only when they are
+`ui-` primitives, phone stories or the heal form) from main and from the PR head in the same
+container, and the artifact `dashboard-visual-diff` (`index.html`) shows before, after and diff
+for each one that changed. The merge gate asks for the `visual: accepted <n> <hash>` line in the
+review note. A new story needs no list or file. The axe project is `stories` in the same
+Playwright config, so `npm run test:visual` (Docker) and the CI job `dashboard-visual` cover it;
+build the Storybook first (`npm run build-storybook`), and rebuild it after a change to a story or a component.
 Serious and critical axe findings fail; the ones already there are listed with the reason in
 `web/visual/axe-known-stories.ts`, as for the app shots.
 
@@ -249,16 +250,15 @@ the version banner, each in the neutral theme at 1440, 1080 and 390 pixels wide 
 too, at 1440). These are page shots: every run renders them (54 PNGs, written to `page-shots/<project>/`, which git
 ignores) and CI uploads them as the artifacts `dashboard-page-shots-N` (one per shard that ran page tests; today shard 1 holds all 54), but nothing compares them and no PNG
 of a page is committed, so adding a control to a page changes no committed file. Look at the artifact to see the
-page. The pixel guard is the story shots (see "Stories"); `src/visual-page-shots.test.ts` fails if a page PNG
+page. The pixel guard is the two-sided story render and the accept line (see "Stories"); `src/visual-page-shots.test.ts` fails if a page PNG
 returns to `web/visual/__screenshots__/`. The fakes are the e2e
 helpers (`web/e2e/support.ts`); the data in `web/visual/fixtures.ts` is made up, with the clock
 fixed, animations off and the browser in UTC and en-US, so a run is the same every time. The same
 screens also go through axe at 1440 (serious and critical violations fail; the ones already there
 are listed with the reason in `web/visual/axe-known.ts`, and only a new one fails; an entry that
 no longer matches on its screen and theme also fails, so the list shrinks as causes are fixed).
-The story comparison is near exact: `maxDiffPixels: 0` and a colour `threshold` of 0.02 (Playwright's
-default is 0.2, which lets a nudged grey pass; at 0 the rounded edge of one pill, the Player links
-header, flickered between runs). The dashboard screens use no `mask` because the clock is fixed and all data
+The story comparison is near exact (a colour `threshold` of 0.02 and no changed pixels allowed;
+see `stories-diff.spec.ts`). The dashboard screens use no `mask` because the clock is fixed and all data
 is faked (a port with values that move on their own, such as Combat Tracker or Live Feed, adds a
 `mask` helper for those elements); the player pages mask only the `#status` pill, which reads
 "Reconnecting" once the faked stream ends.
@@ -269,32 +269,31 @@ meant for one player, and with a fight running, plus `/me`. They are plain pages
 (the player stream and `/api/me`) stands in for the bridge. Screenshots are taken at 1080 and 390
 wide in the neutral theme; axe runs on them at 1440 with no known-violations list.
 
-- **Run them in Docker, not on the host.** The baselines are made on Linux only, in the Playwright
+- **Run them in Docker, not on the host.** The renders are Linux-only, in the Playwright
   image `mcr.microsoft.com/playwright:v<version>-noble`, because fonts and anti-aliasing differ per
-  operating system: a Windows or macOS run would differ from the PNGs and from CI.
+  operating system: a Windows or macOS run would differ from CI.
   `scripts/visual-docker.mjs` takes the image tag from the installed `@playwright/test` version.
 - `npm run build -w @gnuminator/cogm-dashboard` and
   `npm run build-storybook -w @gnuminator/cogm-dashboard` first (the container serves `dist/` and
   `storybook-static/` from the repo; the Storybook is for the story shots, see "Stories"), then
   `npm run test:visual -w @gnuminator/cogm-dashboard` to check. Extra arguments go to
   Playwright: `npm run test:visual -w @gnuminator/cogm-dashboard -- -g party`.
-- `npm run test:visual:update -w @gnuminator/cogm-dashboard` writes new story baselines after a change
-  you meant. Look at the PNGs in the diff, then commit them with the change.
 - The container mounts the repo at `/work` but keeps its own `node_modules` in two named Docker
   volumes per worktree (`foundry-ai-tool-visual-node-modules-<hash of the repo path>` and
   `foundry-ai-tool-visual-dashboard-node-modules-<hash>`, so two lanes never share them),
   filled by `npm ci --ignore-scripts` the first time and again when `package-lock.json` changes.
-  Remove them with `docker volume rm` to start clean. Snapshots and `test-results/visual` are
-  written into the repo.
+  Remove them with `docker volume rm` to start clean. `test-results/visual` is
+  written into the repo (git ignores it).
 - `npm run test:visual:ci` is what runs inside the container (CI uses it directly, in the job
   `dashboard-visual-shard`, 4 parallel shards; the check `dashboard-visual (screenshots)` sums
-  them up). A story diff fails a shard. The report with the expected, actual and diff
-  images is one artifact per shard, `dashboard-visual-report-1` to `-4`, on the run's summary page (kept 14 days);
+  them up). A failed axe check fails a shard; story pixel diffs do not (they are in the
+  artifact `dashboard-visual-diff`). The report with the traces and axe output
+  is one artifact per shard, `dashboard-visual-report-1` to `-4`, on the run's summary page (kept 14 days);
   the page shots are `dashboard-page-shots-N` there (only a shard that ran page tests uploads one). The
   checks are not in the ruleset's required list, but the merge gate refuses any red check, so a
   red shard blocks the merge. After a Playwright bump, change the image
   tag in `.github/workflows/ci.yml` too (the job's first step fails with a message when they
-  differ) and refresh the baselines.
+  differ).
 
 ### Bundle budget
 
@@ -324,7 +323,7 @@ All via `.env` (see `.env.example`):
 | `MCP_CONTROL_HOST` / `MCP_CONTROL_PORT` | `127.0.0.1` / `31414` | Bridge control channel    |
 | `PORT`                                  | `3000`                | Dashboard HTTP/SSE port   |
 
-Additional knobs (all optional — defaults shown; see `.env.example`):
+Additional knobs (all optional, defaults shown; see `.env.example`):
 
 | Variable                     | Default | Purpose                                                |
 | ---------------------------- | ------- | ------------------------------------------------------ |
@@ -342,9 +341,9 @@ GM-only data filtered **server-side** (never just hidden in the browser).
 
 - **Opt-in.** With no `GM_DASHBOARD_TOKEN` and no `GM_EMAILS` set, the dashboard stays in
   single-user GM mode (today's zero-config localhost behavior). Setting either turns the split on.
-- **GM view** (`/`) — everything, as before. When the split is on, open it once with
+- **GM view** (`/`): everything, as before. When the split is on, open it once with
   `http://host:3000/?token=<GM_DASHBOARD_TOKEN>`; the token is remembered in that browser.
-- **Player view** (`/player`) — public **combat order** + public **event feed** only. Filtered
+- **Player view** (`/player`): public **combat order** + public **event feed** only. Filtered
   server-side: exact enemy/NPC HP is removed, GM-hidden combatants are dropped, event details
   (which carry HP before/after) are stripped, and module diagnostics, settings, and the entire
   write/GM-action surface are never sent. Players still see the party's HP and the public feed.
@@ -367,4 +366,4 @@ Claude Code) through the MCP tools, under that person's subscription.
 - **Read-mostly.** Dashboard buttons that change the game go through plan, confirm and undo. Three act at once: the combat turn button, **Ask for a roll** (it posts the roll request in chat, which has no undo) and the strip's **Damage / Heal** form (it plans and applies in one click; the toast and Recent Changes have Undo).
 - **Resilient to a dead backend.** The control client reconnects with backoff,
   every request is timeout-bounded, and a failed poll downgrades the status badge
-  and retries — it never crashes the dashboard.
+  and retries, and it never crashes the dashboard.

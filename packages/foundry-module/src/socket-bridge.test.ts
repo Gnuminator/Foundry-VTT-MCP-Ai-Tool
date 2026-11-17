@@ -90,7 +90,7 @@ afterEach(() => {
 describe('SocketBridge: MCP query dispatch', () => {
   it('routes to the registered bridge handler and wraps a success envelope', async () => {
     const handler = vi.fn().mockResolvedValue({ ok: 1 });
-    bridgeHandlers.set('foundry-mcp-bridge.listActors', handler);
+    bridgeHandlers.set('foundry-mcp-bridge.listActors', 'read', handler);
     const bridge = new SocketBridge(makeConfig()) as any;
     const cb = vi.fn();
 
@@ -105,7 +105,7 @@ describe('SocketBridge: MCP query dispatch', () => {
 
   it('passes {} to the handler when no data is supplied', async () => {
     const handler = vi.fn().mockResolvedValue(null);
-    bridgeHandlers.on('foundry-mcp-bridge.ping', handler);
+    bridgeHandlers.on('foundry-mcp-bridge.ping', 'read', handler);
     const bridge = new SocketBridge(makeConfig()) as any;
 
     await bridge.handleMCPQuery({ method: 'foundry-mcp-bridge.ping' }, vi.fn());
@@ -126,7 +126,7 @@ describe('SocketBridge: MCP query dispatch', () => {
   });
 
   it('returns a failure envelope (with the message) when the handler throws', async () => {
-    bridgeHandlers.set('foundry-mcp-bridge.boom', async () => {
+    bridgeHandlers.set('foundry-mcp-bridge.boom', 'read', async () => {
       throw new Error('kaboom');
     });
     const bridge = new SocketBridge(makeConfig()) as any;
@@ -170,7 +170,7 @@ describe('SocketBridge: query lockdown', () => {
 
 describe('SocketBridge: inbound message routing', () => {
   it('mcp-query → sends an mcp-response carrying the query result', async () => {
-    bridgeHandlers.set('foundry-mcp-bridge.listActors', async () => ['a']);
+    bridgeHandlers.set('foundry-mcp-bridge.listActors', 'read', async () => ['a']);
     const { bridge, ws } = connectedBridge();
 
     await bridge.handleMessage({

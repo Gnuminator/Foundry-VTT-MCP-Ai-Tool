@@ -1,3 +1,4 @@
+import { RENAMED_TOOLS } from './param-aliases.js';
 /**
  * The whole tool catalog, built from the real tool classes (with stub
  * dependencies: definitions do not touch them).
@@ -59,8 +60,9 @@ describe('tool catalog', () => {
     expect(new Set(names).size).toBe(names.length);
     // The player tools have no call_tool route: they run only through the player_tool message.
     const playerTools = TOOL_SETS[PLAYER_TOOL_SET].tools;
+    // A removed tool name stays as a router alias for one release (RENAMED_TOOLS).
     expect(Object.keys(buildToolRouter(deps)).sort()).toEqual(
-      names.filter(n => !playerTools.includes(n)).sort()
+      [...names.filter(n => !playerTools.includes(n)), ...Object.keys(RENAMED_TOOLS)].sort()
     );
   });
 
@@ -164,6 +166,10 @@ describe('tool catalog', () => {
     expect(grab(docFile, doc, /The bridge has ([\d,]+) tools\./), `${docFile}: tool count`).toBe(
       tools.length
     );
+    expect(
+      grab(docFile, doc, /load at\s+most the other ([\d,]+),/),
+      `${docFile}: the count of tools Claude Desktop can load`
+    ).toBe(tools.length - TOOL_SETS.player.tools.length);
     within10(docFile, 'total size', grab(docFile, doc, /about ([\d,]+) characters of JSON/), total);
     // The token range is the character count at about 4.2 and 3.2 characters per token.
     within10(
@@ -205,6 +211,13 @@ describe('tool catalog', () => {
       expect(match, `${docFile}: no table row for ${set}`).not.toBeNull();
       expect(num(match![1]), `${docFile}: tool count of ${set}`).toBe(TOOL_SETS[set].tools.length);
       within10(docFile, `size of ${set}`, num(match![2]), size(inSet(set)));
+      const purposeRow = new RegExp(
+        String.raw`^\| \*\*${set}\*\*\s*\|.*\|\s*([^|]+?)\s*\|\s*$`,
+        'm'
+      );
+      expect(purposeRow.exec(doc)?.[1], `${docFile}: the For column of ${set} is its purpose`).toBe(
+        TOOL_SETS[set].purpose
+      );
     }
 
     // The README carries no tool counts or sizes (they drift); they live in the generated docs.

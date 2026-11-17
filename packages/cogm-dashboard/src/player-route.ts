@@ -36,6 +36,11 @@ import type { ClientRegistry } from './client-versions.js';
 import type { Config } from './config.js';
 import type { Logger } from './logger.js';
 import type { PlayerConnectorOptions } from './player-connector.js';
+import {
+  PLAYER_LOCAL_TOOLS,
+  runLocalPlayerTool,
+  type LocalPlayerToolDeps,
+} from './player-local-tools.js';
 import type { PlayerDirectory } from './usage-route.js';
 
 /** The only tools this endpoint runs; the backend checks the same list again. */
@@ -46,12 +51,15 @@ const PLAYER_ENDPOINT_TOOLS: readonly string[] = [
   'find-book-entries',
   'get-book-entry',
   'get-player-skill-guide',
+  ...PLAYER_LOCAL_TOOLS,
 ];
 
 export interface PlayerRouteClient {
   readonly isConnected?: boolean;
   listPlayerTools?(): Promise<unknown>;
   playerTool?(userId: string, tool: string, args: unknown): Promise<unknown>;
+  /** The player's extension and Claude client versions, for the "who uses what" page (D-146). */
+  recordClient?(entry: Record<string, unknown>): Promise<unknown>;
 }
 
 export interface PlayerRouteOptions {
@@ -60,6 +68,8 @@ export interface PlayerRouteOptions {
   client: PlayerRouteClient;
   directory: PlayerDirectory;
   logger: Logger;
+  /** What the dashboard answers itself (handouts, play stats); without it those tools are not listed. */
+  local?: LocalPlayerToolDeps;
   /** Client versions seen (item client-updates); absent on fakes. */
   clients?: ClientRegistry;
   accessFetch?: ConstructorParameters<typeof AccessJwtVerifier>[1];
@@ -223,7 +233,10 @@ export function mountPlayerRoute(app: Express, options: PlayerRouteOptions): voi
       // A token that cannot even be read is the caller's; a readable one that no key could be
       // fetched for is ours (Cloudflare unreachable): try again, not "check your login".
       if (result.reason === 'invalid') {
-        return { status: v.hasKeys || !looksSigned(token) ? 401 : 503 };
+        // Both applications' keys must be loaded before "invalid" is the caller's fault: an app
+        // token fails here too when only the app verifier could not fetch its keys.
+        const keysOk = v.hasKeys && (!appV || appV.hasKeys);
+        return { status: keysOk || !looksSigned(token) ? 401 : 503 };
       }
       if (result.reason === 'no-client-id' && !warnedClaims) {
         warnedClaims = true;
@@ -295,6 +308,12 @@ export function mountPlayerRoute(app: Express, options: PlayerRouteOptions): voi
       const label = directory.get(who.userId)?.name ?? who.userId;
       options.clients.record('player-extension', playerKey, extVersion, Date.now(), label);
     }
+    // Kept by the bridge too (survives a restart): the version only, keyed by the Foundry user id.
+    if (extVersion && typeof client.recordClient === 'function') {
+      void client
+        .recordClient({ piece: 'player-extension', who: who.userId, version: extVersion })
+        .catch(() => undefined);
+    }
 
     const body: unknown = req.body;
     if (body === null || typeof body !== 'object' || Array.isArray(body)) {
@@ -317,7 +336,24 @@ export function mountPlayerRoute(app: Express, options: PlayerRouteOptions): voi
     }
 
     if (method === 'initialize') {
-      const asked = (msg.params as { protocolVersion?: unknown } | undefined)?.protocolVersion;
+      const initParams = msg.params as
+        | { protocolVersion?: unknown; clientInfo?: { name?: unknown; version?: unknown } }
+        | undefined;
+      // Which Claude app this player uses (its name and version, as the client says them).
+      if (
+        typeof client.recordClient === 'function' &&
+        typeof initParams?.clientInfo?.name === 'string'
+      ) {
+        void client
+          .recordClient({
+            piece: 'claude',
+            who: who.userId,
+            name: initParams.clientInfo.name,
+            version: initParams.clientInfo.version,
+          })
+          .catch(() => undefined);
+      }
+      const asked = initParams?.protocolVersion;
       const version =
         typeof asked === 'string' && SUPPORTED_PROTOCOLS.includes(asked)
           ? asked
@@ -346,9 +382,12 @@ export function mountPlayerRoute(app: Express, options: PlayerRouteOptions): voi
       }
       try {
         const raw = (await client.listPlayerTools()) as { tools?: unknown } | undefined;
-        const tools = (
-          Array.isArray(raw?.tools) ? (raw.tools as Array<{ name?: unknown }>) : []
-        ).filter(t => typeof t?.name === 'string' && PLAYER_ENDPOINT_TOOLS.includes(t.name));
+        const tools = (Array.isArray(raw?.tools) ? (raw.tools as Array<{ name?: unknown }>) : [])
+          .filter(t => typeof t?.name === 'string' && PLAYER_ENDPOINT_TOOLS.includes(t.name))
+          // A dashboard with no local source cannot answer these two, so it does not list them.
+          .filter(
+            t => options.local !== undefined || !PLAYER_LOCAL_TOOLS.includes(t.name as string)
+          );
         res.json({ jsonrpc: '2.0', id, result: { tools } });
       } catch {
         res.json(rpcError(id, -32000, 'The table is not reachable right now.'));
@@ -361,7 +400,8 @@ export function mountPlayerRoute(app: Express, options: PlayerRouteOptions): voi
         res.json(rpcError(id, -32602, 'Unknown tool'));
         return;
       }
-      if (typeof client.playerTool !== 'function') {
+      const isLocal = PLAYER_LOCAL_TOOLS.includes(p.name);
+      if (isLocal ? !options.local : typeof client.playerTool !== 'function') {
         res.status(503).end();
         return;
       }
@@ -370,7 +410,10 @@ export function mountPlayerRoute(app: Express, options: PlayerRouteOptions): voi
           ? p.arguments
           : {};
       try {
-        const result = await client.playerTool(who.userId, p.name, args);
+        const result =
+          isLocal && options.local
+            ? await runLocalPlayerTool(options.local, p.name, args, who.userId)
+            : await client.playerTool!(who.userId, p.name, args);
         // Only a result that can carry the line spends this player's six-hour slot.
         const notice =
           extVersion &&

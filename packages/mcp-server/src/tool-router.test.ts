@@ -7,6 +7,7 @@
  * `ownershipTools.handleToolCall(name, args)` dispatcher.
  */
 import { describe, expect, it, vi } from 'vitest';
+import { RENAMED_TOOLS } from './param-aliases.js';
 import { buildToolRouter, DETACHED_TOOLS, type ToolRouterDeps } from './tool-router.js';
 import { TOOL_MODULES, playerModule } from './tools/index.js';
 import { type ToolModule, createToolInstances, defineToolModule } from './tools/tool-module.js';
@@ -131,7 +132,8 @@ describe('buildToolRouter', () => {
     const router = buildToolRouter(makeDeps());
     // Every tool but the player set's, which runs only through the player_tool message.
     expect(Object.keys(router)).toHaveLength(
-      TOOL_MODULES.flatMap(m => Object.values(m.tools)).filter(meta => meta.set !== 'player').length
+      TOOL_MODULES.flatMap(m => Object.values(m.tools)).filter(meta => meta.set !== 'player')
+        .length + Object.keys(RENAMED_TOOLS).length
     );
   });
 
@@ -160,6 +162,27 @@ describe('buildToolRouter', () => {
 
     await router['switch-scene'](args);
     expect(tool(deps, 'scene').switchScene).toHaveBeenCalledWith(args);
+  });
+
+  it('answers a removed tool name through the tool that took over', async () => {
+    const deps = makeDeps();
+    const router = buildToolRouter(deps);
+    await router['get-compendium-entry-full']({ packId: 'p', entryId: 'e' });
+    expect(tool(deps, 'compendium').handleGetCompendiumItem).toHaveBeenCalledWith({
+      packId: 'p',
+      itemId: 'e',
+    });
+  });
+
+  it('renames old parameter names before the handler sees them', async () => {
+    const deps = makeDeps();
+    const router = buildToolRouter(deps);
+
+    await router['switch-scene']({ scene_identifier: 'Inn' });
+    expect(tool(deps, 'scene').switchScene).toHaveBeenCalledWith({ scene: 'Inn' });
+
+    await router['list-scenes']({ include_active_only: true });
+    expect(tool(deps, 'scene').listScenes).toHaveBeenCalledWith({ activeOnly: true });
   });
 
   it('passes who asked to the writes that record a name, and nothing without a context', async () => {

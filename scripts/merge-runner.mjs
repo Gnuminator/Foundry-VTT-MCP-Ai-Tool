@@ -55,18 +55,14 @@
  *
  * Train roundtrip (the user, 2026-11-17): while a PR waits for the full train the runner queues for
  * test server A's lock and, holding it, runs live:roundtrip (plus live:sweep) on main and
- * `--train-reset`; red stops it with a bisect hint (merge-runner/train-run.mjs says how, server A
- * only, never the live ports of shared/ports.json). One ready line per PR: an item with two PRs holds two lines
- * (a runner write with --if-ready changes only its own PR's line). A lock
- * file (~/.foundry-ai-tool/merge-runner.lock, the holder's pid) lets one runner run; a second one
- * posts one line and exits 1. A holder pid that is gone or is no longer a merge runner (Windows
- * reuses pids after a logoff) is taken over. A vault write that fails is logged; the PR is not tried
- * again in this run.
- * Discord lines go through main's copy of the bot's announce sender (`pr-note`, #pr-log, silent).
+ * `--train-reset`; red stops it with a bisect hint (merge-runner/train-run.mjs). One ready line per
+ * PR (an item with two PRs holds two lines; a runner write with --if-ready changes only its own).
+ * A lock file (~/.foundry-ai-tool/merge-runner.lock, the holder's pid) lets one runner run; a second
+ * posts one line and exits 1; a gone or reused pid is taken over. A failed vault write is logged and
+ * the PR is not tried again in this run. Discord lines go through main's copy of the bot's announce sender.
  *
  * Release step (merge-runner/release-ready.mjs): a `release-*` item whose dependencies have all
- * merged gets live:roundtrip on main, one #pr-log line and one Waiting item; `--release-session`
- * (off by default) also starts a headless Sonnet release session. Never tags, never the Pi.
+ * merged gets live:roundtrip, one #pr-log line and one Waiting item. Never tags, never the Pi.
  *
  * Its own code: at the start of each round (not with --once) it compares its files (this one,
  * backlog.mjs and what they import) with aitool/main (merge-runner/self-check.mjs). When they
@@ -867,7 +863,6 @@ export function parseArgs(argv) {
       process.env.FOUNDRY_AI_OBSIDIAN_DIR ||
       path.join(os.homedir(), 'Documents', 'Obsidian', 'vault'),
     checkout: `${repo}-gate`,
-    releaseSession: false,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -967,20 +962,7 @@ function realDeps(o) {
     ...makeBaseDeps({ sh, repo: REPO }),
     trainRun: makeTrainRun(trainDeps),
     releaseRun: makeReleaseRun(
-      makeReleaseDeps({
-        sh,
-        stamp,
-        post: t => deps.post(t),
-        repo: REPO,
-        repoRoot: path.resolve(here, '..'),
-        vault: o.vault,
-        vaultGit,
-        backlog: args => deps.backlog(args),
-        train: trainDeps,
-        noticeSeen: key => deps.noticeSeen?.(key) ?? false,
-        noticeMark: key => deps.noticeMark?.(key),
-        session: o.releaseSession,
-      })
+      makeReleaseDeps({ sh, stamp, repo: REPO, vaultGit, train: trainDeps, deps: () => deps, ...o })
     ),
     selfCheck:
       makeSelfCheck({

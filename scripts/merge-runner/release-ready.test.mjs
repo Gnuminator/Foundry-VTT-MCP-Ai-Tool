@@ -171,20 +171,22 @@ test('real deps: the session is off by default and its command stops short of th
   const base = {
     sh: () => ({ status: 0, stdout: 'MERGED\n', stderr: '' }),
     stamp: () => {},
-    post: () => {},
     repo: 'o/r',
     repoRoot: '/repo',
-    vault: '/v',
     vaultGit: () => ({ status: 0, stdout: DONE }),
-    backlog: a => (spawned.push(a), ok),
-    train: { tip: () => TIP, worker: () => ({ code: 0, output: '' }), stopServer: () => {} },
-    lastRoundtrip: () => null,
-    noticeSeen: () => false,
-    noticeMark: () => {},
+    deps: () => ({ post: () => {}, backlog: a => (spawned.push(a), ok) }),
+    train: {
+      tip: () => TIP,
+      worker: () => ({ code: 0, output: '' }),
+      stopServer: () => {},
+      state: () => ({ lastSha: null }),
+    },
     spawn: (cmd, args) => (spawned.push([cmd, args]), {}),
   };
-  assert.equal(makeReleaseDeps({ ...base, session: false }).startSession, undefined);
-  const d = makeReleaseDeps({ ...base, session: true });
+  assert.equal(makeReleaseDeps({ ...base, releaseSession: false }).startSession, undefined);
+  const d = makeReleaseDeps({ ...base, releaseSession: true });
+  assert.equal(d.lastRoundtrip(), null);
+  assert.equal(d.seen('k'), false);
   assert.equal(d.prMerged(10), true);
   assert.equal(d.readDone(), DONE);
   const r = d.startSession({ id: 'release-v9', title: 'Release', prs: [], items: [] }, TIP);

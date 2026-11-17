@@ -14,6 +14,8 @@
  * Pure: every outside action is a dependency (ReleaseDeps), so the tests drive it without a server.
  */
 import { spawn as spawnProcess } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { isMerged, itemRefs, parseBacklog } from '../backlog-items.mjs';
 
 /** The holder name and session id for lock.ps1 (the train roundtrip uses its own). */
@@ -229,18 +231,19 @@ export function releasePrompt(r, tip) {
  * checkout); the lock uses its own session id so it never mixes with the train's queue place.
  * @param {{
  *   sh: (cmd: string, args: string[], o?: { cwd?: string, timeout?: number }) => Ran,
- *   stamp: (line: string) => void, post: (t: string) => void, repo: string, repoRoot: string,
- *   vault: string, vaultGit: (args: string[]) => { status: number | null, stdout: string },
- *   backlog: (args: string[]) => Ran,
+ *   stamp: (line: string) => void, repo: string,
+ *   vaultGit: (args: string[]) => { status: number | null, stdout: string },
  *   train: import('./train-run.mjs').TrainDeps,
- *   noticeSeen: (k: string) => boolean, noticeMark: (k: string) => void,
- *   session: boolean,
+ *   deps: () => { post: (t: string) => void, backlog: (a: string[]) => Ran,
+ *     noticeSeen?: (k: string) => boolean, noticeMark?: (k: string) => void },
+ *   releaseSession?: boolean, repoRoot?: string,
  *   spawn?: (cmd: string, args: string[], o: { cwd: string }) => { error?: string },
- * }} o
+ * }} o `deps` is the runner's own Deps (read lazily: it is built after these)
  * @returns {ReleaseDeps}
  */
 export function makeReleaseDeps(o) {
-  const lockPs1 = `${o.repoRoot}/scripts/test-env/lock.ps1`;
+  const repoRoot = o.repoRoot ?? path.resolve(fileURLToPath(import.meta.url), '..', '..', '..');
+  const lockPs1 = `${repoRoot}/scripts/test-env/lock.ps1`;
   return {
     readDone: () => {
       const r = o.vaultGit(['show', '@{u}:Dev/Foundry AI Tool/Backlog done.md']);
@@ -260,8 +263,8 @@ export function makeReleaseDeps(o) {
       ]);
       return r.status === 0 ? r.stdout.trim() === 'MERGED' : null;
     },
-    seen: o.noticeSeen,
-    mark: o.noticeMark,
+    seen: k => o.deps().noticeSeen?.(k) ?? false,
+    mark: k => o.deps().noticeMark?.(k),
     lock: cmd => {
       const args = [
         '-NoProfile',
@@ -293,8 +296,9 @@ export function makeReleaseDeps(o) {
     // Every write handler may have changed since the last release: sweep as well.
     worker: tip => o.train.worker(tip, true),
     stopServer: o.train.stopServer,
-    waiting: (key, title, text) => o.backlog(['waiting', key, '--title', title, '--text', text]),
-    startSession: o.session
+    waiting: (key, title, text) =>
+      o.deps().backlog(['waiting', key, '--title', title, '--text', text]),
+    startSession: o.releaseSession
       ? (r, tip) => {
           const id = globalThis.crypto.randomUUID();
           const spawn = o.spawn ?? defaultSpawn;
@@ -312,12 +316,12 @@ export function makeReleaseDeps(o) {
               '--permission-mode',
               'acceptEdits',
             ],
-            { cwd: o.repoRoot }
+            { cwd: repoRoot }
           );
           return res.error ? { id, error: res.error } : { id };
         }
       : undefined,
-    post: o.post,
+    post: t => o.deps().post(t),
     log: o.stamp,
   };
 }

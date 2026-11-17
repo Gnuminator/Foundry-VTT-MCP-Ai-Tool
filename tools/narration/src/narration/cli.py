@@ -21,9 +21,19 @@ TOOL_DIR = Path(__file__).resolve().parents[2]
 _ENGINES: object | None = None
 
 
+def data_folder(name: str) -> Path:
+    """`Documents\\<name>`, or `FVTT_DATA_DIR\\<name>` once the data folder is set and the folder was moved."""
+    legacy = Path.home() / "Documents" / name
+    data = os.environ.get("FVTT_DATA_DIR")
+    if not data:
+        return legacy
+    moved = Path(data) / name
+    return moved if moved.exists() or not legacy.exists() else legacy
+
+
 def out_root() -> Path:
     root = os.environ.get("NARRATION_OUT_DIR")
-    return Path(root) if root else Path.home() / "Documents" / "FoundryNarration"
+    return Path(root) if root else data_folder("FoundryNarration")
 
 
 def lexicon_for(script_path: Path, lang: str) -> dict[str, str]:

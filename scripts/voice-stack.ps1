@@ -54,6 +54,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'data-folder.ps1')
 $Root = Join-Path (Split-Path -Parent $PSScriptRoot) 'tools/voice-stack'
 $ComposeFile = Join-Path $Root 'docker-compose.yml'
 $EnvFile = Join-Path $Root '.env'
@@ -78,7 +79,7 @@ function New-RandomString([int]$Length) {
 
 # The default sessions folder, the same as shared/src/sessions-dir.ts says for the dashboard and the bot.
 function Get-DefaultSessionsDir {
-  return Join-Path $env:USERPROFILE 'Documents/FoundrySessions'
+  return Get-DataFolder 'FoundrySessions'
 }
 
 function Initialize-Env {

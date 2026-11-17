@@ -29,9 +29,19 @@ EXIT_PAUSED = 75
 EXIT_INCOMPLETE = 76
 
 
+def data_folder(name: str) -> Path:
+    """`Documents\\<name>`, or `FVTT_DATA_DIR\\<name>` once the data folder is set and the folder was moved."""
+    legacy = Path.home() / "Documents" / name
+    data = os.environ.get("FVTT_DATA_DIR")
+    if not data:
+        return legacy
+    moved = Path(data) / name
+    return moved if moved.exists() or not legacy.exists() else legacy
+
+
 def sessions_root() -> Path:
     root = os.environ.get("FVTT_SESSIONS_DIR")
-    return Path(root) if root else Path.home() / "Documents" / "FoundrySessions"
+    return Path(root) if root else data_folder("FoundrySessions")
 
 
 def positive_days(text: str) -> int:

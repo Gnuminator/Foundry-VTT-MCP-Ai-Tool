@@ -47,14 +47,14 @@ See also: [BUILT.md](../history/BUILT.md), [FIXES.md](../history/FIXES.md), [FEA
 - **Version-robustness.** Keep pinning behavior to the installed system version and lean on the test
   bench after each Foundry/dnd5e update (status classification, `uses.spent` vs `value`, chat
   `style` vs `type` were the historical drift points).
-- ✅ **Dashboard design overhaul** _(shipped v0.15.0)_: "Modern Command Center" redesign: refined
+- ✅ **Dashboard design overhaul** _(shipped v0.15.0)_: "Modern Command Center" redesign, with refined
   typography/spacing/density, reworked diagnostics pane + status bar, and a graduated responsive
   layout that fixes the mobile overflow. See [COGM-DASHBOARD.md](../reference/COGM-DASHBOARD.md).
 
 ### Medium term
 
-- ✅ **Dashboard calls tools _back_ into Foundry** _(shipped v0.15.0)_: a GM control surface:
-  confirm-gated `/api/tool` proxy (read/write/destructive classification + master GM-Actions switch),
+- ✅ **Dashboard calls tools _back_ into Foundry** _(shipped v0.15.0)_: a GM control surface
+  with a confirm-gated `/api/tool` proxy (read/write/destructive classification + master GM-Actions switch),
   a generic schema-driven Tool Runner for every bridge tool, and a curated combat panel with
   multi-select combatants and a batch action bar.
 - **`wait-for-game-event` long-poll tool** _(optional)_: the in-Claude-Desktop alternative for

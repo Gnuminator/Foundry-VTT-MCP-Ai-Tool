@@ -18,7 +18,7 @@ import {
   times,
   type PlayStats,
   type SessionSummary,
-} from '../lib/afterStats';
+} from '../lib/after-stats';
 import { GAME_STATE_KEY, useGuardedTools } from '../lib/guarded';
 import {
   notesView,
@@ -29,7 +29,7 @@ import {
   type NotesPage,
   type PipelineStatus,
   type SessionNotes,
-} from '../lib/sessionNotes';
+} from '../lib/session-notes';
 import { useObsidianFileUrl } from '../lib/stream';
 import { Button, Pill, Stat } from '../ui';
 

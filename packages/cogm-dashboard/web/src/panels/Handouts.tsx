@@ -11,11 +11,11 @@ import { useToast } from '../components/Toasts';
 import { TurnOnNote } from '../components/TurnOnNote';
 import { api, callTool, errorText } from '../lib/api';
 import { failCode, useGuardedTools } from '../lib/guarded';
-import { canMoveTo, moveTarget } from '../lib/handoutQueue';
-import { useLivePlay } from '../lib/livePlay';
-import { HANDOUT_NEEDS, offReason } from '../lib/liveSwitches';
+import { canMoveTo, moveTarget } from '../lib/handout-queue';
+import { useLivePlay } from '../lib/live-play';
+import { HANDOUT_NEEDS, offReason } from '../lib/live-switches';
 import { HANDOUTS_KEY } from '../lib/stream';
-import { handoutsSwitchOff, type FeatureList } from '../lib/switchOff';
+import { handoutsSwitchOff, type FeatureList } from '../lib/switch-off';
 import { usage } from '../lib/usage';
 import { Button, QueryState } from '../ui';
 

@@ -8,7 +8,7 @@ import { useState, type JSX } from 'react';
 
 import { callTool, errorText } from '../lib/api';
 import { NO_VALUE, hpTone, type CombatState } from '../lib/combat';
-import { displayNames } from '../lib/liveStrip';
+import { displayNames } from '../lib/live-strip';
 import { ribbonItems, ribbonSummary, type RibbonCreature } from '../lib/ribbon';
 
 import styles from './InitiativeRibbon.module.css';

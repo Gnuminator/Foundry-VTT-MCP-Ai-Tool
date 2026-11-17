@@ -4,7 +4,7 @@ import { expect, userEvent, waitFor, within } from 'storybook/test';
 
 import type { CombatState } from '../lib/combat';
 import { PREFS_KEY } from '../lib/prefs';
-import type { DuringLayout } from '../lib/prefsModel';
+import type { DuringLayout } from '../lib/prefs-model';
 import { BRIDGE_STATUS_KEY, COMBAT_KEY, SETTINGS_KEY } from '../lib/stream';
 import {
   BRIDGE_AWAY,

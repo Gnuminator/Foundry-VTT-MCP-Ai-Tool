@@ -3,7 +3,7 @@ import type { JSX } from 'react';
 import { expect, userEvent, waitFor, within } from 'storybook/test';
 
 import { PREFS_KEY } from '../lib/prefs';
-import type { DuringPrefs } from '../lib/prefsModel';
+import type { DuringPrefs } from '../lib/prefs-model';
 import { COMBAT_KEY, FEED_KEY } from '../lib/stream';
 import { FIGHT } from '../storybook/fixtures/combat';
 import { FEED_FEW } from '../storybook/fixtures/feed';

@@ -1,7 +1,7 @@
 /**
  * The sentences that say an AI Tool switch is off, in one place. The module, the bridge and the
  * dashboard all refuse a guarded write with these words, and the dashboard's refusal toast and
- * `isSwitchOffRefusal` (cogm-dashboard/web/src/lib/switchOff.ts) match on them.
+ * `isSwitchOffRefusal` (cogm-dashboard/web/src/lib/switch-off.ts) match on them.
  */
 
 /** Where the switches are, in the words the GM sees in Foundry. */

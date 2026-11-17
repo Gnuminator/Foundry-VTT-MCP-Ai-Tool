@@ -9,8 +9,8 @@ import { useEffect, useRef, useState, type JSX } from 'react';
 
 import { api, callTool, errorText } from '../lib/api';
 import { GAME_STATE_KEY, failCode, useGuardedTools } from '../lib/guarded';
-import { useLivePlay } from '../lib/livePlay';
-import { ROLL_NEEDS, offReason } from '../lib/liveSwitches';
+import { useLivePlay } from '../lib/live-play';
+import { ROLL_NEEDS, offReason } from '../lib/live-switches';
 import {
   currentText,
   moodOff,
@@ -18,8 +18,8 @@ import {
   moodQuestion,
   presetDetails,
   readMoods,
-} from '../lib/sceneMood';
-import { isSwitchOffRefusal, type FeatureList } from '../lib/switchOff';
+} from '../lib/scene-mood';
+import { isSwitchOffRefusal, type FeatureList } from '../lib/switch-off';
 import { usage } from '../lib/usage';
 import { Button, QueryState } from '../ui';
 

@@ -1,8 +1,8 @@
 import type { JSX } from 'react';
 
-import { usePlaySessionMark } from '../lib/playSessionMark';
+import { usePlaySessionMark } from '../lib/play-session-mark';
 import { usePlaySession } from '../lib/session';
-import { sessionLabel } from '../lib/sessionLabel';
+import { sessionLabel } from '../lib/session-label';
 import { useObsidianFileUrl } from '../lib/stream';
 import { Button } from '../ui';
 

@@ -2,7 +2,7 @@
 // session with a start time (the hint counts sessions by it) and what the server answers to
 // `set-prefs`. Made up, like every fixture here.
 import type { FakeRequest, Reply } from '../fakeApi';
-import { DEFAULT_PREFS, readPrefs, type DuringPrefs } from '../../lib/prefsModel';
+import { DEFAULT_PREFS, readPrefs, type DuringPrefs } from '../../lib/prefs-model';
 
 import { PLAY_SESSION_OPEN, WORLD } from './common';
 

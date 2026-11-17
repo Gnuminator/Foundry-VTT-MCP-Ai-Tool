@@ -42,7 +42,7 @@ import {
   type FieldValue,
   type ParamDef,
   type ToolInfo,
-} from '../lib/toolForm';
+} from '../lib/tool-form';
 import { usage } from '../lib/usage';
 import { Button, type QueryLike, QueryState } from '../ui';
 

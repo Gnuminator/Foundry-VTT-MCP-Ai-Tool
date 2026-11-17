@@ -14,7 +14,7 @@ import {
   type ReactNode,
 } from 'react';
 
-import type { DuringScreen } from '../lib/duringTrial';
+import type { DuringScreen } from '../lib/during-trial';
 import { REMEMBER, readJson, readMomentPin, writeJson } from '../lib/remember';
 import { usePlaySession, type PlaySession } from '../lib/session';
 
@@ -218,7 +218,7 @@ export function MomentViews({
 }: {
   moment: Moment | null;
   slotRefs: SlotRefs;
-  /** What the During layouts ask of #moment-during (lib/duringTrial.ts); Cards when not given. */
+  /** What the During layouts ask of #moment-during (lib/during-trial.ts); Cards when not given. */
   duringScreen?: DuringScreen;
   /** The During bar (components/During.tsx), the first row of the During view. */
   duringBar?: ReactNode;

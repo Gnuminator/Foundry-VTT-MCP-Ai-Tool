@@ -27,11 +27,7 @@ import {
   unitActive,
 } from './gamenight-watch-pi.mjs';
 
-const jsonRes = (status, body) => ({
-  ok: status >= 200 && status < 300,
-  status,
-  json: async () => body,
-});
+const jsonRes = (status, body) => ({ ok: status >= 200 && status < 300, status, json: async () => body });
 
 test('gateStep: opens at once, ends after two closed readings, an unknown reading changes nothing', () => {
   let g = { active: false, closedRun: 0 };
@@ -67,9 +63,7 @@ test('controlCall, link_status and the session reading against a real loopback s
       } else if (msg.method === 'call_tool' && msg.params.name === 'get-play-session') {
         callParams = msg.params;
         const text = JSON.stringify({ success: true, open, ...(mode ? { mode } : {}) });
-        socket.write(
-          `${JSON.stringify({ id: msg.id, result: { content: [{ type: 'text', text }] } })}\n`
-        );
+        socket.write(`${JSON.stringify({ id: msg.id, result: { content: [{ type: 'text', text }] } })}\n`);
       } else {
         socket.write(`${JSON.stringify({ id: msg.id, error: 'nope' })}\n`);
       }
@@ -84,11 +78,7 @@ test('controlCall, link_status and the session reading against a real loopback s
     assert.equal(down.ok, false);
     assert.match(down.error, /not connected/);
     assert.equal(await readSessionOpen(port), true);
-    assert.deepEqual(callParams, {
-      name: 'get-play-session',
-      args: {},
-      requestedBy: 'gamenight-watch',
-    });
+    assert.deepEqual(callParams, { name: 'get-play-session', args: {}, requestedBy: 'gamenight-watch' });
     mode = 'paper';
     assert.equal(await readSessionOpen(port), false); // a paper night: Foundry is closed by design
     mode = undefined; // a bridge from before `mode` reads as live
@@ -115,14 +105,8 @@ test('probeDashboard: healthy, bridge lost, unhealthy, HTTP error, no answer', a
     jsonRes(200, { ok: true, controlChannel: 'disconnected' })
   );
   assert.match(lost.error, /lost the bridge/);
-  assert.equal(
-    (await probeDashboard('http://d', 1000, async () => jsonRes(200, { ok: false }))).ok,
-    false
-  );
-  assert.equal(
-    (await probeDashboard('http://d', 1000, async () => jsonRes(503, {}))).error,
-    'HTTP 503'
-  );
+  assert.equal((await probeDashboard('http://d', 1000, async () => jsonRes(200, { ok: false }))).ok, false);
+  assert.equal((await probeDashboard('http://d', 1000, async () => jsonRes(503, {}))).error, 'HTTP 503');
   const none = await probeDashboard('http://secret-host:9?token=abc', 1000, async () => {
     throw new Error('connect ECONNREFUSED http://secret-host:9?token=abc');
   });
@@ -131,10 +115,7 @@ test('probeDashboard: healthy, bridge lost, unhealthy, HTTP error, no answer', a
 
 test('probeRecorder: unit inactive, active, status problems, status unreachable', async () => {
   const base = { unit: 'u', timeoutMs: 1000 };
-  assert.match(
-    (await probeRecorder({ ...base, isActive: async () => false })).error,
-    /not running/
-  );
+  assert.match((await probeRecorder({ ...base, isActive: async () => false })).error, /not running/);
   assert.equal((await probeRecorder({ ...base, isActive: async () => true })).ok, true);
   const status = body => async () => jsonRes(200, body);
   const withProblems = await probeRecorder({
@@ -164,15 +145,10 @@ test('probeRecorder: unit inactive, active, status problems, status unreachable'
 
 test('probePublic sends the Access headers and words an Access refusal', async () => {
   let sent;
-  const good = await probePublic(
-    'https://pub.example',
-    { 'CF-Access-Client-Id': 'i.access', 'CF-Access-Client-Secret': 's' },
-    1000,
-    async (url, init) => {
-      sent = { url: String(url), headers: init.headers };
-      return jsonRes(200, { active: true });
-    }
-  );
+  const good = await probePublic('https://pub.example', { 'CF-Access-Client-Id': 'i.access', 'CF-Access-Client-Secret': 's' }, 1000, async (url, init) => {
+    sent = { url: String(url), headers: init.headers };
+    return jsonRes(200, { active: true });
+  });
   assert.equal(good.ok, true);
   assert.equal(sent.url, 'https://pub.example/api/status');
   assert.equal(sent.headers['CF-Access-Client-Id'], 'i.access');
@@ -184,21 +160,12 @@ test('probePublic sends the Access headers and words an Access refusal', async (
 
 test('accessHeaders needs both halves', () => {
   const env = { CF_ACCESS_CLIENT_ID: 'a', CF_ACCESS_CLIENT_SECRET: 'b' };
-  assert.deepEqual(
-    accessHeaders(k => env[k]),
-    {
-      'CF-Access-Client-Id': 'a',
-      'CF-Access-Client-Secret': 'b',
-    }
-  );
-  assert.equal(
-    accessHeaders(k => ({ CF_ACCESS_CLIENT_ID: 'a' })[k]),
-    null
-  );
-  assert.equal(
-    accessHeaders(() => undefined),
-    null
-  );
+  assert.deepEqual(accessHeaders(k => env[k]), {
+    'CF-Access-Client-Id': 'a',
+    'CF-Access-Client-Secret': 'b',
+  });
+  assert.equal(accessHeaders(k => ({ CF_ACCESS_CLIENT_ID: 'a' })[k]), null);
+  assert.equal(accessHeaders(() => undefined), null);
 });
 
 test('safeUrl and scrubUrls drop query strings and fragments (the --post address leak)', () => {
@@ -213,27 +180,17 @@ test('safeUrl and scrubUrls drop query strings and fragments (the --post address
 
 test('postToChannel scrubs addresses in the posted text', async () => {
   let body;
-  await postToChannel(
-    { token: 't', channelId: '1' },
-    'see https://x.example/a?token=SECRET',
-    async (_u, init) => {
-      body = JSON.parse(init.body);
-      return { ok: true, status: 200 };
-    }
-  );
+  await postToChannel({ token: 't', channelId: '1' }, 'see https://x.example/a?token=SECRET', async (_u, init) => {
+    body = JSON.parse(init.body);
+    return { ok: true, status: 200 };
+  });
   assert.equal(body.content, 'see https://x.example/a');
 });
 
 test('formatCheckAlert has no address and pings the given users', () => {
   const c = CHECKS.find(x => x.key === 'bridge');
-  assert.equal(
-    formatCheckAlert(c, 'down', { ms: 1, error: 'the bridge no answer' }),
-    'The bridge link to Foundry is not working (the bridge no answer).'
-  );
-  assert.match(
-    formatCheckAlert(c, 'recovered', { ms: 1 }, DEFAULTS, ['7']),
-    /^<@7> .* is working again\.$/
-  );
+  assert.equal(formatCheckAlert(c, 'down', { ms: 1, error: 'the bridge no answer' }), 'The bridge link to Foundry is not working (the bridge no answer).');
+  assert.match(formatCheckAlert(c, 'recovered', { ms: 1 }, DEFAULTS, ['7']), /^<@7> .* is working again\.$/);
   assert.match(formatCheckAlert(CHECKS[0], 'slow', { ms: 5000 }), /5000 ms, the limit is 3000 ms/);
 });
 
@@ -267,10 +224,7 @@ test('tick: idle without a session, posts on start, on a state change, on recove
   assert.equal(rt.pending.length, 1);
   assert.match(rt.pending[0].text, /^Game-night watch started\./);
   assert.match(rt.pending[0].text, /Foundry: ok/);
-  assert.match(
-    rt.pending[0].text,
-    /Not checked: The dashboard, The Discord recorder, The public address\./
-  );
+  assert.match(rt.pending[0].text, /Not checked: The dashboard, The Discord recorder, The public address\./);
   rt.pending.length = 0;
 
   answers.bridge = { ok: false, ms: 5, error: 'the Foundry module is not connected to the bridge' };
@@ -293,10 +247,7 @@ test('tick: idle without a session, posts on start, on a state change, on recove
   await tick(rt);
   assert.equal(rt.pending.length, 0); // one closed reading is not the end
   await tick(rt);
-  assert.match(
-    rt.pending[0].text,
-    /^Game-night watch stopped: the session has ended or has gone quiet\.$/
-  );
+  assert.match(rt.pending[0].text, /^Game-night watch stopped: the session has ended or has gone quiet\.$/);
   const n = rt.pending.length;
   await tick(rt);
   assert.equal(rt.pending.length, n); // idle again
@@ -358,8 +309,7 @@ test('readSession reads lastEventAt; a missing or odd value is null', async () =
 });
 
 test('unitActive: exit 3 is not running, any other failure cannot tell', async () => {
-  const exec = code => (_c, _a, _o, cb) =>
-    cb(code === 0 ? null : Object.assign(new Error('x'), { code }));
+  const exec = code => (_c, _a, _o, cb) => cb(code === 0 ? null : Object.assign(new Error('x'), { code }));
   assert.equal(await unitActive('u', exec(0)), 'active');
   assert.equal(await unitActive('u', exec(3)), 'inactive');
   assert.equal(await unitActive('u', exec(1)), 'unknown');
@@ -371,10 +321,7 @@ test('probeRecorder: cannot tell is no alarm, but not running is', async () => {
   const unknown = await probeRecorder({ ...base, isActive: async () => 'unknown' });
   assert.equal(unknown.ok, true);
   assert.match(unknown.note, /cannot tell/);
-  assert.match(
-    (await probeRecorder({ ...base, isActive: async () => 'inactive' })).error,
-    /not running/
-  );
+  assert.match((await probeRecorder({ ...base, isActive: async () => 'inactive' })).error, /not running/);
 });
 
 test('publicUrlProblem refuses plain http only while the Access token is set; settingsUrl hides the value', () => {

@@ -54,14 +54,13 @@ export function publishJobsWithoutEnvironment(doc) {
 
 test('every uses: in .github/workflows is pinned to a full commit', () => {
   const bad = [];
-  for (const f of fs.readdirSync(dir).filter(n => /\.ya?ml$/.test(n))) {
+  for (const f of fs.readdirSync(dir).filter((n) => /\.ya?ml$/.test(n))) {
     const text = fs.readFileSync(path.join(dir, f), 'utf8');
     for (const u of usesOf(yaml.load(text))) if (!isPinned(u)) bad.push(`${f}: ${u}`);
     // The version stays visible as a comment after the commit.
     for (const line of text.split('\n')) {
       const m = line.match(/^\s*(?:- )?uses:\s*[^\s@]+@[0-9a-f]{40}(.*)$/);
-      if (m && !/^\s+#\s*v\d+\.\d+\.\d+/.test(m[1]))
-        bad.push(`${f}: no "# vX.Y.Z" comment on: ${line.trim()}`);
+      if (m && !/^\s+#\s*v\d+\.\d+\.\d+/.test(m[1])) bad.push(`${f}: no "# vX.Y.Z" comment on: ${line.trim()}`);
     }
   }
   assert.deepEqual(bad, [], `unpinned or uncommented actions:\n${bad.join('\n')}`);
@@ -76,12 +75,12 @@ const COMPOSITE_WITH_UNPINNED_INTERNALS = ['actions/upload-pages-artifact'];
 /** GitHub owner and repo names are case-insensitive, so the match is too. @param {string} u */
 export function isBannedComposite(u) {
   const lower = u.toLowerCase();
-  return COMPOSITE_WITH_UNPINNED_INTERNALS.some(n => lower.startsWith(n.toLowerCase() + '@'));
+  return COMPOSITE_WITH_UNPINNED_INTERNALS.some((n) => lower.startsWith(n.toLowerCase() + '@'));
 }
 
 test('no workflow uses a composite action with tag-pinned internals', () => {
   const bad = [];
-  for (const f of fs.readdirSync(dir).filter(n => /\.ya?ml$/.test(n))) {
+  for (const f of fs.readdirSync(dir).filter((n) => /\.ya?ml$/.test(n))) {
     for (const u of usesOf(yaml.load(fs.readFileSync(path.join(dir, f), 'utf8')))) {
       if (isBannedComposite(u)) bad.push(`${f}: ${u}`);
     }
@@ -111,12 +110,10 @@ test('the guards catch a bad workflow', () => {
   assert.equal(isPinned('actions/checkout@main'), false);
   assert.equal(isPinned('actions/checkout@' + 'a'.repeat(40)), true);
   assert.equal(isPinned('./.github/actions/x'), true);
-  assert.deepEqual(
-    usesOf({
-      jobs: { a: { steps: [{ uses: 'x/y@v1' }] }, b: { uses: 'o/r/.github/workflows/w.yml@v2' } },
-    }),
-    ['x/y@v1', 'o/r/.github/workflows/w.yml@v2']
-  );
+  assert.deepEqual(usesOf({ jobs: { a: { steps: [{ uses: 'x/y@v1' }] }, b: { uses: 'o/r/.github/workflows/w.yml@v2' } } }), [
+    'x/y@v1',
+    'o/r/.github/workflows/w.yml@v2',
+  ]);
   assert.deepEqual(
     publishJobsWithoutEnvironment({ jobs: { publish: { permissions: { contents: 'write' } } } }),
     ['publish']

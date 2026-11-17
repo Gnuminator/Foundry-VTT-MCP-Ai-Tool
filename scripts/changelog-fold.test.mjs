@@ -10,10 +10,7 @@ test('entryDecision: run for this file, mismatch for a same-named other file, im
   assert.equal(entryDecision(self, self), 'run');
   assert.ok(!isEntryModule(undefined, self));
   if (process.platform === 'win32') assert.equal(entryDecision(self.toUpperCase(), self), 'run');
-  assert.equal(
-    entryDecision(path.join(os.tmpdir(), 'nope', 'changelog-fold.mjs'), self),
-    'mismatch'
-  );
+  assert.equal(entryDecision(path.join(os.tmpdir(), 'nope', 'changelog-fold.mjs'), self), 'mismatch');
   assert.equal(entryDecision(path.join(os.tmpdir(), 'other.mjs'), self), 'import');
   assert.equal(entryDecision(undefined, self), 'import');
   assert.equal(entryDecision(pathToFileURL(self).href, self), 'import');

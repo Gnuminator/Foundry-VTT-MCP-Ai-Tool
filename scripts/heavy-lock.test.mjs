@@ -9,17 +9,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import {
-  DEFAULTS,
-  HELD_ENV,
-  acquire,
-  pendingGb,
-  pidAlive,
-  readConfig,
-  resetGaveUp,
-  status,
-  withHeavyLock,
-} from './heavy-lock.mjs';
+import { DEFAULTS, HELD_ENV, acquire, pendingGb, pidAlive, readConfig, resetGaveUp, status, withHeavyLock } from './heavy-lock.mjs';
 import { lockedCommand } from './drift-check.mjs';
 
 const script = fileURLToPath(new URL('./heavy-lock.mjs', import.meta.url));
@@ -44,16 +34,9 @@ function fixture(extra = {}) {
 }
 
 /** Write a queue ticket as another waiter would. */
-function ticket(
-  dir,
-  { priority = '1', since = Date.now() - 10_000, pid = process.pid, label = 'other' } = {}
-) {
+function ticket(dir, { priority = '1', since = Date.now() - 10_000, pid = process.pid, label = 'other' } = {}) {
   fs.mkdirSync(path.join(dir, 'queue'), { recursive: true });
-  const file = path.join(
-    dir,
-    'queue',
-    `${priority}-${String(since).padStart(15, '0')}-${pid}-abc.json`
-  );
+  const file = path.join(dir, 'queue', `${priority}-${String(since).padStart(15, '0')}-${pid}-abc.json`);
   fs.writeFileSync(file, JSON.stringify({ pid, label, since }));
   return file;
 }
@@ -139,12 +122,7 @@ test('the wait gives up after the maximum and goes on without the lock', () => {
   assert.equal(lock.held, false);
   assert.ok(lines.some(l => l.includes('going on without the lock')));
   // Having given up once, the rest of that process does not wait again.
-  const again = acquire('later', {
-    env,
-    log: () => {},
-    sleep: () => assert.fail('waited'),
-    alive: () => true,
-  });
+  const again = acquire('later', { env, log: () => {}, sleep: () => assert.fail('waited'), alive: () => true });
   assert.equal(again.held, false);
   resetGaveUp();
   holder.release();
@@ -153,10 +131,7 @@ test('the wait gives up after the maximum and goes on without the lock', () => {
 test('a give-up on one lock folder does not switch off waiting on another (the solo e2e lock)', () => {
   const { env } = fixture();
   const holder = acquire('holder', { env, log: () => {} });
-  assert.equal(
-    acquire('late', { env, log: () => {}, sleep: () => {}, maxWaitMs: 0, alive: () => true }).held,
-    false
-  );
+  assert.equal(acquire('late', { env, log: () => {}, sleep: () => {}, maxWaitMs: 0, alive: () => true }).held, false);
   const solo = fixture();
   const other = acquire('solo', { env: solo.env, log: () => {} });
   let sleeps = 0;
@@ -196,10 +171,7 @@ test('a waiter whose own ticket goes missing writes it again and keeps its place
         seen = fs.readdirSync(q).sort();
         holder.release();
       } else if (sleeps === 3) {
-        assert.ok(
-          fs.existsSync(path.join(dir, 'slot-0')) === false,
-          'did not jump the earlier ticket'
-        );
+        assert.ok(fs.existsSync(path.join(dir, 'slot-0')) === false, 'did not jump the earlier ticket');
         fs.rmSync(earlier);
       }
     },
@@ -217,35 +189,22 @@ test('a held marker naming a dead process is ignored', () => {
   lock.release();
 });
 
-test(
-  'the CLI started through a path that differs in case still runs the command (win32)',
-  { skip: process.platform !== 'win32' },
-  () => {
-    const { env } = fixture();
-    const r = spawnSync(
-      process.execPath,
-      [
-        path.join(path.dirname(script).toUpperCase(), path.basename(script)),
-        'run',
-        '--',
-        'node',
-        '-e',
-        '"process.exit(5)"',
-      ],
-      { env: { ...process.env, ...env, HEAVY_LOCK_HELD: '' }, encoding: 'utf8' }
-    );
-    assert.equal(r.status, 5);
-  }
-);
+test('the CLI started through a path that differs in case still runs the command (win32)', { skip: process.platform !== 'win32' }, () => {
+  const { env } = fixture();
+  const r = spawnSync(
+    process.execPath,
+    [path.join(path.dirname(script).toUpperCase(), path.basename(script)), 'run', '--', 'node', '-e', '"process.exit(5)"'],
+    { env: { ...process.env, ...env, HEAVY_LOCK_HELD: '' }, encoding: 'utf8' }
+  );
+  assert.equal(r.status, 5);
+});
+
 
 test('a lock folder that cannot be made only prints a line and runs unlocked', () => {
   const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'heavy-lock-test-')), 'plain-file');
   fs.writeFileSync(file, 'x');
   const lines = [];
-  const lock = acquire('x', {
-    env: { HEAVY_LOCK_DIR: path.join(file, 'sub') },
-    log: l => lines.push(l),
-  });
+  const lock = acquire('x', { env: { HEAVY_LOCK_DIR: path.join(file, 'sub') }, log: l => lines.push(l) });
   assert.equal(lock.held, false);
   assert.ok(lines.some(l => l.includes('lock unavailable')));
 });
@@ -267,10 +226,7 @@ test('withHeavyLock sets the held marker for the work and does not wait on itsel
 test('status lists the settings, free and held slots, and who waits', () => {
   const { dir, env } = fixture();
   const lines = status(env, Date.now(), pidAlive, () => 8 * GB);
-  assert.match(
-    lines[0],
-    /^settings: 1 slots \(from env\), another run needs what each running one still has to grow to its peak \(5 GB, 3\.5 for lint-only runs\), plus 2 GB free, 8\.0 GB free now$/
-  );
+  assert.match(lines[0], /^settings: 1 slots \(from env\), another run needs what each running one still has to grow to its peak \(5 GB, 3\.5 for lint-only runs\), plus 2 GB free, 8\.0 GB free now$/);
   assert.deepEqual(lines.slice(1), ['slot-0: free']);
   const lock = acquire('s', { env, log: () => {} });
   lock.beat('typecheck');
@@ -295,27 +251,15 @@ test('waiters go in arrival order: a later run waits for an earlier ticket even 
   });
   assert.equal(lock.held, true);
   assert.equal(sleeps, 3, 'waited until the earlier ticket was gone');
-  assert.ok(
-    lines.some(l => /later waits .*number 2 in line, runs ahead in line/.test(l)),
-    lines.join('\n')
-  );
-  assert.deepEqual(
-    fs.readdirSync(path.join(dir, 'queue')),
-    [],
-    'its own ticket is gone once it holds a slot'
-  );
+  assert.ok(lines.some(l => /later waits .*number 2 in line, runs ahead in line/.test(l)), lines.join('\n'));
+  assert.deepEqual(fs.readdirSync(path.join(dir, 'queue')), [], 'its own ticket is gone once it holds a slot');
   lock.release();
 });
 
 test('high priority goes ahead of earlier normal waiters', () => {
   const { dir, env } = fixture();
   ticket(dir, { label: 'a green' });
-  const lock = acquire('drift-check', {
-    env,
-    log: () => {},
-    priority: 'high',
-    sleep: () => assert.fail('waited'),
-  });
+  const lock = acquire('drift-check', { env, log: () => {}, priority: 'high', sleep: () => assert.fail('waited') });
   assert.equal(lock.held, true);
   lock.release();
 });
@@ -323,12 +267,7 @@ test('high priority goes ahead of earlier normal waiters', () => {
 test('a ticket whose process is gone is dropped', () => {
   const { dir, env } = fixture();
   const dead = ticket(dir, { pid: 999999 });
-  const lock = acquire('x', {
-    env,
-    log: () => {},
-    alive: pid => pid !== 999999,
-    sleep: () => assert.fail('waited'),
-  });
+  const lock = acquire('x', { env, log: () => {}, alive: pid => pid !== 999999, sleep: () => assert.fail('waited') });
   assert.equal(lock.held, true);
   assert.ok(!fs.existsSync(dead));
   lock.release();
@@ -339,18 +278,8 @@ test('settings: environment, then the file, then the defaults; a bad value falls
   const file = path.join(dir, 'heavy-lock.json');
   const env = { HEAVY_LOCK_CONFIG: file };
   assert.deepEqual(readConfig(env), { slots: 3, slotsFrom: 'default', ...DEFAULTS });
-  fs.writeFileSync(
-    file,
-    JSON.stringify({ slots: 4, minFreeGb: 6, peakGb: 2.5, lightPeakGb: 1.5, maxWaitMin: 30 })
-  );
-  assert.deepEqual(readConfig(env), {
-    slots: 4,
-    slotsFrom: 'file',
-    minFreeGb: 6,
-    peakGb: 2.5,
-    lightPeakGb: 1.5,
-    maxWaitMin: 30,
-  });
+  fs.writeFileSync(file, JSON.stringify({ slots: 4, minFreeGb: 6, peakGb: 2.5, lightPeakGb: 1.5, maxWaitMin: 30 }));
+  assert.deepEqual(readConfig(env), { slots: 4, slotsFrom: 'file', minFreeGb: 6, peakGb: 2.5, lightPeakGb: 1.5, maxWaitMin: 30 });
   assert.equal(readConfig({ ...env, HEAVY_LOCK_SLOTS: '2' }).slots, 2);
   assert.equal(readConfig({ ...env, HEAVY_LOCK_SLOTS: '2' }).slotsFrom, 'env');
   assert.equal(readConfig({ ...env, HEAVY_LOCK_SLOTS: 'x' }).slots, 4, 'bad env value: the file');
@@ -401,14 +330,8 @@ test('free RAM: another slot waits until there is room for the peak of every run
   });
   assert.equal(second.held, true);
   assert.equal(sleeps, 4);
-  assert.ok(
-    lines.some(l => /2\.0 GB free, another run needs 7 GB/.test(l)),
-    lines.join('\n')
-  );
-  assert.ok(
-    lines.some(l => /got the lock .*slot 2 of 2, 7\.0 GB free/.test(l)),
-    lines.join('\n')
-  );
+  assert.ok(lines.some(l => /2\.0 GB free, another run needs 7 GB/.test(l)), lines.join('\n'));
+  assert.ok(lines.some(l => /got the lock .*slot 2 of 2, 7\.0 GB free/.test(l)), lines.join('\n'));
   first.release();
   second.release();
 });
@@ -421,12 +344,7 @@ test('free RAM: what a holder uses already is not reserved again', () => {
   // The holder has grown to its peak: free fell by 5.5 GB to 6.5. The old rule wanted 6.5 - 5 >= 2 and
   // waited; now 6.5 - 1 (the holder's floor) >= 2.
   free = 6.5 * GB;
-  const second = acquire('second', {
-    env,
-    log: () => {},
-    freemem: () => free,
-    sleep: () => assert.fail('waited'),
-  });
+  const second = acquire('second', { env, log: () => {}, freemem: () => free, sleep: () => assert.fail('waited') });
   assert.equal(second.held, true);
   const owner = JSON.parse(fs.readFileSync(path.join(dir, 'slot-0', 'owner.json'), 'utf8'));
   assert.equal(owner.freeGb, 12, 'the owner records the free RAM at admission');
@@ -438,13 +356,7 @@ test('free RAM: a holder that has used nothing yet still reserves its whole peak
   const { env } = fixture({ HEAVY_LOCK_SLOTS: '2' });
   fs.writeFileSync(env.HEAVY_LOCK_CONFIG, JSON.stringify({ peakGb: 5, minFreeGb: 2 }));
   const first = acquire('first', { env, log: () => {}, freemem: () => 6 * GB });
-  const second = acquire('second', {
-    env,
-    log: () => {},
-    freemem: () => 6 * GB,
-    sleep: () => {},
-    maxWaitMs: 0,
-  });
+  const second = acquire('second', { env, log: () => {}, freemem: () => 6 * GB, sleep: () => {}, maxWaitMs: 0 });
   assert.equal(second.held, false, '6 GB free - 5 GB to come < 2 GB');
   first.release();
 });
@@ -460,14 +372,7 @@ test('pendingGb: the fall in free RAM is credited once, not to every holder', ()
 test('pendingGb: lint-only holders use the lower peak, pre-push does not; an owner without freeGb counts in full', () => {
   const cfg = { peakGb: 5, lightPeakGb: 3 };
   const o = (label, freeGb) => ({ state: { pid: 1, label, start: 0, freeGb } });
-  assert.equal(
-    pendingGb(
-      [o('pre-push', 10), o('lint-ratchet', 10), o('drift-check lint baseline', 10)],
-      cfg,
-      10
-    ),
-    11
-  );
+  assert.equal(pendingGb([o('pre-push', 10), o('lint-ratchet', 10), o('drift-check lint baseline', 10)], cfg, 10), 11);
   assert.equal(pendingGb([o('green x', 10)], cfg, 8), 3, 'free fell 2 GB: 3 GB still to come');
   assert.equal(pendingGb([o('green x', 10)], cfg, 2), 1, 'a holder keeps a 1 GB reserve');
   assert.equal(pendingGb([o('green x', undefined)], cfg, 2), 5);
@@ -495,32 +400,14 @@ test('a holder that beats is not stale after an hour; one that stops beating for
   }
   // Written whole through a rename: no temp file is left next to it.
   assert.deepEqual(fs.readdirSync(path.join(dir, 'slot-0')), ['owner.json']);
-  assert.equal(
-    JSON.parse(fs.readFileSync(path.join(dir, 'slot-0', 'owner.json'), 'utf8')).step,
-    'e2e'
-  );
+  assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'slot-0', 'owner.json'), 'utf8')).step, 'e2e');
   t += 19 * 60 * 1000;
-  const blocked = acquire('waiter', {
-    env,
-    log: () => {},
-    now,
-    alive: () => true,
-    sleep: () => {},
-    maxWaitMs: 0,
-  });
-  assert.equal(
-    blocked.held,
-    false,
-    '109 minutes after the start but 19 after the last beat: still held'
-  );
+  const blocked = acquire('waiter', { env, log: () => {}, now, alive: () => true, sleep: () => {}, maxWaitMs: 0 });
+  assert.equal(blocked.held, false, '109 minutes after the start but 19 after the last beat: still held');
   resetGaveUp();
   t += 2 * 60 * 1000;
   const taker = acquire('waiter', { env, log: () => {}, now, alive: () => true });
-  assert.equal(
-    taker.held,
-    true,
-    '21 minutes without a beat: stale (a killed run whose pid was reused)'
-  );
+  assert.equal(taker.held, true, '21 minutes without a beat: stale (a killed run whose pid was reused)');
   taker.release();
 });
 
@@ -531,13 +418,7 @@ test('an owner from the older lock (no since) keeps the hour: 50 minutes without
     path.join(dir, 'slot-0', 'owner.json'),
     JSON.stringify({ pid: process.pid, label: 'old green', start: Date.now() - 50 * 60 * 1000 })
   );
-  const blocked = acquire('new', {
-    env,
-    log: () => {},
-    alive: () => true,
-    sleep: () => {},
-    maxWaitMs: 0,
-  });
+  const blocked = acquire('new', { env, log: () => {}, alive: () => true, sleep: () => {}, maxWaitMs: 0 });
   assert.equal(blocked.held, false);
   resetGaveUp();
 });
@@ -551,21 +432,14 @@ test('the CLI beats while its command runs, so a long hold is not taken for stal
     worker,
     "const fs = require('fs'), path = require('path');\nsetTimeout(() => fs.copyFileSync(path.join(process.argv[2], 'slot-0', 'owner.json'), process.argv[3]), 1200);\n"
   );
-  const r = spawnSync(
-    process.execPath,
-    [script, 'run', '--label', 'long', '--', 'node', `"${worker}"`, `"${dir}"`, `"${seen}"`],
-    {
-      env: { ...process.env, ...env, HEAVY_LOCK_HELD: '', HEAVY_LOCK_BEAT_MS: '200' },
-      encoding: 'utf8',
-    }
-  );
+  const r = spawnSync(process.execPath, [script, 'run', '--label', 'long', '--', 'node', `"${worker}"`, `"${dir}"`, `"${seen}"`], {
+    env: { ...process.env, ...env, HEAVY_LOCK_HELD: '', HEAVY_LOCK_BEAT_MS: '200' },
+    encoding: 'utf8',
+  });
   assert.equal(r.status, 0, r.stderr);
   const owner = JSON.parse(fs.readFileSync(seen, 'utf8'));
   assert.equal(owner.label, 'long');
-  assert.ok(
-    owner.start - owner.since >= 600,
-    `start moved on by the beat (${owner.start - owner.since} ms)`
-  );
+  assert.ok(owner.start - owner.since >= 600, `start moved on by the beat (${owner.start - owner.since} ms)`);
   assert.ok(!fs.existsSync(path.join(dir, 'slot-0')), 'released after the command');
 });
 
@@ -574,36 +448,20 @@ test('an owner written by the older lock (pid, label, start only) is respected, 
   fs.mkdirSync(path.join(dir, 'slot-0'));
   fs.writeFileSync(
     path.join(dir, 'slot-0', 'owner.json'),
-    JSON.stringify({
-      pid: process.pid,
-      label: 'old green typecheck',
-      start: Date.now() - 5 * 60 * 1000,
-    })
+    JSON.stringify({ pid: process.pid, label: 'old green typecheck', start: Date.now() - 5 * 60 * 1000 })
   );
   const lock = acquire('new', { env, log: () => {}, freemem: () => 64 * GB });
   assert.equal(lock.held, true);
   assert.ok(fs.existsSync(path.join(dir, 'slot-1', 'owner.json')));
-  assert.equal(
-    JSON.parse(fs.readFileSync(path.join(dir, 'slot-0', 'owner.json'), 'utf8')).label,
-    'old green typecheck'
-  );
+  assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'slot-0', 'owner.json'), 'utf8')).label, 'old green typecheck');
   lock.release();
 });
 
 test('a slot held above a lowered slot count still counts as in use', () => {
   const { dir, env } = fixture({ HEAVY_LOCK_SLOTS: '1' });
   fs.mkdirSync(path.join(dir, 'slot-2'));
-  fs.writeFileSync(
-    path.join(dir, 'slot-2', 'owner.json'),
-    JSON.stringify({ pid: process.pid, label: 'high slot', start: Date.now() })
-  );
-  const lock = acquire('x', {
-    env,
-    log: () => {},
-    alive: () => true,
-    sleep: () => {},
-    maxWaitMs: 0,
-  });
+  fs.writeFileSync(path.join(dir, 'slot-2', 'owner.json'), JSON.stringify({ pid: process.pid, label: 'high slot', start: Date.now() }));
+  const lock = acquire('x', { env, log: () => {}, alive: () => true, sleep: () => {}, maxWaitMs: 0 });
   assert.equal(lock.held, false);
   resetGaveUp();
 });
@@ -638,12 +496,7 @@ test('two CLI runs started together run one after the other', async () => {
       p.on('exit', resolve);
     });
   await Promise.all([run(), run()]);
-  assert.deepEqual(fs.readFileSync(marker, 'utf8').trim().split('\n'), [
-    'start',
-    'end',
-    'start',
-    'end',
-  ]);
+  assert.deepEqual(fs.readFileSync(marker, 'utf8').trim().split('\n'), ['start', 'end', 'start', 'end']);
 });
 
 test('drift-check wraps only heavy guards, and only when the merged tree has the lock script', () => {
@@ -655,8 +508,5 @@ test('drift-check wraps only heavy guards, and only when the merged tree has the
   fs.writeFileSync(path.join(dir, 'scripts', 'heavy-lock.mjs'), '');
   assert.equal(lockedCommand(light, dir), light.command);
   const wrapped = lockedCommand(heavy, dir);
-  assert.match(
-    wrapped,
-    /heavy-lock\.mjs" run --label "drift-check mcp-server tests" --priority high -- npx vitest run$/
-  );
+  assert.match(wrapped, /heavy-lock\.mjs" run --label "drift-check mcp-server tests" --priority high -- npx vitest run$/);
 });

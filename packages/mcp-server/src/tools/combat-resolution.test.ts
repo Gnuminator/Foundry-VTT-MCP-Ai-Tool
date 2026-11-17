@@ -1,4 +1,6 @@
-import { describe, expect, it, vi, type Mock } from 'vitest';
+import { describe, expect, it } from 'vitest';
+
+import { makeTools } from '../test-support/make-tool-harness.js';
 
 import { CombatResolutionTools } from './combat-resolution.js';
 
@@ -13,30 +15,13 @@ import { CombatResolutionTools } from './combat-resolution.js';
  * The FoundryClient is mocked so these tests run with no bridge connection.
  */
 
-function makeTools(queryImpl?: (method: string, data: unknown) => unknown): {
-  tools: CombatResolutionTools;
-  query: Mock;
-} {
-  const query = vi.fn(queryImpl ?? ((): unknown => ({ success: true })));
-  const foundryClient = { query } as any;
-  // Minimal Logger stub: `.child()` returns itself; level methods are no-ops.
-  const logger: any = {
-    error: vi.fn(),
-    warn: vi.fn(),
-    info: vi.fn(),
-    debug: vi.fn(),
-  };
-  logger.child = (): unknown => logger;
-  return { tools: new CombatResolutionTools({ foundryClient, logger }), query };
-}
-
 // ---------------------------------------------------------------------------
 // getToolDefinitions
 // ---------------------------------------------------------------------------
 
 describe('CombatResolutionTools.getToolDefinitions', () => {
   it('exposes the three combat-resolution tools with object input schemas', () => {
-    const { tools } = makeTools();
+    const { tools } = makeTools(CombatResolutionTools);
     const defs = tools.getToolDefinitions();
     expect(defs.map(d => d.name)).toEqual([
       'roll-saving-throws',
@@ -49,7 +34,7 @@ describe('CombatResolutionTools.getToolDefinitions', () => {
   });
 
   it('declares the required fields for each tool', () => {
-    const { tools } = makeTools();
+    const { tools } = makeTools(CombatResolutionTools);
     const defs = tools.getToolDefinitions();
     const required = (name: string): unknown =>
       (defs.find(d => d.name === name)!.inputSchema as any).required;
@@ -66,7 +51,7 @@ describe('CombatResolutionTools.getToolDefinitions', () => {
 describe('CombatResolutionTools.handleRollSavingThrows', () => {
   it('dispatches rollSavingThrows with the parsed args and returns the response', async () => {
     const payload = { success: true, rolls: [{ target: 'Goblin', total: 14, pass: false }] };
-    const { tools, query } = makeTools(() => payload);
+    const { tools, query } = makeTools(CombatResolutionTools, () => payload);
     const result = await tools.handleRollSavingThrows({
       targets: ['Goblin'],
       rollType: 'save',
@@ -83,7 +68,7 @@ describe('CombatResolutionTools.handleRollSavingThrows', () => {
   });
 
   it('forwards skill and isPublic when provided', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(CombatResolutionTools);
     await tools.handleRollSavingThrows({
       targets: ['Goblin'],
       rollType: 'skill',
@@ -99,35 +84,38 @@ describe('CombatResolutionTools.handleRollSavingThrows', () => {
   });
 
   it('throws when Foundry reports a failure with an error message', async () => {
-    const { tools } = makeTools(() => ({ success: false, error: 'actor has no dex save' }));
+    const { tools } = makeTools(CombatResolutionTools, () => ({
+      success: false,
+      error: 'actor has no dex save',
+    }));
     await expect(
       tools.handleRollSavingThrows({ targets: ['Goblin'], rollType: 'save' })
     ).rejects.toThrow('actor has no dex save');
   });
 
   it('throws the fallback message when Foundry fails with no error field', async () => {
-    const { tools } = makeTools(() => ({ success: false }));
+    const { tools } = makeTools(CombatResolutionTools, () => ({ success: false }));
     await expect(
       tools.handleRollSavingThrows({ targets: ['Goblin'], rollType: 'save' })
     ).rejects.toThrow('Failed to roll saving throws');
   });
 
   it('returns a parameter-error string when rollType is missing', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(CombatResolutionTools);
     const result = await tools.handleRollSavingThrows({ targets: ['Goblin'] });
     expect(result as string).toMatch(/Parameter error/i);
     expect(query).not.toHaveBeenCalled();
   });
 
   it('returns a parameter-error string when rollType is not in the enum', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(CombatResolutionTools);
     const result = await tools.handleRollSavingThrows({ targets: ['Goblin'], rollType: 'attack' });
     expect(result as string).toMatch(/Parameter error/i);
     expect(query).not.toHaveBeenCalled();
   });
 
   it('returns a parameter-error string when targets is empty', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(CombatResolutionTools);
     const result = await tools.handleRollSavingThrows({ targets: [], rollType: 'save' });
     expect(result as string).toMatch(/Parameter error/i);
     expect(query).not.toHaveBeenCalled();
@@ -141,7 +129,7 @@ describe('CombatResolutionTools.handleRollSavingThrows', () => {
 describe('CombatResolutionTools.handleUseNpcActivity', () => {
   it('dispatches useNpcActivity with the parsed args and returns the response', async () => {
     const payload = { success: true, attackTotal: 18, hit: true, damage: 7 };
-    const { tools, query } = makeTools(() => payload);
+    const { tools, query } = makeTools(CombatResolutionTools, () => payload);
     const result = await tools.handleUseNpcActivity({
       actor: 'Goblin',
       itemName: 'Scimitar',
@@ -156,7 +144,7 @@ describe('CombatResolutionTools.handleUseNpcActivity', () => {
   });
 
   it('dispatches without optional fields when only required ones are given', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(CombatResolutionTools);
     await tools.handleUseNpcActivity({ actor: 'Goblin', itemName: 'Scimitar' });
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.useNpcActivity', {
       actorName: 'Goblin',
@@ -165,7 +153,7 @@ describe('CombatResolutionTools.handleUseNpcActivity', () => {
   });
 
   it('says so when an older module ignores the activity it was asked for', async () => {
-    const { tools } = makeTools(() => ({ success: true, attackTotal: 18 }));
+    const { tools } = makeTools(CombatResolutionTools, () => ({ success: true, attackTotal: 18 }));
     await expect(
       tools.handleUseNpcActivity({ actor: 'Goblin', itemName: 'Cloud', activity: 'Cloud' })
     ).rejects.toThrow(/module is older than this server and ignored the activity "Cloud"/);
@@ -173,35 +161,38 @@ describe('CombatResolutionTools.handleUseNpcActivity', () => {
 
   it('accepts a reply that names the activity that ran', async () => {
     const payload = { success: true, activity: 'Cloud' };
-    const { tools } = makeTools(() => payload);
+    const { tools } = makeTools(CombatResolutionTools, () => payload);
     await expect(
       tools.handleUseNpcActivity({ actor: 'Goblin', itemName: 'Cloud', activity: 'Cloud' })
     ).resolves.toBe(payload);
   });
 
   it('throws when Foundry reports a failure with an error message', async () => {
-    const { tools } = makeTools(() => ({ success: false, error: 'item not found' }));
+    const { tools } = makeTools(CombatResolutionTools, () => ({
+      success: false,
+      error: 'item not found',
+    }));
     await expect(tools.handleUseNpcActivity({ actor: 'Goblin', itemName: 'Bow' })).rejects.toThrow(
       'item not found'
     );
   });
 
   it('throws the fallback message when Foundry fails with no error field', async () => {
-    const { tools } = makeTools(() => ({ success: false }));
+    const { tools } = makeTools(CombatResolutionTools, () => ({ success: false }));
     await expect(
       tools.handleUseNpcActivity({ actor: 'Goblin', itemName: 'Scimitar' })
     ).rejects.toThrow('Failed to use NPC activity');
   });
 
   it('returns a parameter-error string when actor is missing', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(CombatResolutionTools);
     const result = await tools.handleUseNpcActivity({ itemName: 'Scimitar' });
     expect(result as string).toMatch(/Parameter error/i);
     expect(query).not.toHaveBeenCalled();
   });
 
   it('returns a parameter-error string when itemName is missing', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(CombatResolutionTools);
     const result = await tools.handleUseNpcActivity({ actor: 'Goblin' });
     expect(result as string).toMatch(/Parameter error/i);
     expect(query).not.toHaveBeenCalled();
@@ -215,7 +206,7 @@ describe('CombatResolutionTools.handleUseNpcActivity', () => {
 describe('CombatResolutionTools.handleManageRest', () => {
   it('dispatches manageRest with the parsed args and returns the response', async () => {
     const payload = { success: true, rested: ['Aldric'] };
-    const { tools, query } = makeTools(() => payload);
+    const { tools, query } = makeTools(CombatResolutionTools, () => payload);
     const result = await tools.handleManageRest({
       targets: ['Aldric'],
       restType: 'long',
@@ -230,7 +221,7 @@ describe('CombatResolutionTools.handleManageRest', () => {
   });
 
   it('dispatches a short rest without newDay when omitted', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(CombatResolutionTools);
     await tools.handleManageRest({ targets: ['Aldric'], restType: 'short' });
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.manageRest', {
       targets: ['Aldric'],
@@ -239,35 +230,38 @@ describe('CombatResolutionTools.handleManageRest', () => {
   });
 
   it('throws when Foundry reports a failure with an error message', async () => {
-    const { tools } = makeTools(() => ({ success: false, error: 'no such character' }));
+    const { tools } = makeTools(CombatResolutionTools, () => ({
+      success: false,
+      error: 'no such character',
+    }));
     await expect(tools.handleManageRest({ targets: ['Ghost'], restType: 'long' })).rejects.toThrow(
       'no such character'
     );
   });
 
   it('throws the fallback message when Foundry fails with no error field', async () => {
-    const { tools } = makeTools(() => ({ success: false }));
+    const { tools } = makeTools(CombatResolutionTools, () => ({ success: false }));
     await expect(tools.handleManageRest({ targets: ['Aldric'], restType: 'long' })).rejects.toThrow(
       'Failed to manage rest'
     );
   });
 
   it('returns a parameter-error string when restType is missing', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(CombatResolutionTools);
     const result = await tools.handleManageRest({ targets: ['Aldric'] });
     expect(result as string).toMatch(/Parameter error/i);
     expect(query).not.toHaveBeenCalled();
   });
 
   it('returns a parameter-error string when restType is not in the enum', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(CombatResolutionTools);
     const result = await tools.handleManageRest({ targets: ['Aldric'], restType: 'nap' });
     expect(result as string).toMatch(/Parameter error/i);
     expect(query).not.toHaveBeenCalled();
   });
 
   it('returns a parameter-error string when targets is empty', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(CombatResolutionTools);
     const result = await tools.handleManageRest({ targets: [], restType: 'short' });
     expect(result as string).toMatch(/Parameter error/i);
     expect(query).not.toHaveBeenCalled();
@@ -280,7 +274,7 @@ describe('CombatResolutionTools.handleManageRest', () => {
 
 describe('CombatResolutionTools parameter descriptions (M3)', () => {
   const props = (name: string): Record<string, { description?: string }> => {
-    const { tools } = makeTools();
+    const { tools } = makeTools(CombatResolutionTools);
     const def = tools.getToolDefinitions().find(d => d.name === name)!;
     return (def.inputSchema as any).properties;
   };

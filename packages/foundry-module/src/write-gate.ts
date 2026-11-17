@@ -144,6 +144,7 @@ export const NON_WRITE_METHODS: readonly string[] = [
   'getPlayRecords',
   'getPlayerVisibility',
   'getPreflightScan',
+  'getRenownState',
   'getPrepScan',
   'getRecentEvents',
   'getSceneMoods',

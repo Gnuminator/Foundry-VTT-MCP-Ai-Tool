@@ -21,6 +21,8 @@
  *   node scripts/backlog.mjs add --id <slug> --size S|M|L --title <t> --board <area>
  *        --done-when <t> [--area --gate --blocked-by --touches --depends-on --source <t>]
  *        [--pi] [--private] [--after <id> | --chapter <heading text>]   or   add --file <block.md>
+ *   node scripts/backlog.mjs waiting <key> --title <t> --text <t> [--due YYYY-MM-DD]
+ *                                         adds a Waiting.md item above Someday (once per key)
  *   node scripts/backlog.mjs low <area> <text>             appends to Lows/<area>.md
  *
  * Common flags: --vault <dir> (default env FOUNDRY_AI_OBSIDIAN_DIR, else ~/Documents/Obsidian/vault),
@@ -73,6 +75,7 @@ export const BACKLOG = `${DIR}/Backlog.md`;
 export const DONE = `${DIR}/Backlog done.md`;
 export const PI_LIST = `${DIR}/Pi sitting list.md`;
 export const LOWS = `${DIR}/Lows`;
+export const WAITING = `${DIR}/Waiting.md`;
 export const RETRIES = 5;
 const TRIAGE = /^Captured on the board/i;
 
@@ -346,6 +349,35 @@ export function addEdit(text, doneText, o) {
 export function lowEdit(text, line) {
   if (text.split(/\r?\n/).includes(line)) throw new Error('that low is already in the file');
   return appendLine(text, line);
+}
+
+/**
+ * A new "## W<n> <title>" item in Waiting.md, above `## Someday` (or at the end). Idempotent on
+ * `key`: an item that already carries a `- key: <key>` line is not added a second time.
+ * @param {string} text @param {{ key: string, title: string, due: string, text: string, date: string }} o
+ * @returns {{ text: string, added: boolean, n: number }}
+ */
+export function waitingEdit(text, o) {
+  const nl = newlineOf(text);
+  const lines = text.split(/\r?\n/);
+  if (lines.some(l => l.trim() === `- key: ${o.key}`)) return { text, added: false, n: 0 };
+  const nums = lines.map(l => /^#{2,3}\s+W(\d+)/i.exec(l)?.[1]).filter(Boolean);
+  const n = Math.max(0, ...nums.map(Number)) + 1;
+  const block = [
+    `## W${n} ${oneLine(o.title)}`,
+    `- key: ${o.key}`,
+    `- due: ${o.due}`,
+    `- ${o.date} (merge runner): ${oneLine(o.text)}`,
+    '',
+  ];
+  let at = lines.findIndex(l => /^##\s+Someday\b/i.test(l));
+  if (at < 0) {
+    while (lines.length && lines[lines.length - 1] === '') lines.pop();
+    lines.push('');
+    at = lines.length;
+  }
+  lines.splice(at, 0, ...block);
+  return { text: lines.join(nl), added: true, n };
 }
 
 // ---- status ----------------------------------------------------------------------------------------
@@ -834,6 +866,23 @@ export function run(argv, env = {}) {
         };
         break;
       }
+      case 'waiting': {
+        const [key, title] = [pos[0] ?? '', String(flags.title ?? '')];
+        if (!/^[a-z0-9][a-z0-9-]*$/i.test(key) || !title || typeof flags.text !== 'string')
+          throw new Usage('waiting <key> --title <t> --text <t> [--due YYYY-MM-DD]');
+        const due = String(flags.due ?? '') || date;
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(due)) throw new Usage('--due is YYYY-MM-DD');
+        job = {
+          paths: [WAITING],
+          message: `Waiting: ${key}`,
+          edit: read => {
+            const r = waitingEdit(read(WAITING), { key, title, due, text: flags.text, date });
+            notes = [r.added ? `waiting: added W${r.n}` : `waiting: ${key} is already there`];
+            return { [WAITING]: r.text };
+          },
+        };
+        break;
+      }
       case 'low': {
         const area = pos[0] ?? '';
         const text = pos.slice(1).join(' ');
@@ -856,7 +905,7 @@ export function run(argv, env = {}) {
       }
       default:
         throw new Usage(
-          `unknown command "${cmd}"; use status, claim, progress, release, done, add or low`
+          `unknown command "${cmd}"; use status, claim, progress, release, done, add, waiting or low`
         );
     }
     if (flags['dry-run']) {

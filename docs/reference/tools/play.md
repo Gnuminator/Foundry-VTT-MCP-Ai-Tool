@@ -36,7 +36,7 @@ Parameters:
 
 ## request-player-rolls
 
-Direct write. Request dice rolls from players: posts roll buttons in Foundry chat that players click. Public by default; pass isPublic false only when the user asks for a private roll. Finds the player from the character; falls back to the GM.
+Direct write. The one tool to ask a player to roll: ability check, skill, save, attack, initiative or custom formula. Posts a roll button in Foundry chat (DC shown when given; for an attack put the weapon or spell name in rollTarget). Public by default; pass isPublic false only when the user asks for a private roll. Finds the player from the character; falls back to the GM.
 
 Kind: changes something. Title: Request player rolls.
 
@@ -53,7 +53,7 @@ Parameters:
 
 ## request-ability-check
 
-Direct write. Request an ability check from a player, posting a clickable roll button to their chat. Shows the DC when provided. Use for checks like "Perception check to notice the ambush".
+Direct write. Old name: use request-player-rolls with rollType ability. Requests an ability check from a player (clickable roll button, DC shown when given).
 
 Kind: changes something. Title: Request ability check.
 
@@ -68,7 +68,7 @@ Parameters:
 
 ## request-attack-roll
 
-Direct write. Request an attack roll for a specific weapon or spell from a player, posting a clickable roll button to their chat.
+Direct write. Old name: use request-player-rolls with rollType attack. Requests an attack roll for a weapon or spell from a player (clickable roll button).
 
 Kind: changes something. Title: Request attack roll.
 

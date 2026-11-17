@@ -105,12 +105,15 @@ describe('DiceRollTools.handleRequestAbilityCheck', () => {
       ability: 'dex',
       isPublic: true,
     });
-    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.requestAbilityCheck', {
+    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.request-player-rolls', {
       targetPlayer: 'Alice',
-      ability: 'dex',
+      rollType: 'ability',
+      rollTarget: 'dex',
       isPublic: true,
+      rollModifier: '',
+      flavor: '',
     });
-    expect(result).toBe('Ability check requested. Roll button posted.');
+    expect(result).toBe('Roll request sent successfully! Roll button posted.');
   });
 
   it('passes optional dc and reason when provided', async () => {
@@ -122,12 +125,14 @@ describe('DiceRollTools.handleRequestAbilityCheck', () => {
       isPublic: false,
       reason: 'Perception check',
     });
-    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.requestAbilityCheck', {
+    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.request-player-rolls', {
       targetPlayer: 'Bob',
-      ability: 'wis',
+      rollType: 'ability',
+      rollTarget: 'wis',
       dc: 15,
       isPublic: false,
-      reason: 'Perception check',
+      rollModifier: '',
+      flavor: 'Perception check, DC 15',
     });
   });
 
@@ -162,7 +167,7 @@ describe('DiceRollTools.handleRequestAbilityCheck', () => {
     const { tools } = makeTools(() => ({ success: false }));
     await expect(
       tools.handleRequestAbilityCheck({ actor: 'Alice', ability: 'str', isPublic: true })
-    ).rejects.toThrow('Failed to request ability check');
+    ).rejects.toThrow('Failed to request player rolls');
   });
 });
 
@@ -225,12 +230,35 @@ describe('DiceRollTools.handleRequestAttackRoll', () => {
       return t.handleRequestAttackRoll(args);
     };
     expect(await run({ verdict: 'problem', summary: 'Carol: no uses left.' })).toBe(
-      'Attack roll requested. Posted. Rules check: Carol: no uses left.'
+      'Roll request sent successfully! Posted. Rules check: Carol: no uses left.'
     );
     expect(await run({ verdict: 'legal', summary: 'looks legal.' })).toBe(
-      'Attack roll requested. Posted.'
+      'Roll request sent successfully! Posted.'
     );
-    expect(await run(null)).toBe('Attack roll requested. Posted.');
+    expect(await run(null)).toBe('Roll request sent successfully! Posted.');
+  });
+
+  it('request-player-rolls with rollType attack does the same rules check and card text', async () => {
+    const { query } = makeTools(() => ({ success: true, message: 'Posted.' }));
+    const logger: any = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
+    logger.child = (): unknown => logger;
+    const tryCheck = vi.fn(async () => ({ verdict: 'problem', summary: 'no uses left.' }));
+    const t = new DiceRollTools({
+      foundryClient: { query } as any,
+      logger,
+      rulesCheck: { tryCheck } as any,
+    });
+    const out = await t.handleRequestPlayerRolls({
+      rollType: 'attack',
+      rollTarget: 'Longsword',
+      actor: 'Carol',
+    });
+    expect(tryCheck).toHaveBeenCalledWith({ actor: 'Carol', item: 'Longsword' });
+    expect(out).toBe('Roll request sent successfully! Posted. Rules check: no uses left.');
+    expect(query).toHaveBeenCalledWith(
+      'foundry-mcp-bridge.request-player-rolls',
+      expect.objectContaining({ flavor: 'Longsword attack' })
+    );
   });
 
   it('dispatches requestAttackRoll with parsed params and returns success string', async () => {
@@ -243,12 +271,15 @@ describe('DiceRollTools.handleRequestAttackRoll', () => {
       weaponOrSpellName: 'Longsword',
       isPublic: true,
     });
-    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.requestAttackRoll', {
+    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.request-player-rolls', {
       targetPlayer: 'Carol',
-      weaponOrSpellName: 'Longsword',
+      rollType: 'attack',
+      rollTarget: 'Longsword',
       isPublic: true,
+      rollModifier: '',
+      flavor: 'Longsword attack',
     });
-    expect(result).toBe('Attack roll requested. Attack roll button posted.');
+    expect(result).toBe('Roll request sent successfully! Attack roll button posted.');
   });
 
   it('returns a parameter-error string (not a throw) when weaponOrSpellName is missing', async () => {
@@ -300,7 +331,7 @@ describe('DiceRollTools.handleRequestAttackRoll', () => {
         weaponOrSpellName: 'Dagger',
         isPublic: false,
       })
-    ).rejects.toThrow('Failed to request attack roll');
+    ).rejects.toThrow('Failed to request player rolls');
   });
 });
 

@@ -109,7 +109,8 @@ interface FakeActorOptions {
 
 /**
  * An actor with a fake `applyDamage` that mimics dnd5e 6.0.5: it computes the updates, calls
- * `dnd5e.preApplyDamage` and only writes when no hook returned false.
+ * `dnd5e.preApplyDamage` and only writes when no hook returned false. It models only the
+ * multiplier; the 6.1 `ignore` and `downgrade` options are checked by shape here and live on server B.
  */
 function addActor(opts: FakeActorOptions): any {
   const system: Record<string, any> = { ...opts.system };
@@ -496,6 +497,35 @@ describe('damage and healing (dry run)', () => {
     expect([...options.downgrade]).toEqual(['fire', 'ALL']);
     expect(plan.targets[0]?.line).toContain('(ignores resistance, threshold)');
     expect(plan.targets[0]?.line).toContain('(downgrades fire, all)');
+  });
+
+  it('lowercases downgrade names and refuses one dnd5e would not know', async () => {
+    const wolf = addActor({ id: 'a1', name: 'Wolf', hp: { value: 20, max: 20 } });
+    const plan = await planLiveChange(
+      hpRequest({ action: 'damage', amount: 5, damageType: 'fire', downgrade: ['Fire'] })
+    );
+    expect([...(wolf.applyOptions[0] as Record<string, any>).downgrade]).toEqual(['fire']);
+    expect(plan.targets[0]?.line).toContain('(downgrades fire)');
+    await expect(
+      planLiveChange(
+        hpRequest({ action: 'damage', amount: 5, damageType: 'fire', downgrade: ['frost'] })
+      )
+    ).rejects.toThrow(/Unknown downgrade type frost/);
+  });
+
+  it('shows ignoreResistance as the wider ignore when ignore is sent too, and drops both for healing', async () => {
+    const wolf = addActor({ id: 'a1', name: 'Wolf', hp: { value: 10, max: 20 } });
+    const plan = await planLiveChange(
+      hpRequest({ action: 'damage', amount: 5, ignoreResistance: true, ignore: ['resistance'] })
+    );
+    expect(plan.targets[0]?.line).toContain('(ignores every resistance step and the threshold)');
+    expect((wolf.applyOptions[0] as Record<string, any>).ignore).toBe(true);
+    await planLiveChange(
+      hpRequest({ action: 'healing', amount: 3, ignore: ['resistance'], downgrade: ['fire'] })
+    );
+    const healOptions = wolf.applyOptions[1] as Record<string, any>;
+    expect(healOptions.ignore).toBeUndefined();
+    expect(healOptions.downgrade).toBeUndefined();
   });
 
   it('leaves out an empty temp HP that dnd5e writes as 0 (null or missing becomes 0)', async () => {

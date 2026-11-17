@@ -288,12 +288,36 @@ export function damageTypeLabel(type: string | undefined): string {
   return ` ${(label ? localize(label) : type).toLowerCase()}`;
 }
 
+/**
+ * The `downgrade` names as dnd5e matches them (lowercase damage type or resistance keys, or "all").
+ * dnd5e compares them exactly and ignores a name it does not know, so an unknown one is refused
+ * here instead of showing up in the plan as a downgrade that never happens.
+ */
+function validDowngradeTypes(names: string[] | undefined): string[] {
+  if (!names?.length) return [];
+  const config = rec(rec((globalThis as Rec).CONFIG)?.DND5E);
+  const known = new Set([
+    'all',
+    ...Object.keys(rec(config?.damageTypes) ?? {}),
+    ...Object.keys(rec(config?.damageResistanceTypes) ?? {}),
+  ]);
+  const wanted = [...new Set(names.map(n => n.trim().toLowerCase()))];
+  const unknown = wanted.filter(n => !known.has(n));
+  if (unknown.length > 0) {
+    throw new Error(
+      `Unknown downgrade type ${unknown.join(', ')}. Use "all" or a damage type: ${[...known].join(', ')}`
+    );
+  }
+  return wanted;
+}
+
 async function planHp(
   targets: Target[],
   request: LiveActorRequest
 ): Promise<{ ops: GuardedOp[]; previews: LiveTargetPreview[] }> {
   const amount = num(request.amount);
   if (amount === null || amount < 0) throw new Error('Give an amount of 0 or more');
+  const downgradeTypes = request.action === 'damage' ? validDowngradeTypes(request.downgrade) : [];
   const ops: GuardedOp[] = [];
   const previews: LiveTargetPreview[] = [];
   for (const { name, actor } of targets) {
@@ -330,10 +354,8 @@ async function planHp(
       else if (!healing && request.ignore?.length) {
         options.ignore = Object.fromEntries(request.ignore.map(step => [step, true]));
       }
-      if (!healing && request.downgrade?.length) {
-        options.downgrade = new Set(
-          request.downgrade.map(t => (t.toLowerCase() === 'all' ? 'ALL' : t))
-        );
+      if (!healing && downgradeTypes.length > 0) {
+        options.downgrade = new Set(downgradeTypes.map(t => (t === 'all' ? 'ALL' : t)));
       }
       const result = await dryRunDamage(actor, [{ value: amount, type }], options);
       if (!result) {
@@ -352,8 +374,10 @@ async function planHp(
         const crit = request.multiplier !== undefined && request.multiplier !== 1;
         what = `${amount}${damageTypeLabel(request.damageType)} damage${crit ? ` x${request.multiplier}` : ''}`;
         if (result.amount !== amount || crit) what += `, ${Math.max(result.amount, 0)} taken`;
-        if (request.ignore?.length) what += ` (ignores ${request.ignore.join(', ')})`;
-        if (request.downgrade?.length) what += ` (downgrades ${request.downgrade.join(', ')})`;
+        if (request.ignoreResistance) {
+          if (request.ignore?.length) what += ' (ignores every resistance step and the threshold)';
+        } else if (request.ignore?.length) what += ` (ignores ${request.ignore.join(', ')})`;
+        if (downgradeTypes.length > 0) what += ` (downgrades ${downgradeTypes.join(', ')})`;
       }
     }
     if (Object.keys(changes).length === 0) {

@@ -1,6 +1,6 @@
 ---
 source: player/dnd-helper.md
-sourceHash: cc315b7fb7cc
+sourceHash: 9779e9970e4e
 title: D&D-hjælperen til spillere
 description: Installer Claude Desktop og din Foundry-spillerconnector, og lav, level op og tjek så din egen karakter og slå regler op, trin for trin.
 ---
@@ -113,8 +113,8 @@ installér den på samme måde, og når en formular spørger, så indsæt dit **
 felt og din **Client Secret** i det andet (**My character**-siden har begge med kopiér-knapper).
 
 For at tjekke, at det virker, så åbn en ny chat og klik på **+** eller værktøjsikonet ved
-beskedfeltet. Du skulle gerne se **Foundry** (eller **foundry-player**) med otte tools (de syv
-bordtools og **get-player-skill-guide**). Gør du det, sidder stikket i. Hjælperens instrukser følger med
+beskedfeltet. Du skulle gerne se **Foundry** (eller **foundry-player**) med ni tools (de syv
+bordtools, **get-player-skill-guide** og **get-helper-guide**). Gør du det, sidder stikket i. Hjælperens instrukser følger med
 extension, så du skulle ikke behøve at tilføje en skill eller slå Code execution til. Følger Claude
 ikke hjælperens trin, så se Fejlfinding.
 
@@ -266,7 +266,7 @@ Bordet lader måske ikke spillere se den bog, eller indlæggets navn er anderled
 
 **Den følger ikke hjælperens trin (et build card, et arktjek).**
 Skriv: "Læs Foundry-hjælperguiden først, og svar så." Så åbner Claude guiden gennem tool'et
-**get-player-skill-guide**. Gør den det stadig ikke, kan din extension være en gammel version: hent din
+**get-helper-guide**. Gør den det stadig ikke, kan din extension være en gammel version: hent din
 hjælper igen fra din **My character**-side og installer den oven på den gamle.
 
 **Kan jeg også tilføje hjælperen som plugin? (Pro og Max)**

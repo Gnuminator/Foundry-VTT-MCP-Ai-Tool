@@ -246,6 +246,14 @@ export class McpControlClient extends EventEmitter {
     return this.send('record_client', entry);
   }
 
+  /**
+   * A call the dashboard answered itself (get-my-handouts, get-my-play-stats): `{ tool, userId,
+   * ms, size, ok }` for the bridge's tool call log. A control method; an old backend rejects.
+   */
+  async recordCall(entry: Record<string, unknown>): Promise<unknown> {
+    return this.send('record_call', entry);
+  }
+
   /** The "who uses what" report (D-146). A control method; an old backend rejects. */
   async whoUsesWhat(days: number): Promise<unknown> {
     return this.send('who_uses_what', { days });

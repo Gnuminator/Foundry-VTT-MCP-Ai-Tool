@@ -52,6 +52,8 @@ export interface DashboardClient {
   wrapperStatus?(): Promise<unknown>;
   /** Which version a person's piece runs (D-146); absent on fakes, "Unknown method" on old backends. */
   recordClient?(entry: Record<string, unknown>): Promise<unknown>;
+  /** A call the dashboard answered itself, for the bridge's call log; absent on fakes, "Unknown method" on old backends. */
+  recordCall?(entry: Record<string, unknown>): Promise<unknown>;
   /** The "who uses what" report for the last `days` days (D-146). */
   whoUsesWhat?(days: number): Promise<unknown>;
   /** Session notes (recap lane, D-087): list, get, put, approve; absent on fakes. */

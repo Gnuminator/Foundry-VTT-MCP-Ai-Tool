@@ -36,12 +36,18 @@ import { FoundryClient } from './foundry-client.js';
 
 import { createTools, guardedChangesModule, playerModule } from './tools/index.js';
 import { splitPlayerTools } from './tool-sets.js';
-import { PLAYER_CONFIG_ENV, handlePlayerTool, readExtraDenyTerms } from './tools/player.js';
+import {
+  PLAYER_CONFIG_ENV,
+  PLAYER_DASHBOARD_TOOL_NAMES,
+  handlePlayerTool,
+  readExtraDenyTerms,
+} from './tools/player.js';
 import { GameEventHub } from './game-event-hub.js';
 import { WrapperRegistry } from './wrapper-registry.js';
 import {
   ToolCallLog,
   buildCallLine,
+  recordedCallLine,
   gmCaller,
   skillFields,
   type CallCaller,
@@ -719,6 +725,16 @@ async function startBackend(): Promise<void> {
           if (msg.method === 'record_client') {
             const ok = await clientsFile.record(msg.params);
             socket.write(`${JSON.stringify({ id: msg.id, result: { ok } })}\n`);
+
+            continue;
+          }
+
+          // A call the dashboard answered itself (a player's get-my-handouts or get-my-play-stats):
+          // the line for the call log, with the tool name checked against that fixed list.
+          if (msg.method === 'record_call') {
+            const line = recordedCallLine(msg.params, PLAYER_DASHBOARD_TOOL_NAMES);
+            if (line) void callLog.record(line).catch(() => undefined);
+            socket.write(`${JSON.stringify({ id: msg.id, result: { ok: line !== null } })}\n`);
 
             continue;
           }

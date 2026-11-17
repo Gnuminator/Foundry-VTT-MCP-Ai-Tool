@@ -87,6 +87,35 @@ export function gmCaller(
   };
 }
 
+/**
+ * The call-log line for a call the dashboard answered itself (`record_call`: `{ tool, userId, ms,
+ * size, ok }`). Null unless `tool` is one of `allowed`; `ms` and `size` are clamped, the user id
+ * goes through the same filter as every line.
+ */
+export function recordedCallLine(
+  params: unknown,
+  allowed: readonly string[],
+  now: number = Date.now()
+): ToolCallLine | null {
+  const rc = (params !== null && typeof params === 'object' ? params : {}) as Record<
+    string,
+    unknown
+  >;
+  const tool = rc.tool;
+  if (typeof tool !== 'string' || !allowed.includes(tool)) return null;
+  const ms = typeof rc.ms === 'number' && rc.ms >= 0 ? Math.min(rc.ms, 3_600_000) : 0;
+  const size =
+    typeof rc.size === 'number' && Number.isFinite(rc.size) && rc.size >= 0
+      ? Math.min(Math.floor(rc.size), 10_000_000)
+      : 0;
+  const line = buildCallLine(tool, now - ms, { content: [], isError: rc.ok === false }, now, {
+    who: 'player',
+    ...(typeof rc.userId === 'string' ? { userId: rc.userId } : {}),
+    via: 'connector',
+  });
+  return { ...line, size };
+}
+
 /** Characters of text in a tool result (what Claude receives). */
 export function resultSize(result: ToolResultLike | undefined): number {
   if (!result || !Array.isArray(result.content)) return 0;
@@ -124,6 +153,38 @@ export function buildCallLine(
   };
 }
 
+/** Day files older than this are deleted (the usage reports look back weeks, not months). */
+const CALL_LOG_KEEP_DAYS = 90;
+
+const DAY_FILE_RE = /^(\d{4}-\d{2}-\d{2})\.calls\.jsonl$/;
+
+/** Delete the `<date>.calls.jsonl` files in `dir` older than `keepDays`; returns how many went. */
+export async function pruneCallLogs(
+  dir: string,
+  now: number = Date.now(),
+  keepDays: number = CALL_LOG_KEEP_DAYS
+): Promise<number> {
+  let names: string[];
+  try {
+    names = await fsp.readdir(dir);
+  } catch {
+    return 0;
+  }
+  const cutoff = localDateKey(now - keepDays * 86_400_000);
+  let removed = 0;
+  for (const name of names) {
+    const day = DAY_FILE_RE.exec(name)?.[1];
+    if (!day || day >= cutoff) continue;
+    try {
+      await fsp.rm(path.join(dir, name));
+      removed++;
+    } catch {
+      // a locked or already gone file stays for the next start
+    }
+  }
+  return removed;
+}
+
 export class ToolCallLog {
   readonly enabled: boolean;
   private readonly dir: string;
@@ -142,6 +203,8 @@ export class ToolCallLog {
         if (!this.dirReady) {
           await fsp.mkdir(this.dir, { recursive: true });
           this.dirReady = true;
+          // Once per process: old day files go (the Pi has no other cleanup).
+          void pruneCallLogs(this.dir).catch(() => undefined);
         }
         const file = path.join(this.dir, `${localDateKey(Date.parse(line.t))}.calls.jsonl`);
         await fsp.appendFile(file, `${JSON.stringify(line)}\n`, 'utf8');

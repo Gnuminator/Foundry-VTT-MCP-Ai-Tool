@@ -291,4 +291,9 @@ describe('defaultImageRoots', () => {
       defaultImageRoots({ FOUNDRY_AI_TOOL_IMAGE_ROOTS: art, FVTT_DATA_DIR: data } as any)
     ).toEqual([art]);
   });
+
+  it('turns a relative FVTT_DATA_DIR into an absolute root', () => {
+    const roots = defaultImageRoots({ FVTT_DATA_DIR: 'rel-data' });
+    expect(roots.every(r => path.isAbsolute(r))).toBe(true);
+  });
 });

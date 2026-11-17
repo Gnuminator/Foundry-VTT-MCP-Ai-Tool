@@ -167,6 +167,11 @@ export function connectorLogging(env = process.env) {
 export const BRIDGE_LOG_HINT =
   'Note: the bridge writes the call log (D-146), so with the connectors pointed at the Pi the calls are in the Pi folder: run "npm run usage:calls -- --pi".';
 
+/** The hints for a PC log: the stale connector note whenever it applies, the bridge note only when the log is empty. */
+export function emptyPcLogHints(total, info) {
+  return [emptyLogHint(info), total ? null : BRIDGE_LOG_HINT].filter(Boolean);
+}
+
 /** One line for an empty log when a connector build is the likely reason; null otherwise. */
 export function emptyLogHint(info) {
   if (!info || !info.stale.length) return null;
@@ -328,9 +333,9 @@ async function main(argv) {
   const summary = summarize(calls, await loadCatalog());
   const customDir = argv.includes('--dir') || process.env.USAGE_WEEK_CALLS_DIR;
   if (!argv.includes('--pi') && !customDir) {
-    const hint = emptyLogHint(connectorLogging());
-    if (hint) process.stderr.write(`${hint}\n`);
-    process.stderr.write(`${BRIDGE_LOG_HINT}\n`);
+    for (const hint of emptyPcLogHints(summary.total, connectorLogging())) {
+      process.stderr.write(`${hint}\n`);
+    }
   }
   if (argv.includes('--line')) process.stdout.write(`${weekLine(summary, days)}\n`);
   else

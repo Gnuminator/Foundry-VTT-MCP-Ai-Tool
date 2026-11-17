@@ -44,7 +44,8 @@ export function defaultImageRoots(env: NodeJS.ProcessEnv = process.env): string[
     .map(s => s.trim())
     .filter(Boolean)
     .filter(s => isAbsolute(s));
-  return listed.length > 0 ? listed : [dataFolder('Foundry Art', env.FVTT_DATA_DIR)];
+  // A relative FVTT_DATA_DIR would give a relative root that the absolute-path checks refuse.
+  return listed.length > 0 ? listed : [path.resolve(dataFolder('Foundry Art', env.FVTT_DATA_DIR))];
 }
 
 /** The parts of `node:path` the text checks use; `path.win32` and `path.posix` both fit. */

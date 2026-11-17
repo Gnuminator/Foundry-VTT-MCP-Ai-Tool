@@ -582,6 +582,39 @@ describe('/mcp/player: what it runs', () => {
     expect(list.result.tools.map(t => t.name)).toEqual(['get-my-character']);
   });
 
+  it('forwards the extension version and the Claude client to the bridge, keyed by user id', async () => {
+    const recordClient = vi.fn(() => Promise.resolve({ ok: true }));
+    const { base } = await start({ client: { recordClient } });
+    await rpc(
+      base,
+      {
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: {
+          protocolVersion: '2025-06-18',
+          clientInfo: { name: 'claude-ai', version: '9.9.9' },
+        },
+      },
+      { ...asA, 'user-agent': 'foundry-player-connector/1.2.3' }
+    );
+    expect(recordClient).toHaveBeenCalledWith({
+      piece: 'player-extension',
+      who: ALICE,
+      version: '1.2.3',
+    });
+    expect(recordClient).toHaveBeenCalledWith({
+      piece: 'claude',
+      who: ALICE,
+      name: 'claude-ai',
+      version: '9.9.9',
+    });
+    // No extension user agent and no client name: nothing is forwarded.
+    recordClient.mockClear();
+    await rpc(base, { jsonrpc: '2.0', id: 2, method: 'ping' }, asA);
+    expect(recordClient).not.toHaveBeenCalled();
+  });
+
   it('answers a bridge failure with a plain error, never the bridge text', async () => {
     const boom = (): Promise<never> => Promise.reject(new Error('secret bridge detail'));
     const { base } = await start({ client: { listPlayerTools: boom, playerTool: boom } });

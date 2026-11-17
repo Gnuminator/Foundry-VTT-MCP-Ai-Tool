@@ -670,7 +670,7 @@ export async function main(argv = process.argv.slice(2), env = process.env, out 
 
   const report = await buildReport({ root, now, days: opts.days, prs, usageLog });
   report.notes = notes;
-  // Real tool usage (I-113): the MCP tool call log on this PC (USAGE_WEEK_CALLS_DIR overrides).
+  // Real tool usage (I-113): the MCP tool call log in this PC's data folder (empty when the connectors log on the Pi; USAGE_WEEK_CALLS_DIR overrides).
   const callsDir = env.USAGE_WEEK_CALLS_DIR || path.join(dataDir(env), '_usage');
   let callList = [];
   try {

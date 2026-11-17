@@ -4,7 +4,7 @@
 import type { JSX } from 'react';
 
 import { errorText } from '../lib/api';
-import { combatIdsFor, fetchFoundryTargets, targetsNote } from '../lib/foundryTargets';
+import { combatIdsFor, fetchFoundryTargets, targetsNote } from '../lib/foundry-targets';
 
 export function FoundryTargetsButton({
   combatants,

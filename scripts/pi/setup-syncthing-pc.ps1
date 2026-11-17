@@ -191,6 +191,21 @@ if ($missing.Count -gt 0) {
   Add-Content -LiteralPath $ignoreFile -Value $missing
   Write-Host "Wrote $ignoreFile"
 }
+# The Obsidian plugin's three release files come through the vault (Pi stage 33); data.json (the token) stays local. Syncthing uses
+# the first line that matches, so the "!" lines must sit above '.obsidian/plugins'.
+$pluginInclude = @('!.obsidian/plugins/foundry-ai-tool/main.js', '!.obsidian/plugins/foundry-ai-tool/manifest.json', '!.obsidian/plugins/foundry-ai-tool/styles.css')
+$lines = @(Get-Content -LiteralPath $ignoreFile)
+$stop = [array]::IndexOf($lines, '.obsidian/plugins')
+$ok = $true
+foreach ($l in $pluginInclude) { $at = [array]::IndexOf($lines, $l); if ($at -lt 0 -or $at -gt $stop) { $ok = $false } }
+if (-not $ok -and $stop -ge 0) {
+  $lines = @($lines | Where-Object { $pluginInclude -notcontains $_ })
+  $stop = [array]::IndexOf($lines, '.obsidian/plugins')
+  $head = if ($stop -gt 0) { @($lines[0..($stop - 1)]) } else { @() }
+  $lines = $head + $pluginInclude + @($lines[$stop..($lines.Count - 1)])
+  Set-Content -LiteralPath $ignoreFile -Value $lines
+  Write-Host "Updated $ignoreFile (the plugin files come through the vault)."
+}
 if ((Get-StLines @('config', 'folders', 'list')) -contains $folderId) {
   Write-Host "Folder $folderId already there."
   $path = Invoke-St @('config', 'folders', $folderId, 'path', 'get')

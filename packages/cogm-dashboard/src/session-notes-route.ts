@@ -41,14 +41,7 @@ export interface SessionNotesRouteOptions {
   logger?: Logger;
 }
 
-export const PIPELINE_STATES = [
-  'done',
-  'paused',
-  'incomplete',
-  'failed',
-  'waiting',
-  'published',
-] as const;
+const PIPELINE_STATES = ['done', 'paused', 'incomplete', 'failed', 'waiting', 'published'] as const;
 
 export interface PipelineStatus {
   session: string;

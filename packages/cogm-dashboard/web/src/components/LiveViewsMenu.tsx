@@ -3,7 +3,7 @@ import { useEffect, useId, useRef, useState, type JSX } from 'react';
 
 import { api, ApiError } from '../lib/api';
 import { useEscapeClose } from '../lib/escape';
-import { GLANCE_HREF, LIVE_SCREEN_HREF } from '../lib/liveScreen';
+import { GLANCE_HREF, LIVE_SCREEN_HREF } from '../lib/live-screen';
 import { Button } from '../ui';
 import styles from './LiveViewsMenu.module.css';
 

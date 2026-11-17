@@ -19,16 +19,16 @@ import {
   stepLine,
   type DuringScreen,
   type Trial,
-} from '../lib/duringTrial';
-import { useLivePlay } from '../lib/livePlay';
-import { offReason } from '../lib/liveSwitches';
+} from '../lib/during-trial';
+import { useLivePlay } from '../lib/live-play';
+import { offReason } from '../lib/live-switches';
 import { useSavePrefs, usePrefs } from '../lib/prefs';
 import {
   hintSessionKey,
   showLayoutHint,
   type DuringLayout,
   type DuringPrefs,
-} from '../lib/prefsModel';
+} from '../lib/prefs-model';
 import { usePlaySession } from '../lib/session';
 import { useCombatActive } from '../lib/stream';
 import { usage } from '../lib/usage';

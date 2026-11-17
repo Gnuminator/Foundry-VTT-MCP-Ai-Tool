@@ -20,9 +20,9 @@ import { toGmMessage } from './gm-message.js';
 
 export const LIVE_WINDOW_SETTING = 'liveWindow';
 export const LIVE_WINDOW_URL_SETTING = 'liveWindowUrl';
-/** The `type` of the message to the frame (the dashboard's lib/mapPick.ts reads the same string). */
+/** The `type` of the message to the frame (the dashboard's lib/map-pick.ts reads the same string). */
 export const LIVE_PICK_MESSAGE = 'fmb-live-pick';
-/** The `type` of the no-data hello to the GM page (the dashboard's lib/mapPick.ts reads it too). */
+/** The `type` of the no-data hello to the GM page (the dashboard's lib/map-pick.ts reads it too). */
 export const LIVE_HELLO_MESSAGE = 'fmb-live-hello';
 /** The `type` the strip page posts back once it listens (the first pick can come before that). */
 export const LIVE_READY_MESSAGE = 'fmb-live-ready';

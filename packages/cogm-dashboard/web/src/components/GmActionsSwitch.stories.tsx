@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import type { JSX } from 'react';
 import { expect, userEvent, waitFor, within } from 'storybook/test';
 
-import { SWITCHES_KEY } from '../lib/sessionSwitches';
+import { SWITCHES_KEY } from '../lib/session-switches';
 import { SETTINGS_KEY } from '../lib/stream';
 import { PHONE_VIEW, VEIL } from '../storybook/modes';
 import { reply } from '../storybook/fakeApi';

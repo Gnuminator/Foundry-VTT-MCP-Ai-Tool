@@ -1,7 +1,7 @@
 // The 2024 twin of a monster (read only): pick a 2014 monster (a world actor or a compendium
 // entry), and the 2024 SRD stat block of the same monster shows beside it. The GM decides which one
 // to run; a monster with no clear twin says so. Nothing is converted and nothing is written. The
-// matching rule and the reviewed table are in lib/statblockTwin.ts. GM only.
+// matching rule and the reviewed table are in lib/statblock-twin.ts. GM only.
 import { useQuery } from '@tanstack/react-query';
 import { useRef, useState, type JSX } from 'react';
 
@@ -18,8 +18,8 @@ import {
   twinSearchName,
   type StatBlock,
   type TwinVerdict,
-} from '../lib/statblockTwin';
-import type { ToolRef } from '../lib/toolForm';
+} from '../lib/statblock-twin';
+import type { ToolRef } from '../lib/tool-form';
 import { Button, Card } from '../ui';
 
 import styles from './StatblockTwin.module.css';

@@ -3,10 +3,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { REMOTE, MAIN } from './constants.mjs';
 import { firstLine } from './run.mjs';
+import { acceptLines } from './visual-accept.mjs';
 
 /**
  * @typedef {{ head: string | null, verdict: string | null, merge: boolean }} VerdictEntry
- * @typedef {{ name: string, entries: VerdictEntry[], shortHeads: string[], opus: boolean, malformed: string[] }} ReviewNote
+ * @typedef {{ name: string, entries: VerdictEntry[], shortHeads: string[], opus: boolean, malformed: string[], visual: { n: number, hash: string }[] }} ReviewNote
  */
 
 /** The verdict text, without bold markers, a trailing full stop or case. @param {string} text */
@@ -114,6 +115,7 @@ export function parseReviewNote(name, text, prNumber) {
     entries,
     shortHeads,
     malformed,
+    visual: acceptLines(text),
     opus:
       new RegExp(`^${prNumber}-opus-review`, 'i').test(name) ||
       new RegExp(`^#\\s+PR\\s+#${prNumber}\\s+Opus review`, 'i').test(heading),

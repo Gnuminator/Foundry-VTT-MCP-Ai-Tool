@@ -5,16 +5,16 @@ and shows it in the browser. It does not call the Anthropic API: AI work happens
 Claude through the MCP tools.
 
 > **Why a separate app?** MCP / Claude Desktop can only respond when _you_
-> prompt it — it cannot react to the game on its own. This dashboard **pulls**
+> prompt it, so it cannot react to the game on its own. This dashboard **pulls**
 > the game feed off the bridge's control channel and shows it live.
 
 ## What it does
 
-- **Live event feed** — polls the bridge's `get-recent-events` delta (~every 4s)
+- **Live event feed**: polls the bridge's `get-recent-events` delta (~every 4s)
   using the returned `latestTimestamp` as an incremental cursor.
-- **Combat tracker** — initiative order, HP bars, conditions, and death saves
+- **Combat tracker**: initiative order, HP bars, conditions, and death saves
   from `get-combat-state`.
-- **Live module diagnostics** — polls `get-module-errors` and streams other
+- **Live module diagnostics**: polls `get-module-errors` and streams other
   modules' errors/warnings to a diagnostics pane.
 
 Everything else is strictly read-only.
@@ -38,7 +38,7 @@ without touching the rest of the app.
 | Path                             | Role                                                        |
 | -------------------------------- | ----------------------------------------------------------- |
 | `src/feed/mcp-control-client.ts` | Reconnecting JSON-lines client for the control channel      |
-| `src/feed/polling-feed.ts`       | `GameFeed` impl — incremental event + combat polling        |
+| `src/feed/polling-feed.ts`       | `GameFeed` impl: incremental event + combat polling         |
 | `src/state.ts`                   | Bounded view of the game (rolling events + combat snapshot) |
 | `src/sse.ts`                     | Server-Sent Events hub                                      |
 | `src/server.ts`                  | Express wiring, REST + SSE endpoints                        |
@@ -88,7 +88,7 @@ redirect to `/`, and the React build's own files still load from
 window. `/player`, `/me` and `/open` are separate pages and did not move.
 
 The React page uses Radix UI primitives (unstyled), TanStack Query for the
-data, and the old stylesheets and themes as they are (`web/src/styles/` bundles `styles.css`, `moments.css` and
+data, and the old stylesheets and themes as they are (`web/src/styles/` bundles `base.css`, `tools.css`, `changes.css`, `moments.css` and
 the shared `public/themes/`), so it looks the same. It talks to the same routes with the same GM
 token. Ported so far: Player links, Module diagnostics, Pre-flight (with Ready for session),
 Prep, Party, Handouts, Tarokka, the Tool Runner, the Advanced menu (its panel, During screen and
@@ -152,7 +152,7 @@ Tooltip } from 'radix-ui'`), not the single `@radix-ui/react-*` ones. `web/src/u
   `public/themes/brand.css` (The Veil's overrides in `veil.css`). Use them in new rules instead of
   numbers; never write a `z-index` number in a component or in `next.css`.
 - **Styles:** a new rule goes in a CSS Module next to its component (`Thing.module.css`, Vite
-  built in) and reads the tokens. Only delete rules from `web/src/styles/styles.css` or `moments.css`
+  built in) and reads the tokens. Only delete rules from `web/src/styles/base.css`, `tools.css`, `changes.css` or `moments.css`
   when nothing renders them. The components render the old class names (`.pane`, `.drawer`, `.pane-title`,
   `.empty`, `.btn`, ...), so those files still style them.
 - **Keep what the tests and the guide rely on:** the outer classes, the DOM where an old CSS
@@ -175,7 +175,7 @@ production dependencies only) and the bundle budget do not change.
 - `npm run build-storybook -w @gnuminator/cogm-dashboard` writes the static site to
   `storybook-static/` (not committed). The wiki workflow builds it and publishes it under
   `/storybook/` next to the wiki.
-- The preview loads the same stylesheets as the real page, in the same order (`web/src/styles/index.css`: `styles.css`,
+- The preview loads the same stylesheets as the real page, in the same order (`web/src/styles/index.css`: `base.css`, `tools.css`, `changes.css`,
   `moments.css`, `themes/brand.css`, `themes/veil.css`, `themes/light.css`, `next.css`), so a story looks as the panel
   does in the dashboard. The toolbar's **Theme** sets `data-theme` (neutral or veil) on `<html>`
   and **Mist** sets `data-mist` (calm, drift, clear), as `theme.ts` does.
@@ -324,7 +324,7 @@ All via `.env` (see `.env.example`):
 | `MCP_CONTROL_HOST` / `MCP_CONTROL_PORT` | `127.0.0.1` / `31414` | Bridge control channel    |
 | `PORT`                                  | `3000`                | Dashboard HTTP/SSE port   |
 
-Additional knobs (all optional — defaults shown; see `.env.example`):
+Additional knobs (all optional, defaults shown; see `.env.example`):
 
 | Variable                     | Default | Purpose                                                |
 | ---------------------------- | ------- | ------------------------------------------------------ |
@@ -342,9 +342,9 @@ GM-only data filtered **server-side** (never just hidden in the browser).
 
 - **Opt-in.** With no `GM_DASHBOARD_TOKEN` and no `GM_EMAILS` set, the dashboard stays in
   single-user GM mode (today's zero-config localhost behavior). Setting either turns the split on.
-- **GM view** (`/`) — everything, as before. When the split is on, open it once with
+- **GM view** (`/`): everything, as before. When the split is on, open it once with
   `http://host:3000/?token=<GM_DASHBOARD_TOKEN>`; the token is remembered in that browser.
-- **Player view** (`/player`) — public **combat order** + public **event feed** only. Filtered
+- **Player view** (`/player`): public **combat order** + public **event feed** only. Filtered
   server-side: exact enemy/NPC HP is removed, GM-hidden combatants are dropped, event details
   (which carry HP before/after) are stripped, and module diagnostics, settings, and the entire
   write/GM-action surface are never sent. Players still see the party's HP and the public feed.
@@ -367,4 +367,4 @@ Claude Code) through the MCP tools, under that person's subscription.
 - **Read-mostly.** Dashboard buttons that change the game go through plan, confirm and undo. Three act at once: the combat turn button, **Ask for a roll** (it posts the roll request in chat, which has no undo) and the strip's **Damage / Heal** form (it plans and applies in one click; the toast and Recent Changes have Undo).
 - **Resilient to a dead backend.** The control client reconnects with backoff,
   every request is timeout-bounded, and a failed poll downgrades the status badge
-  and retries — it never crashes the dashboard.
+  and retries, and it never crashes the dashboard.

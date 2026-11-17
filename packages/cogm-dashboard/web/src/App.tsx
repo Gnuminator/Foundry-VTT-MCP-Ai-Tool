@@ -43,12 +43,12 @@ import { RoleNotice } from './components/RoleNotice';
 import { panelChunk, LazyPanel, usePreloadPanels } from './components/LazyPanel';
 import { PreflightButton, VersionBanner, usePreflightOnReconnect } from './panels/Preflight';
 import type { ToolRequest } from './panels/Tools';
-import { appVersionLabel } from './lib/appVersion';
+import { appVersionLabel } from './lib/app-version';
 import { GmActionsGateContext } from './lib/guarded';
-import { showsSampleFight } from './lib/duringTrial';
-import { optInScreen } from './lib/liveScreen';
+import { showsSampleFight } from './lib/during-trial';
+import { optInScreen } from './lib/live-screen';
 import { useDashboardStream } from './lib/stream';
-import { useWorldTheme } from './lib/worldTheme';
+import { useWorldTheme } from './lib/world-theme';
 import { Button } from './ui';
 
 /** The README brand's mark (docs/images/brand/logo.svg), coloured by themes/brand.css. */

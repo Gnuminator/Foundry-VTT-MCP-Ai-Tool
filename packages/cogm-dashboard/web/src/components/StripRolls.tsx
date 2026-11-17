@@ -4,8 +4,8 @@
 import type { JSX } from 'react';
 
 import type { Combatant } from '../lib/combat';
-import { useLivePlay } from '../lib/livePlay';
-import { ROLL_NEEDS, offReason } from '../lib/liveSwitches';
+import { useLivePlay } from '../lib/live-play';
+import { ROLL_NEEDS, offReason } from '../lib/live-switches';
 import { Button } from '../ui';
 import { QuickRollBar, useQuickRoll } from './QuickRoll';
 import { TurnOnNote } from './TurnOnNote';

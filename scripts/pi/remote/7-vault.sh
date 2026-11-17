@@ -187,10 +187,14 @@ st_opt global-ann-enabled true
 st_opt relays-enabled true
 
 say "the GM vault folder"
-# .stignore is per device (Syncthing does not sync it), so the PC script writes the same file.
+# .stignore is per device (Syncthing does not sync it), so the PC script writes the same file. The three "!" lines let the
+# plugin's release files through (stage 33 writes them); data.json and the rest of .obsidian/plugins stay on each PC.
 stignore="// Per-device Obsidian state: each PC keeps its own (written by 7-vault.sh and setup-syncthing-pc.ps1).
 .obsidian/workspace*.json
 .obsidian/cache
+!.obsidian/plugins/foundry-ai-tool/main.js
+!.obsidian/plugins/foundry-ai-tool/manifest.json
+!.obsidian/plugins/foundry-ai-tool/styles.css
 .obsidian/plugins
 .obsidian/community-plugins.json
 .trash"

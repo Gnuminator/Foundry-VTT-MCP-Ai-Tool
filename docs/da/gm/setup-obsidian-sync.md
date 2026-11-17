@@ -1,6 +1,6 @@
 ---
 source: gm/setup-obsidian-sync.md
-sourceHash: 03551a4724ac
+sourceHash: 22d3dcb288a2
 title: 'Engangsopsætning: din vault på din pc (Obsidian og Syncthing)'
 description: Installer Obsidian og Syncthing på din egen pc, par dem med vaulten på hjemmeserveren, og tjek at en note rejser begge veje. Cirka 20 minutter, én gang.
 ---
@@ -59,12 +59,19 @@ Syncthing-ID, trin 3). De tilføjer din pc på serveren; den del kan du ikke gø
    ```text
    .obsidian/workspace*.json
    .obsidian/cache
+   !.obsidian/plugins/foundry-ai-tool/main.js
+   !.obsidian/plugins/foundry-ai-tool/manifest.json
+   !.obsidian/plugins/foundry-ai-tool/styles.css
    .obsidian/plugins
    .obsidian/community-plugins.json
    .trash
    ```
 
-   De holder hver pcs egne Obsidian-indstillinger ude af synkroniseringen.
+   De holder hver pcs egne Obsidian-indstillinger ude af synkroniseringen. De tre linjer, der
+   starter med `!`, lader Foundry AI Tool-pluginets filer slippe igennem, så serveren kan holde dit
+   plugin opdateret (se [plugin-siden](setup-obsidian-plugin.md)). Lad dem stå over linjen
+   `.obsidian/plugins`: Syncthing bruger den første linje, der passer. Pluginets egne indstillinger
+   bliver på din pc.
 
 5. Mapperækken viser **Syncing** og derefter **Up to Date** i grønt.
 

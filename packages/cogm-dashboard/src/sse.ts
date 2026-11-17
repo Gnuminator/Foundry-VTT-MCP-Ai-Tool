@@ -17,7 +17,7 @@ export type SseRedactor = (payload: unknown, role: Role) => unknown;
  *
  * Each client carries a **role** (Phase 6). `broadcast` can take a redactor that
  * computes the per-role payload server-side, so a player's stream never carries
- * GM-only data — the filtering is here, not in the browser.
+ * GM-only data: the filtering is here, not in the browser.
  */
 export class SseHub {
   private readonly clients = new Map<Response, Role>();

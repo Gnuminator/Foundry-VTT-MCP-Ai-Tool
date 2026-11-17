@@ -8,7 +8,7 @@ import { useEffect, useRef, type JSX } from 'react';
 import { useToast } from '../components/Toasts';
 import { api, errorText } from '../lib/api';
 import { failCode } from '../lib/guarded';
-import { usePlaySessionMark } from '../lib/playSessionMark';
+import { usePlaySessionMark } from '../lib/play-session-mark';
 import { usePlaySession } from '../lib/session';
 import {
   SWITCHES_KEY,
@@ -18,7 +18,7 @@ import {
   type SwitchAction,
   type SwitchesRead,
   type SwitchesWrite,
-} from '../lib/sessionSwitches';
+} from '../lib/session-switches';
 import { SETTINGS_KEY, useDashboardSettings, type DashboardSettings } from '../lib/stream';
 import { Button } from '../ui';
 

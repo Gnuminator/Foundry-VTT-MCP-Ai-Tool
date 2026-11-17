@@ -7,7 +7,7 @@
   Reads %APPDATA%\foundry-ai-tool\narration.env (KEY=value lines) for:
     NARRATION_PYTHON   python.exe of the voice environment (chatterbox-tts on a CUDA PyTorch)
     HF_HOME            Hugging Face cache that holds (or will hold) the voice models
-    NARRATION_OUT_DIR  optional, default Documents\FoundryNarration
+    NARRATION_OUT_DIR  optional, default FoundryNarration in FVTT_DATA_DIR, else Documents
   Everything after the script name goes to the tool, for example:
     pwsh tools/narration/narrate.ps1 make tools/narration/examples/welcome.da.md
     pwsh tools/narration/narrate.ps1 list my-video.en.md

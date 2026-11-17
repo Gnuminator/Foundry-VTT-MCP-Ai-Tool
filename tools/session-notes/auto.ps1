@@ -6,7 +6,7 @@
 
 .DESCRIPTION
   Meant for a scheduled task (for example every hour while the PC is on). For each folder in the
-  sessions folder (FVTT_SESSIONS_DIR, default Documents\FoundrySessions):
+  sessions folder (FVTT_SESSIONS_DIR, default FoundrySessions in FVTT_DATA_DIR, else Documents):
 
   0. Consent gate: a session is skipped, with the reason in notes\status.json, unless every
      speaker in raw\session.json has a recorded yes in <sessions>\consent.json (D-097).

@@ -276,8 +276,19 @@ describe('defaultImageRoots', () => {
     expect(
       defaultImageRoots({ FOUNDRY_AI_TOOL_IMAGE_ROOTS: `${art}; relative ;${more}` } as any)
     ).toEqual([art, more]);
-    const fallback = defaultImageRoots({});
-    expect(fallback).toHaveLength(1);
-    expect(fallback[0]).toMatch(/Foundry Art$/);
+    // The moved folder exists, so the data folder wins over a real Documents\Foundry Art.
+    mkdirSync(join(base, 'Data', 'Foundry Art'), { recursive: true });
+    const fallback = defaultImageRoots({ FVTT_DATA_DIR: join(base, 'Data') });
+    expect(fallback).toEqual([join(base, 'Data', 'Foundry Art')]);
+  });
+
+  it('puts Foundry Art in the data folder, and the env list still wins', () => {
+    const data = join(base, 'DataSet');
+    mkdirSync(join(data, 'Foundry Art'), { recursive: true });
+    expect(defaultImageRoots({ FVTT_DATA_DIR: data } as any)).toEqual([join(data, 'Foundry Art')]);
+    const art = join(base, 'Art');
+    expect(
+      defaultImageRoots({ FOUNDRY_AI_TOOL_IMAGE_ROOTS: art, FVTT_DATA_DIR: data } as any)
+    ).toEqual([art]);
   });
 });

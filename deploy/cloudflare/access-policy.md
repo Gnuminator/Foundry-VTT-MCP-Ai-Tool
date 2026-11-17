@@ -1,4 +1,4 @@
-# Cloudflare Access — Policy Setup Notes
+# Cloudflare Access: Policy Setup Notes
 
 > **Reference notes.** The real setup is live: the steps for the Orange Pi are in
 > [Remote access, Part C](../../docs/dev/REMOTE-ACCESS.md#part-c-players-and-the-gm-reach-the-orange-pi-through-cloudflare).
@@ -50,7 +50,7 @@ Fill in:
 | Application name   | `Foundry AI Tool` (or any label you prefer)     |
 | Team domain        | `<YOUR_TEAM>.cloudflareaccess.com`              |
 | Application domain | `cogm.<YOUR_DOMAIN>`                            |
-| Session duration   | 24h (or longer — whatever suits your sessions)  |
+| Session duration   | 24h (or longer, whatever suits your sessions)   |
 | Identity providers | Add at least one (Google, GitHub, or Email OTP) |
 
 After saving the application shell, add a policy:
@@ -73,12 +73,12 @@ Add one email address per row in the "Emails" rule. Example structure:
 
 ```text
 <YOUR_GM_EMAIL>@gmail.com        # you
-<COGM_EMAIL>@gmail.com           # co-GM (gets GM role — must also be in GM_EMAILS env var)
-<PLAYER1_EMAIL>@gmail.com        # player (gets player role — NOT in GM_EMAILS)
+<COGM_EMAIL>@gmail.com           # co-GM (gets GM role, must also be in GM_EMAILS env var)
+<PLAYER1_EMAIL>@gmail.com        # player (gets player role, NOT in GM_EMAILS)
 <PLAYER2_EMAIL>@outlook.com      # player
 ```
 
-Any email NOT in this list gets blocked at the Cloudflare edge — they never reach the
+Any email NOT in this list gets blocked at the Cloudflare edge, so they never reach the
 tunnel. This is your outer perimeter.
 
 ---
@@ -144,9 +144,9 @@ token or not.
 - [ ] Access application created for `cogm.<YOUR_DOMAIN>`.
 - [ ] Email allow-list policy has at least your own GM email.
 - [ ] `GM_EMAILS` env var in the dashboard contains the GM email(s) from the policy.
-- [ ] Visit `https://cogm.<YOUR_DOMAIN>` — confirm you are prompted to log in.
-- [ ] Log in with a GM email — confirm you reach the GM dashboard.
-- [ ] Log in with a non-GM email (if any are on the policy allow-list) — confirm you reach
+- [ ] Visit `https://cogm.<YOUR_DOMAIN>` and confirm you are prompted to log in.
+- [ ] Log in with a GM email and confirm you reach the GM dashboard.
+- [ ] Log in with a non-GM email (if any are on the policy allow-list) and confirm you reach
       the read-only player view.
 - [ ] Confirm an unlisted email cannot get past the Cloudflare login page.
 
@@ -158,7 +158,7 @@ token or not.
   and team domain; `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD`) and takes the email only
   from a verified token. The plain `Cf-Access-Authenticated-User-Email` header is ignored,
   so a request that bypasses the tunnel and forges it gets nothing extra.
-- The `GM_DASHBOARD_TOKEN` must be rotated if compromised — update the env var and
+- The `GM_DASHBOARD_TOKEN` must be rotated if compromised: update the env var and
   restart the dashboard.
 - The dashboard makes no Anthropic API calls, so no Anthropic API key is stored on the
   host or sent through the tunnel.

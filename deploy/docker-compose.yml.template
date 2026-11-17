@@ -1,10 +1,10 @@
 # =============================================================================
-#  Foundry AI Tool — docker-compose TEMPLATE
+#  Foundry AI Tool: docker-compose TEMPLATE
 #  NOT deployed / not tested. Scaffold for the remote-hosting topology.
 #
 #  Services:
-#    app       — bridge backend + co-GM dashboard (built from deploy/Dockerfile)
-#    cloudflared — Cloudflare Tunnel sidecar that fronts the dashboard
+#    app         bridge backend + co-GM dashboard (built from deploy/Dockerfile)
+#    cloudflared Cloudflare Tunnel sidecar that fronts the dashboard
 #
 #  Usage:
 #    1. Fill in every <PLACEHOLDER> below (see also docs/dev/REMOTE-ACCESS.md §5).
@@ -46,7 +46,7 @@ services:
     # Publish the Foundry connector on the host's loopback (same host, or an SSH tunnel).
     # For a Foundry on another machine use the tailnet IP instead.
     # The dashboard port (3000) is intentionally NOT mapped
-    # to the host — it is only reachable via the cloudflared tunnel.
+    # to the host, so it is only reachable via the cloudflared tunnel.
     ports:
       # Loopback only: the link is unauthenticated. To reach it from the Foundry host,
       # use the tailnet IP ("100.x.y.z:31415:31415") or an SSH tunnel, never "31415:31415".
@@ -64,7 +64,7 @@ services:
       # Refused at startup unless GM_DASHBOARD_TOKEN below is set (32 characters or more).
       DASHBOARD_HOST: "0.0.0.0"
 
-      # !! Runtime secrets — do NOT hardcode here; pass via .env or Docker Secrets !!
+      # !! Runtime secrets: do NOT hardcode here; pass via .env or Docker Secrets !!
       GM_DASHBOARD_TOKEN: "${GM_DASHBOARD_TOKEN}"
       PLAYER_DASHBOARD_TOKEN: "${PLAYER_DASHBOARD_TOKEN}"
       GM_EMAILS: "${GM_EMAILS}"
@@ -79,7 +79,7 @@ services:
       PLAYER_SHOW_ENEMY_HP_BANDS: "false"
 
       # ── Bridge / backend ───────────────────────────────────────────────────
-      MCP_CONTROL_HOST: "127.0.0.1"    # keep loopback — internal to container
+      MCP_CONTROL_HOST: "127.0.0.1"    # keep loopback, internal to container
       MCP_CONTROL_PORT: "31414"
       FOUNDRY_LINK_HOST: "0.0.0.0"     # container-side only; the host side is published on 127.0.0.1 above
       FOUNDRY_REMOTE_MODE: "true"
@@ -129,13 +129,13 @@ services:
       app:
         condition: service_healthy
 
-# ── .env file (example — do not commit with real values) ─────────────────────
+# ── .env file (example, do not commit with real values) ─────────────────────
 #
 # Create a file named `.env` next to this compose file and populate:
 #
 #   GM_DASHBOARD_TOKEN=<openssl rand -hex 32>
 #   PLAYER_DASHBOARD_TOKEN=<openssl rand -hex 32>
 #   GM_EMAILS=you@example.com,cogm@example.com
-#   TUNNEL_TOKEN=<optional — only if not using config.yml approach>
+#   TUNNEL_TOKEN=<optional, only if not using config.yml approach>
 #
 # .env is git-ignored. Never commit API keys or tokens to the repo.

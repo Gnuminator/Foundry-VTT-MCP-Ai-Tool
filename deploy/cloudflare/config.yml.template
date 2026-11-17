@@ -1,5 +1,5 @@
 # ============================================================================
-#  Cloudflare Tunnel config — TEMPLATE (not deployed)
+#  Cloudflare Tunnel config: TEMPLATE (not deployed)
 #  Copy this to ~/.cloudflared/config.yml on your always-on host and fill in
 #  every <PLACEHOLDER> before running cloudflared.
 #
@@ -35,7 +35,7 @@ credentials-file: /home/<YOUR_LINUX_USER>/.cloudflared/<TUNNEL_UUID>.json
 # The ONLY service exposed here is the co-GM dashboard (PORT=3000 by default).
 #
 # The MCP control channel (31414) and the Foundry WebSocket connector (31415)
-# are intentionally NOT listed — they must stay on loopback or be firewalled;
+# are intentionally NOT listed. They must stay on loopback or be firewalled;
 # they are NOT fronted by this tunnel.
 # The dashboard makes no Anthropic API calls, so no API key lives on this host.
 
@@ -61,7 +61,7 @@ ingress:
   # ── Catch-all (required by cloudflared) ────────────────────────────────────
   #
   # Any request that does not match a hostname rule above gets a 404. Do not
-  # delete this rule — cloudflared requires at least one catch-all.
+  # delete this rule, as cloudflared requires at least one catch-all.
   - service: http_status:404
 
 # ── Optional: logging ─────────────────────────────────────────────────────────

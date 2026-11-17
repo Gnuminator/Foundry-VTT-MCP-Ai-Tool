@@ -1,4 +1,4 @@
-# Dev setup — VS Code
+# Dev setup: VS Code
 
 The quickest path to a working dev environment for this repo (Node + TypeScript + npm workspaces).
 A `.vscode/` config ships with the repo, so most of this is automatic.
@@ -12,7 +12,7 @@ A `.vscode/` config ships with the repo, so most of this is automatic.
 
 ## 2. Extensions
 
-VS Code reads `.vscode/extensions.json` and offers the recommended set in a notification — you've already
+VS Code reads `.vscode/extensions.json` and offers the recommended set in a notification, and you've already
 installed them. The repo's `.vscode/settings.json` then configures them automatically:
 
 - **Prettier** is the default formatter with **format-on-save** (matches `.prettierrc` + CI's `format:check`).
@@ -78,7 +78,7 @@ drop (`npm run lint:ratchet -- --update`, `npm run emdash:ratchet -- --update`).
 ## 4. Start Claude Code
 
 - **Recommended:** open the **Claude Code** extension from the Activity Bar (sidebar), sign in with your
-  Anthropic account, and follow any one-time setup prompt. It runs **independently of Claude Desktop** —
+  Anthropic account, and follow any one-time setup prompt. It runs **independently of Claude Desktop**:
   closing/restarting Claude Desktop won't touch it.
 - **Or** run `claude` in the integrated terminal (needs the Claude Code CLI; the extension can install it).
 

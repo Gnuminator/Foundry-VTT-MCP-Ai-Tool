@@ -8,8 +8,10 @@ import { rootFolder } from './root-folders.js';
 
 describe('rootFolder', () => {
   it('stays at the drive root without a data folder', () => {
-    expect(rootFolder('FoundryPlanB', undefined, '/drive')).toBe(join('/drive', 'FoundryPlanB'));
+    // Not the real FVTT_DATA_DIR: an empty value means "none" (undefined would read the env).
     expect(rootFolder('FoundryPlanB', '', '/drive')).toBe(join('/drive', 'FoundryPlanB'));
+    // A relative value is ignored.
+    expect(rootFolder('FoundryPlanB', 'data', '/drive')).toBe(join('/drive', 'FoundryPlanB'));
   });
 
   it('follows the folder when it has moved, and the old place until then', () => {

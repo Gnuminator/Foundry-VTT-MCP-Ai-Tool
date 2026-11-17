@@ -8,7 +8,7 @@
  */
 
 import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 
 /** One root folder by name. `legacyBase` is the drive root (a parameter for tests). */
 export function rootFolder(
@@ -17,7 +17,7 @@ export function rootFolder(
   legacyBase: string = 'C:\\'
 ): string {
   const legacy = join(legacyBase, name);
-  if (!dataDir) return legacy;
+  if (!dataDir || !isAbsolute(dataDir)) return legacy;
   const moved = join(dataDir, name);
   return existsSync(moved) || !existsSync(legacy) ? moved : legacy;
 }

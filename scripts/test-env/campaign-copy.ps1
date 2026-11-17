@@ -5,7 +5,7 @@
 #   pwsh scripts/test-env/campaign-copy.ps1 stop      stop it
 #   pwsh scripts/test-env/campaign-copy.ps1 status
 #
-# refresh options: -PiHost foundry-pi (the ssh name), -Root C:\FoundryCampaign, -WithJB2A (also pull
+# refresh options: -PiHost foundry-pi (the ssh name), -Root C:\FoundryCampaign (default; inside FVTT_DATA_DIR once moved), -WithJB2A (also pull
 # the 1.6 GB JB2A animation module, skipped by default), -NoPull (redo the local set-up on an
 # already pulled <Root>\data.new). A running copy must be stopped before a refresh.
 #

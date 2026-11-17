@@ -9,7 +9,7 @@
 #   pwsh scripts/test-env/lock.ps1 publish   write this server's state to the vault note again (reads only)
 #   ... -Server B   test server B's lock (<B's Root>/lock.json); default A, or FOUNDRY_TEST_SERVER
 #   ... -Server GPU the GPU lock: one GPU job at a time (Real-ESRGAN, Blender, audio or speech models,
-#                   anything on the RTX 5080); same commands, state in C:\FoundryAI\gpu-lock\lock.json,
+#                   anything on the RTX 5080); same commands, state in FoundryAI\gpu-lock\lock.json (C:\FoundryAI, or inside FVTT_DATA_DIR once moved),
 #                   shown on the vault note as server-gpu. Not a test server: no ports, no start.
 #
 # State is <Root>/lock.json: { holder, session, since, purpose, queue: [ { holder, session, since, purpose } ] }.
@@ -43,8 +43,14 @@ if ($isGpu) { $Server = 'A'; $env:FOUNDRY_TEST_SERVER = 'A' }
 
 . (Join-Path $PSScriptRoot '..\data-folder.ps1')
 # FoundryAI is C:\FoundryAI until it is moved under FVTT_DATA_DIR (Get-RootFolder knows which).
-$gpuRoot = if ($IsWindows) { Join-Path (Get-RootFolder 'FoundryAI') 'gpu-lock' } else { Join-Path $HOME 'foundry-ai/gpu-lock' }
+$gpuRoot = if ($IsWindows) { [IO.Path]::Combine((Get-RootFolder 'FoundryAI'), 'gpu-lock') } else { Join-Path $HOME 'foundry-ai/gpu-lock' }
 $lockRoot = if ($Root) { $Root } elseif ($isGpu) { $gpuRoot } else { $TestEnv.Root }
+# Never start a second GPU lock: a run that cannot find FoundryAI (a process that does not see
+# FVTT_DATA_DIR after a move, or a half-done move) refuses instead of creating a fresh, free lock.
+if ($isGpu -and $IsWindows -and -not $Root -and -not (Test-Path -LiteralPath (Split-Path $gpuRoot))) {
+  Write-Host "refused: the FoundryAI folder is not at $(Split-Path $gpuRoot) (moved? FVTT_DATA_DIR not set in this shell?). The GPU lock is not created here."
+  exit 1
+}
 $lockFile = Join-Path $lockRoot 'lock.json'
 $label = if ($isGpu) { 'GPU lock' } elseif ($TestEnv.Server -eq 'A') { 'Test server lock' } else { "Test server $($TestEnv.Server) lock" }
 $cmd = "pwsh scripts/test-env/lock.ps1"

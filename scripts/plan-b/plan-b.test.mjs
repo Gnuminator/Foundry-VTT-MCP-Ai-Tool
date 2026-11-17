@@ -284,7 +284,10 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
     assert.match(r.inplace.msg, /something is in .*app now and the old app folder is in .*app-old/);
     assert.deepEqual([r.inplace.app, r.inplace.old, r.inplace.new], [true, true, true]);
     // the old app could not be moved back: it stays in app-old and the message says so
-    assert.match(r.stuck.msg, /the old app folder could not be moved back \(denied\) and is in .*app-old/);
+    assert.match(
+      r.stuck.msg,
+      /the old app folder could not be moved back \(denied\) and is in .*app-old/
+    );
     assert.deepEqual([r.stuck.app, r.stuck.old, r.stuck.new], [false, true, true]);
   });
 
@@ -344,11 +347,29 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
         $env:FVTT_DATA_DIR = $d
         $moved = Resolve-RootPath 'C:\\FoundryPlanB\\data'
         $other = Resolve-RootPath 'C:\\FoundryTest\\app'
-        @{ none = $none; moved = $moved; expected = (Join-Path (Join-Path $d 'FoundryPlanB') 'data'); other = $other }
+        # A data folder on a drive that is not there must not throw (an unplugged drive on game night).
+        $env:FVTT_DATA_DIR = 'Q:\\nodrive\\data'
+        $missing = Resolve-RootPath 'C:\\FoundryPlanB\\data'
+        # A relative value is ignored.
+        $env:FVTT_DATA_DIR = 'relative\\data'
+        $relative = Resolve-RootPath 'C:\\FoundryPlanB\\data'
+        @{
+          none = $none; moved = $moved; other = $other; missing = $missing; relative = $relative
+          expected = [IO.Path]::Combine($d, 'FoundryPlanB', 'data')
+        }
       } finally { $env:FVTT_DATA_DIR = ''; Remove-Item -Recurse -Force $d }`);
-    assert.equal(r.none, 'C:\\FoundryPlanB\\data');
+    // Linux pwsh joins with a slash: compare with the separator normalised.
+    const win = s => s.replace(/\//g, '\\');
+    assert.equal(win(r.none), 'C:\\FoundryPlanB\\data');
     assert.equal(r.moved, r.expected);
     assert.equal(r.other, 'C:\\FoundryTest\\app');
+    assert.ok(
+      [win('C:\\FoundryPlanB\\data'), win('Q:\\nodrive\\data\\FoundryPlanB\\data')].includes(
+        win(r.missing)
+      ),
+      r.missing
+    );
+    assert.equal(win(r.relative), 'C:\\FoundryPlanB\\data');
   });
 
   test('env file: comments, quotes and = in values', () => {

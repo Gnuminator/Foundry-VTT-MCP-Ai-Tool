@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import { resolveRootPath, rootFolder } from './data-folder.mjs';
 
 test('a root folder stays at the drive root without a data folder', () => {
-  assert.equal(rootFolder('FoundryAI', undefined, '/drive'), path.join('/drive', 'FoundryAI'));
+  assert.equal(rootFolder('FoundryAI', '', '/drive'), path.join('/drive', 'FoundryAI'));
 });
 
 test('a root folder follows the move, and the old place answers until then', () => {

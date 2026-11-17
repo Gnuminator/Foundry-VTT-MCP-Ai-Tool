@@ -9,7 +9,7 @@ const ROOT_RE = /^C:[\\/]+(Foundry(?:AI|Campaign|PlanB(?:-drill2)?))(?:[\\/]+(.*
 /** @param {string} name @param {string | undefined} [dataDir] @param {string} [legacyBase] */
 export function rootFolder(name, dataDir = process.env.FVTT_DATA_DIR, legacyBase = 'C:\\') {
   const legacy = path.join(legacyBase, name);
-  if (!dataDir) return legacy;
+  if (!dataDir || !path.isAbsolute(dataDir)) return legacy;
   const moved = path.join(dataDir, name);
   return existsSync(moved) || !existsSync(legacy) ? moved : legacy;
 }

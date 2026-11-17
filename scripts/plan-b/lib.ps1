@@ -2,7 +2,7 @@
 # Pi's newest backup, when the Pi is down on game night (D-097 decision 6; runbook
 # docs/dev/PLAN-B.md).
 #
-# Everything lives under one root (default C:\FoundryPlanB), apart from the test server
+# Everything lives under one root (default C:\FoundryPlanB, or FoundryPlanB inside FVTT_DATA_DIR once moved), apart from the test server
 # (C:\FoundryTest) and the real worlds on the Pi:
 #   <Root>\app           Foundry's Node.js build, the same version as the Pi's
 #   <Root>\data          Foundry's data path: Data\ from the backup, Config\ of its own

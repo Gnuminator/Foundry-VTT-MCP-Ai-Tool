@@ -211,7 +211,10 @@ export function getRenownState(): RenownState {
   const creatures = contentsOf(actors).flatMap(actor => {
     const a = rec(actor);
     const actorId = str(a?.id);
-    const isCreature = a?.type === 'character' || a?.type === 'npc';
+    // dnd5e's own faction check is `system.isCreature`; the actor type is the fallback.
+    const flag = rec(a?.system)?.isCreature;
+    const isCreature =
+      typeof flag === 'boolean' ? flag : a?.type === 'character' || a?.type === 'npc';
     return actorId && isCreature ? [{ actorId, name: str(a?.name) ?? '' }] : [];
   });
   return { enabled: renownEnabled(), factions, holders, creatures, warnings };

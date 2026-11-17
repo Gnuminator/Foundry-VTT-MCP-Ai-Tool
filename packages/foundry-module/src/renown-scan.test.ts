@@ -92,6 +92,15 @@ describe('getRenownState', () => {
     });
   });
 
+  it('lets the dnd5e system.isCreature flag decide who can join a faction', () => {
+    setup();
+    g.game.actors.contents.push(
+      { id: 'v1', name: 'Cart', type: 'vehicle', system: { isCreature: true }, items: [] },
+      { id: 'n9', name: 'Statue', type: 'npc', system: { isCreature: false }, items: [] }
+    );
+    expect(getRenownState().creatures.map(c => c.actorId)).toEqual(['a1', 'a2', 'v1']);
+  });
+
   it('warns when dnd5e is missing', () => {
     g.game = { actors: { contents: [] } };
     g.CONFIG = {};

@@ -5,14 +5,24 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
+  BRIDGE_LOG_HINT,
   connectorLogging,
   emptyLogHint,
+  emptyPcLogHints,
   parseCallLines,
   parsePiOutput,
   readCallsPi,
   summarize,
   weekLine,
 } from './usage-calls.mjs';
+
+test('the bridge log hint points at the Pi and prints only for an empty PC log', () => {
+  assert.match(BRIDGE_LOG_HINT, /usage:calls -- --pi/);
+  assert.deepEqual(emptyPcLogHints(3, null), []);
+  assert.deepEqual(emptyPcLogHints(0, null), [BRIDGE_LOG_HINT]);
+  const info = { config: 'c', stale: ['foundry-mcp'] };
+  assert.deepEqual(emptyPcLogHints(0, info), [emptyLogHint(info), BRIDGE_LOG_HINT]);
+});
 
 test('readCallsPi runs one fixed read-only ssh command with a large buffer', () => {
   let seen;

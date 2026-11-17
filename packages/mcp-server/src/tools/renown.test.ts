@@ -69,7 +69,9 @@ describe('RenownTools', () => {
   });
 
   it('reads the state through the module query', async () => {
-    expect((await tools.handleGetRenown({})).factions[0]?.identifier).toBe('harpers');
+    const answer = await tools.handleGetRenown({});
+    expect(answer.factions[0]?.identifier).toBe('harpers');
+    expect(answer).not.toHaveProperty('creatures');
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getRenownState', {});
   });
 

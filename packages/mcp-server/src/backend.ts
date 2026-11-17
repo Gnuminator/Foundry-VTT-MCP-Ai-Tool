@@ -36,7 +36,12 @@ import { FoundryClient } from './foundry-client.js';
 
 import { createTools, guardedChangesModule, playerModule } from './tools/index.js';
 import { splitPlayerTools } from './tool-sets.js';
-import { PLAYER_CONFIG_ENV, handlePlayerTool, readExtraDenyTerms } from './tools/player.js';
+import {
+  PLAYER_CONFIG_ENV,
+  PLAYER_DASHBOARD_TOOL_NAMES,
+  handlePlayerTool,
+  readExtraDenyTerms,
+} from './tools/player.js';
 import { GameEventHub } from './game-event-hub.js';
 import { WrapperRegistry } from './wrapper-registry.js';
 import {
@@ -719,6 +724,34 @@ async function startBackend(): Promise<void> {
           if (msg.method === 'record_client') {
             const ok = await clientsFile.record(msg.params);
             socket.write(`${JSON.stringify({ id: msg.id, result: { ok } })}\n`);
+
+            continue;
+          }
+
+          // A call the dashboard answered itself (a player's get-my-handouts or get-my-play-stats):
+          // the line for the call log, with the tool name checked against that fixed list.
+          if (msg.method === 'record_call') {
+            const rc = (msg.params ?? {}) as Record<string, unknown>;
+            const known =
+              typeof rc.tool === 'string' &&
+              (PLAYER_DASHBOARD_TOOL_NAMES as readonly string[]).includes(rc.tool);
+            if (known) {
+              const ms = typeof rc.ms === 'number' && rc.ms >= 0 ? Math.min(rc.ms, 3_600_000) : 0;
+              const size = typeof rc.size === 'number' && rc.size >= 0 ? Math.floor(rc.size) : 0;
+              const line = buildCallLine(
+                rc.tool as string,
+                Date.now() - ms,
+                { content: [], isError: rc.ok === false },
+                Date.now(),
+                {
+                  who: 'player',
+                  ...(typeof rc.userId === 'string' ? { userId: rc.userId } : {}),
+                  via: 'connector',
+                }
+              );
+              void callLog.record({ ...line, size }).catch(() => undefined);
+            }
+            socket.write(`${JSON.stringify({ id: msg.id, result: { ok: known } })}\n`);
 
             continue;
           }

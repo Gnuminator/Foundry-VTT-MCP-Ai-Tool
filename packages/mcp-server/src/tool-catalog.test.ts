@@ -1,4 +1,3 @@
-import { RENAMED_TOOLS } from './param-aliases.js';
 /**
  * The whole tool catalog, built from the real tool classes (with stub
  * dependencies: definitions do not touch them).
@@ -18,6 +17,7 @@ import { fileURLToPath } from 'node:url';
 import { TOOL_REF_KEY, checkToolRefs, stripToolRefs } from '@gnuminator/shared';
 import { describe, expect, it } from 'vitest';
 
+import { RENAMED_TOOLS } from './param-aliases.js';
 import { stubToolRouterDeps } from './test-support/stub-tool-deps.js';
 import { TOOL_SET_BUDGETS } from './tool-budgets.js';
 import { TOOL_HINTS } from './tool-hints.js';

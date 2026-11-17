@@ -138,8 +138,10 @@ export class RenownTools {
     return unwrap<RenownState>(response, 'Could not read renown');
   }
 
-  async handleGetRenown(_args: unknown): Promise<RenownState> {
-    return this.readState();
+  /** The creature list is only for plan-renown-change's checks, not an answer for Claude. */
+  async handleGetRenown(_args: unknown): Promise<Omit<RenownState, 'creatures'>> {
+    const { creatures: _creatures, ...state } = await this.readState();
+    return state;
   }
 
   async handlePlanRenownChange(args: unknown): Promise<PlanView> {
@@ -175,7 +177,8 @@ function findFaction(state: RenownState, text: string): { id: string; name: stri
   }
   const known = state.factions.map(f => `${f.name} (${f.identifier})`).join(', ');
   throw new Error(
-    `No faction "${text}"${known ? `; known: ${known}` : '; there are no faction actors yet'}`
+    `No faction "${text}"${known ? `; known: ${known}` : '; there are no faction actors yet'}. ` +
+      'Only faction actors in the world count; a faction that sits in a compendium (a module) must be imported into the world first.'
   );
 }
 

@@ -12,6 +12,7 @@ import {
   runLoggedCall,
   skillFields,
   gmCaller,
+  pruneCallLogs,
 } from './tool-call-log.js';
 import { TOOL_SETS } from './tool-sets.js';
 
@@ -53,6 +54,28 @@ describe('tool call log', () => {
     expect(files[0]).toMatch(/^\d{4}-\d{2}-\d{2}\.calls\.jsonl$/);
     const lines = (await fsp.readFile(path.join(dir, files[0]), 'utf8')).trim().split('\n');
     expect(lines.map(l => JSON.parse(l).tool)).toEqual(['x', 'x']);
+  });
+
+  it('deletes day files older than the keep window and nothing else', async () => {
+    const dir = path.join(dataDir, TOOL_CALL_LOG_DIR);
+    await fsp.mkdir(dir, { recursive: true });
+    const now = Date.parse('2026-11-17T12:00:00');
+    for (const name of [
+      '2026-01-01.calls.jsonl',
+      '2026-08-18.calls.jsonl',
+      '2026-08-19.calls.jsonl',
+      '2026-11-16.calls.jsonl',
+      'notes.txt',
+    ]) {
+      await fsp.writeFile(path.join(dir, name), 'x');
+    }
+    expect(await pruneCallLogs(dir, now, 90)).toBe(2);
+    expect((await fsp.readdir(dir)).sort()).toEqual([
+      '2026-08-19.calls.jsonl',
+      '2026-11-16.calls.jsonl',
+      'notes.txt',
+    ]);
+    expect(await pruneCallLogs(path.join(dataDir, 'missing'), now)).toBe(0);
   });
 
   it('cuts a very long client-supplied tool name', () => {

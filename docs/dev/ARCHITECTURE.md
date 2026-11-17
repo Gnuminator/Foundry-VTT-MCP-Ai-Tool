@@ -222,8 +222,10 @@ most once per connection every 6 hours. The backend also answers
 calls that are not listed here: `link_status` (whether the module's socket is connected; the Pi
 health check and the Assistant GM probe it), `character_sheet`, `player_roll`, `player_portrait`, the
 switch views `session_switches` and `feature_switches`, `session_notes`, `record_handout_seen`,
-`live_sweep`, the player connector's `list_player_tools` and `player_tool`, and the two "who uses
-what" calls (D-146): `record_client` (`{ piece, who, install?, name?, version }`, result `{ ok }`;
+`live_sweep`, the player connector's `list_player_tools` and `player_tool`, `record_call` (the
+dashboard tells the bridge about a `get-my-handouts` or `get-my-play-stats` call it answered
+itself, so the call log has it: `{ tool, userId, ms, size, ok }`, result `{ ok }`), and the two "who
+uses what" calls (D-146): `record_client` (`{ piece, who, install?, name?, version }`, result `{ ok }`;
 keeps which version of the connectors, the Claude app, the player helper or the Obsidian plugin a
 person runs in `_usage/clients.json`) and `who_uses_what` (`{ days }`, clamped to 1 to 90; the
 counts report behind the dashboard's GM-only `GET /api/who-uses-what`); see `backend.ts`. The bridge

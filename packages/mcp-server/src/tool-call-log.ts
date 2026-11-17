@@ -124,6 +124,38 @@ export function buildCallLine(
   };
 }
 
+/** Day files older than this are deleted (the usage reports look back weeks, not months). */
+export const CALL_LOG_KEEP_DAYS = 90;
+
+const DAY_FILE_RE = /^(\d{4}-\d{2}-\d{2})\.calls\.jsonl$/;
+
+/** Delete the `<date>.calls.jsonl` files in `dir` older than `keepDays`; returns how many went. */
+export async function pruneCallLogs(
+  dir: string,
+  now: number = Date.now(),
+  keepDays: number = CALL_LOG_KEEP_DAYS
+): Promise<number> {
+  let names: string[];
+  try {
+    names = await fsp.readdir(dir);
+  } catch {
+    return 0;
+  }
+  const cutoff = localDateKey(now - keepDays * 86_400_000);
+  let removed = 0;
+  for (const name of names) {
+    const day = DAY_FILE_RE.exec(name)?.[1];
+    if (!day || day >= cutoff) continue;
+    try {
+      await fsp.rm(path.join(dir, name));
+      removed++;
+    } catch {
+      // a locked or already gone file stays for the next start
+    }
+  }
+  return removed;
+}
+
 export class ToolCallLog {
   readonly enabled: boolean;
   private readonly dir: string;
@@ -142,6 +174,8 @@ export class ToolCallLog {
         if (!this.dirReady) {
           await fsp.mkdir(this.dir, { recursive: true });
           this.dirReady = true;
+          // Once per process: old day files go (the Pi has no other cleanup).
+          void pruneCallLogs(this.dir).catch(() => undefined);
         }
         const file = path.join(this.dir, `${localDateKey(Date.parse(line.t))}.calls.jsonl`);
         await fsp.appendFile(file, `${JSON.stringify(line)}\n`, 'utf8');

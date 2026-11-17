@@ -47,7 +47,7 @@ import {
 
 import type { ControlRequest, ControlResponse } from '@gnuminator/shared';
 
-import { TOOL_VERSION, stripToolRefs } from '@gnuminator/shared';
+import { TOOL_VERSION, sleep, stripToolRefs } from '@gnuminator/shared';
 
 import { spawn, ChildProcess } from 'child_process';
 
@@ -179,7 +179,7 @@ class BackendClient {
       for (let attempt = 0; attempt < maxAttempts; attempt++) {
         const delayMs = Math.min(250 * Math.pow(1.4, attempt), 2000);
 
-        await new Promise(resolve => setTimeout(resolve, delayMs));
+        await sleep(delayMs);
 
         try {
           await this.connect();

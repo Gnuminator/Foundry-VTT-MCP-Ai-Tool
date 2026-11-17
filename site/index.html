@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Foundry AI Tool: Claude at your Foundry table</title>
+    <meta
+      name="description"
+      content="Foundry AI Tool lets Claude see and act on a live Foundry VTT game, with a co-GM dashboard, a spoiler-safe player page and Obsidian notes of every session."
+    />
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" type="image/png" href="showcase/img/favicon-32.png" />
+    <link rel="stylesheet" href="showcase/style.css" />
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="top">
+      <div class="wrap top-row">
+        <a class="brand" href="#top">
+          <img src="showcase/img/logo.svg" alt="" width="32" height="32" />
+          <span>Foundry <b>AI</b> Tool</span>
+        </a>
+        <nav aria-label="Sections">
+          <a href="#what">What it does</a>
+          <a href="#dashboard">Dashboard</a>
+          <a href="#safe">Safety</a>
+          <a href="#start">Get started</a>
+          <a href="gm/">GM guide</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="hero" id="top">
+        <div class="wrap hero-grid">
+          <div>
+            <p class="eyebrow">For Foundry VTT 14 and D&amp;D 5e</p>
+            <h1>Claude at your Foundry table.</h1>
+            <p class="lead">
+              Ask Claude about your game while you run it. It can look things up, plan a change and
+              show you exactly what will happen. You say yes, and you can undo it afterwards.
+            </p>
+            <p class="cta">
+              <a class="btn primary" href="#start">Get started</a>
+              <a class="btn" href="#dashboard">See the dashboard</a>
+            </p>
+          </div>
+          <figure class="hero-shot">
+            <img
+              src="showcase/img/overview.png"
+              alt="The co-GM dashboard during a fight: a combat tracker with portraits, a live feed of rolls and a party card."
+              width="2850"
+              height="1696"
+            />
+          </figure>
+        </div>
+      </section>
+
+      <section id="what" class="band">
+        <div class="wrap">
+          <h2>What it does</h2>
+          <p class="sub">
+            Five groups of tools. You switch on the ones a chat needs, so Claude only reads those.
+          </p>
+          <ul class="cards">
+            <li>
+              <h3>Look things up</h3>
+              <p>
+                Characters, scenes, tokens, combat, journals and compendiums. Ask a plain question
+                and get an answer from your own world.
+              </p>
+            </li>
+            <li>
+              <h3>Run the table</h3>
+              <p>
+                Roll for NPCs, apply damage, set conditions, move tokens, rest the party and post to
+                chat.
+              </p>
+            </li>
+            <li>
+              <h3>Prepare sessions</h3>
+              <p>
+                Quests and journals, encounter budgets, handouts for the players and a log of what
+                happened.
+              </p>
+            </li>
+            <li>
+              <h3>Build NPCs</h3>
+              <p>
+                Make a monster or an NPC from a compendium or from scratch, with features, attacks
+                and spells.
+              </p>
+            </li>
+            <li>
+              <h3>Keep the notes</h3>
+              <p>
+                One Obsidian note per session, a change history and play stats. Notes you edit are
+                never overwritten.
+              </p>
+            </li>
+          </ul>
+          <p class="note">
+            More than a hundred tools in all, and the dashboard can run every one of them without an
+            AI client.
+          </p>
+        </div>
+      </section>
+
+      <section id="dashboard">
+        <div class="wrap">
+          <h2>The co-GM dashboard</h2>
+          <p class="sub">
+            A page for a second screen. It watches the table in real time and works with or without
+            Claude.
+          </p>
+          <div class="split">
+            <figure>
+              <img
+                src="showcase/img/before.png"
+                alt="The Before screen with pre-flight checks and a summary of the last session."
+                loading="lazy"
+                width="2850"
+                height="1696"
+              />
+              <figcaption>
+                <b>Before.</b> Pre-flight checks, then a summary of the last session.
+              </figcaption>
+            </figure>
+            <figure>
+              <img
+                src="showcase/img/combat-control.png"
+                alt="The combat order strip with two combatants picked and buttons for damage, condition, clear and end combat."
+                loading="lazy"
+                width="2850"
+                height="1696"
+              />
+              <figcaption>
+                <b>During.</b> Pick combatants and apply damage or a condition, with Undo.
+              </figcaption>
+            </figure>
+            <figure>
+              <img
+                src="showcase/img/tool-runner.png"
+                alt="The Tool Runner drawer with a form for planning a change to an actor."
+                loading="lazy"
+                width="2850"
+                height="1696"
+              />
+              <figcaption>
+                <b>Tool Runner.</b> Every tool behind a form. Anything that names a token or an
+                actor has a pick list.
+              </figcaption>
+            </figure>
+          </div>
+          <ul class="ticks">
+            <li>Live combat tracker with initiative, hit points, conditions and death saves.</li>
+            <li>A live feed of damage, healing, rolls and the breakdown behind them.</li>
+            <li>Recent Changes: every change Claude made, each with an Undo button.</li>
+            <li>Start and End session markers that the Obsidian notes follow.</li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="safe" class="band">
+        <div class="wrap">
+          <h2>Safe by default</h2>
+          <p class="sub">The AI proposes. You decide.</p>
+          <ol class="steps">
+            <li><b>Plan.</b> Claude describes the change. Nothing in the game moves yet.</li>
+            <li><b>Confirm.</b> You see a diff of what would change, and say yes or no.</li>
+            <li>
+              <b>Apply, then Undo.</b> The change is recorded. If anything changed since the plan,
+              it is refused. One click takes it back.
+            </li>
+          </ol>
+          <div class="split two">
+            <figure>
+              <img
+                src="showcase/img/confirm.png"
+                alt="A confirmation window for ending a combat, with a checkbox you must tick before the button works."
+                loading="lazy"
+                width="2850"
+                height="1696"
+              />
+              <figcaption>
+                Destructive actions need a second confirmation, and say what they will delete.
+              </figcaption>
+            </figure>
+            <ul class="ticks">
+              <li>Every feature has its own switch in the module settings.</li>
+              <li>Game-changing buttons stay off until you press Start session.</li>
+              <li>
+                The player page is built from what players can already see, so hidden creatures and
+                GM rolls never reach it.
+              </li>
+              <li>
+                Nothing calls a paid AI service on its own. The AI works when someone asks Claude.
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section id="players">
+        <div class="wrap">
+          <h2>For the players</h2>
+          <p>
+            Players get a read-only page with the combat order, the live feed, the last recap, the
+            handouts you have revealed and the quests they know about. Unknown creatures read
+            "Unknown creature", and enemies show only a rough health band, never numbers.
+          </p>
+          <p>
+            <a class="btn" href="player/">Read the player guide</a>
+          </p>
+        </div>
+      </section>
+
+      <section id="after" class="band">
+        <div class="wrap">
+          <h2>After the session</h2>
+          <p>
+            Each play session becomes an Obsidian note. The change history, the roll log and stats
+            per session and per character sit beside it. You can also import a quest note from your
+            prep folder back into Foundry as a GM-only journal, after you confirm the plan.
+          </p>
+        </div>
+      </section>
+
+      <section id="start">
+        <div class="wrap">
+          <h2>Get started</h2>
+          <p class="sub">Three steps. The GM guide walks through each one.</p>
+
+          <h3>1. Install the Foundry module</h3>
+          <p>In Foundry, open Add-on Modules, Install Module and paste this manifest URL:</p>
+          <pre><code>https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases/latest/download/module.json</code></pre>
+
+          <h3>2. Set up the bridge</h3>
+          <p>
+            The bridge is the small program that links Claude and Foundry. It needs Node.js 24 or
+            newer.
+          </p>
+          <pre><code>git clone https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool.git
+cd Foundry-VTT-MCP-Ai-Tool
+npm install
+npm run build</code></pre>
+          <p>
+            Then add it to Claude Desktop, one entry per tool set. The repository has an example
+            file with all five.
+          </p>
+
+          <h3>3. Open the dashboard</h3>
+          <pre><code>npm run dev:cogm</code></pre>
+          <p>It opens at <code>http://localhost:3000</code>. No API key is needed.</p>
+          <p class="cta">
+            <a class="btn primary" href="gm/">Open the GM guide</a>
+            <a
+              class="btn"
+              href="https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases/latest"
+              >Latest release</a
+            >
+          </p>
+        </div>
+      </section>
+
+      <section id="limits" class="band">
+        <div class="wrap">
+          <h2>Honest limits</h2>
+          <ul class="ticks">
+            <li>
+              Foundry 14 with dnd5e 6 only. Other versions and other systems are not supported.
+            </li>
+            <li>Windows only for now.</li>
+            <li>
+              The AI parts need Claude (Claude Desktop or Claude Code). The dashboard does not.
+            </li>
+            <li>You need a GM logged in to Foundry in a browser for the bridge to work.</li>
+          </ul>
+        </div>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <div class="wrap">
+        <p>
+          <a href="https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool">Repository</a> ·
+          <a href="https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases">Releases</a> ·
+          <a href="https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/blob/main/CHANGELOG.md"
+            >Changelog</a
+          >
+          · <a href="gm/">GM guide</a> · <a href="player/">Player guide</a> ·
+          <a href="da/">Dansk</a>
+        </p>
+        <p>
+          Built on top of
+          <a href="https://github.com/adambdooley/foundry-vtt-mcp">foundry-vtt-mcp</a> by Adam
+          Dooley (MIT). Released under the MIT licence.
+        </p>
+        <p>
+          Foundry AI Tool is an independent project, not affiliated with or endorsed by Foundry
+          Gaming LLC. This site sets no cookies and loads nothing from other sites.
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

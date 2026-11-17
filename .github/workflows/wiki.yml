@@ -20,6 +20,8 @@ on:
       - 'docs/images/**'
       - 'tools/gm-coach/**'
       - 'scripts/wiki/**'
+      - 'scripts/site/**'
+      - 'site/**'
       - '.github/workflows/wiki.yml'
   workflow_dispatch:
 
@@ -102,6 +104,13 @@ jobs:
             echo ""
             echo "Failed step: $failed. The wiki itself is fine and goes out without /storybook/, so the link on the home page returns 404 until the next good build."
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # The showcase landing page (site/) becomes the Pages root; the wiki keeps its own URLs under it.
+      # It fails the build on a dead link, an outside load or a campaign word.
+      - name: Test and add the showcase page
+        run: |
+          node --test scripts/site/build.test.mjs
+          node scripts/site/build.mjs
 
       - name: Keep the site
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

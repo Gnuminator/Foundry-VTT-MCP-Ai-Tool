@@ -278,7 +278,7 @@ describe('defaultImageRoots', () => {
     ).toEqual([art, more]);
     // The moved folder exists, so the data folder wins over a real Documents\Foundry Art.
     mkdirSync(join(base, 'Data', 'Foundry Art'), { recursive: true });
-    const fallback = defaultImageRoots({ FVTT_DATA_DIR: join(base, 'Data') } as any);
+    const fallback = defaultImageRoots({ FVTT_DATA_DIR: join(base, 'Data') });
     expect(fallback).toEqual([join(base, 'Data', 'Foundry Art')]);
   });
 

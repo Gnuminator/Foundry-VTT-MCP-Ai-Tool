@@ -1,5 +1,5 @@
 import { lstat, open, readlink, realpath, stat } from 'node:fs/promises';
-import path, { isAbsolute, join } from 'node:path';
+import path, { isAbsolute } from 'node:path';
 import { z } from 'zod';
 import {
   ACTOR_IMAGE_FEATURE_ID,

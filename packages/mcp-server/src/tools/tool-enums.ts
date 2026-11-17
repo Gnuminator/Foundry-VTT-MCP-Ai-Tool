@@ -15,11 +15,12 @@ export const CHARACTER_ITEM_TYPES = [
   'background',
   'race',
   'effect',
+  'facility',
 ] as const;
 
 export const CHARACTER_ITEM_CATEGORIES = ['cantrip', 'prepared', 'equipped'] as const;
 
-export const ACTOR_KINDS = ['character', 'npc'] as const;
+export const ACTOR_KINDS = ['character', 'npc', 'vehicle', 'group', 'encounter'] as const;
 
 /** Ready-made schema properties for character.ts. */
 export const ACTOR_KIND_PROP = {

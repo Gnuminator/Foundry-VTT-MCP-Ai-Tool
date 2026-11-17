@@ -37,7 +37,7 @@ Kind: read-only. Title: List characters.
 
 Parameters:
 
-- `type` (string): Optional filter by character type. One of: `character`, `npc`.
+- `type` (string): Optional filter by character type. One of: `character`, `npc`, `vehicle`, `group`, `encounter`.
 
 ## search-character-items
 
@@ -49,7 +49,7 @@ Parameters:
 
 - `actor` (string, required): Character name or ID to search within
 - `query` (string): Text to search for in item names and descriptions (case-insensitive). Leave empty to return all items of specified type.
-- `type` (string): Filter by dnd5e item type: equipment covers armor and shields, feat is features, race is species, effect is active effects. Leave empty to search all types. One of: `spell`, `weapon`, `equipment`, `consumable`, `tool`, `loot`, `container`, `feat`, `class`, `subclass`, `background`, `race`, `effect`.
+- `type` (string): Filter by dnd5e item type: equipment covers armor and shields, feat is features, race is species, effect is active effects. Leave empty to search all types. One of: `spell`, `weapon`, `equipment`, `consumable`, `tool`, `loot`, `container`, `feat`, `class`, `subclass`, `background`, `race`, `effect`, `facility`.
 - `category` (string): Additional category filter. For spells: "cantrip" or "prepared". For weapons and equipment: "equipped". One of: `cantrip`, `prepared`, `equipped`.
 - `limit` (number): Maximum number of results to return (default: 20)
 

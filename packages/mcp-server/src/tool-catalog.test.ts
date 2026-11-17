@@ -211,7 +211,10 @@ describe('tool catalog', () => {
       expect(match, `${docFile}: no table row for ${set}`).not.toBeNull();
       expect(num(match![1]), `${docFile}: tool count of ${set}`).toBe(TOOL_SETS[set].tools.length);
       within10(docFile, `size of ${set}`, num(match![2]), size(inSet(set)));
-      const purposeRow = new RegExp(String.raw`^\| \*\*${set}\*\*\s*\|.*\|\s*([^|]+?)\s*\|$`, 'm');
+      const purposeRow = new RegExp(
+        String.raw`^\| \*\*${set}\*\*\s*\|.*\|\s*([^|]+?)\s*\|\s*$`,
+        'm'
+      );
       expect(purposeRow.exec(doc)?.[1], `${docFile}: the For column of ${set} is its purpose`).toBe(
         TOOL_SETS[set].purpose
       );

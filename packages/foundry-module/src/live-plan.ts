@@ -327,6 +327,14 @@ async function planHp(
       const options: Rec = {};
       if (!healing && request.multiplier !== undefined) options.multiplier = request.multiplier;
       if (!healing && request.ignoreResistance) options.ignore = true;
+      else if (!healing && request.ignore?.length) {
+        options.ignore = Object.fromEntries(request.ignore.map(step => [step, true]));
+      }
+      if (!healing && request.downgrade?.length) {
+        options.downgrade = new Set(
+          request.downgrade.map(t => (t.toLowerCase() === 'all' ? 'ALL' : t))
+        );
+      }
       const result = await dryRunDamage(actor, [{ value: amount, type }], options);
       if (!result) {
         previews.push({
@@ -344,6 +352,8 @@ async function planHp(
         const crit = request.multiplier !== undefined && request.multiplier !== 1;
         what = `${amount}${damageTypeLabel(request.damageType)} damage${crit ? ` x${request.multiplier}` : ''}`;
         if (result.amount !== amount || crit) what += `, ${Math.max(result.amount, 0)} taken`;
+        if (request.ignore?.length) what += ` (ignores ${request.ignore.join(', ')})`;
+        if (request.downgrade?.length) what += ` (downgrades ${request.downgrade.join(', ')})`;
       }
     }
     if (Object.keys(changes).length === 0) {

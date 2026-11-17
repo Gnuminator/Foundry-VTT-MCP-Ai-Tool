@@ -50,6 +50,14 @@ const RESOURCE_CHOICES = [
   { value: 'tertiary', label: 'Class resource: tertiary' },
 ];
 
+const DAMAGE_IGNORE_STEPS = [
+  'immunity',
+  'resistance',
+  'vulnerability',
+  'modification',
+  'threshold',
+] as const;
+
 const planParams = z.object({
   action: z.enum(LIVE_ACTOR_ACTIONS),
   targets: z.array(z.string().min(1)).min(1),
@@ -57,6 +65,8 @@ const planParams = z.object({
   damageType: z.string().min(1).optional(),
   multiplier: z.number().positive().optional(),
   ignoreResistance: z.boolean().optional(),
+  ignore: z.array(z.enum(DAMAGE_IGNORE_STEPS)).min(1).optional(),
+  downgrade: z.array(z.string().min(1)).min(1).optional(),
   condition: z.string().min(1).optional(),
   active: z.boolean().optional(),
   level: z.number().int().min(0).optional(),
@@ -189,6 +199,18 @@ export class LivePlayTools {
             ignoreResistance: {
               type: 'boolean',
               description: "damage: ignore the target's resistances and immunities.",
+            },
+            ignore: {
+              type: 'array',
+              items: { type: 'string', enum: [...DAMAGE_IGNORE_STEPS] },
+              description:
+                'damage: skip only these steps (dnd5e 6.1): immunity, resistance, vulnerability, modification, threshold.',
+            },
+            downgrade: {
+              type: 'array',
+              items: { type: 'string' },
+              description:
+                'damage: damage types (or "all") where immunity counts as resistance and resistance as none (dnd5e 6.1).',
             },
             condition: {
               type: 'string',

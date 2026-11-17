@@ -480,6 +480,24 @@ describe('damage and healing (dry run)', () => {
     expect(plan.targets[0]?.line).toBe('Wolf: 5 slashing damage x2, 10 taken, HP 20 to 10');
   });
 
+  it('passes per-step ignore and downgrade on as dnd5e 6.1 takes them', async () => {
+    const wolf = addActor({ id: 'a1', name: 'Wolf', hp: { value: 20, max: 20 } });
+    const plan = await planLiveChange(
+      hpRequest({
+        action: 'damage',
+        amount: 5,
+        damageType: 'fire',
+        ignore: ['resistance', 'threshold'],
+        downgrade: ['fire', 'all'],
+      })
+    );
+    const options = wolf.applyOptions[0] as Record<string, any>;
+    expect(options.ignore).toEqual({ resistance: true, threshold: true });
+    expect([...options.downgrade]).toEqual(['fire', 'ALL']);
+    expect(plan.targets[0]?.line).toContain('(ignores resistance, threshold)');
+    expect(plan.targets[0]?.line).toContain('(downgrades fire, all)');
+  });
+
   it('leaves out an empty temp HP that dnd5e writes as 0 (null or missing becomes 0)', async () => {
     const wolf = addActor({ id: 'a1', name: 'Wolf', hp: { value: 10, max: 10 } });
     for (const empty of [null, undefined]) {

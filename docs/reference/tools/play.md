@@ -459,6 +459,8 @@ Parameters:
 - `damageType` (string): damage: acid, bludgeoning, cold, fire, force, lightning, necrotic, piercing, poison, psychic, radiant, slashing or thunder. Omit for untyped.
 - `multiplier` (number): damage: 2 for a critical, 0.5 for half.
 - `ignoreResistance` (boolean): damage: ignore the target's resistances and immunities.
+- `ignore` (array of string): damage: skip only these steps (dnd5e 6.1): immunity, resistance, vulnerability, modification, threshold. One of: `immunity`, `resistance`, `vulnerability`, `modification`, `threshold`.
+- `downgrade` (array of string): damage: damage types (or "all") where immunity counts as resistance and resistance as none (dnd5e 6.1).
 - `condition` (string): condition: the id or name (prone, poisoned, exhaustion...).
 - `active` (boolean): condition: false removes it. Default: `true`.
 - `level` (integer): condition exhaustion: the level to set.

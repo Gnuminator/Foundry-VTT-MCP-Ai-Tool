@@ -57,6 +57,10 @@ export interface LiveActorRequest {
   multiplier?: number;
   /** damage: skip the target's resistances, vulnerabilities and immunities. */
   ignoreResistance?: boolean;
+  /** damage (dnd5e 6.1): skip only these steps: immunity, resistance, vulnerability, modification, threshold. */
+  ignore?: string[];
+  /** damage (dnd5e 6.1): damage types (or "all") whose immunity counts as resistance and resistance as none. */
+  downgrade?: string[];
   /** condition: a status id or name (prone, poisoned, exhaustion...). */
   condition?: string;
   /** condition: on (default) or off. */

@@ -23,6 +23,7 @@ _ENGINES: object | None = None
 
 def data_folder(name: str) -> Path:
     """`Documents\\<name>`, or `FVTT_DATA_DIR\\<name>` once the data folder is set and the folder was moved."""
+    # Same rule as dataFolder() in shared/src/sessions-dir.ts and Get-DataFolder in scripts/data-folder.ps1.
     legacy = Path.home() / "Documents" / name
     data = os.environ.get("FVTT_DATA_DIR")
     if not data:

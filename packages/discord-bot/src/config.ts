@@ -116,7 +116,7 @@ export function loadConfig(envFile = defaultEnvFile(), requireToken = true): Bot
   return {
     token,
     guildId: get('DISCORD_GUILD_ID'),
-    sessionsDir: sessionsDirFrom(get('FVTT_SESSIONS_DIR')),
+    sessionsDir: sessionsDirFrom(get('FVTT_SESSIONS_DIR'), undefined, get('FVTT_DATA_DIR')),
     envFile,
     ownerId: get('DISCORD_OWNER_ID'),
     spaceStatusFile: get('FOUNDRY_AI_SPACE_STATUS'),
@@ -151,6 +151,6 @@ export function loadRehearsalConfig(envFile = defaultEnvFile()): RehearsalConfig
   return {
     speakerTokens,
     channelId,
-    dir: get('FVTT_REHEARSAL_DIR') ?? dataFolder('FoundryRehearsals'),
+    dir: get('FVTT_REHEARSAL_DIR') ?? dataFolder('FoundryRehearsals', get('FVTT_DATA_DIR')),
   };
 }

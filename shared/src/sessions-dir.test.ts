@@ -2,11 +2,15 @@ import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { dataFolder, defaultSessionsDir, sessionsDirFrom } from './sessions-dir.js';
 
 describe('sessions folder', () => {
+  // The GM's machine may have FVTT_DATA_DIR set; these tests pass what they mean.
+  beforeEach(() => vi.stubEnv('FVTT_DATA_DIR', ''));
+  afterEach(() => vi.unstubAllEnvs());
+
   it('defaults to Documents/FoundrySessions under the home folder', () => {
     expect(defaultSessionsDir('/home/x')).toBe(join('/home/x', 'Documents', 'FoundrySessions'));
   });

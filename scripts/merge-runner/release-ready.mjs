@@ -200,6 +200,21 @@ export function makeReleaseRun(d) {
   };
 }
 
+/**
+ * One round's release step; an error is logged, never thrown (it must not stop the runner).
+ * @param {{ step: (t: string) => void } | undefined} run
+ * @param {{ readBacklog: () => string | null, log: (l: string) => void }} d
+ */
+export function releaseTick(run, d) {
+  if (!run) return;
+  try {
+    const text = d.readBacklog();
+    if (text !== null) run.step(text);
+  } catch (e) {
+    d.log(`WARNING: release step failed: ${cut(e instanceof Error ? e.message : String(e), 200)}`);
+  }
+}
+
 /** The prompt of the optional release session. @param {ReleaseItem} r @param {string} tip */
 export function releasePrompt(r, tip) {
   return [
@@ -218,7 +233,6 @@ export function releasePrompt(r, tip) {
  *   vault: string, vaultGit: (args: string[]) => { status: number | null, stdout: string },
  *   backlog: (args: string[]) => Ran,
  *   train: import('./train-run.mjs').TrainDeps,
- *   lastRoundtrip: () => string | null,
  *   noticeSeen: (k: string) => boolean, noticeMark: (k: string) => void,
  *   session: boolean,
  *   spawn?: (cmd: string, args: string[], o: { cwd: string }) => { error?: string },
@@ -269,7 +283,13 @@ export function makeReleaseDeps(o) {
       return o.sh('pwsh', args, { timeout: 120_000 });
     },
     tip: o.train.tip,
-    lastRoundtrip: o.lastRoundtrip,
+    lastRoundtrip: () => {
+      try {
+        return o.train.state().lastSha;
+      } catch {
+        return null;
+      }
+    },
     // Every write handler may have changed since the last release: sweep as well.
     worker: tip => o.train.worker(tip, true),
     stopServer: o.train.stopServer,

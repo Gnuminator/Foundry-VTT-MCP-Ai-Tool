@@ -64,13 +64,9 @@
  * again in this run.
  * Discord lines go through main's copy of the bot's announce sender (`pr-note`, #pr-log, silent).
  *
- * Release step (the user, 2026-11-17; merge-runner/release-ready.mjs): a `release-*` Backlog item whose
- * `- depends on:` PRs (`#<n>`) and items (`item:<id>`) have all merged gets live:roundtrip on main
- * (test server A's lock, its own session id; the merge train is not touched), then one #pr-log line
- * and one due-today Waiting item ("ready to tag", `backlog.mjs waiting`), once per item. With
- * --release-session (off by default) it also starts a headless Sonnet release session (claude CLI)
- * that stops before the tag and the Pi; the line names `claude --resume <id>`. It never tags,
- * releases or touches the Pi, and a red roundtrip posts one line and does not stop the runner.
+ * Release step (merge-runner/release-ready.mjs): a `release-*` item whose dependencies have all
+ * merged gets live:roundtrip on main, one #pr-log line and one Waiting item; `--release-session`
+ * (off by default) also starts a headless Sonnet release session. Never tags, never the Pi.
  *
  * Its own code: at the start of each round (not with --once) it compares its files (this one,
  * backlog.mjs and what they import) with aitool/main (merge-runner/self-check.mjs). When they
@@ -107,7 +103,7 @@ import { makeRefresh, refreshStep } from './merge-runner/refresh.mjs';
 import { EXIT_RESTART, makeSelfCheck, reexec } from './merge-runner/self-check.mjs';
 import { isRunnerProcess, takeRunnerLock } from './merge-runner/runner-lock.mjs';
 import { makeTrainDeps, makeTrainRun, trainTick } from './merge-runner/train-run.mjs';
-import { makeReleaseDeps, makeReleaseRun } from './merge-runner/release-ready.mjs';
+import { makeReleaseDeps, makeReleaseRun, releaseTick } from './merge-runner/release-ready.mjs';
 import { announceUnready, isPartOnly, makeUnreadyDeps } from './merge-runner/unready.mjs';
 
 export const REPO = 'Gnuminator/Foundry-VTT-MCP-Ai-Tool';
@@ -981,13 +977,6 @@ function realDeps(o) {
         vaultGit,
         backlog: args => deps.backlog(args),
         train: trainDeps,
-        lastRoundtrip: () => {
-          try {
-            return trainDeps.state().lastSha;
-          } catch {
-            return null;
-          }
-        },
         noticeSeen: key => deps.noticeSeen?.(key) ?? false,
         noticeMark: key => deps.noticeMark?.(key),
         session: o.releaseSession,
@@ -1063,18 +1052,7 @@ export async function main(argv, inject = {}) {
         d.log(`exiting: ${tr.stop}`);
         return EXIT_STOPPED;
       }
-      // A release item whose PRs and items have all merged: roundtrip on main, one notice, one
-      // Waiting line (merge-runner/release-ready.mjs). Never stops the runner.
-      if (!o.once && d.releaseRun) {
-        try {
-          const text = d.readBacklog();
-          if (text !== null) d.releaseRun.step(text);
-        } catch (e) {
-          d.log(
-            `WARNING: release step failed: ${oneLine(e instanceof Error ? e.message : e, 200)}`
-          );
-        }
-      }
+      if (!o.once) releaseTick(d.releaseRun, d); // never stops the runner
       if (o.once) return 0;
       await sleep(o.interval * 1000);
     }

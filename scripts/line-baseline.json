@@ -56,7 +56,7 @@
       "file": "packages/foundry-module/src/queries.ts",
       "lines": 1812,
       "reason": "one more read-only query registration (getRenownState); the file is the registration table",
-      "pr": ""
+      "pr": "1126"
     }
   ]
 }

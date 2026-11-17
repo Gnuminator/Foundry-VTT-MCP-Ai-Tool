@@ -208,5 +208,11 @@ export function getRenownState(): RenownState {
     }
   }
   holders.sort((a, b) => a.name.localeCompare(b.name));
-  return { enabled: renownEnabled(), factions, holders, warnings };
+  const creatures = contentsOf(actors).flatMap(actor => {
+    const a = rec(actor);
+    const actorId = str(a?.id);
+    const isCreature = a?.type === 'character' || a?.type === 'npc';
+    return actorId && isCreature ? [{ actorId, name: str(a?.name) ?? '' }] : [];
+  });
+  return { enabled: renownEnabled(), factions, holders, creatures, warnings };
 }

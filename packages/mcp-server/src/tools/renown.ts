@@ -119,7 +119,7 @@ export class RenownTools {
             member: {
               type: 'string',
               description: 'For set-member: the member actor id.',
-              ...toolRef('actor', 'id', { filter: { types: ['character', 'npc', 'group'] } }),
+              ...toolRef('actor', 'id', { filter: { types: ['character', 'npc'] } }),
             },
             rank: { type: 'string', description: 'For set-member: the rank id (empty for none).' },
             role: { type: 'string', description: 'For set-member: the role text.' },
@@ -249,10 +249,21 @@ function memberChange(
     f => f.actorId === params.factionId
   );
   if (!faction) throw new Error(`No faction actor with id "${params.factionId}"`);
-  const rank = params.rank;
-  if (rank && faction.ranks.length > 0 && !faction.ranks.some(r => r.id === rank)) {
+  if (!state.enabled) {
+    throw new Error('Renown is off: turn on "Renown Scores" in the dnd5e system settings first');
+  }
+  const creature = state.creatures.find(c => c.actorId === params.member);
+  if (!creature) {
     throw new Error(
-      `${faction.name} has no rank "${rank}"; one of ${faction.ranks.map(r => r.id).join(', ')}`
+      `"${params.member}" is not a character or NPC actor id; only those can join a faction`
+    );
+  }
+  const rank = params.rank;
+  if (rank && !faction.ranks.some(r => r.id === rank)) {
+    throw new Error(
+      faction.ranks.length > 0
+        ? `${faction.name} has no rank "${rank}"; one of ${faction.ranks.map(r => r.id).join(', ')}`
+        : `${faction.name} has no ranks, so "rank" must be empty`
     );
   }
   const uuid = `Actor.${params.member}`;
@@ -271,7 +282,7 @@ function memberChange(
     m.uuid === uuid ? next : { uuid: m.uuid, rank: m.rank, role: m.role }
   );
   if (!existing) members.push(next);
-  const who = existing?.name ?? params.member;
+  const who = creature.name;
   const bits = [next.rank && `rank ${next.rank}`, next.role && `role ${next.role}`]
     .filter(Boolean)
     .join(', ');

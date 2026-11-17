@@ -90,6 +90,8 @@ export interface RenownState {
   enabled: boolean;
   factions: RenownFaction[];
   holders: RenownHolder[];
+  /** Characters and NPCs: the actors dnd5e lets into a faction. */
+  creatures: { actorId: string; name: string }[];
   /** Things the scan could not read. */
   warnings: string[];
 }

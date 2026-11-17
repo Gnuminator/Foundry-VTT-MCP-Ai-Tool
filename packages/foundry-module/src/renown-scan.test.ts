@@ -79,6 +79,10 @@ describe('getRenownState', () => {
     expect(f.ranks.map(r => r.id)).toEqual(['r1', 'r2']);
     expect(f.members).toEqual([{ uuid: 'Actor.a1', name: 'Ana', rank: 'r1', role: 'Scout' }]);
     expect(state.holders).toHaveLength(1);
+    expect(state.creatures).toEqual([
+      { actorId: 'a1', name: 'Ana' },
+      { actorId: 'a2', name: 'Bo' },
+    ]);
     const scores = state.holders[0].scores;
     expect(scores.find(s => s.faction === 'harpers')).toMatchObject({ value: 4, rank: 'r1' });
     expect(scores.find(s => s.faction === 'zhentarim')).toMatchObject({

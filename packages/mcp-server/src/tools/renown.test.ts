@@ -44,6 +44,10 @@ function state(extra: Partial<RenownState> = {}): RenownState {
         ],
       },
     ],
+    creatures: [
+      { actorId: 'a1', name: 'Ana' },
+      { actorId: 'b1', name: 'Bo' },
+    ],
     warnings: [],
     ...extra,
   };
@@ -170,5 +174,39 @@ describe('RenownTools', () => {
         rank: 'x',
       })
     ).rejects.toThrow(/no rank "x"/);
+  });
+
+  it('set-member refuses a member that is not a character or NPC and missing parameters', async () => {
+    const base = { action: 'set-member', factionId: 'f1', member: 'a1' };
+    await expect(tools.handlePlanRenownChange({ ...base, member: 'g1' })).rejects.toThrow(
+      /not a character or NPC/
+    );
+    await expect(tools.handlePlanRenownChange({ ...base, member: 'Actor.a1' })).rejects.toThrow(
+      /not a character or NPC/
+    );
+    await expect(
+      tools.handlePlanRenownChange({ action: 'set-member', member: 'a1' })
+    ).rejects.toThrow(/needs "factionId"/);
+    await expect(
+      tools.handlePlanRenownChange({ action: 'set-member', factionId: 'f1' })
+    ).rejects.toThrow(/needs "member"/);
+    query.mockResolvedValue(state({ enabled: false }));
+    await expect(tools.handlePlanRenownChange({ ...base, rank: 'r2' })).rejects.toThrow(
+      /Renown is off/
+    );
+  });
+
+  it('set-member refuses a rank when the faction has none', async () => {
+    const s = state();
+    s.factions[0].ranks = [];
+    query.mockResolvedValue(s);
+    await expect(
+      tools.handlePlanRenownChange({
+        action: 'set-member',
+        factionId: 'f1',
+        member: 'b1',
+        rank: 'r1',
+      })
+    ).rejects.toThrow(/has no ranks/);
   });
 });

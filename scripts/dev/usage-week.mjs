@@ -41,6 +41,7 @@ import { contextOf } from '../../.claude/hooks/context-alert.mjs';
 import { noteFile, writeNote } from './weekly-check-note.mjs';
 import { activeHours, buildProfile, paceNow, weekStartFor } from './usage-pace.mjs';
 import {
+  BRIDGE_LOG_HINT,
   connectorLogging,
   dataDir,
   emptyLogHint,
@@ -681,6 +682,7 @@ export async function main(argv = process.argv.slice(2), env = process.env, out 
   if (!callSummary.total) {
     const hint = emptyLogHint(connectorLogging(env));
     if (hint) notes.push(hint);
+    if (!env.USAGE_WEEK_CALLS_DIR) notes.push(BRIDGE_LOG_HINT);
   }
   report.toolCalls = {
     total: callSummary.total,

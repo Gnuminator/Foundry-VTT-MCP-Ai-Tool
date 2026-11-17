@@ -175,17 +175,16 @@ jobs:
     # UI-01: page shots of the React dashboard and player pages (every moment and drawer, three
     # widths, neutral theme) are rendered and uploaded as the artifact dashboard-page-shots-N, not
     # compared (nothing is committed for them), plus an axe accessibility check (both themes), and
-    # (UI-03) a compared shot and an axe check of every Storybook story, under
-    # web/visual/__screenshots__/stories. The story baselines are Linux-only, made in this same
+    # (UI-03) an axe check of every Storybook story and a two-sided render of the stories (base
+    # against head, the step below, reported by dashboard-visual-diff). No screenshot is
+    # committed. The renders are Linux-only, made in this same
     # Playwright image (the image tag must be the installed @playwright/test version; the first
     # step checks it). It runs as 4 parallel shards (--shard=i/4; fullyParallel splits the tests
-    # evenly by count; about 835 shots took 14 minutes in one job, the shards about 5). The summary
+    # evenly by count). The summary
     # job below keeps one check under the old name `dashboard-visual (screenshots)` for people and
-    # the lane skill; the gate judges every check, shards included. Not a required check in the ruleset, but a diff fails the job (no
-    # continue-on-error) and the merge gate (scripts/lane-merge.mjs) refuses any check that is not
-    # green, so a red dashboard-visual blocks the merge. The report with the diff images is kept as an artifact. Refresh the
-    # baselines with `npm run test:visual:update -w @gnuminator/cogm-dashboard` (Docker; see the
-    # dashboard README).
+    # the lane skill; the gate judges every check, shards included. Not a required check in the ruleset, but a failed axe
+    # check fails the job (no continue-on-error) and the merge gate (scripts/lane-merge.mjs) refuses
+    # any check that is not green.
     needs: visual-changes
     if: needs.visual-changes.outputs.run == 'true'
     runs-on: ubuntu-latest
@@ -222,7 +221,7 @@ jobs:
           installed=$(node -p "require('@playwright/test/package.json').version")
           image="1.64.0"
           if [ "$installed" != "$image" ]; then
-            echo "Installed @playwright/test is $installed but the job image is v$image-noble. Update the image tag in .github/workflows/ci.yml (and rebuild the baselines)."
+            echo "Installed @playwright/test is $installed but the job image is v$image-noble. Update the image tag in .github/workflows/ci.yml."
             exit 1
           fi
 
@@ -237,10 +236,10 @@ jobs:
         run: npm run build-storybook -w @gnuminator/cogm-dashboard
 
       - name: Base side of the two-sided story render (main, built in a second folder)
-        # Step 1 of the move off committed baselines: the base (on a pull request the merge
-        # commit's first parent, in the merge queue the queue's base) and the head are both rendered
-        # in this container and compared. Every step of this render is continue-on-error: it adds
-        # information and never turns the check red; the committed comparison below still decides.
+        # The base (on a pull request the merge commit's first parent, in the merge queue the
+        # queue's base) and the head are both rendered in this container and compared; nothing is
+        # committed. Every step of this render is continue-on-error: it reports and never turns the
+        # check red (the merge gate asks for the accept line).
         id: base
         continue-on-error: true
         timeout-minutes: 10
@@ -338,8 +337,9 @@ jobs:
   dashboard-visual-diff:
     # Merges the four shards' two-sided story renders into the artifact dashboard-visual-diff
     # (visual-diff.json, index.html with before / after / diff, the PNGs) and a job summary. It
-    # reports and never fails: every step is continue-on-error, and the job is not in ci-all-green,
-    # so the committed comparison above stays the only visual check that can block a merge.
+    # reports and never fails: every step is continue-on-error, and the job is not in ci-all-green.
+    # A difference blocks nothing here; the merge gate (scripts/lane-merge.mjs) asks for the
+    # `visual: accepted <n> <hash>` line in the review note.
     needs: [visual-changes, dashboard-visual-shard]
     if: ${{ !cancelled() && needs.visual-changes.outputs.run == 'true' }}
     runs-on: ubuntu-latest

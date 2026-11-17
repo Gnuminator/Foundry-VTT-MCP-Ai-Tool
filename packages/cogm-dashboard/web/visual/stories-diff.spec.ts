@@ -9,7 +9,7 @@
 //   VISUAL_BASE_DIR=<base>/storybook-static VISUAL_DIFF_OUT=visual-diff VISUAL_SHARD=1/4 \
 //     npx playwright test -c web/playwright.visual.config.ts --project stories-diff
 // VISUAL_SHARD splits the sorted union of story ids, so a story only on one side still lands in one
-// shard. Same pixel rule as the committed shots: a pixel counts when its colour differs by more than
+// shard. Pixel rule: a pixel counts when its colour differs by more than
 // threshold 0.02 (pixelmatch's YIQ distance), and any such pixel makes the story "changed".
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';

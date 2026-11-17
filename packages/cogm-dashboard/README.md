@@ -230,14 +230,15 @@ export const BridgeDown: StoryObj<typeof meta> = {
   Tarokka stories use placeholder cards, not the deck. Times are absolute, so a story looks the
   same on every day.
 
-**Story shots.** `web/visual/stories.spec.ts` reads `storybook-static/index.json` and, for each
-story, takes one screenshot (cropped to the story's content and anything open over it) in the
-story's own theme and size, then runs axe on it. Veil stories get a screenshot only when they
-are `ui-` primitives, phone stories or the heal form; the rest only get axe. A new story gets a baseline the next time
-`npm run test:visual:update` runs; there is no list to edit. They run in the `stories` project of
-the same Playwright config, so `npm run test:visual` (Docker) and the CI job `dashboard-visual`
-cover them; build the Storybook first (`npm run build-storybook`), and rebuild it after a
-change to a story or a component. Baselines are in `web/visual/__screenshots__/stories/`.
+**Story shots.** `web/visual/stories.spec.ts` reads `storybook-static/index.json` and runs axe on
+every story in the story's own theme and size. The pixels are not committed: in CI
+`web/visual/stories-diff.spec.ts` renders every photographed story (Veil stories only when they are
+`ui-` primitives, phone stories or the heal form) from main and from the PR head in the same
+container, and the artifact `dashboard-visual-diff` (`index.html`) shows before, after and diff
+for each one that changed. The merge gate asks for the `visual: accepted <n> <hash>` line in the
+review note. A new story needs no list or file. The axe project is `stories` in the same
+Playwright config, so `npm run test:visual` (Docker) and the CI job `dashboard-visual` cover it;
+build the Storybook first (`npm run build-storybook`), and rebuild it after a change to a story or a component.
 Serious and critical axe findings fail; the ones already there are listed with the reason in
 `web/visual/axe-known-stories.ts`, as for the app shots.
 
@@ -256,9 +257,8 @@ fixed, animations off and the browser in UTC and en-US, so a run is the same eve
 screens also go through axe at 1440 (serious and critical violations fail; the ones already there
 are listed with the reason in `web/visual/axe-known.ts`, and only a new one fails; an entry that
 no longer matches on its screen and theme also fails, so the list shrinks as causes are fixed).
-The story comparison is near exact: `maxDiffPixels: 0` and a colour `threshold` of 0.02 (Playwright's
-default is 0.2, which lets a nudged grey pass; at 0 the rounded edge of one pill, the Player links
-header, flickered between runs). The dashboard screens use no `mask` because the clock is fixed and all data
+The story comparison is near exact (a colour `threshold` of 0.02 and no changed pixels allowed;
+see `stories-diff.spec.ts`). The dashboard screens use no `mask` because the clock is fixed and all data
 is faked (a port with values that move on their own, such as Combat Tracker or Live Feed, adds a
 `mask` helper for those elements); the player pages mask only the `#status` pill, which reads
 "Reconnecting" once the faked stream ends.
@@ -278,8 +278,6 @@ wide in the neutral theme; axe runs on them at 1440 with no known-violations lis
   `storybook-static/` from the repo; the Storybook is for the story shots, see "Stories"), then
   `npm run test:visual -w @gnuminator/cogm-dashboard` to check. Extra arguments go to
   Playwright: `npm run test:visual -w @gnuminator/cogm-dashboard -- -g party`.
-- `npm run test:visual:update -w @gnuminator/cogm-dashboard` writes new story baselines after a change
-  you meant. Look at the PNGs in the diff, then commit them with the change.
 - The container mounts the repo at `/work` but keeps its own `node_modules` in two named Docker
   volumes per worktree (`foundry-ai-tool-visual-node-modules-<hash of the repo path>` and
   `foundry-ai-tool-visual-dashboard-node-modules-<hash>`, so two lanes never share them),
@@ -294,7 +292,7 @@ wide in the neutral theme; axe runs on them at 1440 with no known-violations lis
   checks are not in the ruleset's required list, but the merge gate refuses any red check, so a
   red shard blocks the merge. After a Playwright bump, change the image
   tag in `.github/workflows/ci.yml` too (the job's first step fails with a message when they
-  differ) and refresh the baselines.
+  differ).
 
 ### Bundle budget
 

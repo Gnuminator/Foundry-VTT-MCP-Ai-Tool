@@ -1,4 +1,6 @@
-import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { makeTools } from '../test-support/make-tool-harness.js';
 
 import { ChatLogTools } from './chat-log.js';
 
@@ -11,30 +13,13 @@ import { ChatLogTools } from './chat-log.js';
  * The FoundryClient is mocked so these tests run with no bridge connection.
  */
 
-function makeTools(queryImpl?: (method: string, data: unknown) => unknown): {
-  tools: ChatLogTools;
-  query: Mock<(method: string, data: unknown) => unknown>;
-} {
-  const query = vi.fn(queryImpl ?? ((): unknown => ({ success: true })));
-  const foundryClient = { query } as any;
-  // Minimal Logger stub: `.child()` returns itself; level methods are no-ops.
-  const logger: any = {
-    error: vi.fn(),
-    warn: vi.fn(),
-    info: vi.fn(),
-    debug: vi.fn(),
-  };
-  logger.child = (): unknown => logger;
-  return { tools: new ChatLogTools({ foundryClient, logger }), query };
-}
-
 // ---------------------------------------------------------------------------
 // getToolDefinitions
 // ---------------------------------------------------------------------------
 
 describe('ChatLogTools.getToolDefinitions', () => {
   it('exposes the three chat-log tools with object input schemas', () => {
-    const { tools } = makeTools();
+    const { tools } = makeTools(ChatLogTools);
     const defs = tools.getToolDefinitions();
     expect(defs.map(d => d.name)).toEqual([
       'get-chat-log',
@@ -47,21 +32,21 @@ describe('ChatLogTools.getToolDefinitions', () => {
   });
 
   it('get-chat-log has no required fields', () => {
-    const { tools } = makeTools();
+    const { tools } = makeTools(ChatLogTools);
     const defs = tools.getToolDefinitions();
     const def = defs.find(d => d.name === 'get-chat-log')!;
     expect((def.inputSchema as any).required).toBeUndefined();
   });
 
   it('get-combat-play-by-play has no required fields', () => {
-    const { tools } = makeTools();
+    const { tools } = makeTools(ChatLogTools);
     const defs = tools.getToolDefinitions();
     const def = defs.find(d => d.name === 'get-combat-play-by-play')!;
     expect((def.inputSchema as any).required).toBeUndefined();
   });
 
   it('send-chat-message requires message', () => {
-    const { tools } = makeTools();
+    const { tools } = makeTools(ChatLogTools);
     const defs = tools.getToolDefinitions();
     const def = defs.find(d => d.name === 'send-chat-message')!;
     expect((def.inputSchema as any).required).toEqual(['message']);
@@ -75,20 +60,20 @@ describe('ChatLogTools.getToolDefinitions', () => {
 describe('ChatLogTools.handleGetChatLog', () => {
   it('dispatches the correct query method and returns the response', async () => {
     const payload = { success: true, messages: [] };
-    const { tools, query } = makeTools(() => payload);
+    const { tools, query } = makeTools(ChatLogTools, () => payload);
     const result = await tools.handleGetChatLog({ limit: 10 });
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getChatLog', { limit: 10 });
     expect(result).toBe(payload);
   });
 
   it('dispatches with empty params when args are omitted', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(ChatLogTools);
     await tools.handleGetChatLog(undefined);
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getChatLog', {});
   });
 
   it('dispatches with all optional params when provided', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(ChatLogTools);
     await tools.handleGetChatLog({
       limit: 100,
       speakerName: 'Gandalf',
@@ -104,23 +89,26 @@ describe('ChatLogTools.handleGetChatLog', () => {
   });
 
   it('throws when Foundry reports a failure with an error message', async () => {
-    const { tools } = makeTools(() => ({ success: false, error: 'chat log unavailable' }));
+    const { tools } = makeTools(ChatLogTools, () => ({
+      success: false,
+      error: 'chat log unavailable',
+    }));
     await expect(tools.handleGetChatLog({})).rejects.toThrow('chat log unavailable');
   });
 
   it('throws a generic message when Foundry reports failure with no error field', async () => {
-    const { tools } = makeTools(() => ({ success: false }));
+    const { tools } = makeTools(ChatLogTools, () => ({ success: false }));
     await expect(tools.handleGetChatLog({})).rejects.toThrow('Failed to get chat log');
   });
 
   it('throws (not returns string) when limit is out of range', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(ChatLogTools);
     await expect(tools.handleGetChatLog({ limit: 0 })).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
   });
 
   it('throws (not returns string) when messageType is an invalid enum value', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(ChatLogTools);
     await expect(tools.handleGetChatLog({ messageType: 'invalid' })).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
   });
@@ -133,31 +121,34 @@ describe('ChatLogTools.handleGetChatLog', () => {
 describe('ChatLogTools.handleGetCombatPlayByPlay', () => {
   it('dispatches the correct query method with empty params', async () => {
     const payload = { success: true, rounds: [] };
-    const { tools, query } = makeTools(() => payload);
+    const { tools, query } = makeTools(ChatLogTools, () => payload);
     const result = await tools.handleGetCombatPlayByPlay({});
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getCombatPlayByPlay', {});
     expect(result).toBe(payload);
   });
 
   it('ignores extra args and dispatches empty params', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(ChatLogTools);
     await tools.handleGetCombatPlayByPlay({ unexpected: 'arg' });
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getCombatPlayByPlay', {});
   });
 
   it('dispatches with empty params when args are undefined', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(ChatLogTools);
     await tools.handleGetCombatPlayByPlay(undefined);
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getCombatPlayByPlay', {});
   });
 
   it('throws when Foundry reports a failure with an error message', async () => {
-    const { tools } = makeTools(() => ({ success: false, error: 'no combat history' }));
+    const { tools } = makeTools(ChatLogTools, () => ({
+      success: false,
+      error: 'no combat history',
+    }));
     await expect(tools.handleGetCombatPlayByPlay({})).rejects.toThrow('no combat history');
   });
 
   it('throws a generic message when Foundry reports failure with no error field', async () => {
-    const { tools } = makeTools(() => ({ success: false }));
+    const { tools } = makeTools(ChatLogTools, () => ({ success: false }));
     await expect(tools.handleGetCombatPlayByPlay({})).rejects.toThrow(
       'Failed to get combat play-by-play'
     );
@@ -176,7 +167,7 @@ describe('ChatLogTools.handleSendChatMessage', () => {
 
   it('dispatches the correct query method and returns the response', async () => {
     const payload = { success: true };
-    const { tools, query } = makeTools(() => payload);
+    const { tools, query } = makeTools(ChatLogTools, () => payload);
     const result = await tools.handleSendChatMessage({ message: 'Hello world' });
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.sendChatMessage', {
       message: 'Hello world',
@@ -186,7 +177,7 @@ describe('ChatLogTools.handleSendChatMessage', () => {
   });
 
   it('dispatches with all optional params when provided', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(ChatLogTools);
     await tools.handleSendChatMessage({
       message: 'I strike!',
       speakerActorId: 'actor-123',
@@ -205,7 +196,7 @@ describe('ChatLogTools.handleSendChatMessage', () => {
   });
 
   it('dispatches with whisper messageType and targets', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(ChatLogTools);
     await tools.handleSendChatMessage({
       message: 'Secret plan',
       messageType: 'whisper',
@@ -220,7 +211,7 @@ describe('ChatLogTools.handleSendChatMessage', () => {
   });
 
   it('returns a parameter-error string (not a throw) when message is missing', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(ChatLogTools);
     const result = await tools.handleSendChatMessage({});
     expect(typeof result).toBe('string');
     expect(result as string).toMatch(/Parameter error/i);
@@ -229,7 +220,7 @@ describe('ChatLogTools.handleSendChatMessage', () => {
   });
 
   it('returns a parameter-error string (not a throw) when args are null/undefined', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(ChatLogTools);
     const result = await tools.handleSendChatMessage(undefined);
     expect(typeof result).toBe('string');
     expect(result as string).toMatch(/Parameter error/i);
@@ -238,7 +229,7 @@ describe('ChatLogTools.handleSendChatMessage', () => {
   });
 
   it('returns a parameter-error string (not a throw) when message is an empty string', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(ChatLogTools);
     const result = await tools.handleSendChatMessage({ message: '' });
     expect(typeof result).toBe('string');
     expect(result as string).toMatch(/Parameter error/i);
@@ -247,7 +238,7 @@ describe('ChatLogTools.handleSendChatMessage', () => {
   });
 
   it('returns a parameter-error string (not a throw) when messageType is invalid', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(ChatLogTools);
     const result = await tools.handleSendChatMessage({
       message: 'hi',
       messageType: 'shout',
@@ -259,7 +250,7 @@ describe('ChatLogTools.handleSendChatMessage', () => {
   });
 
   it('throws when Foundry reports a failure with an error message', async () => {
-    const { tools } = makeTools(() => ({ success: false, error: 'actor not found' }));
+    const { tools } = makeTools(ChatLogTools, () => ({ success: false, error: 'actor not found' }));
     await expect(
       tools.handleSendChatMessage({ message: 'Hello', speakerActorId: 'bad-id' })
     ).rejects.toThrow('actor not found');
@@ -267,7 +258,7 @@ describe('ChatLogTools.handleSendChatMessage', () => {
   });
 
   it('throws a generic message when Foundry reports failure with no error field', async () => {
-    const { tools } = makeTools(() => ({ success: false }));
+    const { tools } = makeTools(ChatLogTools, () => ({ success: false }));
     await expect(tools.handleSendChatMessage({ message: 'Hello' })).rejects.toThrow(
       'Failed to send chat message'
     );

@@ -88,7 +88,7 @@ Parameters:
 
 ## get-compendium-item
 
-Use this to read one item, spell or creature; for a full stat block to build an NPC from, use get-compendium-entry-full (Build). Compact mode is lighter.
+Use this to read one item, spell, creature or other compendium entry: the full stat block with items, effects and spells by default, or a lighter one with compact.
 
 Kind: read-only. Title: Get compendium item.
 

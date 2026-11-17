@@ -9,15 +9,16 @@
 // slowest calls, then the tools in the tool sets that were never called in the window.
 // --line prints the one weekly line (tools used, never used, error rate) that `usage:week` also
 // shows. --pi reads the Pi's _usage folder over ssh (read-only: one fixed `cat` loop, nothing is
-// changed). The logs sit on the machine that runs the MCP server for the client (the PC for
-// Claude Desktop and Claude Code), so the Pi folder only exists if a client runs on the Pi.
+// changed). Since D-146 the bridge writes the log (the connectors no longer do), so it sits on the
+// machine that runs the bridge: the Pi when the connectors point at the Pi, else the PC. An empty
+// PC log may therefore mean the calls went to the Pi: try --pi.
 // Overrides: FOUNDRY_AI_DATA_DIR (as the server), --dir (the _usage folder itself; refused with
 // --pi, which always reads the Pi folder).
 // An empty log is not always quiet days: connectorLogging() reads the Claude Desktop config and
 // says when a connector runs a build that predates call logging (the PC log was empty from
-// 2026-10-29 because the config ran an older build). The hint is printed only for an empty log
-// of the default folder (not with --dir, --pi or USAGE_WEEK_CALLS_DIR), and then whenever any
-// connector is stale, even if others do log.
+// 2026-10-29 because the config ran an older build). The hint is printed on stderr for the default
+// folder only (not with --dir, --pi or USAGE_WEEK_CALLS_DIR), whenever any connector is stale,
+// also when others do log and the log is not empty.
 
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -161,6 +162,10 @@ export function connectorLogging(env = process.env) {
     return null;
   }
 }
+
+/** Said with every empty PC log (the bridge writes the log, so it may be on the Pi). */
+export const BRIDGE_LOG_HINT =
+  'Note: the bridge writes the call log (D-146), so with the connectors pointed at the Pi the calls are in the Pi folder: run "npm run usage:calls -- --pi".';
 
 /** One line for an empty log when a connector build is the likely reason; null otherwise. */
 export function emptyLogHint(info) {
@@ -322,9 +327,10 @@ async function main(argv) {
   } else calls = readCalls(dir, days);
   const summary = summarize(calls, await loadCatalog());
   const customDir = argv.includes('--dir') || process.env.USAGE_WEEK_CALLS_DIR;
-  if (!summary.total && !argv.includes('--pi') && !customDir) {
+  if (!argv.includes('--pi') && !customDir) {
     const hint = emptyLogHint(connectorLogging());
     if (hint) process.stderr.write(`${hint}\n`);
+    process.stderr.write(`${BRIDGE_LOG_HINT}\n`);
   }
   if (argv.includes('--line')) process.stdout.write(`${weekLine(summary, days)}\n`);
   else

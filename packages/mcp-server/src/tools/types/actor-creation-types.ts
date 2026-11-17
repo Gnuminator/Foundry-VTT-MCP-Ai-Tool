@@ -15,32 +15,6 @@ export interface CreateActorBridgeReply {
   errors?: unknown[];
 }
 
-export interface CompendiumEntryNamed {
-  name?: unknown;
-}
-
-/** Reply of `foundry-mcp-bridge.getCompendiumDocumentFull`. */
-export interface CompendiumEntryBridgeReply {
-  name?: unknown;
-  type?: unknown;
-  packLabel?: unknown;
-  system?: unknown;
-  fullData?: unknown;
-  items?: CompendiumEntryNamed[];
-  effects?: CompendiumEntryNamed[];
-}
-
-export interface CompendiumEntryResponse {
-  name: unknown;
-  type: unknown;
-  pack: unknown;
-  system: unknown;
-  fullData: unknown;
-  items: CompendiumEntryNamed[];
-  effects: CompendiumEntryNamed[];
-  summary: string;
-}
-
 export interface ActorCreationResponse {
   summary: string;
   success: unknown;

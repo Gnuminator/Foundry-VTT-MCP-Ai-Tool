@@ -154,6 +154,7 @@ const PINNED_READS = [
   'getPreflightScan',
   'getPrepScan',
   'getRecentEvents',
+  'getRenownState',
   'getSceneMoods',
   'getSceneState',
   'getSessionLog',

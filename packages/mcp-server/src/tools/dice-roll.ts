@@ -34,7 +34,7 @@ export class DiceRollTools {
       {
         name: 'request-player-rolls',
         description:
-          'Direct write. Request dice rolls from players: posts roll buttons in Foundry chat that players click. Public by default; pass isPublic false only when the user asks for a private roll. Finds the player from the character; falls back to the GM.',
+          'Direct write. The one tool to ask a player to roll: ability check, skill, save, attack, initiative or custom formula. Posts a roll button in Foundry chat (DC shown when given; for an attack put the weapon or spell name in rollTarget). Public by default; pass isPublic false only when the user asks for a private roll. Finds the player from the character; falls back to the GM.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -74,7 +74,7 @@ export class DiceRollTools {
               default: '',
             },
             // No description: the play tool set is at its size budget; the name says it.
-            dc: { type: 'integer' },
+            dc: { type: 'integer', minimum: 1, maximum: 99 },
             advantage: advantageChoice,
           },
           required: ['rollType', 'rollTarget', 'actor'],
@@ -83,7 +83,7 @@ export class DiceRollTools {
       {
         name: 'request-ability-check',
         description:
-          'Direct write. Request an ability check from a player, posting a clickable roll button to their chat. Shows the DC when provided. Use for checks like "Perception check to notice the ambush".',
+          'Direct write. Old name: use request-player-rolls with rollType ability. Requests an ability check from a player (clickable roll button, DC shown when given).',
         inputSchema: {
           type: 'object',
           properties: {
@@ -101,6 +101,8 @@ export class DiceRollTools {
             },
             dc: {
               type: 'integer',
+              minimum: 1,
+              maximum: 99,
               description: 'Optional difficulty class to display with the request.',
             },
             isPublic: {
@@ -121,7 +123,7 @@ export class DiceRollTools {
       {
         name: 'request-attack-roll',
         description:
-          'Direct write. Request an attack roll for a specific weapon or spell from a player, posting a clickable roll button to their chat.',
+          'Direct write. Old name: use request-player-rolls with rollType attack. Requests an attack roll for a weapon or spell from a player (clickable roll button).',
         inputSchema: {
           type: 'object',
           properties: {
@@ -191,29 +193,23 @@ export class DiceRollTools {
     const schema = z.object({
       actor: z.string(),
       ability: z.enum(['str', 'dex', 'con', 'int', 'wis', 'cha']),
-      dc: z.number().int().optional(),
+      dc: z.number().int().min(1).max(99).optional(),
       isPublic: z.boolean().default(true),
       reason: z.string().optional(),
       advantage: z.enum(['advantage', 'disadvantage']).optional(),
     });
-    try {
-      const params = schema.parse(args);
-      const { actor, ...rest } = params;
-      const response = (await this.foundryClient.query('foundry-mcp-bridge.requestAbilityCheck', {
-        targetPlayer: actor,
-        ...rest,
-      })) as DiceRollBridgeReply | undefined;
-      if (response?.success) {
-        return `Ability check requested. ${response.message}`;
-      }
-      throw new Error(response?.error || 'Failed to request ability check');
-    } catch (error: unknown) {
-      this.logger.error('Error requesting ability check', error);
-      if (error instanceof z.ZodError) {
-        return `Parameter error: ${error.issues.map(e => e.message).join(', ')}`;
-      }
-      throw error;
+    // Alias for one release: maps onto request-player-rolls.
+    const parsed = schema.safeParse(args);
+    if (!parsed.success) {
+      return `Parameter error: ${parsed.error.issues.map(e => e.message).join(', ')}`;
     }
+    const { ability, reason, ...rest } = parsed.data;
+    return this.handleRequestPlayerRolls({
+      ...rest,
+      rollType: 'ability',
+      rollTarget: ability,
+      flavor: reason ?? '',
+    });
   }
 
   async handleRequestAttackRoll(args: unknown): Promise<string | DiceRollBridgeReply | undefined> {
@@ -223,29 +219,17 @@ export class DiceRollTools {
       isPublic: z.boolean().default(true),
       advantage: z.enum(['advantage', 'disadvantage']).optional(),
     });
-    try {
-      const params = schema.parse(args);
-      const check = await this.rulesCheck?.tryCheck({
-        actor: params.actor,
-        item: params.weaponOrSpellName,
-      });
-      const { actor, ...rest } = params;
-      const response = (await this.foundryClient.query('foundry-mcp-bridge.requestAttackRoll', {
-        targetPlayer: actor,
-        ...rest,
-      })) as DiceRollBridgeReply | undefined;
-      if (response?.success) {
-        const note = check && check.verdict !== 'legal' ? ` Rules check: ${check.summary}` : '';
-        return `Attack roll requested. ${response.message}${note}`;
-      }
-      throw new Error(response?.error || 'Failed to request attack roll');
-    } catch (error: unknown) {
-      this.logger.error('Error requesting attack roll', error);
-      if (error instanceof z.ZodError) {
-        return `Parameter error: ${error.issues.map(e => e.message).join(', ')}`;
-      }
-      throw error;
+    // Alias for one release: maps onto request-player-rolls.
+    const parsed = schema.safeParse(args);
+    if (!parsed.success) {
+      return `Parameter error: ${parsed.error.issues.map(e => e.message).join(', ')}`;
     }
+    const { weaponOrSpellName, ...rest } = parsed.data;
+    return this.handleRequestPlayerRolls({
+      ...rest,
+      rollType: 'attack',
+      rollTarget: weaponOrSpellName,
+    });
   }
 
   async handleRollNpcCheck(args: unknown): Promise<string | DiceRollBridgeReply | undefined> {
@@ -292,23 +276,31 @@ export class DiceRollTools {
     try {
       const params = schema.parse(args);
 
-      // The module keeps the DC off the card unless it is in the flavor (request-ability-check does
-      // the same fold); the dashboard already sends "DC n", so only add it when it is missing.
+      const isAttack = params.rollType === 'attack';
+      const check = isAttack
+        ? await this.rulesCheck?.tryCheck({ actor: params.actor, item: params.rollTarget })
+        : undefined;
+      // An attack with no flavor gets the card text the old request-attack-roll gave.
+      const baseFlavor = params.flavor || (isAttack ? `${params.rollTarget} attack` : '');
+
+      // The module keeps the DC off the card unless it is in the flavor; the dashboard already
+      // sends "DC n", so only add it when it is missing.
       const dcText = params.dc === undefined ? '' : `DC ${params.dc}`;
-      const flavor =
-        dcText === '' || new RegExp(`\\b${dcText}\\b`).test(params.flavor)
-          ? params.flavor
-          : [params.flavor, dcText].filter(Boolean).join(', ');
+      const cardFlavor =
+        dcText === '' || new RegExp(`\\b${dcText}\\b`).test(baseFlavor)
+          ? baseFlavor
+          : [baseFlavor, dcText].filter(Boolean).join(', ');
 
       const { actor, ...rest } = params;
       const response = (await this.foundryClient.query('foundry-mcp-bridge.request-player-rolls', {
         ...rest,
         targetPlayer: actor,
-        flavor,
+        flavor: cardFlavor,
       })) as DiceRollBridgeReply;
 
       if (response.success) {
-        return `Roll request sent successfully! ${response.message}`;
+        const note = check && check.verdict !== 'legal' ? ` Rules check: ${check.summary}` : '';
+        return `Roll request sent successfully! ${response.message}${note}`;
       } else {
         throw new Error(response.error || 'Failed to request player rolls');
       }

@@ -58,6 +58,8 @@ export interface PlayerRouteClient {
   readonly isConnected?: boolean;
   listPlayerTools?(): Promise<unknown>;
   playerTool?(userId: string, tool: string, args: unknown): Promise<unknown>;
+  /** The player's extension and Claude client versions, for the "who uses what" page (D-146). */
+  recordClient?(entry: Record<string, unknown>): Promise<unknown>;
 }
 
 export interface PlayerRouteOptions {
@@ -231,7 +233,10 @@ export function mountPlayerRoute(app: Express, options: PlayerRouteOptions): voi
       // A token that cannot even be read is the caller's; a readable one that no key could be
       // fetched for is ours (Cloudflare unreachable): try again, not "check your login".
       if (result.reason === 'invalid') {
-        return { status: v.hasKeys || !looksSigned(token) ? 401 : 503 };
+        // Both applications' keys must be loaded before "invalid" is the caller's fault: an app
+        // token fails here too when only the app verifier could not fetch its keys.
+        const keysOk = v.hasKeys && (!appV || appV.hasKeys);
+        return { status: keysOk || !looksSigned(token) ? 401 : 503 };
       }
       if (result.reason === 'no-client-id' && !warnedClaims) {
         warnedClaims = true;
@@ -303,6 +308,12 @@ export function mountPlayerRoute(app: Express, options: PlayerRouteOptions): voi
       const label = directory.get(who.userId)?.name ?? who.userId;
       options.clients.record('player-extension', playerKey, extVersion, Date.now(), label);
     }
+    // Kept by the bridge too (survives a restart): the version only, keyed by the Foundry user id.
+    if (extVersion && typeof client.recordClient === 'function') {
+      void client
+        .recordClient({ piece: 'player-extension', who: who.userId, version: extVersion })
+        .catch(() => undefined);
+    }
 
     const body: unknown = req.body;
     if (body === null || typeof body !== 'object' || Array.isArray(body)) {
@@ -325,7 +336,24 @@ export function mountPlayerRoute(app: Express, options: PlayerRouteOptions): voi
     }
 
     if (method === 'initialize') {
-      const asked = (msg.params as { protocolVersion?: unknown } | undefined)?.protocolVersion;
+      const initParams = msg.params as
+        | { protocolVersion?: unknown; clientInfo?: { name?: unknown; version?: unknown } }
+        | undefined;
+      // Which Claude app this player uses (its name and version, as the client says them).
+      if (
+        typeof client.recordClient === 'function' &&
+        typeof initParams?.clientInfo?.name === 'string'
+      ) {
+        void client
+          .recordClient({
+            piece: 'claude',
+            who: who.userId,
+            name: initParams.clientInfo.name,
+            version: initParams.clientInfo.version,
+          })
+          .catch(() => undefined);
+      }
+      const asked = initParams?.protocolVersion;
       const version =
         typeof asked === 'string' && SUPPORTED_PROTOCOLS.includes(asked)
           ? asked

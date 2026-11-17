@@ -40,7 +40,7 @@ Parameters:
 
 ## list-creatures-by-criteria
 
-List creatures by Challenge Rating, type, size, spellcasting or legendary actions (D&D 5e). Returns minimal data for encounter building: pick by name, then pull full details only for the final choices with get-compendium-entry-full.
+List creatures by Challenge Rating, type, size, spellcasting or legendary actions (D&D 5e). Returns minimal data for encounter building: pick by name, then pull full details only for the final choices with get-compendium-item.
 
 Kind: read-only. Title: List creatures by criteria.
 
@@ -71,17 +71,6 @@ Parameters:
   - `coordinates` (array of object): Specific coordinates for each token (required when type is "coordinates")
     - `x` (number, required): X coordinate in pixels
     - `y` (number, required): Y coordinate in pixels
-
-## get-compendium-entry-full
-
-Use this for a complete stat block (items, spells, abilities) when creating an actor; to just read an entry use get-compendium-item.
-
-Kind: read-only. Title: Get full compendium entry.
-
-Parameters:
-
-- `packId` (string, required): Compendium pack identifier
-- `entryId` (string, required): Entry identifier within the pack
 
 ## dnd5e-add-feature
 

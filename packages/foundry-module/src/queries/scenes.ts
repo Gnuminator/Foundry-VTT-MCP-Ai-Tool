@@ -6,6 +6,7 @@ import type { BridgeHandlerTable } from '../bridge-handlers.js';
 import { MODULE_ID } from '../constants.js';
 import { getPartyState, PARTY_STATE_QUERY } from '../party-scan.js';
 import { PARTY_PLACE_QUERY, planPartyPlacement } from '../party-place.js';
+import { getRenownState, RENOWN_STATE_QUERY } from '../renown-scan.js';
 import { planSceneChange, SCENE_PLAN_QUERY } from '../scene-plan.js';
 import {
   getSceneMoods,
@@ -41,6 +42,12 @@ export function registerSceneHandlers(ctx: QueryContext, table: BridgeHandlerTab
   // request cards. GM client only.
   table.set(`${MODULE_ID}.${PARTY_STATE_QUERY}`, 'read', () =>
     ctx.withGmGate('Failed to read the party', () => Promise.resolve(getPartyState()))
+  );
+
+  // Factions and renown (dnd5e 6.1, read-only): faction actors and every actor's renown items.
+  // GM client only.
+  table.set(`${MODULE_ID}.${RENOWN_STATE_QUERY}`, 'read', () =>
+    ctx.withGmGate('Failed to read renown', () => Promise.resolve(getRenownState()))
   );
 
   // Place the party (I-097): where the members' tokens would go on the viewed scene. Read only;

@@ -1,24 +1,8 @@
-import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { makeTools } from '../test-support/make-tool-harness.js';
 
 import { DiagnosticsTools } from './diagnostics.js';
-
-function makeTools(queryImpl?: (method: string, data: unknown) => unknown): {
-  tools: DiagnosticsTools;
-  query: Mock<(method: string, data: unknown) => unknown>;
-  logger: any;
-} {
-  const query = vi.fn(queryImpl ?? ((): unknown => ({ success: true })));
-  const foundryClient = { query } as any;
-  // Minimal Logger stub: `.child()` returns itself; level methods are no-ops.
-  const logger: any = {
-    error: vi.fn(),
-    warn: vi.fn(),
-    info: vi.fn(),
-    debug: vi.fn(),
-  };
-  logger.child = (): unknown => logger;
-  return { tools: new DiagnosticsTools({ foundryClient, logger }), query, logger };
-}
 
 // ---------------------------------------------------------------------------
 // Tool definitions
@@ -26,7 +10,7 @@ function makeTools(queryImpl?: (method: string, data: unknown) => unknown): {
 
 describe('DiagnosticsTools.getToolDefinitions', () => {
   it('exposes four diagnostics tools with object input schemas', () => {
-    const { tools } = makeTools();
+    const { tools } = makeTools(DiagnosticsTools);
     const defs = tools.getToolDefinitions();
     expect(defs.map(d => d.name)).toEqual([
       'get-modules',
@@ -40,7 +24,7 @@ describe('DiagnosticsTools.getToolDefinitions', () => {
   });
 
   it('only get-module-manifest has required fields', () => {
-    const { tools } = makeTools();
+    const { tools } = makeTools(DiagnosticsTools);
     const defs = tools.getToolDefinitions();
 
     const getModules = defs.find(d => d.name === 'get-modules')!;
@@ -64,14 +48,14 @@ describe('DiagnosticsTools.getToolDefinitions', () => {
 describe('DiagnosticsTools.handleGetModules', () => {
   it('dispatches the correct query method and returns the response', async () => {
     const payload = { success: true, modules: [] };
-    const { tools, query } = makeTools(() => payload);
+    const { tools, query } = makeTools(DiagnosticsTools, () => payload);
     const result = await tools.handleGetModules({});
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getModules', {});
     expect(result).toBe(payload);
   });
 
   it('passes activeOnly and withIssuesOnly through to the query', async () => {
-    const { tools, query } = makeTools((): unknown => ({ success: true }));
+    const { tools, query } = makeTools(DiagnosticsTools, (): unknown => ({ success: true }));
     await tools.handleGetModules({ activeOnly: true, withIssuesOnly: false });
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getModules', {
       activeOnly: true,
@@ -80,18 +64,21 @@ describe('DiagnosticsTools.handleGetModules', () => {
   });
 
   it('defaults to empty object when args are omitted', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(DiagnosticsTools);
     await tools.handleGetModules(undefined);
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getModules', {});
   });
 
   it('throws when Foundry reports a failure', async () => {
-    const { tools } = makeTools(() => ({ success: false, error: 'bridge unavailable' }));
+    const { tools } = makeTools(DiagnosticsTools, () => ({
+      success: false,
+      error: 'bridge unavailable',
+    }));
     await expect(tools.handleGetModules({})).rejects.toThrow('bridge unavailable');
   });
 
   it('throws (not string) on invalid args and does not call query', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(DiagnosticsTools);
     // activeOnly must be boolean; passing a string triggers a ZodError
     await expect(tools.handleGetModules({ activeOnly: 'yes' })).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
@@ -105,14 +92,14 @@ describe('DiagnosticsTools.handleGetModules', () => {
 describe('DiagnosticsTools.handleGetModuleErrors', () => {
   it('dispatches the correct query method and returns the response', async () => {
     const payload = { success: true, errors: [] };
-    const { tools, query } = makeTools(() => payload);
+    const { tools, query } = makeTools(DiagnosticsTools, () => payload);
     const result = await tools.handleGetModuleErrors({});
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getModuleErrors', {});
     expect(result).toBe(payload);
   });
 
   it('passes all optional filter fields through to the query', async () => {
-    const { tools, query } = makeTools((): unknown => ({ success: true }));
+    const { tools, query } = makeTools(DiagnosticsTools, (): unknown => ({ success: true }));
     await tools.handleGetModuleErrors({
       level: 'error',
       moduleId: 'lib-wrapper',
@@ -128,18 +115,21 @@ describe('DiagnosticsTools.handleGetModuleErrors', () => {
   });
 
   it('defaults to empty object when args are omitted', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(DiagnosticsTools);
     await tools.handleGetModuleErrors(undefined);
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getModuleErrors', {});
   });
 
   it('throws when Foundry reports a failure', async () => {
-    const { tools } = makeTools(() => ({ success: false, error: 'no diagnostics buffer' }));
+    const { tools } = makeTools(DiagnosticsTools, () => ({
+      success: false,
+      error: 'no diagnostics buffer',
+    }));
     await expect(tools.handleGetModuleErrors({})).rejects.toThrow('no diagnostics buffer');
   });
 
   it('throws (not string) on invalid args and does not call query', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(DiagnosticsTools);
     // level must be 'error' | 'warn'; passing an invalid value triggers a ZodError
     await expect(tools.handleGetModuleErrors({ level: 'info' })).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
@@ -153,20 +143,23 @@ describe('DiagnosticsTools.handleGetModuleErrors', () => {
 describe('DiagnosticsTools.handleClearModuleErrors', () => {
   it('dispatches clearModuleErrors with an empty params object', async () => {
     const payload = { success: true };
-    const { tools, query } = makeTools(() => payload);
+    const { tools, query } = makeTools(DiagnosticsTools, () => payload);
     const result = await tools.handleClearModuleErrors({});
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.clearModuleErrors', {});
     expect(result).toBe(payload);
   });
 
   it('ignores any args passed and still sends empty params', async () => {
-    const { tools, query } = makeTools((): unknown => ({ success: true }));
+    const { tools, query } = makeTools(DiagnosticsTools, (): unknown => ({ success: true }));
     await tools.handleClearModuleErrors({ anything: 'ignored' });
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.clearModuleErrors', {});
   });
 
   it('throws when Foundry reports a failure', async () => {
-    const { tools } = makeTools(() => ({ success: false, error: 'clear failed' }));
+    const { tools } = makeTools(DiagnosticsTools, () => ({
+      success: false,
+      error: 'clear failed',
+    }));
     await expect(tools.handleClearModuleErrors({})).rejects.toThrow('clear failed');
   });
 });
@@ -183,7 +176,7 @@ describe('DiagnosticsTools.handleGetModuleManifest', () => {
 
   it('dispatches the correct query method and returns the response', async () => {
     const payload = { success: true, manifest: { id: 'lib-wrapper', version: '1.0.0' } };
-    const { tools, query } = makeTools(() => payload);
+    const { tools, query } = makeTools(DiagnosticsTools, () => payload);
     const result = await tools.handleGetModuleManifest({ moduleId: 'lib-wrapper' });
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getModuleManifest', {
       moduleId: 'lib-wrapper',
@@ -193,7 +186,7 @@ describe('DiagnosticsTools.handleGetModuleManifest', () => {
   });
 
   it('returns a Parameter-error string (not a throw) when moduleId is missing', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(DiagnosticsTools);
     const result = await tools.handleGetModuleManifest({});
     expect(typeof result).toBe('string');
     expect(result as string).toMatch(/Parameter error/i);
@@ -202,7 +195,7 @@ describe('DiagnosticsTools.handleGetModuleManifest', () => {
   });
 
   it('returns a Parameter-error string (not a throw) when args are null/undefined', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(DiagnosticsTools);
     const result = await tools.handleGetModuleManifest(null);
     expect(typeof result).toBe('string');
     expect(result as string).toMatch(/Parameter error/i);
@@ -211,7 +204,10 @@ describe('DiagnosticsTools.handleGetModuleManifest', () => {
   });
 
   it('throws (not string) when Foundry reports a failure', async () => {
-    const { tools } = makeTools(() => ({ success: false, error: 'module not found' }));
+    const { tools } = makeTools(DiagnosticsTools, () => ({
+      success: false,
+      error: 'module not found',
+    }));
     await expect(tools.handleGetModuleManifest({ moduleId: 'unknown-module' })).rejects.toThrow(
       'module not found'
     );

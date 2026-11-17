@@ -14,7 +14,7 @@ Use this skill when that did not happen or stopped half way.
 ## Steps
 
 1. Find the session folder: the newest `*-discord` folder under `FVTT_SESSIONS_DIR` (default
-   `%USERPROFILE%\Documents\FoundrySessions`), unless the user names one.
+   `FoundrySessions` in `FVTT_DATA_DIR`, else `%USERPROFILE%\Documents\FoundrySessions`), unless the user names one.
 2. If `timeline/timeline.jsonl` is missing, transcribe first (GPU, takes minutes; run it in the
    background):
    `pwsh scripts/voice-stack.ps1 names <session>` (names list from Foundry, if the test bridge

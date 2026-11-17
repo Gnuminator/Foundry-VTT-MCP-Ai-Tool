@@ -21,9 +21,20 @@ TOOL_DIR = Path(__file__).resolve().parents[2]
 _ENGINES: object | None = None
 
 
+def data_folder(name: str) -> Path:
+    """`Documents\\<name>`, or `FVTT_DATA_DIR\\<name>` once the data folder is set and the folder was moved."""
+    # Same rule as dataFolder() in shared/src/sessions-dir.ts and Get-DataFolder in scripts/data-folder.ps1.
+    legacy = Path.home() / "Documents" / name
+    data = os.environ.get("FVTT_DATA_DIR")
+    if not data:
+        return legacy
+    moved = Path(data) / name
+    return moved if moved.exists() or not legacy.exists() else legacy
+
+
 def out_root() -> Path:
     root = os.environ.get("NARRATION_OUT_DIR")
-    return Path(root) if root else Path.home() / "Documents" / "FoundryNarration"
+    return Path(root) if root else data_folder("FoundryNarration")
 
 
 def lexicon_for(script_path: Path, lang: str) -> dict[str, str]:
@@ -94,7 +105,7 @@ def main(argv: list[str] | None = None) -> int:
     def common(p: argparse.ArgumentParser) -> None:
         p.add_argument("--voice", help="voice name, or ref:<clip.wav> to clone a clip")
         p.add_argument("--speed", type=float, help="tempo, 0.5 to 2.0 (English default 0.92)")
-        p.add_argument("--out", help="output root (default: Documents\\FoundryNarration)")
+        p.add_argument("--out", help="output root (default: FoundryNarration in FVTT_DATA_DIR, else Documents)")
         p.add_argument("--retakes", type=int, default=2, help="automatic new takes per failing sentence")
         p.add_argument("--no-check", action="store_true", help="skip the Whisper listening check")
 

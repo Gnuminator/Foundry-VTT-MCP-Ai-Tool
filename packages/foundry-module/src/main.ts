@@ -172,7 +172,7 @@ class FoundryMCPBridge {
       registerGuardedFeature({
         id: PARTY_FEATURE_ID,
         name: 'AI Tool: Party (writes)',
-        hint: "Lets the dashboard's Party drawer and the AI change the party's travel pace, add the party to combat and post a party rest request.",
+        hint: "Lets the dashboard's Party drawer and the AI change the party's travel pace, add the party to combat, post a party rest request and change factions and renown.",
       });
       registerGuardedFeature({
         id: LIVE_PLAY_FEATURE_ID,

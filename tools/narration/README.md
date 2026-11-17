@@ -24,7 +24,7 @@ pwsh tools/narration/narrate.ps1 voices
 ```
 
 `make` takes several scripts at once. Options: `--voice`, `--speed` (0.5 to 2.0), `--out` (default
-`Documents\FoundryNarration`), `--retakes N` (automatic new takes per failing sentence, default 2),
+`FoundryNarration` in `FVTT_DATA_DIR`, else `Documents\FoundryNarration`), `--retakes N` (automatic new takes per failing sentence, default 2),
 `--no-check`.
 
 A minute of narration takes about a minute the first time (plus about 30 seconds to load a model).
@@ -134,7 +134,7 @@ A test (`tests/test_voice_lock.py`) keeps this recipe and the file in step.
 The models (about 5.4 GB for Roest, 3 GB for Turbo) download into `HF_HOME` on first use; no
 Hugging Face login is needed. ffmpeg must be on PATH (`winget install Gyan.FFmpeg`). On the
 build PC the environment from the voice listening test is used
-(`Documents\VoiceTest\venvs\chatterbox`); the recipe above is how that one was made.
+(`VoiceTest\venvs\chatterbox` in the data folder, `C:\FoundryData` on the GM PC); the recipe above is how that one was made.
 
 ## Tests
 

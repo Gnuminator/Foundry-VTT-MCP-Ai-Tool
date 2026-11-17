@@ -40,7 +40,7 @@ export type ToolSetName = (typeof ALL_TOOL_SET_NAMES)[number];
 /** The sets a stdio wrapper may serve (everything but `player`). */
 export type ServedToolSetName = (typeof TOOL_SET_NAMES)[number];
 
-export interface ToolSetSpec {
+interface ToolSetSpec {
   /** Short label, for docs and the server instructions. */
   title: string;
   /** One sentence: what the set is for. */
@@ -127,7 +127,7 @@ export function toolSetOf(toolName: string): ToolSetName | undefined {
   return SET_OF_TOOL.get(toolName);
 }
 
-export interface ToolSetSelection {
+interface ToolSetSelection {
   /** The sets this wrapper serves, in canonical order. All four when nothing narrows it. */
   sets: readonly ServedToolSetName[];
   /** True when every tool is served (unset, blank, `all`, or nothing valid named). */

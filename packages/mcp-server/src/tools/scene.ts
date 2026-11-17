@@ -1,4 +1,4 @@
-import { toolRef, unwrapBridgeReply } from '@gnuminator/shared';
+import { errorMessage, toolRef, unwrapBridgeReply } from '@gnuminator/shared';
 import { z } from 'zod';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
@@ -32,10 +32,6 @@ function playerUsersOf(worldData: unknown): { id: string; name: string; active: 
         typeof u.name === 'string'
     )
     .map(u => ({ id: u.id as string, name: u.name as string, active: u.active === true }));
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : 'Unknown error';
 }
 
 export class SceneTools {

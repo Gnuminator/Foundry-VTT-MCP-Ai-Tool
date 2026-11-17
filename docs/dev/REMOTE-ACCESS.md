@@ -1,4 +1,4 @@
-# Remote Access — Operational Setup Guide
+# Remote Access: Operational Setup Guide
 
 > **Status:** Part C below (the Orange Pi through Cloudflare) was set up for real on 2026-10-14
 > and is the tested path. Sections 1 to 6 are the older scaffold: they describe the target
@@ -503,7 +503,7 @@ When Cloudflare Access is in front:
 ### 3.1 Install cloudflared on the host
 
 ```bash
-# Linux (Debian/Ubuntu) — replace with the correct package for your host OS.
+# Linux (Debian/Ubuntu): replace with the correct package for your host OS.
 # See https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/
 curl -L --output cloudflared.deb \
   https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
@@ -516,7 +516,7 @@ cloudflared --version
 ```bash
 cloudflared tunnel login
 # Opens a browser. Select <YOUR_DOMAIN> (the domain you want the tunnel under).
-# A cert.pem is saved to ~/.cloudflared/cert.pem — this authorises tunnel creation.
+# A cert.pem is saved to ~/.cloudflared/cert.pem. This authorises tunnel creation.
 ```
 
 ### 3.3 Create the tunnel
@@ -527,7 +527,7 @@ cloudflared tunnel create cogm
 #   Tunnel credentials written to ~/.cloudflared/<TUNNEL_UUID>.json
 #   Created tunnel cogm with id <TUNNEL_UUID>
 #
-# Note both the UUID and the credentials file path — you need them in step 3.4.
+# Note both the UUID and the credentials file path, as you need them in step 3.4.
 ```
 
 ### 3.4 Write the tunnel config file
@@ -585,7 +585,7 @@ In the Cloudflare Zero Trust dashboard (`one.dash.cloudflare.com`):
 1. **Access → Applications → Add an application → Self-hosted**
 2. Application name: `Foundry AI Tool` (or anything)
 3. Application domain: `cogm.<YOUR_DOMAIN>` (must match the tunnel hostname)
-4. Session duration: pick something sane — e.g. 24 hours
+4. Session duration: pick something sane, e.g. 24 hours
 5. **Add a policy** named e.g. `GM allow-list`:
    - Action: Allow
    - Include rule: `Emails` → add every email address that should have access
@@ -622,7 +622,7 @@ ports skip ufw, so the mapping itself must be `127.0.0.1:31415:31415` or `<tailn
 
 ---
 
-## 5. "Plug your infra in here" — seams list
+## 5. "Plug your infra in here": seams list
 
 These are the exact points you touch when you have a real host/domain. Nothing else needs
 changing.
@@ -691,7 +691,7 @@ Work through this list top-to-bottom when you're ready to go remote.
 
 - [ ] Access application created for `cogm.<YOUR_DOMAIN>`.
 - [ ] Email allow-list policy created. Every GM email added.
-- [ ] Test login with each GM email — confirm role-assignment in the dashboard.
+- [ ] Test login with each GM email and confirm role-assignment in the dashboard.
 - [ ] Confirm non-listed email gets the player view (or is blocked if no player token is set).
 
 ### Foundry module

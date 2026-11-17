@@ -20,7 +20,12 @@
  * only to `https://` addresses, never in plain text.
  */
 
-import { CLIENT_HEADER, clientHeaderValue } from './client-update.js';
+import {
+  CLIENT_HEADER,
+  INSTALL_HEADER,
+  clientHeaderValue,
+  localInstallId,
+} from './client-update.js';
 import { themeFromPayload, type ThemeId } from './theme.js';
 
 /** GM token header (the dashboard also accepts it on every GM route). */
@@ -147,13 +152,17 @@ export class DashboardClient {
     private readonly token: () => string | null,
     private readonly access: () => AccessCredentials | null = (): null => null,
     /** The plugin's manifest version, sent as `x-foundry-client: obsidian/<version>`. */
-    private readonly pluginVersion: () => string | null = (): null => null
+    private readonly pluginVersion: () => string | null = (): null => null,
+    /** Random id of this install, sent as `x-foundry-install` (no name, no path). */
+    private readonly installId: () => string | null = (): string | null => localInstallId()
   ) {}
 
   private headers(base: string, extra: Record<string, string> = {}): Record<string, string> {
     const headers: Record<string, string> = { 'Content-Type': 'application/json', ...extra };
     const version = this.pluginVersion();
     if (version) headers[CLIENT_HEADER] = clientHeaderValue(version);
+    const install = this.installId();
+    if (install && /^[0-9a-f]{12}$/.test(install)) headers[INSTALL_HEADER] = install;
     const token = this.token();
     if (token) headers[TOKEN_HEADER] = token;
     const access = /^https:\/\//i.test(base) ? this.access() : null;

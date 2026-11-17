@@ -1,9 +1,8 @@
 // Runs the screenshot tests (web/visual, UI-01) inside the Playwright Docker image, because the
-// baselines are Linux-only: fonts and anti-aliasing differ per OS, so a Windows or macOS run would
-// differ from the committed PNGs and from CI.
+// renders are Linux-only: fonts and anti-aliasing differ per OS, so a Windows or macOS run would
+// differ from CI.
 //
-//   npm run test:visual -w @gnuminator/cogm-dashboard           check the baselines
-//   npm run test:visual:update -w @gnuminator/cogm-dashboard    make new baselines
+//   npm run test:visual -w @gnuminator/cogm-dashboard           run the checks
 //   npm run test:visual -w @gnuminator/cogm-dashboard -- -g "party"   extra arguments go to Playwright
 //
 // The image tag is the installed @playwright/test version (the image carries the browsers that
@@ -31,8 +30,7 @@ const { version } = createRequire(import.meta.url)('@playwright/test/package.jso
 const image = `mcr.microsoft.com/playwright:v${version}-noble`;
 
 const args = process.argv.slice(2);
-const update = args.includes('--update');
-const extra = args.filter(a => a !== '--update');
+const extra = args;
 
 if (!existsSync(path.join(packageDir, 'dist', 'web', 'index.html'))) {
   console.error('dist/ is not built. Run: npm run build -w @gnuminator/cogm-dashboard');
@@ -95,11 +93,10 @@ const dockerArgs = [
   '-c',
   inContainer,
   'visual',
-  ...(update ? ['--update-snapshots'] : []),
   ...extra,
 ];
 
-console.log(`Playwright ${version} in ${image}${update ? ' (updating baselines)' : ''}`);
+console.log(`Playwright ${version} in ${image}`);
 const result = spawnSync('docker', dockerArgs, { stdio: 'inherit' });
 if (result.error) {
   console.error(`Could not run docker: ${result.error.message}`);

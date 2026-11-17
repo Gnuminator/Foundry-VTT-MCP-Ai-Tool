@@ -56,7 +56,7 @@ export interface PrepDigestToolsOptions {
   /** Time allowed for reading the prep notes; default PREP_NOTES_TIMEOUT_MS. */
   prepNotesTimeoutMs?: number;
   /**
-   * The recorder's sessions folder (FVTT_SESSIONS_DIR, else Documents/FoundrySessions), for
+   * The recorder's sessions folder (FVTT_SESSIONS_DIR, else FoundrySessions in FVTT_DATA_DIR or Documents), for
    * "Previously on". Unset: no `previously` part (tests only; the backend always sets it).
    */
   sessionsDir?: string;

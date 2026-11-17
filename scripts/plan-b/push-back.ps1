@@ -12,7 +12,7 @@
   By default it only builds and checks (-NoUpload). With -Upload it also sends the bundle to the Pi
   and prints the stage 11 command; a session runs that only after a dietpi-backup 1 snapshot and your OK.
 
-.PARAMETER Root      Plan B's folder (default C:\FoundryPlanB).
+.PARAMETER Root      Plan B's folder (default C:\FoundryPlanB, or inside FVTT_DATA_DIR once moved).
 .PARAMETER Upload    Send the bundle to the Pi (default: build and check only).
 .PARAMETER Modules   Module ids to ship (push-world's default: aitool-content, dnd-players-handbook, foundryvtt-actor-studio).
 .PARAMETER PiModules Module ids the world uses that are already installed on the Pi and must not be shipped (passed to

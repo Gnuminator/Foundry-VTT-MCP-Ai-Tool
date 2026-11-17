@@ -50,6 +50,10 @@ export interface DashboardClient {
   playerTool?(userId: string, tool: string, args: unknown): Promise<unknown>;
   /** The connected connector wrappers and their versions; absent on fakes, "Unknown method" on old backends. */
   wrapperStatus?(): Promise<unknown>;
+  /** Which version a person's piece runs (D-146); absent on fakes, "Unknown method" on old backends. */
+  recordClient?(entry: Record<string, unknown>): Promise<unknown>;
+  /** The "who uses what" report for the last `days` days (D-146). */
+  whoUsesWhat?(days: number): Promise<unknown>;
   /** Session notes (recap lane, D-087): list, get, put, approve; absent on fakes. */
   sessionNotes?(action: SessionNotesAction, params?: Record<string, unknown>): Promise<unknown>;
   readonly isConnected?: boolean;

@@ -20,7 +20,7 @@ python -m session_notes run <session>        # write the notes
 ```
 
 `<session>` is a session folder, or its name under `FVTT_SESSIONS_DIR` (default
-`Documents\FoundrySessions`). The folder needs `timeline/timeline.jsonl` from
+`FoundrySessions` in `FVTT_DATA_DIR`, else `Documents\FoundrySessions`). The folder needs `timeline/timeline.jsonl` from
 `voice-stack.ps1 transcribe`; a `names.txt` next to it (the same list the transcriber used for
 hotwords) helps Claude spell names right.
 
@@ -162,7 +162,7 @@ way to handle a withdrawal.
 ### A player withdraws
 
 A "no" is handled by hand; there is no switch in the bot. For each session folder in
-`<sessions>\` (`FVTT_SESSIONS_DIR`, default `Documents\FoundrySessions`):
+`<sessions>\` (`FVTT_SESSIONS_DIR`, default `FoundrySessions` in `FVTT_DATA_DIR`, else `Documents\FoundrySessions`):
 
 1. Find the player's track. The recorder writes one file per speaker, named
    `<n>-<discord username>.ogg` (the converted track) and `raw/<n>-<discord username>.rec` (the

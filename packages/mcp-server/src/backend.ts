@@ -26,7 +26,8 @@ import {
   sessionsDirFrom,
   unknownToolMessage,
 } from '@gnuminator/shared';
-import type { ToolResultPayload } from '@gnuminator/shared';
+import { TOOL_VERSION, USAGE_LOG_FILE_RE } from '@gnuminator/shared';
+import type { ToolResultPayload, UsageEvent } from '@gnuminator/shared';
 
 import { createControlReader } from './control-reader.js';
 import { Logger } from './logger.js';
@@ -38,6 +39,15 @@ import { splitPlayerTools } from './tool-sets.js';
 import { PLAYER_CONFIG_ENV, handlePlayerTool, readExtraDenyTerms } from './tools/player.js';
 import { GameEventHub } from './game-event-hub.js';
 import { WrapperRegistry } from './wrapper-registry.js';
+import {
+  ToolCallLog,
+  buildCallLine,
+  gmCaller,
+  skillFields,
+  type CallCaller,
+} from './tool-call-log.js';
+import type { ToolResultLike } from './tool-router.js';
+import { ClientsFile, handleWhoUsesWhat } from './who-uses-what.js';
 import { TarokkaService } from './tarokka/service.js';
 import { HandoutsService, handleRecordHandoutSeen } from './handouts/service.js';
 import { SecretTermsService } from './secret-terms.js';
@@ -261,6 +271,41 @@ async function startBackend(): Promise<void> {
     logger,
     onAppended: renderObsidian,
   });
+  // One line per tool call with who made it (D-146): names, sets and counts, never arguments or results.
+  const callLog = new ToolCallLog({ dataDir: vaultStore.dataDir });
+  const recordCall = (
+    tool: string,
+    startedAt: number,
+    result: ToolResultLike | undefined,
+    caller: CallCaller
+  ): void => {
+    try {
+      void callLog
+        .record(buildCallLine(tool, startedAt, result, Date.now(), caller))
+        .catch(() => undefined);
+    } catch {
+      // logging never breaks a tool call
+    }
+  };
+  const clientsFile = new ClientsFile(vaultStore.dataDir, usageLog.enabled);
+  const loadWorldUsageEvents = async (): Promise<UsageEvent[]> => {
+    const worldId = await worldIds.current().catch(() => null);
+    if (!worldId) return [];
+    const files = (await vaultStore.list(worldId, 'sessions'))
+      .filter(f => USAGE_LOG_FILE_RE.test(f))
+      .sort()
+      .slice(-90);
+    const out: UsageEvent[] = [];
+    for (const file of files) {
+      for (const line of await vaultStore.readLines(worldId, 'sessions', file)) {
+        const e = line as Partial<UsageEvent> | null;
+        if (e && typeof e.t === 'number' && typeof e.name === 'string' && e.who) {
+          out.push(e as UsageEvent);
+        }
+      }
+    }
+    return out;
+  };
   // Everyone's daily notes in the GM vault (I-109 PR 6); made below once the change history exists.
   let everyoneNotes: EveryoneNotes | null = null;
   const guardedWrites = new GuardedWriteService({
@@ -512,6 +557,9 @@ async function startBackend(): Promise<void> {
   const server = net.createServer(socket => {
     socket.setEncoding('utf8');
     const connectionId = (nextConnectionId += 1);
+    // Set by the `hello` of the co-GM dashboard: every call on this connection is the dashboard's
+    // (its background reads too), not the GM's Claude.
+    let dashboardConnection = false;
     socket.on('close', () => wrapperRegistry.close(connectionId));
 
     // Aborts the long waits (wait-for-game-event) of a connection that closed.
@@ -548,6 +596,11 @@ async function startBackend(): Promise<void> {
           // none). get-preflight reads the registry in-process; `wrapper_status` serves the same view.
           if (msg.method === 'hello') {
             wrapperRegistry.hello(connectionId, msg.params);
+            const hp = (msg.params ?? {}) as { version?: unknown; client?: unknown };
+            if (hp.client === 'dashboard') dashboardConnection = true;
+            else {
+              void clientsFile.record({ piece: 'connectors', who: 'gm', version: hp.version });
+            }
             socket.write(`${JSON.stringify({ id: msg.id, result: { ok: true } })}\n`);
 
             continue;
@@ -567,7 +620,7 @@ async function startBackend(): Promise<void> {
             continue;
           }
 
-          // The five player tool definitions, for the dashboard's /mcp/player `tools/list`.
+          // The player tool definitions, for the dashboard's /mcp/player `tools/list`.
           if (msg.method === 'list_player_tools') {
             socket.write(
               `${JSON.stringify({ id: msg.id, result: { tools: playerToolDefinitions } })}\n`
@@ -586,6 +639,10 @@ async function startBackend(): Promise<void> {
             if (typeof requestedBy !== 'string')
               wrapperRegistry.toolCallWithoutRequester(connectionId);
 
+            const startedAt = Date.now();
+            // The dashboard says hello as `dashboard` (and names `requestedBy` on its writes); a
+            // connector (the GM's Claude) does neither.
+            const caller = gmCaller(dashboardConnection, requestedBy, String(name), args);
             const runCall = async (): Promise<void> => {
               try {
                 // Own keys only: a name such as "constructor" must not reach Object.prototype.
@@ -631,8 +688,10 @@ async function startBackend(): Promise<void> {
                 if (!socket.destroyed) {
                   socket.write(`${JSON.stringify({ id: msg.id, result: payload })}\n`);
                 }
+                recordCall(String(name), startedAt, payload, caller);
               } catch (e: unknown) {
                 const errorMessage = e instanceof Error ? e.message : 'Unknown error occurred';
+                recordCall(String(name), startedAt, { content: [], isError: true }, caller);
 
                 if (!socket.destroyed) {
                   socket.write(
@@ -651,6 +710,32 @@ async function startBackend(): Promise<void> {
             // lines behind it, so only this tool is not awaited.
             if (DETACHED_TOOLS.has(name)) void runCall();
             else await runCall();
+
+            continue;
+          }
+
+          // Which version a person's piece runs (the dashboard's player and Obsidian sightings, the
+          // wrapper's Claude client name); names and versions only. Not a tool, never listed.
+          if (msg.method === 'record_client') {
+            const ok = await clientsFile.record(msg.params);
+            socket.write(`${JSON.stringify({ id: msg.id, result: { ok } })}\n`);
+
+            continue;
+          }
+
+          // The "who uses what" report (counts per person); read-only, GM dashboard only.
+          if (msg.method === 'who_uses_what') {
+            const result = await handleWhoUsesWhat(
+              {
+                dataDir: vaultStore.dataDir,
+                clients: clientsFile,
+                usageEvents: loadWorldUsageEvents,
+                toolNames: (): string[] => allToolNames,
+                current: TOOL_VERSION,
+              },
+              msg.params
+            );
+            socket.write(`${JSON.stringify({ id: msg.id, result })}\n`);
 
             continue;
           }
@@ -730,10 +815,19 @@ async function startBackend(): Promise<void> {
 
           // A player's own Claude (D-136): the dashboard's /mcp/player route sends the verified
           // Foundry user id in `params.userId`; the tool arguments are untrusted and never carry
-          // one. Only the five player tools run here, all read-only. Not a call_tool route, never
+          // one. Only the player tools run here, all read-only. Not a call_tool route, never
           // listed to Claude, and the stdio wrapper never forwards it.
           if (msg.method === 'player_tool') {
+            const startedAt = Date.now();
             const result = await handlePlayerTool(playerTools, msg.params);
+            const pp = (msg.params ?? {}) as { tool?: unknown; args?: unknown; userId?: unknown };
+            const ptool = typeof pp.tool === 'string' ? pp.tool : 'unknown';
+            recordCall(ptool, startedAt, result, {
+              who: 'player',
+              ...(typeof pp.userId === 'string' ? { userId: pp.userId } : {}),
+              via: 'connector',
+              ...skillFields(ptool, pp.args),
+            });
             socket.write(`${JSON.stringify({ id: msg.id, result })}\n`);
 
             continue;

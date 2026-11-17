@@ -26,7 +26,7 @@ interface ToolDefinition {
   };
 }
 
-export interface RenownToolsOptions {
+interface RenownToolsOptions {
   foundryClient: Pick<FoundryClient, 'query'>;
   guardedWrites: Pick<GuardedWriteService, 'createPlan'>;
   logger: Logger;

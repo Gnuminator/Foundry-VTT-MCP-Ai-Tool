@@ -48,7 +48,7 @@ Parameters:
 - `isPublic` (boolean): Default true: everyone sees the roll. false only when asked: just the target player and GM. Default: `true`.
 - `rollModifier` (string): Optional modifier to add to the roll (e.g., "+2", "-1", "+1d4"). Default: `""`.
 - `flavor` (string): Optional flavor text to describe the roll context. Default: `""`.
-- `dc` (integer)
+- `dc` (integer): Range: 1 to 99.
 - `advantage` (string): One of: `advantage`, `disadvantage`.
 
 ## request-ability-check
@@ -61,7 +61,7 @@ Parameters:
 
 - `actor` (string, required): Player name or character name to request the roll from.
 - `ability` (string, required): Ability to check. One of: `str`, `dex`, `con`, `int`, `wis`, `cha`.
-- `dc` (integer): Optional difficulty class to display with the request.
+- `dc` (integer): Optional difficulty class to display with the request. Range: 1 to 99.
 - `isPublic` (boolean): Default true: visible to all. false only when asked: target player + GM only. Default: `true`.
 - `reason` (string): Context for the check, e.g. "Perception check to notice the ambush".
 - `advantage` (string): One of: `advantage`, `disadvantage`.

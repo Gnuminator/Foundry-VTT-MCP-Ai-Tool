@@ -136,6 +136,31 @@ describe('DiceRollTools.handleRequestAbilityCheck', () => {
     });
   });
 
+  it('refuses a DC outside 1 to 99 at its own boundary', async () => {
+    const { tools, query } = makeTools();
+    const result = await tools.handleRequestAbilityCheck({
+      actor: 'Alice',
+      ability: 'str',
+      dc: 100,
+    });
+    expect(result).toMatch(/Parameter error/i);
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it('keeps the attack card text when a DC is given', async () => {
+    const { tools, query } = makeTools(() => ({ success: true, message: 'ok' }));
+    await tools.handleRequestPlayerRolls({
+      rollType: 'attack',
+      rollTarget: 'Longsword',
+      actor: 'Carol',
+      dc: 15,
+    });
+    expect(query).toHaveBeenCalledWith(
+      'foundry-mcp-bridge.request-player-rolls',
+      expect.objectContaining({ flavor: 'Longsword attack, DC 15' })
+    );
+  });
+
   it('returns a parameter-error string (not a throw) when ability is missing', async () => {
     const { tools, query } = makeTools();
     const result = await tools.handleRequestAbilityCheck({ actor: 'Alice', isPublic: true });

@@ -74,7 +74,7 @@ export class DiceRollTools {
               default: '',
             },
             // No description: the play tool set is at its size budget; the name says it.
-            dc: { type: 'integer' },
+            dc: { type: 'integer', minimum: 1, maximum: 99 },
             advantage: advantageChoice,
           },
           required: ['rollType', 'rollTarget', 'actor'],
@@ -101,6 +101,8 @@ export class DiceRollTools {
             },
             dc: {
               type: 'integer',
+              minimum: 1,
+              maximum: 99,
               description: 'Optional difficulty class to display with the request.',
             },
             isPublic: {
@@ -191,7 +193,7 @@ export class DiceRollTools {
     const schema = z.object({
       actor: z.string(),
       ability: z.enum(['str', 'dex', 'con', 'int', 'wis', 'cha']),
-      dc: z.number().int().optional(),
+      dc: z.number().int().min(1).max(99).optional(),
       isPublic: z.boolean().default(true),
       reason: z.string().optional(),
       advantage: z.enum(['advantage', 'disadvantage']).optional(),
@@ -274,20 +276,20 @@ export class DiceRollTools {
     try {
       const params = schema.parse(args);
 
-      // The module keeps the DC off the card unless it is in the flavor (request-ability-check does
-      // the same fold); the dashboard already sends "DC n", so only add it when it is missing.
-      const dcText = params.dc === undefined ? '' : `DC ${params.dc}`;
-      const flavor =
-        dcText === '' || new RegExp(`\\b${dcText}\\b`).test(params.flavor)
-          ? params.flavor
-          : [params.flavor, dcText].filter(Boolean).join(', ');
-
       const isAttack = params.rollType === 'attack';
       const check = isAttack
         ? await this.rulesCheck?.tryCheck({ actor: params.actor, item: params.rollTarget })
         : undefined;
-      // Same card text the old request-attack-roll gave.
-      const cardFlavor = isAttack && flavor === '' ? `${params.rollTarget} attack` : flavor;
+      // An attack with no flavor gets the card text the old request-attack-roll gave.
+      const baseFlavor = params.flavor || (isAttack ? `${params.rollTarget} attack` : '');
+
+      // The module keeps the DC off the card unless it is in the flavor; the dashboard already
+      // sends "DC n", so only add it when it is missing.
+      const dcText = params.dc === undefined ? '' : `DC ${params.dc}`;
+      const cardFlavor =
+        dcText === '' || new RegExp(`\\b${dcText}\\b`).test(baseFlavor)
+          ? baseFlavor
+          : [baseFlavor, dcText].filter(Boolean).join(', ');
 
       const { actor, ...rest } = params;
       const response = (await this.foundryClient.query('foundry-mcp-bridge.request-player-rolls', {

@@ -70,6 +70,11 @@ export function renderWhoUsesWhat(report) {
     }
   }
   out.push('');
+  // The PM board reads this block, not the tables above (counts and names only, same as the tables).
+  out.push('```json');
+  out.push(JSON.stringify(report));
+  out.push('```');
+  out.push('');
   return out.join('\n');
 }
 

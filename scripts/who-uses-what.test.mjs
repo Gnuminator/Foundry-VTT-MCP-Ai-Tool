@@ -34,5 +34,12 @@ test('renders a row per person, versions flagged and never-called tools', () => 
   assert.match(md, /BEHIND/);
   assert.match(md, /Never called \(1\): a-tool/);
   // A pipe in a name cannot break the table.
-  assert.ok(!md.includes('dash.view|x'));
+  assert.ok(!md.split('```json')[0].includes('dash.view|x'));
+});
+
+test('the note ends with the report as one fenced json block', () => {
+  const md = renderWhoUsesWhat(report);
+  const m = /```json\n(.*)\n```/.exec(md);
+  assert.ok(m);
+  assert.deepEqual(JSON.parse(m[1]), report);
 });

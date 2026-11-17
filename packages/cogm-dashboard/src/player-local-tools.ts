@@ -126,7 +126,10 @@ async function playStats(deps: LocalPlayerToolDeps, userId: string): Promise<unk
     .filter(s => typeof s.id === 'string' && typeof s.name === 'string')
     .map(s => ({ id: s.id as string, name: s.name as string }));
   const stats = projectPlayStats(statsRaw, worldId, own);
-  if (!stats) return failure('No play stats yet.');
+  if (!stats)
+    return failure(
+      'Play stats for this world are not available right now (the bridge has not loaded this world yet). Try again later.'
+    );
   return text(JSON.stringify(stats));
 }
 

@@ -9,7 +9,11 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { config } from './config.js';
 import { Logger } from './logger.js';
 import { ConnectorStore } from './player-connector.js';
-import { PLAYER_LOCAL_TOOLS, type LocalPlayerToolDeps } from './player-local-tools.js';
+import {
+  PLAYER_LOCAL_TOOLS,
+  runLocalPlayerTool,
+  type LocalPlayerToolDeps,
+} from './player-local-tools.js';
 import { mountPlayerRoute } from './player-route.js';
 
 const servers: Array<{ close(): void }> = [];
@@ -67,6 +71,24 @@ const post = (url: string, method: string, params: unknown): Promise<Response> =
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
   });
+
+describe('get-my-play-stats when the bridge answers for another world', () => {
+  it('answers an error that names the world, not a switch', async () => {
+    const result = (await runLocalPlayerTool(
+      {
+        ...deps([]),
+        characterSheet: () => Promise.resolve({ userId: 'u1', sheets: [] }),
+        playStats: () => Promise.resolve({ worldId: 'other', campaign: {} }),
+      },
+      'get-my-play-stats',
+      {},
+      'u1'
+    )) as { isError?: boolean; content: Array<{ text: string }> };
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain('this world are not available');
+    expect(result.content[0].text).not.toContain('switched off');
+  });
+});
 
 describe('/mcp/player local tools', () => {
   it('names the two tools the server lists as PLAYER_DASHBOARD_TOOL_NAMES (pinned there too)', () => {

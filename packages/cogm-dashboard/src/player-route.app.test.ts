@@ -547,6 +547,17 @@ describe('/mcp/player: remote connector (Access Managed OAuth)', () => {
     expect(parsed.emailPlayers).toEqual([{ email: 'a@x.com', userId: ALICE }]);
     expect(problems.some(m => m.includes('twice'))).toBe(true);
   });
+
+  it('drops an appAudience tag that is also a service audience, with a warning', () => {
+    const problems: string[] = [];
+    const parsed = parseConnectorFile(
+      { audience: 'shared-tag', appAudience: ['shared-tag', APP_AUD] },
+      m => problems.push(m)
+    );
+    expect(parsed.audiences).toEqual(['shared-tag']);
+    expect(parsed.appAudiences).toEqual([APP_AUD]);
+    expect(problems.some(m => m.includes('repeats'))).toBe(true);
+  });
 });
 
 describe('/mcp/player: what it runs', () => {

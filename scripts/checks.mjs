@@ -178,6 +178,7 @@ export const CHECKS = [
     'scripts/check-shared-link.test.mjs'
   ),
   { name: 'dev-scripts', group: 'scripts', cmd: 'npm', args: ['run', 'dev:test'], env: CI },
+  nodeTest('who-uses-what', 'scripts', 'scripts/who-uses-what.test.mjs'),
   nodeTest('gamenight-watch', 'scripts', 'scripts/gamenight-watch.test.mjs'),
   nodeTest('gamenight-watch-pi', 'scripts', 'scripts/gamenight-watch-pi.test.mjs'),
   nodeTest('pi-player-connector-stage', 'pi', 'scripts/pi/player-connector-stage.test.mjs'),

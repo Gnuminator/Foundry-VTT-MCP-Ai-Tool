@@ -47,6 +47,10 @@ export const BANNED = [
   'cloudflare',
   'orange pi',
   'tailscale',
+  '.ts.net',
+  'trycloudflare',
+  'curse of',
+  'death house',
 ];
 
 /** Hosts the page may link to (links only; nothing is loaded from them). */
@@ -54,7 +58,7 @@ const LINK_HOSTS = new Set(['github.com', 'gnuminator.github.io']);
 // Adam Dooley's upstream project is credited on the page, so github.com covers it.
 
 /** Wiki paths the landing page links to; checked against the wiki build when it exists. */
-const WIKI_PREFIXES = ['gm/', 'player/', 'da/', 'foundry/'];
+const WIKI_PREFIXES = ['gm/', 'player/', 'da/', 'foundry/', 'storybook/'];
 
 export function findBanned(text) {
   const low = text.toLowerCase();
@@ -63,7 +67,7 @@ export function findBanned(text) {
 
 export function linkTargets(html) {
   const out = [];
-  const re = /\s(href|src)="([^"]*)"/g;
+  const re = /\s(href|src)=["']([^"']*)["']/g;
   let m;
   while ((m = re.exec(html))) out.push({ attr: m[1], url: m[2] });
   return out;
@@ -74,7 +78,9 @@ export function checkLinks(html, exists, { standalone = false } = {}) {
   const problems = [];
   const ids = new Set([...html.matchAll(/\sid="([^"]+)"/g)].map(m => m[1]));
   for (const { attr, url } of linkTargets(html)) {
-    if (url.startsWith('#')) {
+    if (url.startsWith('/')) {
+      problems.push(`${attr} must be relative, not root-absolute: ${url}`);
+    } else if (url.startsWith('#')) {
       if (url !== '#' && !ids.has(url.slice(1))) problems.push(`missing anchor ${url}`);
     } else if (/^https?:\/\//.test(url)) {
       const host = new URL(url).hostname;

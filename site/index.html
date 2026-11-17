@@ -61,7 +61,8 @@
         <div class="wrap">
           <h2>What it does</h2>
           <p class="sub">
-            Five groups of tools. You switch on the ones a chat needs, so Claude only reads those.
+            What it covers. The tools come in five sets, and you switch on the ones a chat needs, so
+            Claude only reads those.
           </p>
           <ul class="cards">
             <li>
@@ -208,7 +209,7 @@
           <p>
             Players get a read-only page with the combat order, the live feed, the last recap, the
             handouts you have revealed and the quests they know about. Unknown creatures read
-            "Unknown creature", and enemies show only a rough health band, never numbers.
+            "Unknown creature", and enemies show no hit point numbers.
           </p>
           <p>
             <a class="btn" href="player/">Read the player guide</a>
@@ -234,14 +235,18 @@
 
           <h3>1. Install the Foundry module</h3>
           <p>In Foundry, open Add-on Modules, Install Module and paste this manifest URL:</p>
-          <pre><code>https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases/latest/download/module.json</code></pre>
+          <pre
+            tabindex="0"
+          ><code>https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases/latest/download/module.json</code></pre>
 
           <h3>2. Set up the bridge</h3>
           <p>
             The bridge is the small program that links Claude and Foundry. It needs Node.js 24 or
             newer.
           </p>
-          <pre><code>git clone https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool.git
+          <pre
+            tabindex="0"
+          ><code>git clone https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool.git
 cd Foundry-VTT-MCP-Ai-Tool
 npm install
 npm run build</code></pre>
@@ -251,7 +256,7 @@ npm run build</code></pre>
           </p>
 
           <h3>3. Open the dashboard</h3>
-          <pre><code>npm run dev:cogm</code></pre>
+          <pre tabindex="0"><code>npm run dev:cogm</code></pre>
           <p>It opens at <code>http://localhost:3000</code>. No API key is needed.</p>
           <p class="cta">
             <a class="btn primary" href="gm/">Open the GM guide</a>
@@ -290,7 +295,7 @@ npm run build</code></pre>
             >Changelog</a
           >
           · <a href="gm/">GM guide</a> · <a href="player/">Player guide</a> ·
-          <a href="da/">Dansk</a>
+          <a href="storybook/">Component stories</a> · <a href="da/">Dansk</a>
         </p>
         <p>
           Built on top of

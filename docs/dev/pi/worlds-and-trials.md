@@ -103,7 +103,7 @@ there. A world migrates its data the first time it is launched on a new version,
 world does not go back. So a new dnd5e version (D-098, never on a game-night day) goes to the kit
 world first, the test kit runs there, and only then does the campaign get it. The version on trial
 is pinned in the script (`PIN_VERSION`, `PIN_URL` and `PIN_SHA256`, the release asset's digest on
-GitHub); the first one is 6.0.6 (the Pi runs 6.0.5). A new version is a new reviewed change to those
+GitHub); the current pin is 6.1.1 (the Pi runs 6.0.6; the first trial was 6.0.5 to 6.0.6). A new version is a new reviewed change to those
 lines.
 
 Each mode except `status` stops Foundry for a minute or two: a `dietpi-backup 1` snapshot and your
@@ -138,8 +138,8 @@ cat scripts/pi/remote/lib.sh scripts/pi/remote/14-system-trial.sh | ssh foundry-
   launched world's `dnd5e.systemMigrationVersion` setting (or that setting is empty), `trial` and
   `switch` wait until the setting reaches the new version (read from a copy of the world's settings
   database) before they report success; a migration that does not end in `MIGRATION_WAIT` seconds
-  (default 1800) counts as a failure and is put back. 6.0.6 asks for none (its
-  `needsMigrationVersion` is 6.0.0), and the stage says so. When the setting cannot be read, the stage
+  (default 1800) counts as a failure and is put back. When the release asks for none (6.0.6 had
+  `needsMigrationVersion` 6.0.0), the stage says so. When the setting cannot be read, the stage
   warns: wait until the Assistant GM browser shows no migration notice before stopping Foundry or
   taking a snapshot.
 - **`MODE=rollback`** puts the old version back, resets `strahd-kit` from the trial's copy (its run
@@ -152,7 +152,7 @@ cat scripts/pi/remote/lib.sh scripts/pi/remote/14-system-trial.sh | ssh foundry-
 **The order on the Pi for the update to the newest (D-128; the user decides the order, and each step
 is a snapshot, the user's OK and a read of the output first):**
 
-1. `dietpi-backup 1` snapshot, then stage 14 `MODE=trial` (dnd5e 6.0.6 on `strahd-kit`).
+1. `dietpi-backup 1` snapshot, then stage 14 `MODE=trial` (dnd5e 6.1.1 on `strahd-kit`).
 2. Snapshot, then stage 3 with `FOUNDRY_EXPECT_VERSION=14.369` and the zip in place. The trial is
    open, so Foundry restarts on `strahd-kit`: the new Foundry meets the kit first, not the campaign.
 3. `5-tool.sh` with `TOOL_REF=v0.23.0` (the tool release). `5-check-world.sh` refuses while the trial
@@ -161,7 +161,7 @@ is a snapshot, the user's OK and a read of the output first):**
 --not-game-night`, `MODE=down`.
 5. Snapshot, then stage 14 `MODE=switch` (the campaign migrates).
 
-A rollback after step 2 puts dnd5e 6.0.5 back under Foundry 14.369, which 6.0.5 supports.
+A rollback after step 2 puts dnd5e 6.0.6 back under Foundry 14.369, which 6.0.6 supports.
 
 - **`MODE=status`** is read-only: the trial's phase, the installed version, and each world's system
   version and whether it was launched since the trial began.

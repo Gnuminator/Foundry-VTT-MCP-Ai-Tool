@@ -80,14 +80,14 @@ make_zip() {
 }
 rm -rf /tmp/zips /tmp/zip-src
 mkdir -p /tmp/zips
-make_zip good 6.0.6 14.367 14 flat 6.0.0 # as the real 6.0.6 release: worlds on 6.0.5 need no migration
-make_zip nested 6.0.6 14.367 14 nested 6.0.0
-make_zip migrating 6.0.6 14.367 14 flat 6.0.6 # a release that migrates the data of every world on 6.0.5
-make_zip toonew 6.0.6 14.369 14 flat
-make_zip maxbelow 6.0.6 14.300 13 flat
+make_zip good 6.1.1 14.367 14 flat 6.0.0 # a release that asks for no migration: worlds on 6.0.6 are left as they are
+make_zip nested 6.1.1 14.367 14 nested 6.0.0
+make_zip migrating 6.1.1 14.367 14 flat 6.1.1 # a release that migrates the data of every world on 6.0.6
+make_zip toonew 6.1.1 14.369 14 flat
+make_zip maxbelow 6.1.1 14.300 13 flat
 make_zip wrongver 6.0.7 14.367 14 flat
 # The release with one more file in it: same name, other bytes.
-make_zip tampered 6.0.6 14.367 14 flat 6.0.0
+make_zip tampered 6.1.1 14.367 14 flat 6.0.0
 echo "not in the release" >/tmp/zip-src/tampered/dnd5e/extra.txt
 (cd /tmp/zip-src/tampered/dnd5e && rm -f /tmp/zips/tampered.zip && zip -qr /tmp/zips/tampered.zip .)
 
@@ -101,14 +101,14 @@ fresh_pi() {
   mkdir -p "$data/worlds" "$FOUNDRY_DATA/Config" "$FOUNDRY_APP"
   echo '{"version":"14.368.0"}' >"$FOUNDRY_APP/package.json"
   echo '{"port":30000,"world":"curse-of-strahd"}' >"$FOUNDRY_DATA/Config/options.json"
-  make_system "$sysdir" 6.0.5 14.359 ""
+  make_system "$sysdir" 6.0.6 14.359 ""
   echo 'not a world' >"$data/worlds/README.txt"
   local w
   for w in curse-of-strahd strahd-kit frostmaiden-training pi-check; do
     mkdir -p "$data/worlds/$w/data"
-    printf '{"id":"%s","title":"%s","system":"dnd5e","systemVersion":"6.0.5"}\n' "$w" "$w" >"$data/worlds/$w/world.json"
+    printf '{"id":"%s","title":"%s","system":"dnd5e","systemVersion":"6.0.6"}\n' "$w" "$w" >"$data/worlds/$w/world.json"
     echo original >"$data/worlds/$w/data/marker.txt"
-    fake-settings set "$data/worlds/$w/data/settings" 6.0.5 # dnd5e.systemMigrationVersion, as the last launch left it
+    fake-settings set "$data/worlds/$w/data/settings" 6.0.6 # dnd5e.systemMigrationVersion, as the last launch left it
     echo "leveldb log of $w" >"$data/worlds/$w/data/LOG"
   done
   chown -R "$FOUNDRY_USER:$FOUNDRY_USER" "$FOUNDRY_DATA"
@@ -252,9 +252,9 @@ s_zip_wrong_version() {
   serve wrongver
   run_stage trial MODE=trial
 }
-setup_already_installed() { set_installed_version 6.0.6; } # setup_<name> runs before the first state block
+setup_already_installed() { set_installed_version 6.1.1; } # setup_<name> runs before the first state block
 s_already_installed() { run_stage trial MODE=trial; }
-setup_newer_installed() { set_installed_version 6.0.7; }
+setup_newer_installed() { set_installed_version 6.1.2; }
 s_newer_installed() { run_stage trial MODE=trial; }
 setup_kit_launched() { echo '{"port":30000,"world":"strahd-kit"}' >"$FOUNDRY_DATA/Config/options.json"; }
 s_kit_launched() { run_stage trial MODE=trial; }
@@ -288,7 +288,7 @@ s_rollback_world_created() {
   run_stage trial MODE=trial
   kit_run
   mkdir -p "$data/worlds/new-world/data"
-  echo '{"id":"new-world","title":"new-world","system":"dnd5e","systemVersion":"6.0.6"}' >"$data/worlds/new-world/world.json"
+  echo '{"id":"new-world","title":"new-world","system":"dnd5e","systemVersion":"6.1.1"}' >"$data/worlds/new-world/world.json"
   run_stage rollback MODE=rollback
 }
 s_rollback_halfway() {
@@ -359,7 +359,7 @@ s_bad_env() {
   run_stage zip_in_switch MODE=switch ZIP=/var/lib/foundry-import/x.zip
 }
 
-# The release that migrates every world on 6.0.5: the data changes when the Assistant GM browser joins.
+# The release that migrates every world on 6.0.6: the data changes when the Assistant GM browser joins.
 s_trial_migrating() {
   pin_zip=migrating
   serve migrating
@@ -406,7 +406,7 @@ s_rollback_restore_fails() {
 s_rollback_swap_fails() {
   run_stage trial MODE=trial
   kit_run
-  echo dnd5e-6.0.5 >/tmp/mv_fail
+  echo dnd5e-6.0.6 >/tmp/mv_fail
   run_stage rollback MODE=rollback
   run_stage rerun MODE=rollback
 }

@@ -225,6 +225,12 @@ export const CHECKS = [
   nodeTest('pi-join-page-look', 'pi', 'scripts/pi/join-page-look.test.mjs'),
   nodeTest('pi-vault-sync', 'pi', 'scripts/pi/vault-sync.test.mjs'),
   nodeTest('pi-gm-vault-peers', 'pi', 'scripts/pi/gm-vault-peers.test.mjs'),
+  nodeTest(
+    'pi-obsidian-plugin-stage',
+    'pi',
+    'scripts/pi/obsidian-plugin-stage.test.mjs',
+    'scripts/pi/obsidian-plugin-guides.test.mjs'
+  ),
   nodeTest('pi-player-vault', 'pi', 'scripts/pi/player-vault.test.mjs'),
   nodeTest(
     'pi-seven-books',
@@ -495,6 +501,7 @@ export const PI_CONTAINER_MATRIX = [
   { name: 'stage 32', env: 'PI_STAGE32_CONTAINER', test: 'crash-guard-stage.test.mjs' },
   { name: 'stage 30', env: 'PI_STAGE30_CONTAINER', test: 'player-connector-stage.test.mjs' },
   { name: 'stage 31', env: 'PI_STAGE31_CONTAINER', test: 'gm-vault-peers.test.mjs' },
+  { name: 'stage 33', env: 'PI_STAGE33_CONTAINER', test: 'obsidian-plugin-stage.test.mjs' },
   { name: 'stage 16', env: 'PI_STAGE16_CONTAINER', test: 'board-status.test.mjs' },
   { name: 'stage 17', env: 'PI_STAGE17_CONTAINER', test: 'gh-runner.test.mjs' },
   {

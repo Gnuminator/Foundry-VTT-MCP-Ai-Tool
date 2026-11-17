@@ -151,6 +151,29 @@ bridge and dashboard settings and cannot remove a PC). It never writes, moves or
 - Add and remove need a `dietpi-backup` snapshot from today and the user's OK. Nothing restarts. Test:
   `scripts/pi/gm-vault-peers.test.mjs` (text, and with `PI_STAGE31_CONTAINER=1` three real Syncthings in a container).
 
+## The Obsidian plugin through the GM vault (stage 33)
+
+`scripts/pi/remote/33-obsidian-plugin.sh` (backlog `obsidian-plugin-via-vault`) writes the release's plugin files, `main.js`,
+`manifest.json` and `styles.css`, from the stage 5 build (`$TOOL_DIR/app/packages/obsidian-plugin/dist`, the same files as the
+release zip) into `/var/lib/foundry-ai-tool/obsidian/gm/.obsidian/plugins/foundry-ai-tool`. Syncthing carries exactly those three
+files to every PC holding the vault, so the GM's plugin follows the Pi's version with no hand step; Obsidian loads it after a
+restart. `data.json` (the plugin's per-PC settings; the secrets live in Obsidian's own storage) is never written, read or synced. Writes into the
+vault run as the foundry user, links are refused, and a `.stignore` without the `.obsidian/plugins` line is refused (run stage 7 again).
+
+- **How the three files get through:** the `.stignore` on the Pi (stage 7) and on each PC (the guide, `setup-syncthing-pc.ps1`)
+  has three `!.obsidian/plugins/foundry-ai-tool/<file>` lines above `.obsidian/plugins`; Syncthing uses the first line that matches.
+  Stage 33 also repairs the Pi's `.stignore` (a vault from before this stage has only the old lines) and never touches other lines.
+  A PC that still has the old list simply does not receive the plugin.
+- **Run order:** after every stage 5 run of a new release. Check first (read-only, any time, no snapshot):
+  `cat scripts/pi/remote/lib.sh scripts/pi/remote/33-obsidian-plugin.sh | ssh foundry-pi 'CHECK=1 bash -s'` (exit 0 when the
+  vault holds the build's files and the ignore list is right). Without `CHECK=1` it writes, and needs a `dietpi-backup` snapshot
+  from today and the user's OK. Nothing restarts; it deletes nothing; files are staged under a name Syncthing ignores and moved in one step.
+- **Danni's PC:** Danni's `.stignore` needs the same three lines once (the sync guide has them; `setup-syncthing-pc.ps1` adds
+  them for a PC set up with it). Enabling the plugin in Obsidian's Community plugins stays one hand step per PC, because
+  `community-plugins.json` is per PC.
+- Test: `scripts/pi/obsidian-plugin-stage.test.mjs` (text, and with `PI_STAGE33_CONTAINER=1` a real Pi and PC Syncthing: the three
+  files arrive, a `data.json` on either side never crosses, a rerun changes nothing, a new build rewrites only the changed files).
+
 **Giving the GM his own vault (D-139), in this order:**
 
 1. The GM installs Obsidian and Syncthing from the guide and sends his device ID to the user.

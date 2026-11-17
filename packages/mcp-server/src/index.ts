@@ -1,18 +1,18 @@
 #!/usr/bin/env node
 
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-
 import {
   type CallToolResult,
-  CallToolRequestSchema,
-  ErrorCode,
-  ListToolsRequestSchema,
-  McpError,
-} from '@modelcontextprotocol/sdk/types.js';
+  type ListToolsResult,
+  ProtocolError,
+  ProtocolErrorCode,
+  Server,
+} from '@modelcontextprotocol/server';
+
+import { StdioServerTransport, serveStdio } from '@modelcontextprotocol/server/stdio';
 
 import { config } from './config.js';
+
+import { LIST_CACHE_HINTS } from './list-cache-hints.js';
 
 import { rollLogIfLarge } from './log-roll.js';
 
@@ -400,36 +400,30 @@ async function startWrapper(): Promise<void> {
   });
   for (const warning of TOOL_SET_SELECTION.warnings) backend.log(warning);
 
-  const mcp = new Server(
-    { name: config.server.name, version: config.server.version },
-    {
-      capabilities: { tools: {}, ...PROMPTS_CAPABILITY },
-      instructions: toolSetInstructions(TOOL_SET_SELECTION),
-    }
-  );
-
-  // Tell the bridge which Claude app this is (its own name and version, D-146); an old bridge
-  // answers "Unknown method", which is ignored.
-  mcp.oninitialized = (): void => {
-    const info = mcp.getClientVersion();
-    if (!info) return;
-    void backend
-      .send('record_client', { piece: 'claude', who: 'gm', name: info.name, version: info.version })
-      .catch(() => undefined);
-  };
-
-  // The ready-made "/" prompts (prompts/list, prompts/get). Static, answered right here.
-  registerPromptHandlers(mcp, TOOL_SET_SELECTION.all ? undefined : TOOL_SET_SELECTION.sets);
-
   // Setup cleanup handlers - cross-platform approach
 
   // When stdin closes (Claude Desktop exits), clean up the backend
 
-  process.stdin.on('end', () => {
+  const shutdown = (): never => {
     backend.cleanup();
 
     process.exit(0);
-  });
+  };
+
+  process.stdin.on('end', shutdown);
+
+  // stdin gone without 'end', and a transport that closed on its own (a line over the 10 MiB cap,
+  // a broken stdout): serveStdio's transport stops reading then, so without this the wrapper
+  // would stay up on the backend socket and answer nothing.
+  process.stdin.on('close', shutdown);
+
+  class ExitingTransport extends StdioServerTransport {
+    override async close(): Promise<void> {
+      await super.close();
+
+      shutdown();
+    }
+  }
 
   // Also handle process termination signals
 
@@ -449,68 +443,107 @@ async function startWrapper(): Promise<void> {
   // when it cuts a result.
   const listedTools = new Map<string, ToolDefinitionLike>();
 
-  mcp.setRequestHandler(ListToolsRequestSchema, async () => {
-    try {
-      const res = (await backend.send('list_tools', {})) as ListToolsReply;
-      // An empty list is a failed list, not "no tools": Claude must see an error, not {tools: []}.
-      if (!res.tools || res.tools.length === 0) {
-        throw new Error('The Foundry AI Tool backend returned no tools');
+  // serveStdio calls this once per connection (and once for a discarded server/discover probe), so
+  // it only builds a server over the state above and starts nothing.
+  const buildServer = (): Server => {
+    const mcp = new Server(
+      { name: config.server.name, version: config.server.version },
+      {
+        capabilities: { tools: {}, ...PROMPTS_CAPABILITY },
+        instructions: toolSetInstructions(TOOL_SET_SELECTION),
+        // ttlMs and cacheScope for the list results of MCP 2026-07-28; 2025-11-25 clients never see them.
+        cacheHints: LIST_CACHE_HINTS,
       }
+    );
 
+    // Tell the bridge which Claude app this is (its own name and version, D-146); an old bridge
+    // answers "Unknown method", which is ignored.
+    mcp.oninitialized = (): void => {
+      const info = mcp.getClientVersion();
+      if (!info) return;
+      void backend
+        .send('record_client', {
+          piece: 'claude',
+          who: 'gm',
+          name: info.name,
+          version: info.version,
+        })
+        .catch(() => undefined);
+    };
+
+    // The ready-made "/" prompts (prompts/list, prompts/get). Static, answered right here.
+    registerPromptHandlers(mcp, TOOL_SET_SELECTION.all ? undefined : TOOL_SET_SELECTION.sets);
+
+    mcp.setRequestHandler('tools/list', async () => {
       try {
-        backend.log('ListTools handler: received from backend', {
-          hasTools: !!res.tools,
-          toolCount: res.tools?.length || 0,
-        });
-      } catch {}
+        const res = (await backend.send('list_tools', {})) as ListToolsReply;
+        // An empty list is a failed list, not "no tools": Claude must see an error, not {tools: []}.
+        if (!res.tools || res.tools.length === 0) {
+          throw new Error('The Foundry AI Tool backend returned no tools');
+        }
 
-      // Picker annotations (x-foundry-ref) are for the dashboard only, and this entry lists only
-      // its tool sets (the dashboard reads the control channel and sees every tool).
-      const listed = filterToolsBySets(
-        (res.tools ?? []) as Parameters<typeof stripToolRefs>[0],
-        TOOL_SET_SELECTION
-      );
-      const served = stripToolRefs(listed);
-      for (const tool of served as ToolDefinitionLike[]) listedTools.set(tool.name, tool);
-      return { tools: served };
-    } catch (e) {
+        try {
+          backend.log('ListTools handler: received from backend', {
+            hasTools: !!res.tools,
+            toolCount: res.tools?.length || 0,
+          });
+        } catch {}
+
+        // Picker annotations (x-foundry-ref) are for the dashboard only, and this entry lists only
+        // its tool sets (the dashboard reads the control channel and sees every tool).
+        const listed = filterToolsBySets(
+          (res.tools ?? []) as Parameters<typeof stripToolRefs>[0],
+          TOOL_SET_SELECTION
+        );
+        const served = stripToolRefs(listed);
+        for (const tool of served as ToolDefinitionLike[]) listedTools.set(tool.name, tool);
+        // The backend's tool definitions are already protocol-shaped; v2 types the schema strictly.
+        return { tools: served as unknown as ListToolsResult['tools'] };
+      } catch (e) {
+        try {
+          backend.log('ListTools failed', { error: messageOf(e) });
+        } catch {}
+
+        // An error result is never cached, so a 2026-era client cannot hold a failed list for the TTL.
+        throw new ProtocolError(
+          ProtocolErrorCode.InternalError,
+          `Foundry AI Tool tools could not be listed: ${String(messageOf(e))}. Restart Claude Desktop; if it keeps failing, check that the bridge is running.`
+        );
+      }
+    });
+
+    mcp.setRequestHandler('tools/call', async request => {
+      const { name, arguments: args } = request.params as unknown as CallToolParams;
+      const toolName = String(name);
+
+      // The call log (who, tool, set, ms, size, ok) is written by the backend, where the caller is known (D-146).
       try {
-        backend.log('ListTools failed', { error: messageOf(e) });
-      } catch {}
+        const res = (await backend.send('call_tool', {
+          name,
+          args: args ?? {},
+        })) as ToolResultLike;
 
-      throw new McpError(
-        ErrorCode.InternalError,
-        `Foundry AI Tool tools could not be listed: ${String(messageOf(e))}. Restart Claude Desktop; if it keeps failing, check that the bridge is running.`
-      );
-    }
+        // One size cap for every tool result Claude gets (D-109); the dashboard reads them in full.
+        return capToolResult(res, toolName, listedTools.get(toolName)) as unknown as CallToolResult;
+      } catch (e: unknown) {
+        return {
+          content: [
+            { type: 'text', text: `Error: ${templateText(messageOf(e) || 'Backend unavailable')}` },
+          ],
+          isError: true,
+        };
+      }
+    });
+
+    return mcp;
+  };
+
+  // The era (2025-11-25 `initialize` or 2026-07-28 `server/discover` and per-request `_meta`) is
+  // chosen per connection by serveStdio; both are served from the one factory.
+  serveStdio(buildServer, {
+    transport: new ExitingTransport(),
+    onerror: error => backend.log('serveStdio error', { error: messageOf(error) }),
   });
-
-  // The call log (who, tool, set, ms, size, ok) is written by the backend, where the caller is known (D-146).
-  mcp.setRequestHandler(CallToolRequestSchema, async request => {
-    const { name, arguments: args } = request.params as unknown as CallToolParams;
-    const toolName = String(name);
-
-    try {
-      const res = (await backend.send('call_tool', {
-        name,
-        args: args ?? {},
-      })) as ToolResultLike;
-
-      // One size cap for every tool result Claude gets (D-109); the dashboard reads them in full.
-      return capToolResult(res, toolName, listedTools.get(toolName)) as unknown as CallToolResult;
-    } catch (e: unknown) {
-      return {
-        content: [
-          { type: 'text', text: `Error: ${templateText(messageOf(e) || 'Backend unavailable')}` },
-        ],
-        isError: true,
-      };
-    }
-  });
-
-  const transport = new StdioServerTransport();
-
-  await mcp.connect(transport);
 }
 
 startWrapper().catch(err => {

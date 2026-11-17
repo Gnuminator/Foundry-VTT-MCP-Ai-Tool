@@ -16,8 +16,8 @@
  *                                         or enqueued line is replaced; a ready line for a PR also
  *                                         keeps the item's other PRs' lines (one line per PR)
  *   node scripts/backlog.mjs release <id>                  removes the claimed and link lines
- *   node scripts/backlog.mjs set <id> <field> <value>      replaces one planning field (board, gate, area,
- *                                         blocked by, depends on, touches, source, done when); an empty value removes it
+ *   node scripts/backlog.mjs set <id> "<field>" "<value>"  replaces one planning field (board, gate, area,
+ *                                         "blocked by", "depends on", touches, source, "done when"); "" removes it
  *   node scripts/backlog.mjs done <id> <PR> [--sha <sha>] [--summary <text>] [--by <who>]
  *                                         [--pi-run <text>]
  *   node scripts/backlog.mjs add --id <slug> --size S|M|L --title <t> --board <area>
@@ -200,6 +200,7 @@ export function setFieldEdit(text, o) {
     throw new Error(`set changes only: ${SETTABLE.join(', ')} (not "${o.name}")`);
   }
   const value = oneLine(o.value);
+  if (!value && name === 'board') throw new Error('an item keeps its board line (give a value)');
   const p = parseBacklog(text);
   const item = findItem(p, o.id);
   const { body, tail } = trimBlock(item);
@@ -804,7 +805,9 @@ export function run(argv, env = {}) {
       case 'set': {
         needId();
         const name = pos[1];
-        if (!name) throw new Usage('set <id> <field> <value> (empty value removes the field)');
+        if (pos.length < 3) {
+          throw new Usage('set <id> "<field>" "<value>" (quote a two-word field; "" removes it)');
+        }
         const value = pos.slice(2).join(' ');
         job = {
           paths: [BACKLOG],

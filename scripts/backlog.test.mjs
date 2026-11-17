@@ -769,6 +769,22 @@ test('dry run prints the change and writes nothing; unknown commands are usage e
   assert.equal(v.cli(['frobnicate']).code, 2);
 });
 
+test('set: the CLI needs a value argument, keeps CRLF, quotes two-word fields; board cannot go empty', () => {
+  const v = vaults();
+  assert.equal(v.cli(['set', 'second', 'gate']).code, 2, 'a forgotten value is a usage error');
+  const r = v.cli(['set', 'third', 'blocked by', 'item:first']);
+  assert.equal(r.code, 0, r.err);
+  assert.match(v.remoteFile(BACKLOG), /- id: third\r\n- board: CI\r\n- blocked by: item:first\r\n/);
+  assert.equal(v.cli(['set', 'second', 'touches', 'scripts/x.mjs']).code, 0);
+  assert.match(
+    v.remoteFile(BACKLOG),
+    /- board: Process and tooling\r\n- touches: scripts\/x\.mjs\r\n- done when/
+  );
+  assert.equal(v.cli(['set', 'second', 'board', '']).code, 1, 'an empty board is refused');
+  assert.equal(v.cli(['set', 'second', 'link', 'x']).code, 1, 'link has its own command');
+  assert.equal(v.cli(['set', 'second', 'Claimed', 'x']).code, 1, 'any case');
+});
+
 test('git: a second writer on the same vault is refused while the first holds the lock', () => {
   const v = vaults();
   /** @type {{ code: number, err: string } | undefined} */

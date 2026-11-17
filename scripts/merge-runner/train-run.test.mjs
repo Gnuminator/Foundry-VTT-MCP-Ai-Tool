@@ -1,6 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { MAX_RESET_REFUSALS, makeTrainRun, needsSweep, trainTick } from './train-run.mjs';
+import {
+  MAX_RESET_REFUSALS,
+  makeTrainDeps,
+  makeTrainRun,
+  needsSweep,
+  trainTick,
+} from './train-run.mjs';
 
 const TIP = 'f'.repeat(40);
 const since = [1, 2, 3, 4].map(n => ({ pr: n, sha: String(n).repeat(40) }));
@@ -8,7 +14,7 @@ const since = [1, 2, 3, 4].map(n => ({ pr: n, sha: String(n).repeat(40) }));
 /**
  * @param {{ size?: number, take?: number[], worker?: number[], reset?: number[], tip?: string,
  *   tips?: string[], changed?: string[], afterReset?: number, unreadable?: boolean,
- *   releaseFails?: number }} [o] `take`, `worker`, `reset`: the answers in order (the last repeats)
+ *   releaseFails?: number, alreadyFree?: boolean }} [o] `take`, `worker`, `reset`: the answers in order (the last repeats)
  */
 function fixture(o = {}) {
   const calls = { lock: [], worker: [], reset: [], post: [], log: [], stop: 0 };
@@ -35,7 +41,8 @@ function fixture(o = {}) {
           : cmd === 'release'
             ? (o.releaseFails ?? 0)
             : 0;
-      return { status, stdout: '', stderr: status ? 'held by another session' : '' };
+      const stdout = cmd === 'release' && !status && !o.alreadyFree ? 'Released from x.' : '';
+      return { status, stdout, stderr: status ? 'held by another session' : '' };
     },
     tip: () => (o.tips ? o.tips[Math.min(tipReads++, o.tips.length - 1)] : (o.tip ?? TIP)),
     changedSince: () => o.changed ?? ['scripts/x.mjs'],
@@ -153,6 +160,9 @@ test('M3: a failed roundtrip stops server A before the lock is released; start()
   const h = fixture({ releaseFails: 1 });
   h.run.start();
   assert.equal(h.calls.stop, 0, 'a lock that is not ours is left alone');
+  const k = fixture({ alreadyFree: true });
+  k.run.start();
+  assert.equal(k.calls.stop, 0, 'a free lock means nobody of ours runs: server A is not touched');
 });
 
 test('M3: a failed lock release is posted, not only logged', () => {
@@ -198,6 +208,22 @@ test('L5: an unreadable train file is posted once and the round is skipped', () 
   assert.equal(h.calls.post.length, 1);
   h.run.step(true);
   assert.equal(h.calls.post.length, 1);
+});
+
+test('M1 (round 2): a worker killed at the time limit is an environment problem, not red', () => {
+  const d = makeTrainDeps({
+    sh: () => ({ status: 1, stdout: '', stderr: '', timedOut: true }),
+    stamp: () => {},
+    repo: 'o/r',
+    repoRoot: '.',
+    checkout: '.',
+    vault: '.',
+    prepare: () => null,
+    mainCopy: () => null,
+    post: () => {},
+    trainFile: 'none.json',
+  });
+  assert.equal(d.worker(TIP, false).code, 2);
 });
 
 test('M5: trainTick before a gate runs only while queued and drops the waiting keys on cleared', () => {

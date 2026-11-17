@@ -107,6 +107,10 @@ try {
   } catch {
     /* gone already */
   }
-  pwsh(['scripts/test-env/stop.ps1', '-Server', 'A']);
+  // A server that will not stop would be left running for the next holder: not a green run.
+  if (pwsh(['scripts/test-env/stop.ps1', '-Server', 'A']) !== 0 && code === 0) {
+    say('environment problem: the final stop of server A failed');
+    code = 2;
+  }
 }
 process.exit(code);

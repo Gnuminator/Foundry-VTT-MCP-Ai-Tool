@@ -33,7 +33,7 @@ export const needsSweep = files =>
   files.some(f => SWEEP_PATTERNS.some(p => p.test(f.replace(/\\/g, '/'))));
 
 /**
- * @typedef {{ status: number | null, stdout: string, stderr: string }} Ran
+ * @typedef {{ status: number | null, stdout: string, stderr: string, timedOut?: boolean }} Ran
  * @typedef {{
  *   state: () => { size: number, limit: number, since: { pr: number, sha: string }[], lastSha: string | null },
  *   lock: (cmd: 'queue' | 'take' | 'release' | 'leave') => Ran,
@@ -99,7 +99,9 @@ export function makeTrainRun(d) {
      */
     start() {
       d.lock('leave');
-      if (d.lock('release').status === 0) d.stopServer();
+      // "The lock is already free." also exits 0: only a lock that was ours says "Released".
+      const rel = d.lock('release');
+      if (rel.status === 0 && /^Released from/m.test(rel.stdout)) d.stopServer();
     },
     /** The runner is going away: give up a queue place. */
     leave() {
@@ -322,7 +324,11 @@ export function makeTrainDeps(o) {
       for (const line of r.stdout.split(/\r?\n/).filter(Boolean)) o.stamp(`  ${line}`);
       const lines = `${r.stdout}\n${r.stderr}`.split(/\r?\n/).filter(Boolean);
       const mine = lines.filter(l => l.startsWith('train-worker:')).slice(-3);
-      return { code: r.status ?? 2, output: (mine.length ? mine : lines.slice(-3)).join(' | ') };
+      // Killed at the time limit: nothing was judged (sh turns a missing status into 1).
+      return {
+        code: r.timedOut ? 2 : (r.status ?? 2),
+        output: (mine.length ? mine : lines.slice(-3)).join(' | '),
+      };
     },
     stopServer: () => {
       const stop = path.join(o.repoRoot, 'scripts', 'test-env', 'stop.ps1');

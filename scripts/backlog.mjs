@@ -11,6 +11,10 @@
  *                                         the ready line the merge runner acts on (readyText)
  *   node scripts/backlog.mjs progress <id> <text> --if-ready <PR>@<sha>
  *                                         only while that ready line is still the item's line
+ *   node scripts/backlog.mjs progress <id> <text> --pr <PR>
+ *                                         names the PR (no ready-line check): only that PR's ready
+ *                                         or enqueued line is replaced; a ready line for a PR also
+ *                                         keeps the item's other PRs' lines (one line per PR)
  *   node scripts/backlog.mjs release <id>                  removes the claimed and link lines
  *   node scripts/backlog.mjs done <id> <PR> [--sha <sha>] [--summary <text>] [--by <who>]
  *                                         [--pi-run <text>]

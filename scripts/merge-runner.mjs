@@ -506,6 +506,10 @@ export function round(d, tried, attempts, tick) {
   let queueOn;
 
   for (const first of ready) {
+    // Queued for the train roundtrip: try server A's lock before each gate (a gate can run for
+    // hours). First, so the line is read after a roundtrip that may have run for hours.
+    const trainStop = tick?.().stop;
+    if (trainStop) return { stop: trainStop, merged };
     // Read the line again: an earlier gate run in this round can take half an hour, and the lane
     // may have written a newer ready line meanwhile. A changed line waits for the next round.
     const fresh = d.readBacklog();
@@ -514,9 +518,6 @@ export function round(d, tried, attempts, tick) {
         ? undefined
         : readyItems(fresh).find(x => x.id === first.id && x.pr === first.pr);
     if (!r || r.head !== first.head) continue;
-    // Queued for the train roundtrip: try server A's lock before each gate (a gate can run for hours).
-    const trainStop = tick?.().stop;
-    if (trainStop) return { stop: trainStop, merged };
     // A PR the gate turned away for the full merge train waits for the train reset (the runner's
     // roundtrip clears these keys); the PRs behind it in Backlog order are gated as usual.
     if (attempts.has(`${TRAIN_KEY}${r.pr}@${r.head}`)) continue;

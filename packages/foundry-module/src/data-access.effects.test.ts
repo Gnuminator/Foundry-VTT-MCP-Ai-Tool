@@ -451,6 +451,25 @@ describe('FoundryDataAccess: getAvailableConditions', () => {
     }
   });
 
+  it('marks dnd5e 6.1 effects the game applies itself and carries levels, riders and groups', async () => {
+    (globalThis as any).CONFIG.statusEffects = {
+      antimagic: { id: 'antimagic', name: 'Antimagic', img: 'a.svg', hud: false },
+      exhaustion: { id: 'exhaustion', name: 'Exhaustion', img: 'e.svg', levels: 6 },
+      unconscious: { id: 'unconscious', name: 'Unconscious', img: 'u.svg', riders: ['prone'] },
+      coverHalf: { id: 'coverHalf', name: 'Half Cover', img: 'c.svg', exclusiveGroup: 'cover' },
+      prone: { id: 'prone', name: 'Prone', img: 'p.svg' },
+    };
+
+    const [antimagic, exhaustion, unconscious, cover, prone] = (await da.getAvailableConditions())
+      .conditions;
+
+    expect(antimagic.automatic).toBe(true);
+    expect(exhaustion.levels).toBe(6);
+    expect(unconscious.riders).toEqual(['prone']);
+    expect(cover.exclusiveGroup).toBe('cover');
+    expect(Object.keys(prone).sort()).toEqual(['description', 'icon', 'id', 'name']);
+  });
+
   it('falls back name to label then id when name is absent', async () => {
     (globalThis as any).CONFIG.statusEffects = [
       { id: 'stunned', label: 'Stunned via Label', icon: 'icons/stunned.svg' },

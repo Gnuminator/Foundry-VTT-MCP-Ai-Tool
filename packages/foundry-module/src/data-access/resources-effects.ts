@@ -12,6 +12,14 @@ interface ConditionEntry {
   description: unknown;
   /** dnd5e's own rules page for the condition (a uuid, no text); absent for ones it has none for. */
   reference?: string;
+  /** True when dnd5e keeps it off the token HUD because the game puts it on (Antimagic region, encumbrance). */
+  automatic?: true;
+  /** Highest level of a leveled condition (Exhaustion). */
+  levels?: number;
+  /** Conditions that come with this one (Unconscious brings Prone). */
+  riders?: string[];
+  /** Conditions in the same group replace each other (the three covers). */
+  exclusiveGroup?: string;
 }
 
 /** The uuid of the rules page dnd5e keeps for a condition (`CONFIG.DND5E.conditionTypes`), if any. */
@@ -155,12 +163,24 @@ export class ResourcesEffectsDataAccess {
         gameSystem: game.system?.id,
         conditions: rawConditions.map(c => {
           const reference = conditionReference(c.id);
+          const levels = typeof c.levels === 'number' && c.levels > 0 ? c.levels : undefined;
+          const riders = Array.isArray(c.riders)
+            ? c.riders.filter((r): r is string => typeof r === 'string')
+            : [];
+          const group =
+            typeof c.exclusiveGroup === 'string' && c.exclusiveGroup !== ''
+              ? c.exclusiveGroup
+              : undefined;
           return {
             id: c.id,
             name: localizeName(c.name || c.label) || c.id,
             icon: c.icon || c.img,
             description: c.description || '',
             ...(reference ? { reference } : {}),
+            ...(c.hud === false ? { automatic: true as const } : {}),
+            ...(levels ? { levels } : {}),
+            ...(riders.length > 0 ? { riders } : {}),
+            ...(group ? { exclusiveGroup: group } : {}),
           };
         }),
       };

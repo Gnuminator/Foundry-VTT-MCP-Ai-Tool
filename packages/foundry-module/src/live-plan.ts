@@ -390,7 +390,6 @@ export function statusInfo(idOrName: string): StatusInfo {
   if (!status) {
     const known = statusEffectList()
       .map(s => s.id)
-      .slice(0, 40)
       .join(', ');
     throw new Error(`Unknown condition "${idOrName}". Known: ${known}`);
   }

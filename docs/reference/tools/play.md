@@ -226,7 +226,7 @@ Parameters:
 
 ## get-available-conditions
 
-Get a list of all available status effects/conditions that can be applied to tokens in the current game system
+Get a list of all available status effects/conditions that can be applied to tokens in the current game system. Entries marked automatic (Antimagic, encumbrance) are put on by the game itself; levels, riders and exclusiveGroup say how a condition behaves.
 
 Kind: read-only. Title: List conditions.
 

@@ -122,7 +122,7 @@ describe('DiceRollTools.handleRequestAbilityCheck', () => {
   });
 
   it('refuses a DC outside 1 to 99 at its own boundary', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = makeTools(DiceRollTools);
     const result = await tools.handleRequestAbilityCheck({
       actor: 'Alice',
       ability: 'str',
@@ -133,7 +133,7 @@ describe('DiceRollTools.handleRequestAbilityCheck', () => {
   });
 
   it('keeps the attack card text when a DC is given', async () => {
-    const { tools, query } = makeTools(() => ({ success: true, message: 'ok' }));
+    const { tools, query } = makeTools(DiceRollTools, () => ({ success: true, message: 'ok' }));
     await tools.handleRequestPlayerRolls({
       rollType: 'attack',
       rollTarget: 'Longsword',
@@ -252,7 +252,7 @@ describe('DiceRollTools.handleRequestAttackRoll', () => {
   });
 
   it('request-player-rolls with rollType attack does the same rules check and card text', async () => {
-    const { query } = makeTools(() => ({ success: true, message: 'Posted.' }));
+    const { query } = makeTools(DiceRollTools, () => ({ success: true, message: 'Posted.' }));
     const logger: any = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
     logger.child = (): unknown => logger;
     const tryCheck = vi.fn(async () => ({ verdict: 'problem', summary: 'no uses left.' }));

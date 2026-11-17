@@ -13,14 +13,14 @@ import { isClientBehind, type UsageEvent } from '@gnuminator/shared';
 
 import { TOOL_CALL_LOG_DIR, type ToolCallLine } from './tool-call-log.js';
 
-export const CLIENTS_FILE = 'clients.json';
-export const CALLS_FILE_RE = /^(\d{4}-\d{2}-\d{2})\.calls\.jsonl$/;
+const CLIENTS_FILE = 'clients.json';
+const CALLS_FILE_RE = /^(\d{4}-\d{2}-\d{2})\.calls\.jsonl$/;
 const MAX_CLIENT_ENTRIES = 200;
 const TOP = 5;
 
-export type ClientPieceName = 'connectors' | 'claude' | 'player-extension' | 'obsidian';
+type ClientPieceName = 'connectors' | 'claude' | 'player-extension' | 'obsidian';
 
-export interface ClientEntry {
+interface ClientEntry {
   piece: ClientPieceName;
   /** `gm` or a Foundry user id. */
   who: string;
@@ -176,7 +176,7 @@ export async function readCallLines(
   return out;
 }
 
-export interface WhoRow {
+interface WhoRow {
   /** `gm` or a Foundry user id, or `unknown` for lines from before callers were logged. */
   key: string;
   role: 'gm' | 'player' | 'unknown';
@@ -198,7 +198,7 @@ export interface WhoRow {
   }>;
 }
 
-export interface WhoUsesWhatReport {
+interface WhoUsesWhatReport {
   schema: 1;
   generatedAt: string;
   days: number;
@@ -221,7 +221,7 @@ function topN<T extends { n: number; name: string }>(
     .slice(0, TOP);
 }
 
-export interface WhoUsesWhatDeps {
+interface WhoUsesWhatDeps {
   dataDir: string;
   clients: Pick<ClientsFile, 'list'>;
   /** Usage events of the current world (empty when none is known). */

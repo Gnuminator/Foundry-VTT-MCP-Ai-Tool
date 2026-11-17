@@ -2,7 +2,7 @@ import type { CombatState, ModuleError, SessionEvent } from './feed/types.js';
 
 /**
  * Bounded in-memory view of the game. Keeps a rolling window of recent events
- * and the latest combat snapshot — deliberately NOT the full session history —
+ * and the latest combat snapshot (deliberately NOT the full session history),
  * so the context handed to the model stays small and cost-controlled.
  */
 export class GameState {

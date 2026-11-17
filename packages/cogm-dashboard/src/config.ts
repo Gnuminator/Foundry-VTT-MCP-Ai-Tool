@@ -97,7 +97,7 @@ export interface Config {
  *
  * The split is OPT-IN: with no GM token and no GM email allow-list configured,
  * `splitEnabled` is false and the dashboard runs in single-user GM mode
- * (every request is the GM, zero config — today's localhost behavior). Setting
+ * (every request is the GM, zero config, today's localhost behavior). Setting
  * `GM_DASHBOARD_TOKEN` and/or `GM_EMAILS` turns the split on, after which a
  * caller must prove GM identity (token or Cloudflare Access email) to reach the
  * GM surface; everyone else gets the read-only player view.
@@ -121,7 +121,7 @@ export interface AuthConfig {
 export interface PlayerViewConfig {
   /** Show (publicly-visible) status conditions on enemy/NPC combatants. */
   readonly showEnemyConditions: boolean;
-  /** Show a coarse HP band (e.g. "bloodied") on enemies — never exact numbers. */
+  /** Show a coarse HP band (e.g. "bloodied") on enemies, never exact numbers. */
   readonly showEnemyHpBands: boolean;
 }
 

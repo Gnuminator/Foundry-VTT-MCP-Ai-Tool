@@ -4,8 +4,8 @@ import type { AuthConfig } from './config.js';
 /**
  * Server-side role resolution for the player/GM split (Phase 6).
  *
- * This is pure plumbing — no Express coupling beyond a tiny structural request
- * shape — so it unit-tests without a server. The split is OPT-IN: when
+ * This is pure plumbing with no Express coupling beyond a tiny structural request
+ * shape, so it unit-tests without a server. The split is OPT-IN: when
  * `auth.splitEnabled` is false the dashboard runs in single-user mode (one GM, the default).
  *
  * Resolution order when the split is active:

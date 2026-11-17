@@ -88,6 +88,8 @@ export function makeReleaseRun(d) {
   let phase = /** @type {'idle' | 'queued'} */ ('idle');
   let current = '';
   let waited = 0;
+  /** The main tip a roundtrip of this runner was green on (a failed Waiting write must not rerun it). */
+  let greenTip = '';
 
   /** The roundtrip for one unblocked release, then the notice. @param {ReleaseItem} r */
   const hold = r => {
@@ -99,7 +101,7 @@ export function makeReleaseRun(d) {
     const failKey = `release-fail:${r.id}@${tip}`;
     /** @type {{ code: number, output: string } | undefined} */
     let ran;
-    if (d.lastRoundtrip() === tip) {
+    if (d.lastRoundtrip() === tip || greenTip === tip) {
       d.log(`${r.id}: live:roundtrip already green on ${tip.slice(0, 7)}`);
       ran = { code: 0, output: '' };
       if (phase === 'queued') {
@@ -128,10 +130,14 @@ export function makeReleaseRun(d) {
         }
       }
     }
+    if (ran.code === 0) greenTip = tip;
     if (ran.code !== 0) {
       d.mark(failKey);
       const env = ran.code === 2;
       d.log(`${r.id}: live:roundtrip ${env ? 'could not run' : 'failed'} on ${tip.slice(0, 7)}`);
+      // One red line per release item; later tips retry quietly.
+      if (d.seen(`release-failpost:${r.id}`)) return;
+      d.mark(`release-failpost:${r.id}`);
       d.post(
         `merge runner: ${r.id} is unblocked, but live:roundtrip ${env ? 'could not run (the test environment did not come up)' : 'failed'} on main ${tip.slice(0, 7)}; not ready to tag. ${cut(ran.output, 300)}`
       );
@@ -174,7 +180,7 @@ export function makeReleaseRun(d) {
         if (stillWaiting(r, backlogText, d.readDone(), d.prMerged).length) continue;
         const tip = d.tip();
         if (tip && d.seen(`release-fail:${r.id}@${tip}`)) continue;
-        if (phase === 'idle' && d.lastRoundtrip() !== tip) {
+        if (phase === 'idle' && d.lastRoundtrip() !== tip && greenTip !== tip) {
           const q = d.lock('queue');
           if (q.status !== 0) {
             d.log(

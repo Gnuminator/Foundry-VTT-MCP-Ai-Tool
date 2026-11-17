@@ -141,7 +141,7 @@ test('red roundtrip: one line, no Waiting item, not retried on the same tip, ser
 
 test('a failed Waiting write is not marked and not posted; the next round retries', () => {
   let fail = true;
-  const { d, posts } = fake({
+  const { d, posts, calls } = fake({
     waiting: () => (fail ? { status: 1, stdout: '', stderr: 'no' } : ok),
   });
   const run = makeReleaseRun(d);
@@ -149,8 +149,24 @@ test('a failed Waiting write is not marked and not posted; the next round retrie
   run.step(unblocked);
   assert.equal(posts.length, 0);
   fail = false;
-  run.step(unblocked); // the roundtrip is not repeated: queue again, then take
+  run.step(unblocked); // the roundtrip is not repeated: it was green on this tip
+  assert.equal(posts.length, 1);
+  assert.equal(calls.filter(c => c === 'worker').length, 1);
+});
+
+test('a red roundtrip on a later tip retries quietly: one red line per release item', () => {
+  let tip = TIP;
+  const { d, posts, calls } = fake({
+    tip: () => tip,
+    worker: () => (calls.push('worker'), { code: 1, output: 'boom' }),
+  });
+  const run = makeReleaseRun(d);
   run.step(unblocked);
+  run.step(unblocked);
+  tip = 'd'.repeat(40);
+  run.step(unblocked);
+  run.step(unblocked);
+  assert.equal(calls.filter(c => c === 'worker').length, 2);
   assert.equal(posts.length, 1);
 });
 

@@ -64,7 +64,7 @@ The merge runner (`scripts/merge-runner.mjs`, D-140) merges ready lines and post
 the PRs that count, merges the rest, queues for server A's lock, runs `live:roundtrip` (plus
 `live:sweep` when module or tool sources changed) on main and `--train-reset`. On red it
 posts a bisect hint and stops: bisect (`--train`), then restart it:
-`Stop-Process` the pid in `~/.foundry-ai-tool/merge-runner.lock` (Stop-ScheduledTask leaves node alive), `Start-ScheduledTask 'Foundry AI Tool merge runner'`.
+`Stop-Process` the pid in `~/.foundry-ai-tool/merge-runner.lock` (Stop-ScheduledTask leaves node alive), `Start-ScheduledTask 'Foundry AI Tool merge runner'` (restart cleans up).
 An item with two PRs holds one ready line each.
 
 ## Main is red

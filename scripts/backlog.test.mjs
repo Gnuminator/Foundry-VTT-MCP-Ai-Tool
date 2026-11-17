@@ -944,6 +944,7 @@ test('progress: prose that says a PR is ready is refused, a real ready line and 
     'PR #5 refused by the merge gate: write a new ready line',
     'PR #5 left the merge queue without merging; fix it, then write a new ready line',
     'not yet ready, still testing',
+    'PR 5 not ready, waiting for CI',
   ]) {
     assert.doesNotThrow(() => progressEdit(FIXTURE, { id: 'second', text, date: D }), text);
   }
@@ -969,6 +970,16 @@ test('progress: one ready line per PR; a new one or a runner write keeps the oth
   }).text;
   assert.deepEqual(readyOf(part), [{ pr: 6, head: b }]);
   assert.match(parseProgress(part).get('second') ?? '', /part PR #5 landed/);
+  // M1: a queue-merged or left-the-queue write has no ready line to check: --pr names the PR, so
+  // PR 6's line stays and PR 5's own (enqueued) line goes.
+  const viaPr = progressEdit(two, {
+    id: 'second',
+    text: 'PR #5 left the merge queue without merging',
+    date: D,
+    pr: 5,
+  }).text;
+  assert.deepEqual(readyOf(viaPr), [{ pr: 6, head: b }]);
+  assert.match(parseProgress(viaPr).get('second') ?? '', /PR #5 left the merge queue/);
   // A refusal for a line that is gone is not written.
   assert.throws(
     () =>

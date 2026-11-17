@@ -246,4 +246,8 @@ test('REFRESHABLE and reviewOf', () => {
   );
   assert.equal(reviewOf('PR #7 ready, head ' + 'a'.repeat(40)), '');
   assert.equal(reviewOf(undefined), '');
+  // L1: the line of the named PR, not the last line.
+  const two = `PR #7 ready, head ${'a'.repeat(40)}, review one.md\nPR #8 ready, head ${'b'.repeat(40)}, review two.md`;
+  assert.equal(reviewOf(two, 7), 'one.md');
+  assert.equal(reviewOf(two, 8), 'two.md');
 });

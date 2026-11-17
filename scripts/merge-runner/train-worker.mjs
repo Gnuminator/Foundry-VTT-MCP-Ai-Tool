@@ -9,16 +9,24 @@
  * in (sync-module.ps1 -NoBuild), start server A, join the world `ai-tool-test` as the passwordless
  * GM `Claude` in a headless Edge (the bridge needs a GM client for its Foundry link), run
  * `npm run live:roundtrip` (and `npm run live:sweep` with --sweep), close the browser, stop server A.
- * Server A only (ports 30001, 31514, 31515, 3100): never the live bridge ports 31414 to 31416.
+ * Server A only (the testA ports of shared/ports.json): never the live bridge ports.
  *
  * Exit codes: 0 every step green, 1 a roundtrip or sweep step failed (a real red), 2 the
  * environment could not be brought up (nothing was judged).
  */
 import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import net from 'node:net';
+import { fileURLToPath } from 'node:url';
 
 // The runner starts this script from its own checkout with the gate checkout (main's tip) as cwd.
 const root = process.cwd();
-const FOUNDRY_URL = 'http://localhost:30001';
+/** Server A: Foundry, test bridge control and module ports, dashboard (shared/ports.json). */
+const A = JSON.parse(
+  readFileSync(fileURLToPath(new URL('../../shared/ports.json', import.meta.url)), 'utf8')
+).ports.testA;
+const PORTS = [A.foundry, A.control, A.link, A.dashboard];
+const FOUNDRY_URL = `http://localhost:${A.foundry}`;
 const WORLD = 'ai-tool-test';
 const say = (/** @type {string} */ m) => console.log(`train-worker: ${m}`);
 
@@ -26,6 +34,8 @@ const say = (/** @type {string} */ m) => console.log(`train-worker: ${m}`);
 function run(cmd, args, timeout) {
   const r = spawnSync(cmd, args, {
     cwd: root,
+    // Every script of the kit reads the server from this variable as well as from -Server.
+    env: { ...process.env, FOUNDRY_TEST_SERVER: 'A' },
     encoding: 'utf8',
     maxBuffer: 64 * 1024 * 1024,
     timeout,
@@ -33,8 +43,17 @@ function run(cmd, args, timeout) {
   });
   const out = `${r.stdout ?? ''}${r.stderr ?? ''}`;
   for (const l of out.split(/\r?\n/).filter(Boolean).slice(-40)) console.log(`  ${l}`);
-  return r.status ?? 1;
+  // No exit status = killed at the time limit: nothing was judged, so 2 (environment), not 1 (red).
+  return r.status ?? 2;
 }
+/** Does something answer on this port of the local machine? @param {number} port */
+const taken = port =>
+  new Promise(resolve => {
+    const s = net.connect({ port, host: '127.0.0.1' });
+    s.once('connect', () => (s.destroy(), resolve(true)));
+    s.once('error', () => resolve(false));
+    s.setTimeout(2000, () => (s.destroy(), resolve(false)));
+  });
 const pwsh = (/** @type {string[]} */ a, timeout = 600_000) =>
   run('pwsh', ['-NoProfile', '-File', ...a], timeout);
 const npm = (/** @type {string} */ script, timeout = 1_200_000) =>
@@ -50,12 +69,17 @@ try {
   say('building the checkout');
   if (npm('build') !== 0) throw new Error('npm run build failed');
   say('stopping server A');
-  pwsh(['scripts/test-env/stop.ps1']);
+  if (pwsh(['scripts/test-env/stop.ps1', '-Server', 'A']) !== 0)
+    throw new Error('stop.ps1 -Server A failed');
+  // start.ps1 skips a port that is already taken and exits 0: a lane's dev backend on one of
+  // these would then be tested instead of main's build.
+  for (const port of PORTS)
+    if (await taken(port)) throw new Error(`port ${port} is in use after stopping server A`);
   say('copying the module into server A');
-  if (pwsh(['scripts/test-env/sync-module.ps1', '-NoBuild']) !== 0)
+  if (pwsh(['scripts/test-env/sync-module.ps1', '-NoBuild', '-Server', 'A']) !== 0)
     throw new Error('sync-module.ps1 failed');
   say('starting server A');
-  if (pwsh(['scripts/test-env/start.ps1', '-World', WORLD]) !== 0)
+  if (pwsh(['scripts/test-env/start.ps1', '-World', WORLD, '-Server', 'A']) !== 0)
     throw new Error('start.ps1 failed');
   const { launchBrowser, joinGame, activeWorld } = await import('../test-kit/lib/gm.mjs');
   const running = await activeWorld(FOUNDRY_URL);
@@ -83,6 +107,6 @@ try {
   } catch {
     /* gone already */
   }
-  pwsh(['scripts/test-env/stop.ps1']);
+  pwsh(['scripts/test-env/stop.ps1', '-Server', 'A']);
 }
 process.exit(code);

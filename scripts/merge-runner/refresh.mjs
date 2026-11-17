@@ -10,6 +10,8 @@
  * already carries one of the runner's own refresh commits (so a PR that keeps failing for another
  * reason is not merged again and again) stay refusals for the lane to fix.
  */
+import { readyOrEnqueuedPr } from '../backlog-items.mjs';
+
 /** @param {string} s @param {number} max */
 const oneLine = (s, max) => String(s).replace(/\s+/g, ' ').trim().slice(0, max);
 
@@ -63,7 +65,7 @@ export const makeRefresh = o => (r, reason) => {
 export function refreshStep(refresh, r, reason, progress) {
   const fr = refresh?.(r, reason, progress);
   if (!fr?.head) return { refusal: fr?.why ? `${reason} (${fr.why})` : reason };
-  const review = reviewOf(progress);
+  const review = reviewOf(progress, r.pr);
   const [was, now] = [r.head.slice(0, 7), fr.head.slice(0, 7)];
   return {
     args: [
@@ -83,9 +85,17 @@ export function refreshStep(refresh, r, reason, progress) {
   };
 }
 
-/** The `review <path>` part of an item's ready line, or ''. @param {string | undefined} progress */
-export function reviewOf(progress) {
-  const last = (progress ?? '').split('\n').at(-1) ?? '';
+/**
+ * The `review <path>` part of PR `pr`'s ready line in an item's progress, or ''. An item with two
+ * PRs has two lines: the last one is not necessarily this PR's (L1).
+ * @param {string | undefined} progress @param {number} [pr]
+ */
+export function reviewOf(progress, pr) {
+  const lines = (progress ?? '').split('\n');
+  const last =
+    (pr === undefined ? undefined : lines.find(l => readyOrEnqueuedPr(l) === pr)) ??
+    lines.at(-1) ??
+    '';
   return /, review (.+)$/.exec(last.trim())?.[1].trim() ?? '';
 }
 

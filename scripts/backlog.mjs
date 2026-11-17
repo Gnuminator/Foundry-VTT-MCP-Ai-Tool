@@ -120,7 +120,9 @@ export function claimEdit(text, o) {
  * `ifReady`: write only while the item's progress is still that PR's ready line at that head (the
  * merge runner's refusals must not overwrite a newer ready line).
  * @param {string} text
- * @param {{ id: string, text: string, date: string, ifReady?: { pr: number, head: string } }} o
+ * `pr`: the write names that PR without the ready-line check (the runner's merged/left-the-queue
+ * lines), so only that PR's lines are replaced and another PR's ready line stays.
+ * @param {{ id: string, text: string, date: string, ifReady?: { pr: number, head: string }, pr?: number }} o
  */
 export function progressEdit(text, o) {
   const p = parseBacklog(text);
@@ -140,7 +142,7 @@ export function progressEdit(text, o) {
   // One ready or enqueued line per PR: a ready line (or a runner write under --if-ready) replaces
   // only its own PR's lines; other PRs' lines stay. Plain text replaces the whole progress (a lane
   // that takes back its ready line must not leave it for the runner).
-  const ownPr = o.ifReady?.pr ?? readyOrEnqueuedPr(oneLine(o.text));
+  const ownPr = o.ifReady?.pr ?? o.pr ?? readyOrEnqueuedPr(oneLine(o.text));
   const keep =
     ownPr === null
       ? []
@@ -739,11 +741,16 @@ export function run(argv, env = {}) {
           if (!m) throw new Usage('--if-ready <PR>@<40-character sha>');
           ifReady = { pr: Number(m[1]), head: m[2] };
         }
+        let pr;
+        if (typeof flags.pr === 'string') {
+          if (!/^\d+$/.test(flags.pr)) throw new Usage('--pr <PR number>');
+          pr = Number(flags.pr);
+        }
         job = {
           paths: [BACKLOG],
           message: `Backlog: progress ${id}`,
           edit: read => ({
-            [BACKLOG]: progressEdit(read(BACKLOG), { id, text, date, ifReady }).text,
+            [BACKLOG]: progressEdit(read(BACKLOG), { id, text, date, ifReady, pr }).text,
           }),
         };
         break;

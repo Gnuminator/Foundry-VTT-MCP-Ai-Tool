@@ -139,7 +139,7 @@ export function readyOrEnqueuedPr(line) {
  */
 export function looksLikeReadyProse(text) {
   const t = text.trim();
-  if (READY_LINE.test(t) || ENQUEUED_LINE.test(t)) return false;
+  if (READY_LINE.test(t) || ENQUEUED_LINE.test(t) || /\bnot ready\b/i.test(t)) return false;
   return (
     /\bPR\s*#?\d+\b[^.;:]{0,20}\bready\b/i.test(t) || /\bready (to|for) (the )?merge\b/i.test(t)
   );

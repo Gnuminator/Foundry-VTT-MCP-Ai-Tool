@@ -40,6 +40,7 @@ export const needsSweep = files =>
  *   tip: () => string,
  *   changedSince: (sha: string | null, tip: string) => string[],
  *   worker: (tip: string, sweep: boolean) => { code: number, output: string },
+ *   stopServer: () => void,
  *   reset: (tip: string) => Ran,
  *   post: (text: string) => void,
  *   log: (line: string) => void,
@@ -58,6 +59,12 @@ export function makeTrainRun(d) {
   let phase = /** @type {'idle' | 'queued'} */ ('idle');
   let waited = 0;
   let resetRefusals = 0;
+  /** A green reset left the train full (PRs in the merge queue count): wait until it changes. */
+  /** @type {{ sig: string, tip: string } | null} */
+  let stuck = null;
+  let postedWait = false;
+  const sig = (/** @type {{ since: { pr: number, sha: string }[] }} */ st) =>
+    st.since.map(s => `${s.pr}@${s.sha}`).join(',');
 
   /** The merges the train counts, as a bisect hint. @param {{ pr: number, sha: string }[]} since */
   const hint = since =>
@@ -65,9 +72,35 @@ export function makeTrainRun(d) {
       ? `merged since the last roundtrip: ${since.map(s => `#${s.pr}@${s.sha.slice(0, 7)}`).join(', ')}; bisect by checking out main at the first of them and then each one after it`
       : 'no merge is recorded on the train; check main at its tip';
 
+  let warnedFile = false;
+  /** The train file, or null when it cannot be read (one line, then the round is skipped). */
+  const state = () => {
+    try {
+      return d.state();
+    } catch (e) {
+      if (!warnedFile) {
+        warnedFile = true;
+        const why = cut(e instanceof Error ? e.message : String(e), 200);
+        d.log(`WARNING: merge train file unreadable: ${why}`);
+        d.post(
+          `merge runner: the merge train file is unreadable (${why}); the train roundtrip waits`
+        );
+      }
+      return null;
+    }
+  };
+
   return {
     /** For a test or a restart: where the machine stands. */
     phase: () => phase,
+    /**
+     * The runner starts: a previous runner that was killed may have left the lock, a queue place
+     * and a running server A behind (M3). Only the runner's own session id is touched.
+     */
+    start() {
+      d.lock('leave');
+      if (d.lock('release').status === 0) d.stopServer();
+    },
     /** The runner is going away: give up a queue place. */
     leave() {
       if (phase === 'queued') d.lock('leave');
@@ -80,10 +113,19 @@ export function makeTrainRun(d) {
     step(blocked) {
       if (phase === 'idle') {
         if (!blocked) return {};
-        const st = d.state();
+        const st = state();
+        if (!st) return {};
         if (st.size < st.limit) {
           d.log('a PR waits for the train, but the train is not full any more; carrying on');
           return { cleared: true };
+        }
+        // A green reset left the train full (PRs in the merge queue count): no new roundtrip until
+        // the train or main's tip changes (M4).
+        if (stuck) {
+          const now = d.tip();
+          if (sig(st) === stuck.sig && (!now || now === stuck.tip)) return {};
+          stuck = null;
+          postedWait = false;
         }
         const q = d.lock('queue');
         if (q.status !== 0) {
@@ -98,28 +140,45 @@ export function makeTrainRun(d) {
         );
         return {};
       }
-      // queued: try the lock.
+      // queued: the train may have been reset meanwhile, and main's tip must be readable, both
+      // checked before the lock is taken (a take that is then given back loses the queue place).
+      const st0 = state();
+      if (!st0) return {};
+      if (st0.size < st0.limit) {
+        d.lock('leave');
+        phase = 'idle';
+        d.log('the train was reset by someone else while queued; nothing to run');
+        return { cleared: true };
+      }
+      if (!/^[0-9a-f]{40}$/.test(d.tip())) {
+        d.log('WARNING: main tip unreadable; trying again next round');
+        return {};
+      }
       const t = d.lock('take');
       if (t.status !== 0) {
         if (waited++ % 15 === 0) d.log('waiting for test server A (held by another session)');
+        if (waited === 60)
+          d.post(
+            'merge runner: still waiting for test server A (held by another session) for the train roundtrip; the other PRs go on'
+          );
         return {};
       }
       phase = 'idle';
       /** @type {{ code: number, output: string } | undefined} */
       let ran;
       /** @type {string} */
-      let tip;
-      let st;
+      let tip = '';
+      let st = st0;
+      let requeue = false;
       try {
-        st = d.state();
-        if (st.size < st.limit) {
-          d.log('the train was reset by someone else while queued; nothing to run');
-          return { cleared: true };
-        }
+        st = state() ?? st0;
         tip = d.tip();
         if (!/^[0-9a-f]{40}$/.test(tip)) {
+          // Main's tip went unreadable between the check and the take: the lock goes back below,
+          // so queue again (a lost place would let others take server A first).
           d.log('WARNING: main tip unreadable; trying again next round');
           phase = 'queued';
+          requeue = true;
           return {};
         }
         const sweep = needsSweep(d.changedSince(st.lastSha, tip));
@@ -128,17 +187,38 @@ export function makeTrainRun(d) {
         );
         ran = d.worker(tip, sweep);
       } finally {
+        // A worker that failed or timed out may have left server A running: stop it before the lock
+        // goes back, or the next holder meets a stale server (M3).
+        if (!ran || ran.code !== 0) d.stopServer();
         const rel = d.lock('release');
-        if (rel.status !== 0)
-          d.log(
-            `WARNING: lock release failed (${cut(rel.stderr || rel.stdout)}); release it by hand`
+        if (rel.status !== 0) {
+          const why = cut(rel.stderr || rel.stdout);
+          d.log(`WARNING: lock release failed (${why}); release it by hand`);
+          d.post(
+            `merge runner: could not release test server A's lock (${why}); release it by hand (lock.ps1 release -Session ${LOCK_SESSION} -Force)`
           );
+        }
+        if (requeue) d.lock('queue');
       }
       if (!ran) return {};
       if (ran.code === 0) {
         const r = d.reset(tip);
         if (r.status === 0) {
           resetRefusals = 0;
+          const after = state();
+          if (after && after.size >= after.limit) {
+            // PRs still in the merge queue keep the train at its limit: do not run it again every
+            // round (M4); wait until the train or main's tip changes.
+            stuck = { sig: sig(after), tip };
+            d.log(`live:roundtrip green on ${tip.slice(0, 7)}; train reset, but it is still full`);
+            if (!postedWait) {
+              postedWait = true;
+              d.post(
+                `merge runner: live:roundtrip green on main ${tip.slice(0, 7)}, but the train is still full (PRs in the merge queue count); waiting for them to merge before the next roundtrip`
+              );
+            }
+            return {};
+          }
           d.log(`live:roundtrip green on ${tip.slice(0, 7)}; train reset`);
           d.post(
             `merge runner: live:roundtrip green on main ${tip.slice(0, 7)}; merge train reset, merging goes on`
@@ -169,6 +249,24 @@ export function makeTrainRun(d) {
       return { stop: env ? 'train roundtrip: environment' : 'train roundtrip red' };
     },
   };
+}
+
+/**
+ * One train step for the runner: from `main()` after each round, and (queued only) before each gate
+ * in a round, so a queued runner at the head of the lock's queue does not hold up others' `take`
+ * while gates run for hours (M5). A `cleared` answer drops the waiting PRs' attempt keys.
+ * @param {{ step: (blocked: boolean) => StepResult, phase: () => string } | undefined} run
+ * @param {Map<string, number>} attempts
+ * @param {string} key attempts key prefix of a PR the gate turned away for the full train
+ * @param {boolean} [onlyQueued] skip unless the machine is queued (the in-round call)
+ * @returns {StepResult}
+ */
+export function trainTick(run, attempts, key, onlyQueued = false) {
+  if (!run || (onlyQueued && run.phase() !== 'queued')) return {};
+  const blocked = [...attempts.keys()].some(k => k.startsWith(key));
+  const tr = run.step(blocked);
+  if (tr.cleared) for (const k of [...attempts.keys()]) if (k.startsWith(key)) attempts.delete(k);
+  return tr;
 }
 
 /**
@@ -225,6 +323,10 @@ export function makeTrainDeps(o) {
       const lines = `${r.stdout}\n${r.stderr}`.split(/\r?\n/).filter(Boolean);
       const mine = lines.filter(l => l.startsWith('train-worker:')).slice(-3);
       return { code: r.status ?? 2, output: (mine.length ? mine : lines.slice(-3)).join(' | ') };
+    },
+    stopServer: () => {
+      const stop = path.join(o.repoRoot, 'scripts', 'test-env', 'stop.ps1');
+      o.sh('pwsh', ['-NoProfile', '-File', stop, '-Server', 'A'], { timeout: 180_000 });
     },
     reset: tip => {
       const copy = o.mainCopy(o.checkout, 'scripts/lane-merge.mjs', 'scripts/lane-merge');

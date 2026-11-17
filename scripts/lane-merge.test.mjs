@@ -723,6 +723,7 @@ const NOT_CONTRACT = [
   'prep-digest',
   'renown',
   'room-setup',
+  'root-folders',
   'rules-check',
   'scene-change',
   'scene-mood',

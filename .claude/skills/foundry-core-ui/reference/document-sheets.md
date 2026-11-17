@@ -31,7 +31,7 @@ Conventions:
   right-click opens a context menu with **Edit**, **Configure Ownership**, **Duplicate**,
   **Delete**, and per-type extras (below). [unverified]
 - **Configure Sheet** / **Prototype Token** / **Copy UUID** / **Import** are not separate menu
-  items — they live in the sheet's own window header (title bar icon buttons, or a dropdown behind
+  items: they live in the sheet's own window header (title bar icon buttons, or a dropdown behind
   the header's "Toggle Controls" gear/ellipsis button). See "Window header buttons". [unverified]
 - Scene/Token/Grid config can also open from the canvas: right-click the scene tab in Navigation,
   or right-click a placed token and choose **Configure Token** (`fa-solid fa-cog` in the token HUD)
@@ -43,16 +43,16 @@ Conventions:
 
 - Both `ActorSheetV2` and `ItemSheetV2` (`C:/FoundryTest/app/client/applications/sheets/{actor,item}-sheet.mjs`)
   are thin ApplicationV2 base classes; dnd5e supplies the actual tabs/fields (`dnd5e-actor-sheets.md`).
-- **Configure Token** — Actor sheet header control (title-bar dropdown), icon person-circle,
+- **Configure Token**: Actor sheet header control (title-bar dropdown), icon person-circle,
   label `DOCUMENT.Token` = "Token". Only shown when the actor sheet is editable **and** the actor
   is a synthetic token-actor (`actor.isToken`). Opens **Token Configuration** for that placed
   Token. GM/Owner. Reversible (a document update). [unverified]
-- **Prototype Token** — Actor sheet header control, icon filled person-circle, label
+- **Prototype Token**: Actor sheet header control, icon filled person-circle, label
   `TOKEN.TitlePrototype` = "Prototype Token". Shown when the sheet is editable and the actor is
   **not** a token-actor (i.e. normal world/compendium actor). Opens **Prototype Token Config** for
   `actor.prototypeToken`, positioned to the left of the actor sheet. GM/Owner. Reversible.
   [unverified]
-- **Show Portrait Artwork** / **Show Token Artwork** — Actor sheet header controls, icon image;
+- **Show Portrait Artwork** / **Show Token Artwork**: Actor sheet header controls, icon image;
   labels `SIDEBAR.CharArt` / `SIDEBAR.TokenArt`. Hidden when the portrait/token image is still the
   default silhouette. Opens an `ImagePopout` (read-only, closable, no side effects). GM/Owner.
   [unverified]
@@ -69,29 +69,29 @@ Conventions:
 frame auto-saves, `form.submitOnChange: true`). Two-column layout: a **sidebar** (table of
 contents) on the left and the **pages** viewport on the right.
 
-- **Table of Contents (sidebar)** — reached by opening any Journal Entry. Lists every page (and,
+- **Table of Contents (sidebar)**: reached by opening any Journal Entry. Lists every page (and,
   if the entry has categories, groups pages under category headings) with a small ownership icon
   (`fa-eye-slash`/`fa-eye`/`fa-feather-pointed` for None/Observer/Owner). Clicking an entry scrolls
   to that page (`JOURNAL.NavLabel`). Drag-and-drop reorders pages (blocked while locked). GM sees
   all pages; players see only pages they can view. [unverified]
-- **Single Page Mode** / **Multiple Page Mode** — toggle button in the sidebar header
+- **Single Page Mode** / **Multiple Page Mode**: toggle button in the sidebar header
   (`JOURNAL.ModeSingle` / `ModeMultiple`, icons `fa-note`/`fa-notes`). Single shows one page at a
   time with **Previous Page** / **Next Page** arrows; Multiple renders all pages in a scrollable
   column. Client-side view state only (no document write). Anyone with sheet access. [unverified]
-- **Collapse Sidebar** / **Expand Sidebar** — `JOURNAL.ViewCollapse`/`ViewExpand`, caret icon;
+- **Collapse Sidebar** / **Expand Sidebar**: `JOURNAL.ViewCollapse`/`ViewExpand`, caret icon;
   animates the sidebar width to 0. Purely visual, per-viewer. [unverified]
-- **Lock/unlock table of contents** — icon+tooltip toggle (`JOURNAL.LockModeLocked` = "Table of
+- **Lock/unlock table of contents**: icon+tooltip toggle (`JOURNAL.LockModeLocked` = "Table of
   contents locked. Click to unlock." / `LockModeUnlocked`); stored as the `core.locked` flag on the
   entry. While locked, pages cannot be drag-reordered. GM/Owner. Reversible (click again).
   [unverified]
-- **Search** (magnifier icon in the sidebar) — two modes toggled by an icon next to the box:
+- **Search** (magnifier icon in the sidebar): two modes toggled by an icon next to the box:
   **Name** (`SIDEBAR.SearchModeName`) or **Full Text** (`SearchModeFull`, searches page content).
   Filters the visible ToC entries live; does not modify data. [unverified]
-- **Add Page** — button labelled `JOURNAL.AddPage` at the bottom of the sidebar (visible only when
+- **Add Page**: button labelled `JOURNAL.AddPage` at the bottom of the sidebar (visible only when
   editable). Opens a small creation dialog (name, type dropdown, category dropdown if the entry has
   categories) rather than the full page sheet; on submit it creates a `JournalEntryPage` and opens
   its editor. GM/Owner. Reversible (delete the created page). [unverified]
-- **Page types** — Text (`text`, ProseMirror by default; Markdown/CodeMirror/HTML/plain "hbs"
+- **Page types**: Text (`text`, ProseMirror by default; Markdown/CodeMirror/HTML/plain "hbs"
   variants exist as separate sheet classes for the same `text` schema), **Image** (`image`),
   **PDF** (`pdf`), **Video** (`video`). Each has its own sheet class under
   `applications/sheets/journal/journal-entry-page-*-sheet.mjs`, all sharing the abstract
@@ -106,16 +106,16 @@ contents) on the left and the **pages** viewport on the right.
   "Copy of ..." page). GM sees all six; a player-Owner sees Edit/Show/Jump/Delete/Duplicate as
   permitted. [unverified]
 - **Show Players** (window header control, `fa-eye`, GM only; in v14 it sits in the window's
-  three-dot menu next to the close button, not as its own icon) — same "who to show" dialog for the
+  three-dot menu next to the close button, not as its own icon): same "who to show" dialog for the
   whole Journal Entry rather than a single page. [unverified]
 - **Configure Categories** (window header control, `fa-solid fa-chart-tree-map`, shown when
-  editable) — opens **{Entry} Categories** (`JournalEntryCategoryConfig`, 480px wide,
+  editable): opens **{Entry} Categories** (`JournalEntryCategoryConfig`, 480px wide,
   `submitOnChange: true`). Lists each category with an inline name field and **sort up/down**
   arrows (drag order is written on every keystroke/click), plus an **Add Page Category** button
   (`+` icon) and a per-row delete (trash) icon. Categories are their own embedded documents;
   deleting one un-categorizes its pages rather than deleting them. GM/Owner. Reversible per field.
   [unverified]
-- **The page editor / "Save Entry"** — text-family pages (text/markdown/codemirror/html) render a
+- **The page editor / "Save Entry"**: text-family pages (text/markdown/codemirror/html) render a
   footer with a feather-pen **Save Entry** button (`JOURNAL.Submit`) when opened for editing
   (double-click content, or the pencil **Edit Page** button that appears on hover in view mode).
   Other footer/field labels: `JOURNALENTRYPAGE.FIELDS.name.label` = "Page Name",
@@ -127,7 +127,7 @@ contents) on the left and the **pages** viewport on the right.
 - Sources: `C:/FoundryTest/app/client/applications/sheets/journal/*.mjs`,
   `C:/FoundryTest/app/templates/journal/**`, `C:/FoundryTest/app/public/lang/en.json` (`JOURNAL.*`,
   `JOURNALENTRYPAGE.*`), https://foundryvtt.com/article/journal/ (describes an older 4-type,
-  single-column layout without categories — v14 adds the category grouping and the lock/search
+  single-column layout without categories; v14 adds the category grouping and the lock/search
   toggles seen above; follow the source)
 
 ## Scene Configuration
@@ -135,7 +135,7 @@ contents) on the left and the **pages** viewport on the right.
 `SceneConfig` (class `scene-config`, 600px wide, `closeOnSubmit: true`). Footer (shown on every
 tab): **Reset to Default Options** (`SCENE.Environment.Reset`, resets the environment/lighting
 fields only) and **Save Changes** (`SETTINGS.Save`, submit). Six tabs (`SCENE.TABS.SHEET.*`), not
-the four an older KB article describes — v14 split lighting into **Visibility**/**Environment** and
+the four an older KB article describes: v14 split lighting into **Visibility**/**Environment** and
 added the whole **Levels** tab (see note below).
 
 | Tab (bold = exact label) | Key fields / controls                                                                                                                                                                                                                                                                                                                                                                                 |
@@ -148,7 +148,7 @@ added the whole **Levels** tab (see note below).
 | **Miscellaneous**        | Linked **Journal Entry** + **Journal Entry Page**, **Scene Playlist** + **Playlist Sound**, **Transition Type** dropdown with a play (preview) button, Duration, **Active Only** toggle.                                                                                                                                                                                                              |
 
 - Levels sub-editor: clicking **Edit Level** (or the info icon next to an inherited field on
-  Basics) opens a per-level fieldset with `SCENE_LEVEL.FIELDS.*` — Background/Foreground
+  Basics) opens a per-level fieldset with `SCENE_LEVEL.FIELDS.*`: Background/Foreground
   texture+color+tint+alpha threshold, Elevation Range (Background/Foreground Elevation),
   positioning (Anchor/Offset/Scale/Rotation/Fit Mode), per-level Fog unexplored image, and
   **Visible Levels** (which other levels show through). GM only. Reversible per field; deleting the
@@ -160,7 +160,7 @@ added the whole **Levels** tab (see note below).
   destructive dimension changes, which can shift already-placed tokens/walls. [unverified]
 - Sources: `C:/FoundryTest/app/client/applications/sheets/scene-config.mjs`,
   `C:/FoundryTest/app/templates/scene/config/*.hbs`, `en.json` (`SCENE.*`, `SCENE_LEVEL.*`),
-  https://foundryvtt.com/article/scenes/ (documents the pre-Levels 4-tab layout — v14 differs, use
+  https://foundryvtt.com/article/scenes/ (documents the pre-Levels 4-tab layout; v14 differs, use
   the source)
 
 ## Token Configuration / Prototype Token
@@ -176,8 +176,8 @@ template new tokens are stamped from). 560px wide, `closeOnSubmit: true`. Five t
 | **Identity**   | Token Name, Display Name (visibility level), Represented Actor / **Link Actor Data**, position fields (Token config only), Elevation, Rotation + **Lock Artwork Rotation**, Token Disposition (Hostile/Neutral/Friendly/Secret), Movement Action.                                                                                                                                                                  |
 | **Appearance** | Image Path (+ **Randomize Wildcard Images** on the prototype only, with an image-cycle preview button), X-/Y-/Z-Size, Shape (varies by grid type: square grids get Rectangle variants, gridless gets Ellipse/Rectangle), Scale/Mirror via the texture fields, Tint Color, Token Opacity, and the Dynamic Token Ring group (**Ring Enabled**, Ring/Background Color, Ring Effects, Subject Scale, Subject Texture). |
 | **Vision**     | **Vision Enabled**, Vision Range, Vision Angle, Vision Mode, Vision Color, Attenuation, Vision Brightness, Saturation, Contrast; plus a Detection Modes list (**Override Detection Mode** / remove-mode actions) with per-mode range and enabled toggle.                                                                                                                                                           |
-| **Light**      | Same field set as the Ambient Light placeable's config (radius, angle, color, animation, darkness activation range) — the token itself emits light.                                                                                                                                                                                                                                                                |
-| **Resources**  | **Display Bars**, Bar 1/Bar 2 Attribute pickers (populate from the actor's `getBarAttribute`), plus the Turn Marker group (**Mode**: Default/Disabled/Custom, Animation, Media Source, **Disposition Tint** — Custom-mode fields disable unless Mode = Custom).                                                                                                                                                    |
+| **Light**      | Same field set as the Ambient Light placeable's config (radius, angle, color, animation, darkness activation range); the token itself emits light.                                                                                                                                                                                                                                                                 |
+| **Resources**  | **Display Bars**, Bar 1/Bar 2 Attribute pickers (populate from the actor's `getBarAttribute`), plus the Turn Marker group (**Mode**: Default/Disabled/Custom, Animation, Media Source, **Disposition Tint**: Custom-mode fields disable unless Mode = Custom).                                                                                                                                                     |
 
 - Editing a placed Token's position/size live-previews the change on the canvas before you save
   (`_previewChanges`); closing without saving reverts the preview. GM/Owner (`TOKEN_CONFIGURE`
@@ -194,15 +194,15 @@ template new tokens are stamped from). 560px wide, `closeOnSubmit: true`. Five t
 
 `RollTableSheet` (720px, resizable). Genuinely two different layouts depending on mode:
 
-- **View mode** (`TABLE.ACTIONS.ChangeMode.View`, default once a table has results) — a single
+- **View mode** (`TABLE.ACTIONS.ChangeMode.View`, default once a table has results): a single
   read-only-ish part: description, formula, and the results list with a **Draw Result**
   (`TABLE.ACTIONS.DrawResult`, dice-d20 icon) button in the footer. Players with Observer
   permission can draw if the table allows draws with replacement. [unverified]
-- **Edit mode** (`TABLE.ACTIONS.ChangeMode.Edit`) — adds tabs **Summary** (`TABLE.TABS.summary`:
+- **Edit mode** (`TABLE.ACTIONS.ChangeMode.Edit`): adds tabs **Summary** (`TABLE.TABS.summary`:
   Table Description, Roll Formula placeholder, **Draw with Replacement**, **Display Roll Formula to
   Chat**) and **Results** (`TABLE.TABS.results`: the editable rows). Toggle between modes with the
   view/edit icon button (`changeMode` action) in the header. GM/Owner only for Edit. [unverified]
-- **Results table** (Edit mode) — each row: image, name/UUID details (click **Open Result Config**
+- **Results table** (Edit mode): each row: image, name/UUID details (click **Open Result Config**
   to edit type/text/document link/weight/range in `TableResultConfig`), Weight, Range (two number
   inputs), a lock icon to toggle **Toggle Drawn Status**, and a delete icon
   (`TABLE.ACTIONS.DeleteResult`). Footer buttons: **Add New Result** (`createResult`),
@@ -221,12 +221,12 @@ template new tokens are stamped from). 560px wide, `closeOnSubmit: true`. Five t
 ## Playlist and Playlist Sound config
 
 - **Playlist Configuration** (`PlaylistConfig`, 480px, `closeOnSubmit: true`, footer **Update
-  Playlist**) — Playlist Name, **Playback Mode** (Soundboard Only/Sequential/Shuffle/Simultaneous),
+  Playlist**): Playlist Name, **Playback Mode** (Soundboard Only/Sequential/Shuffle/Simultaneous),
   Audio Channel, **Sort Mode** (Alphabetical/Manual), Fade Duration (ms), Playlist Description.
   Reached via the Playlists directory's per-playlist gear/edit icon or right-click **Edit**. GM
   only (playlists are GM-authored). Reversible. [unverified]
 - **Playlist Sound Configuration** (`PlaylistSoundConfig`, 480px, `canCreate: true`, footer
-  **Create Sound** or **Update Sound** depending on whether the sound exists yet) — Track Name
+  **Create Sound** or **Update Sound** depending on whether the sound exists yet): Track Name
   (auto-filled from the filename when you pick Audio Source), Audio Source (file picker or direct
   URL), Sound Volume, Repeat, Fade Duration (ms), Audio Channel, Sound Description. Reached via
   **Add Sound** in a playlist, or the pencil icon on an existing track. GM only. Reversible.
@@ -238,19 +238,19 @@ template new tokens are stamped from). 560px wide, `closeOnSubmit: true`. Five t
 
 ## Compendium pack window and its configuration
 
-- **Opening a pack** — clicking a compendium's name in the Compendium sidebar tab opens a popout
+- **Opening a pack**: clicking a compendium's name in the Compendium sidebar tab opens a popout
   **Compendium** window (`Compendium` extends the same directory class as Actors/Items/etc.):
   header with the pack's localized document-type title, a directory list of its contents, search,
   and (if unlocked and you have Owner) a create-entry control. A lock/lock-open icon in the window
   icon reflects `pack.locked`. [unverified]
-- **Copy Compendium ID** — a header title-bar button (`fa-solid fa-passport`,
+- **Copy Compendium ID**: a header title-bar button (`fa-solid fa-passport`,
   `COMPENDIUM.CopyId`) that copies the pack's collection id (`system.pack-name` form) to the
   clipboard and toasts `COMPENDIUM.IdCopiedClipboard`. Anyone who can open the pack. [unverified]
 - **Entry context menu** (right-click an item inside the pack): **Import Entry**
   (`COMPENDIUM.ImportEntry`, world documents only, copies it into the world), for Adventures
   **Export/Edit** (opens the Adventure Exporter), for Scenes **Generate Thumbnail Image**
   (`SCENE.GenerateThumb`), **Delete Entry** (GM, unlocked packs only). [unverified]
-- **Pack configuration is not its own sheet window** — it is the compendium's right-click menu in
+- **Pack configuration is not its own sheet window**: it is the compendium's right-click menu in
   the sidebar **directory** (not inside the open pack window): **Configure Ownership**
   (`OWNERSHIP.Configure`, GM only) opens a Dialog (`configureOwnershipDialog`, not an
   ApplicationV2 sheet) letting you set the Assistant GM / Trusted Player / Player ownership default
@@ -286,14 +286,14 @@ https://foundryvtt.com/article/macros/
 Three sheet subclasses share one base (`CardsConfig`; 720px wide; view permission Observer),
 picked automatically by the stack's `type`:
 
-- **CardDeckConfig** ("deck" stacks) — the only one with tabs (`CARDS.TABS.*`): **Details**
+- **CardDeckConfig** ("deck" stacks): the only one with tabs (`CARDS.TABS.*`): **Details**
   (Card Stack **Type**, Default Back Image, Description) and **Cards** (initial tab; each row: face
   image, name, type, suit, value, a **Drawn** checkbox (read-only), **Next Face**/**Previous Face**
   carets, **Edit Card**/**Delete Card** icons, plus a header **Create Card** `+` and a **Toggle Sort
-  Mode** icon — `CARDS.ACTIONS.ToggleSortMode`, standard vs. shuffled order). Footer, left to
+  Mode** icon: `CARDS.ACTIONS.ToggleSortMode`, standard vs. shuffled order). Footer, left to
   right: **Shuffle**, **Deal** (opens a deal-to dialog), **Reset** (`CARDS.ACTIONS.Reset`, recalls
-  every dealt card — confirmation dialog `CARDS.ResetConfirm`), **Save** (submit). [unverified]
-- **CardHandConfig** / **CardPileConfig** ("hand"/"pile" stacks) — no tabs, just the card list
+  every dealt card; confirmation dialog `CARDS.ResetConfirm`), **Save** (submit). [unverified]
+- **CardHandConfig** / **CardPileConfig** ("hand"/"pile" stacks): no tabs, just the card list
   (rows: face image, name, type/suit/value if `showFace`, Next/Previous Face, and a **Play Card**
   icon when editable) plus a **Toggle Sort Mode** icon on hands only. Footer: Hand adds **Draw**,
   **Pass**; Pile adds **Shuffle**, **Pass**; both keep the shared **Reset**/**Save**. Draw/Pass are
@@ -301,9 +301,9 @@ picked automatically by the stack's `type`:
 - All three: dragging a card within the list re-sorts it; dropping one from elsewhere passes it
   into this stack. GM/Owner to edit; Observer can view/play depending on world permissions.
   [unverified]
-- **CardConfig** (a single embedded Card, opened via the row's **Edit Card** icon) — 480px, three
+- **CardConfig** (a single embedded Card, opened via the row's **Edit Card** icon): 480px, three
   tabs (`CARD.TABS.*`): **Details** (Suit, Value, Card Stack **Type**, Description), **Faces**
-  (repeatable Face Name/Image/Text entries with **Add Face**/**Delete Face** — delete asks
+  (repeatable Face Name/Image/Text entries with **Add Face**/**Delete Face**; delete asks
   **Are you sure?** first), **Back** (Back Name/Image/Text). Footer **Save Card**. GM/Owner.
   Reversible except a confirmed face delete. [unverified]
 - Sources: `C:/FoundryTest/app/client/applications/sheets/{cards-config,card-config}.mjs`,
@@ -328,9 +328,9 @@ https://foundryvtt.com/article/folders/
 ## Sheet Configuration
 
 `DocumentSheetConfig` (id `sheet-config-{id}`, 500px, footer **Save Sheet Configuration**). Title
-is `"{Document Type}: Sheet Configuration"`. Two fields: **Sheet** — a dropdown of every sheet
+is `"{Document Type}: Sheet Configuration"`. Two fields: **Sheet**: a dropdown of every sheet
 class registered for this document's type (each Document/Item/Actor sub-type can register more
-than one, e.g. a system could add alternates) — and **Theme** — Light/Dark/whatever the chosen
+than one, e.g. a system could add alternates), and **Theme**: Light/Dark/whatever the chosen
 sheet advertises via its `themes` option, disabled entirely if the sheet declares no theme support.
 Hint text distinguishes **This Sheet** (only this document) from **Default Sheet** (GM-only,
 changes the type-wide default from **Game Settings > Core > Default Document Sheets**). Reached
@@ -347,17 +347,17 @@ ellipsis, `APPLICATION.TOOLS.ToggleControls`) that opens a dropdown menu, plus i
 buttons placed directly in the title bar.
 
 - **Toggle Controls dropdown** (`APPLICATION.TOOLS.ControlsMenu`) contains, when applicable:
-  **Configure Sheet** (`SHEETS.ConfigureSheet`, gear icon — opens Sheet Configuration above, shown
+  **Configure Sheet** (`SHEETS.ConfigureSheet`, gear icon; opens Sheet Configuration above, shown
   only if you can configure this document's sheet); **Configure Ownership**
-  (`OWNERSHIP.Configure`, lock icon, GM/Owner — opens `DocumentOwnershipConfig` for per-user
+  (`OWNERSHIP.Configure`, lock icon, GM/Owner; opens `DocumentOwnershipConfig` for per-user
   visibility of this one document); plus any sheet-specific extras merged in by subclasses (Actor
   sheets add **Token**/**Prototype Token**/**Show Portrait Artwork**/**Show Token Artwork**, listed
   under "Actor and Item core frame" above); the base ApplicationV2 also contributes **Detach
   Window** / **Re-attach Window** here when the host lets windows pop out. [unverified]
-- **Copy Document UUID** — individual title-bar icon (`fa-solid fa-passport`,
+- **Copy Document UUID**: individual title-bar icon (`fa-solid fa-passport`,
   `APPLICATION.ACTIONS.CopyUuid`), shown once the document has an id; both left- and right-click
   copy the UUID to the clipboard. Read-only, no side effects. [unverified]
-- **Import** — individual title-bar icon (`fa-solid fa-download`,
+- **Import**: individual title-bar icon (`fa-solid fa-download`,
   `APPLICATION.ACTIONS.ImportDocument`), shown only when viewing a **world**-type document that
   currently lives **inside a compendium** and you can create that type; copies it into the world
   collection. GM/Owner. Reversible (delete the imported copy). [unverified]
@@ -379,7 +379,7 @@ Open sheet/config windows, by class name:
   .map(a => ({ id: a.id, cls: a.constructor.name, title: a.title }));
 ```
 
-Journal Entry view state and Scene Config's active tab (getters, not localized text — stable
+Journal Entry view state and Scene Config's active tab (getters, not localized text; stable
 across languages):
 
 ```js
@@ -424,7 +424,7 @@ without opening any dialog:
 
 Window header control **labels** are stable localization keys (`SHEETS.ConfigureSheet`,
 `TOKEN.TitlePrototype`, `OWNERSHIP.Configure`, `APPLICATION.ACTIONS.CopyUuid`,
-`APPLICATION.ACTIONS.ImportDocument`) — search the accessibility tree for those exact English
+`APPLICATION.ACTIONS.ImportDocument`): search the accessibility tree for those exact English
 strings rather than icon glyphs or DOM order, which differ per sheet.
 
 ## Safety in the test world
@@ -432,7 +432,7 @@ strings rather than icon glyphs or DOM order, which differ per sheet.
 - Scene/Token/Journal/Table/Playlist/Macro/Cards/Folder edits all write to the world database and
   are visible to every connected client immediately (or on save, for `closeOnSubmit` forms). Note
   the prior value before changing anything you plan to revert.
-- **Change Scene Dimensions?** / **Distorted Scene Dimensions** — answering **Yes** can reposition
+- **Change Scene Dimensions?** / **Distorted Scene Dimensions**: answering **Yes** can reposition
   every already-placed token/wall in that scene. Prefer **No** / cancel during a UI survey; only
   confirm on a disposable test scene.
 - **Delete Compendium** (world packs only) and **Delete Entry**/**Delete Result**/**Delete
@@ -441,7 +441,7 @@ strings rather than icon glyphs or DOM order, which differ per sheet.
 - **Lock Edits** on a compendium blocks further writes to it (including by the bridge/MCP tools);
   remember to **Unlock Edits** again afterward if you toggle it.
 - **Import All Documents** on a compendium and **Export to Compendium** from a folder both create
-  many new world documents at once — clean up test-created copies afterward if the world should
+  many new world documents at once; clean up test-created copies afterward if the world should
   stay tidy.
 - Never touch the live bridge ports (31414-31416) or `mcp__foundry-mcp__*` tools while doing this;
   use the `foundry-test-env` skill's test bridge (31514-31515) and the `ai-tool-test` world only.

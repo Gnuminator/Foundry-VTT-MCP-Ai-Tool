@@ -71,8 +71,9 @@ Switch it on or off with (PowerShell):
 & "$env:LOCALAPPDATA\FoundryMCPServer\client-update.ps1" -Action Status
 ```
 
-The Obsidian plugin is updated through the synced GM vault (see the Obsidian sync guide), not by
-this.
+This does not touch the Obsidian plugin. The server writes the newest plugin into the GM vault and
+Syncthing brings it to your PC (see the [Obsidian sync guide](setup-obsidian-sync.md)); restart
+Obsidian to load it.
 
 ## Check that it works
 

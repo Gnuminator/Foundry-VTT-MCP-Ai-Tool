@@ -21,7 +21,7 @@ import {
   startArgs,
   type SceneToken,
   type TokenPositionsAnswer,
-} from '../lib/startCombat';
+} from '../lib/start-combat';
 import { Button, QueryState } from '../ui';
 import { useToast } from './Toasts';
 

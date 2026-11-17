@@ -2,7 +2,7 @@
 // view's strip slot, one row per combatant in the bridge's order, with the Boss prompts switch and
 // reaction ticks, and (GM Actions on) rows to pick and an action bar. Condition opens a row of
 // condition chips (ConditionForm): a chip plans it with plan-actor-change, one confirm asks, the
-// apply puts it on, with Undo. End combat plans, asks once and applies (lib/endCombat.ts, the same
+// apply puts it on, with Undo. End combat plans, asks once and applies (lib/end-combat.ts, the same
 // flow as the live strip's). Damage / Heal opens the small form (DamageForm), which plans and
 // applies in one click with Undo; the roll row (StripRolls) asks players for checks and saves.
 // Nothing here opens the Tool Runner. The rules are in lib/combat.ts; moments.css lays the strip
@@ -57,10 +57,10 @@ import {
   type Reactions,
   type SelectionAction,
 } from '../lib/combat';
-import { useEndCombat } from '../lib/endCombat';
-import { useLivePlay, type LivePlay } from '../lib/livePlay';
-import { chipText, displayNames } from '../lib/liveStrip';
-import { offReason } from '../lib/liveSwitches';
+import { useEndCombat } from '../lib/end-combat';
+import { useLivePlay, type LivePlay } from '../lib/live-play';
+import { chipText, displayNames } from '../lib/live-strip';
+import { offReason } from '../lib/live-switches';
 import { refreshCombat, useBridgeAway, useCombat, useDashboardSettings } from '../lib/stream';
 import { DelayedLoading, Panel, Pill } from '../ui';
 

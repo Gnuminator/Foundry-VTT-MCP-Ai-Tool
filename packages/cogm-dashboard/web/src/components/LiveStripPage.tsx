@@ -2,12 +2,12 @@
 // the base the live screens build on: screen A puts the strip on top of the dashboard, screen B
 // loads this page in a Foundry window about 400 px wide. It starts the dashboard stream itself,
 // since the Dashboard that normally does is not on this page. In a Foundry window it also listens
-// for the tokens the GM controls on the map (lib/mapPick.ts); opened by the GM page as its own
+// for the tokens the GM controls on the map (lib/map-pick.ts); opened by the GM page as its own
 // window, it hears them from the GM page instead.
 import { useCallback, useEffect, type JSX, type MouseEvent } from 'react';
 
 import { GateTextContext, GmActionsGateContext } from '../lib/guarded';
-import { listenForMapPick } from '../lib/mapPick';
+import { listenForMapPick } from '../lib/map-pick';
 import { followFrameScheme } from '../lib/scheme';
 import { useDashboardStream } from '../lib/stream';
 import { LiveStrip } from './LiveStrip';

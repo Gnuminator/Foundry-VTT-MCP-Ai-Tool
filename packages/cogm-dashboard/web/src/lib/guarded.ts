@@ -14,10 +14,10 @@ import {
   SWITCHES_KEY,
   type SwitchesRead,
   type SwitchesWrite,
-} from './sessionSwitches';
-import { markUndoRefused } from './liveStrip';
-import { toolWords } from './toolWords';
-import { isSwitchOffRefusal, refusedSwitchName } from './switchOff';
+} from './session-switches';
+import { markUndoRefused } from './live-strip';
+import { toolWords } from './tool-words';
+import { isSwitchOffRefusal, refusedSwitchName } from './switch-off';
 import { CHANGES_KEY, SETTINGS_KEY, useDashboardSettings, type DashboardSettings } from './stream';
 import { usage } from './usage';
 

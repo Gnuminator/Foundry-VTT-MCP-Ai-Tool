@@ -1,8 +1,8 @@
 // The After view: get-play-stats for the latest session, and the session notes (GET
 // /api/session-notes). Made-up names only.
 import { at, iso } from './common';
-import type { PlayStats } from '../../lib/afterStats';
-import type { SessionNotes } from '../../lib/sessionNotes';
+import type { PlayStats } from '../../lib/after-stats';
+import type { SessionNotes } from '../../lib/session-notes';
 
 export const PLAY_STATS: PlayStats = {
   pcs: [{ name: 'Brenna' }, { name: 'Tobias' }, { name: 'Mara' }],

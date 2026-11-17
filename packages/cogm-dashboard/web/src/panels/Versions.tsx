@@ -9,7 +9,7 @@ import type { ClientPiece, ClientVersionsView } from '@gnuminator/shared';
 
 import { OverlayPane } from '../components/OverlayPane';
 import { api, errorText } from '../lib/api';
-import { CLIENT_VERSIONS_KEY } from '../lib/clientNotices';
+import { CLIENT_VERSIONS_KEY } from '../lib/client-notices';
 import { Button } from '../ui';
 
 export type VersionStatus = 'ok' | 'behind' | 'unknown';

@@ -1,7 +1,7 @@
 // The remembered choices: what comes back, and that a blocked or stale store never breaks a page.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { readFoldChoices } from './duringFolds';
+import { readFoldChoices } from './during-folds';
 import {
   REMEMBER,
   readChoice,

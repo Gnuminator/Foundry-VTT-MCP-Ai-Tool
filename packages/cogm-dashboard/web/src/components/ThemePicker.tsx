@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type JSX } from 'react';
 
 import { api, errorText } from '../lib/api';
-import { useKeepFocus } from '../lib/keepFocus';
+import { useKeepFocus } from '../lib/keep-focus';
 import { THEME_KEY, type WorldTheme } from '../lib/stream';
 
 import { useToast } from './Toasts';

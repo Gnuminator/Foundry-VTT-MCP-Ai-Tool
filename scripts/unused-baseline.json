@@ -1,7 +1,7 @@
 {
-  "total": 649,
+  "total": 642,
   "counts": {
-    "packages/cogm-dashboard: exports": 18,
+    "packages/cogm-dashboard: exports": 11,
     "packages/cogm-dashboard: types": 102,
     "packages/discord-bot: exports": 19,
     "packages/discord-bot: types": 32,

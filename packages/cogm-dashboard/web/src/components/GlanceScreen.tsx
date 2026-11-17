@@ -17,9 +17,9 @@ import {
   sceneName,
   turnLine,
 } from '../lib/glance';
-import { STANDARD_HREF } from '../lib/liveScreen';
+import { STANDARD_HREF } from '../lib/live-screen';
 import { useCombat, useDashboardStream, useStreamHeardAt } from '../lib/stream';
-import { useWorldTheme } from '../lib/worldTheme';
+import { useWorldTheme } from '../lib/world-theme';
 import { HealthLine } from './HealthLine';
 import { RoleNotice } from './RoleNotice';
 import { StreamState } from './StreamState';

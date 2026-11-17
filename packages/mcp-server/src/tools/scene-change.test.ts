@@ -74,7 +74,10 @@ describe('definitions', () => {
   it('requires an action, with the shared action enum', () => {
     const def = tools.getToolDefinitions()[0];
     expect(def.inputSchema.required).toEqual(['action']);
-    expect((def.inputSchema.properties.action as any).enum).toEqual([...SCENE_CHANGE_ACTIONS]);
+    // mood stays accepted by the handler but is shown only on plan-scene-mood.
+    expect((def.inputSchema.properties.action as any).enum).toEqual(
+      SCENE_CHANGE_ACTIONS.filter(a => a !== 'mood')
+    );
     expect(SCENE_CHANGE_ACTIONS).toEqual([
       'template',
       'clear-templates',

@@ -37,7 +37,7 @@ Kind: read-only. Title: List characters.
 
 Parameters:
 
-- `type` (string): Optional filter by character type (e.g., "character", "npc")
+- `type` (string): Optional filter by character type. One of: `character`, `npc`.
 
 ## search-character-items
 
@@ -49,13 +49,13 @@ Parameters:
 
 - `actor` (string, required): Character name or ID to search within
 - `query` (string): Text to search for in item names and descriptions (case-insensitive). Leave empty to return all items of specified type.
-- `type` (string): Filter by dnd5e item type: "spell", "weapon", "equipment" (armor and shields too), "consumable", "tool", "loot", "container", "feat" (features), "class", "subclass", "background", "race" (species), or "effect" for active effects. Leave empty to search all types.
-- `category` (string): Additional category filter. For spells: "cantrip" or "prepared". For weapons and equipment: "equipped".
+- `type` (string): Filter by dnd5e item type: equipment covers armor and shields, feat is features, race is species, effect is active effects. Leave empty to search all types. One of: `spell`, `weapon`, `equipment`, `consumable`, `tool`, `loot`, `container`, `feat`, `class`, `subclass`, `background`, `race`, `effect`.
+- `category` (string): Additional category filter. For spells: "cantrip" or "prepared". For weapons and equipment: "equipped". One of: `cantrip`, `prepared`, `equipped`.
 - `limit` (number): Maximum number of results to return (default: 20)
 
 ## search-compendium
 
-Search through compendium packs by name. IMPORTANT LIMITATIONS: (1) Text search only matches entity NAMES - descriptions and traits are NOT searchable. (2) Filters use name heuristics only (not actual system data) and only work on Actor packs - challengeRating and creatureType filters search for keywords like "ancient", "legendary", "humanoid", etc. in entity names. For accurate filtering by level/CR, traits, or rarity, use list-creatures-by-criteria (Build) instead. For best results, use broad name-based searches (e.g., "dragon", "knight") and inspect individual items with get-compendium-item.
+Search through compendium packs by name. IMPORTANT LIMITATIONS: (1) Text search only matches entity NAMES - descriptions and traits are NOT searchable. (2) Filters use name heuristics only (not actual system data) and only work on Actor packs - challengeRating and creatureType filters search for keywords like "ancient", "legendary", "humanoid", etc. in entity names. For accurate filtering by level/CR, traits, or rarity, use list-creatures-by-criteria instead. For best results, use broad name-based searches (e.g., "dragon", "knight") and inspect individual items with get-compendium-item.
 
 Kind: read-only. Title: Search compendiums.
 
@@ -63,7 +63,7 @@ Parameters:
 
 - `query` (string, required): Search query to find items in compendiums by name only. Use broad, simple terms (e.g., "dragon", "sword", "feat"). Descriptions and traits are NOT searchable.
 - `packType` (string): Optional filter by pack type (e.g., "Item", "Actor", "JournalEntry")
-- `filters` (object): LIMITED FUNCTIONALITY: Only works on Actor packs using name-based heuristics. challengeRating searches for keywords like "ancient" (CR 15+), "adult" (CR 10+), "captain" (CR 5+). creatureType searches for type keywords in names. Does NOT check actual system data. For accurate filtering, use list-creatures-by-criteria (Build) instead.
+- `filters` (object): LIMITED FUNCTIONALITY: Only works on Actor packs using name-based heuristics. challengeRating searches for keywords like "ancient" (CR 15+), "adult" (CR 10+), "captain" (CR 5+). creatureType searches for type keywords in names. Does NOT check actual system data. For accurate filtering, use list-creatures-by-criteria instead.
   - `challengeRating` (number or object)
   - `creatureType` (string): Creature type (e.g., "humanoid", "dragon", "beast", "undead", "fey", "fiend", "celestial", "construct", "elemental", "giant", "monstrosity", "ooze", "plant"). One of: `humanoid`, `dragon`, `beast`, `undead`, `fey`, `fiend`, `celestial`, `construct`, `elemental`, `giant`, `monstrosity`, `ooze`, `plant`, `aberration`.
   - `size` (string): Creature size (e.g., "medium", "large", "huge"; dnd5e keys such as "med" also work). One of: `tiny`, `small`, `medium`, `large`, `huge`, `gargantuan`, `sm`, `med`, `lg`, `grg`.
@@ -183,7 +183,7 @@ No parameters.
 
 ## get-token-positions
 
-Use this to see where all tokens are on a scene (default: active): name, actor ID, token ID, x/y and grid cell, elevation, category (pc/npc/enemy), hidden or visible, HP, conditions. For full data on one token use get-token-details (Play).
+Use this to see where all tokens are on a scene (default: active): name, actor ID, token ID, x/y and grid cell, elevation, category (pc/npc/enemy), hidden or visible, HP, conditions. For full data on one token use get-token-details.
 
 Kind: read-only. Title: Get token positions.
 

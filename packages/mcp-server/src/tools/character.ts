@@ -7,6 +7,11 @@ import { detectGameSystem, getCachedSystemId, type GameSystem } from '../utils/s
 import type { SystemAdapter } from '../systems/types.js';
 import type { RulesCheckTools } from './rules-check.js';
 import { arr, at, rec, type Rec } from './bridge-data.js';
+import {
+  ACTOR_KIND_PROP,
+  CHARACTER_ITEM_CATEGORY_PROP,
+  CHARACTER_ITEM_TYPE_PROP,
+} from './tool-enums.js';
 
 export interface CharacterToolsOptions {
   foundryClient: FoundryClient;
@@ -108,10 +113,7 @@ export class CharacterTools {
         inputSchema: {
           type: 'object',
           properties: {
-            type: {
-              type: 'string',
-              description: 'Optional filter by character type (e.g., "character", "npc")',
-            },
+            type: ACTOR_KIND_PROP,
           },
         },
       },
@@ -269,16 +271,8 @@ export class CharacterTools {
               description:
                 'Text to search for in item names and descriptions (case-insensitive). Leave empty to return all items of specified type.',
             },
-            type: {
-              type: 'string',
-              description:
-                'Filter by dnd5e item type: "spell", "weapon", "equipment" (armor and shields too), "consumable", "tool", "loot", "container", "feat" (features), "class", "subclass", "background", "race" (species), or "effect" for active effects. Leave empty to search all types.',
-            },
-            category: {
-              type: 'string',
-              description:
-                'Additional category filter. For spells: "cantrip" or "prepared". For weapons and equipment: "equipped".',
-            },
+            type: CHARACTER_ITEM_TYPE_PROP,
+            category: CHARACTER_ITEM_CATEGORY_PROP,
             limit: {
               type: 'number',
               description: 'Maximum number of results to return (default: 20)',

@@ -280,7 +280,8 @@ describe('CombatResolutionTools parameter descriptions (M3)', () => {
   };
 
   it('roll-saving-throws lists the 18 dnd5e skill keys', () => {
-    const desc = props('roll-saving-throws').skill.description as string;
+    const keys = props('roll-saving-throws').skill.enum as string[];
+    expect(keys).toHaveLength(18);
     for (const key of [
       'acr',
       'ani',
@@ -301,7 +302,7 @@ describe('CombatResolutionTools parameter descriptions (M3)', () => {
       'ste',
       'sur',
     ]) {
-      expect(desc).toMatch(new RegExp(`\\b${key}\\b`));
+      expect(keys).toContain(key);
     }
   });
 

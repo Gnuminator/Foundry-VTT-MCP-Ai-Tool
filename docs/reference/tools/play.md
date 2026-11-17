@@ -234,7 +234,7 @@ No parameters.
 
 ## get-chat-log
 
-Recent Foundry chat messages from the module's in-memory buffer: dice rolls, ability uses, damage and combat narration. Each has the speaker, type, content and flavor; rolls add formula, total, dice, critical/fumble, advantage/disadvantage and damage total and types. Use this to read the chat and rolls; for a combat recap use get-combat-play-by-play, for game events get-session-log (Prep).
+Recent Foundry chat messages from the module's in-memory buffer: dice rolls, ability uses, damage and combat narration. Each has the speaker, type, content and flavor; rolls add formula, total, dice, critical/fumble, advantage/disadvantage and damage total and types. Use this to read the chat and rolls; for a combat recap use get-combat-play-by-play, for game events get-session-log.
 
 Kind: read-only. Title: Get chat log.
 
@@ -340,7 +340,7 @@ No parameters.
 
 ## get-recent-events
 
-Use this during play to poll "what happened since timestamp X"; for the full session history use get-session-log (Prep). Returns the events plus `latestTimestamp`, which you pass back as `sinceTimestamp` next time to poll incrementally for only new events.
+Use this during play to poll "what happened since timestamp X"; for the full session history use get-session-log. Returns the events plus `latestTimestamp`, which you pass back as `sinceTimestamp` next time to poll incrementally for only new events.
 
 Kind: read-only. Title: Get recent events.
 
@@ -373,8 +373,8 @@ Parameters:
 
 - `targets` (array of string, required): Token names (preferred) or actor names/IDs to roll for.
 - `rollType` (string, required): One of: `save`, `check`, `skill`.
-- `ability` (string): Ability key for save/check (str/dex/con/int/wis/cha).
-- `skill` (string): dnd5e skill key for skill rolls: acr, ani, arc, ath, dec, his, ins, itm, inv, med, nat, prc, prf, per, rel, slt, ste, sur (e.g. "ste" for Stealth, "prc" for Perception).
+- `ability` (string): Ability key for save/check. One of: `str`, `dex`, `con`, `int`, `wis`, `cha`.
+- `skill` (string): dnd5e skill key for skill rolls (e.g. "ste" for Stealth, "prc" for Perception). One of: `acr`, `ani`, `arc`, `ath`, `dec`, `his`, `ins`, `itm`, `inv`, `med`, `nat`, `prc`, `prf`, `per`, `rel`, `slt`, `ste`, `sur`.
 - `dc` (integer): Optional difficulty class to test against.
 - `isPublic` (boolean): Public roll (true) or whispered to the GM only (false or omitted, the default).
 
@@ -456,7 +456,7 @@ Parameters:
 - `action` (string, required): damage, healing, temp-hp, condition (on or off), resource (set a value) or clear-conditions. One of: `damage`, `healing`, `temp-hp`, `condition`, `resource`, `clear-conditions`.
 - `targets` (array of string, required): Token names on the current scene (preferred: unlinked NPC tokens have their own HP) or actor names.
 - `amount` (integer): damage, healing, temp-hp: the amount.
-- `damageType` (string): damage: acid, bludgeoning, cold, fire, force, lightning, necrotic, piercing, poison, psychic, radiant, slashing or thunder. Omit for untyped.
+- `damageType` (string): damage: acid, bludgeoning, cold, fire, force, lightning, necrotic, piercing, poison, psychic, radiant, slashing or thunder. Omit for untyped. One of: `acid`, `bludgeoning`, `cold`, `fire`, `force`, `lightning`, `necrotic`, `piercing`, `poison`, `psychic`, `radiant`, `slashing`, `thunder`.
 - `multiplier` (number): damage: 2 for a critical, 0.5 for half.
 - `ignoreResistance` (boolean): damage: ignore the target's resistances and immunities.
 - `condition` (string): condition: the id or name (prone, poisoned, exhaustion...).
@@ -501,13 +501,13 @@ Parameters:
 
 ## plan-scene-change
 
-Plan scene dressing on the current scene: an area-of-effect template ("template"), clearing templates ("clear-templates"), darkness and global light ("mood"), a map pin ("note", "remove-note") or loot for a character ("loot"). Apply it with apply-planned-change, revert it with undo-change; the GM sees every change in Recent Changes. A template result lists tokensInside; a loot result lists skippedItems that were left out (bad UUID, not an Item, or no target character).
+Plan scene dressing on the current scene: an area-of-effect template ("template"), clearing templates ("clear-templates"), a map pin ("note", "remove-note") or loot for a character ("loot"). For darkness, light, weather and music use plan-scene-mood. Apply it with apply-planned-change, revert it with undo-change; the GM sees every change in Recent Changes. A template result lists tokensInside; a loot result lists skippedItems that were left out (bad UUID, not an Item, or no target character).
 
 Kind: read-only. Title: Plan scene dressing.
 
 Parameters:
 
-- `action` (string, required): template, clear-templates, mood (darkness and global light), note, remove-note or loot. One of: `template`, `clear-templates`, `mood`, `note`, `remove-note`, `loot`.
+- `action` (string, required): template, clear-templates, note, remove-note or loot. One of: `template`, `clear-templates`, `note`, `remove-note`, `loot`.
 - `shape` (string): template: the shape (required). One of: `circle`, `cone`, `ray`, `rect`.
 - `distance` (number): template: size in grid distance units (radius for circle, length for cone/ray/rect; required).
 - `x` (number): template: origin X in pixels (or originTokenName). note: X in pixels (or tokenName).
@@ -519,8 +519,6 @@ Parameters:
 - `fillColor` (string): template: hex color, e.g. "#ff0000".
 - `templateId` (string): clear-templates: the template to remove.
 - `all` (boolean): clear-templates: remove all of this tool's own templates (never a hand-made GM region on Foundry 14).
-- `darkness` (number): mood: darkness level 0 (bright) to 1 (dark).
-- `globalLight` (boolean): mood: enable or disable global illumination.
 - `text` (string): note: the label. remove-note: remove the pins whose label is exactly this text.
 - `tokenName` (string): note: place the pin at this token instead of x/y.
 - `journalName` (string): note: link the pin to an existing journal entry by name.

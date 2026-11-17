@@ -51,7 +51,7 @@ Parameters:
 - `size` (string): Filter by creature size. One of: `tiny`, `small`, `medium`, `large`, `huge`, `gargantuan`, `sm`, `med`, `lg`, `grg`.
 - `hasSpells` (boolean): Filter for spellcasting creatures
 - `hasLegendaryActions` (boolean): Filter for creatures with legendary actions (D&D 5e)
-- `limit` (number): Maximum results to return (default: 500 for comprehensive surveys, max: 1000). Range: 1 to 1000. Default: `500`.
+- `limit` (number): Maximum results to return (default 50, max 1000; raise it for a wide survey). Range: 1 to 1000. Default: `50`.
 
 ## create-actor-from-compendium
 

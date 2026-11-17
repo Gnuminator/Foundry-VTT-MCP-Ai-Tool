@@ -100,15 +100,14 @@ export class SceneChangeTools {
       {
         name: 'plan-scene-change',
         description:
-          'Plan scene dressing on the current scene: an area-of-effect template ("template"), clearing templates ("clear-templates"), darkness and global light ("mood"), a map pin ("note", "remove-note") or loot for a character ("loot"). Apply it with apply-planned-change, revert it with undo-change; the GM sees every change in Recent Changes. A template result lists tokensInside; a loot result lists skippedItems that were left out (bad UUID, not an Item, or no target character).',
+          'Plan scene dressing on the current scene: an area-of-effect template ("template"), clearing templates ("clear-templates"), a map pin ("note", "remove-note") or loot for a character ("loot"). For darkness, light, weather and music use plan-scene-mood. Apply it with apply-planned-change, revert it with undo-change; the GM sees every change in Recent Changes. A template result lists tokensInside; a loot result lists skippedItems that were left out (bad UUID, not an Item, or no target character).',
         inputSchema: {
           type: 'object',
           properties: {
             action: {
               type: 'string',
-              enum: [...SCENE_CHANGE_ACTIONS],
-              description:
-                'template, clear-templates, mood (darkness and global light), note, remove-note or loot.',
+              enum: SCENE_CHANGE_ACTIONS.filter(a => a !== 'mood'),
+              description: 'template, clear-templates, note, remove-note or loot.',
             },
             shape: {
               type: 'string',
@@ -157,14 +156,6 @@ export class SceneChangeTools {
               type: 'boolean',
               description:
                 "clear-templates: remove all of this tool's own templates (never a hand-made GM region on Foundry 14).",
-            },
-            darkness: {
-              type: 'number',
-              description: 'mood: darkness level 0 (bright) to 1 (dark).',
-            },
-            globalLight: {
-              type: 'boolean',
-              description: 'mood: enable or disable global illumination.',
             },
             text: {
               type: 'string',

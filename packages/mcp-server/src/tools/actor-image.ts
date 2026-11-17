@@ -1,5 +1,4 @@
 import { lstat, open, readlink, realpath, stat } from 'node:fs/promises';
-import { homedir } from 'node:os';
 import path, { isAbsolute, join } from 'node:path';
 import { z } from 'zod';
 import {
@@ -7,6 +6,7 @@ import {
   ACTOR_IMAGE_ROOTS_ENV,
   ACTOR_IMAGE_TARGETS,
   PORTRAIT_MAX_BYTES,
+  dataFolder,
   featureSwitchOff,
   sniffPortraitType,
   toolRef,
@@ -22,7 +22,7 @@ export interface ActorImageToolsOptions {
   foundryClient: Pick<FoundryClient, 'query'>;
   guardedWrites: Pick<GuardedWriteService, 'createPlan'>;
   logger: Logger;
-  /** Allowed folders; default: FOUNDRY_AI_TOOL_IMAGE_ROOTS, else Documents\Foundry Art. */
+  /** Allowed folders; default: FOUNDRY_AI_TOOL_IMAGE_ROOTS, else `Foundry Art` in FVTT_DATA_DIR (or in Documents while unmoved). */
   roots?: string[];
 }
 
@@ -44,7 +44,7 @@ export function defaultImageRoots(env: NodeJS.ProcessEnv = process.env): string[
     .map(s => s.trim())
     .filter(Boolean)
     .filter(s => isAbsolute(s));
-  return listed.length > 0 ? listed : [join(homedir(), 'Documents', 'Foundry Art')];
+  return listed.length > 0 ? listed : [dataFolder('Foundry Art', env.FVTT_DATA_DIR)];
 }
 
 /** The parts of `node:path` the text checks use; `path.win32` and `path.posix` both fit. */

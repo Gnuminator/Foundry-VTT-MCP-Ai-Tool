@@ -11,6 +11,7 @@ import {
   resultSize,
   runLoggedCall,
   skillFields,
+  gmCaller,
 } from './tool-call-log.js';
 import { TOOL_SETS } from './tool-sets.js';
 
@@ -130,6 +131,34 @@ describe('tool call log', () => {
     ).toEqual({ skill: 'gm-coach', stub: 1 });
     expect(skillFields('get-skill-guide', { skill: 'Typed text!', stubRevision: 'x' })).toEqual({});
     expect(skillFields('get-world-info', { skill: 'gm-coach' })).toEqual({});
+    // A slug that looks fine but is not a skill of that tool is typed text: dropped.
+    expect(skillFields('get-skill-guide', { skill: 'the-baron-is-the-vampire' })).toEqual({});
+    expect(skillFields('get-skill-guide', { skill: 'dnd-helper-player' })).toEqual({});
+    expect(skillFields('get-player-skill-guide', { skill: 'dnd-helper-player' })).toEqual({
+      skill: 'dnd-helper-player',
+    });
+    expect(skillFields('get-player-skill-guide', { skill: 'gm-coach' })).toEqual({});
+  });
+
+  it('files every call of a dashboard connection as the dashboard, reads included', () => {
+    // The dashboard's background reads carry no requestedBy: its hello decides.
+    expect(gmCaller(true, undefined, 'get-play-stats', {})).toEqual({
+      who: 'gm',
+      via: 'dashboard',
+    });
+    expect(gmCaller(false, 'GM', 'apply-planned-change', {})).toEqual({
+      who: 'gm',
+      via: 'dashboard',
+    });
+    expect(gmCaller(false, undefined, 'get-world-info', {})).toEqual({
+      who: 'gm',
+      via: 'connector',
+    });
+    expect(gmCaller(false, undefined, 'get-skill-guide', { skill: 'gm-coach' })).toEqual({
+      who: 'gm',
+      via: 'connector',
+      skill: 'gm-coach',
+    });
   });
 
   it('writes nothing when off and never throws on a write failure', async () => {

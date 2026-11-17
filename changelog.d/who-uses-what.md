@@ -6,4 +6,7 @@
   plugin (a random install id per PC) and the Claude app each person runs, and a GM-only report
   (`GET /api/who-uses-what`, `node scripts/who-uses-what.mjs`) joins it with the dashboard and Foundry
   control use, the tools never called and the error rate per tool. Counts only: never typed text,
-  tool arguments or results (D-146; item `who-uses-what`, closes `real-tool-usage`).
+  tool arguments or results (D-146; item `who-uses-what`, closes `real-tool-usage`). The call log
+  is now written by the bridge, so it sits where the bridge runs (the Pi when the connectors point
+  there): `npm run usage:calls -- --pi` reads it, and the dashboard's own background reads are
+  filed as the dashboard, not as the GM's Claude.

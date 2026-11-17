@@ -39,7 +39,13 @@ import { splitPlayerTools } from './tool-sets.js';
 import { PLAYER_CONFIG_ENV, handlePlayerTool, readExtraDenyTerms } from './tools/player.js';
 import { GameEventHub } from './game-event-hub.js';
 import { WrapperRegistry } from './wrapper-registry.js';
-import { ToolCallLog, buildCallLine, skillFields, type CallCaller } from './tool-call-log.js';
+import {
+  ToolCallLog,
+  buildCallLine,
+  gmCaller,
+  skillFields,
+  type CallCaller,
+} from './tool-call-log.js';
 import type { ToolResultLike } from './tool-router.js';
 import { ClientsFile, handleWhoUsesWhat } from './who-uses-what.js';
 import { TarokkaService } from './tarokka/service.js';
@@ -551,6 +557,9 @@ async function startBackend(): Promise<void> {
   const server = net.createServer(socket => {
     socket.setEncoding('utf8');
     const connectionId = (nextConnectionId += 1);
+    // Set by the `hello` of the co-GM dashboard: every call on this connection is the dashboard's
+    // (its background reads too), not the GM's Claude.
+    let dashboardConnection = false;
     socket.on('close', () => wrapperRegistry.close(connectionId));
 
     // Aborts the long waits (wait-for-game-event) of a connection that closed.
@@ -588,7 +597,8 @@ async function startBackend(): Promise<void> {
           if (msg.method === 'hello') {
             wrapperRegistry.hello(connectionId, msg.params);
             const hp = (msg.params ?? {}) as { version?: unknown; client?: unknown };
-            if (hp.client !== 'dashboard') {
+            if (hp.client === 'dashboard') dashboardConnection = true;
+            else {
               void clientsFile.record({ piece: 'connectors', who: 'gm', version: hp.version });
             }
             socket.write(`${JSON.stringify({ id: msg.id, result: { ok: true } })}\n`);
@@ -630,12 +640,9 @@ async function startBackend(): Promise<void> {
               wrapperRegistry.toolCallWithoutRequester(connectionId);
 
             const startedAt = Date.now();
-            // The dashboard sets `requestedBy`; a connector (the GM's Claude) never does.
-            const caller: CallCaller = {
-              who: 'gm',
-              via: typeof requestedBy === 'string' ? 'dashboard' : 'connector',
-              ...skillFields(String(name), args),
-            };
+            // The dashboard says hello as `dashboard` (and names `requestedBy` on its writes); a
+            // connector (the GM's Claude) does neither.
+            const caller = gmCaller(dashboardConnection, requestedBy, String(name), args);
             const runCall = async (): Promise<void> => {
               try {
                 // Own keys only: a name such as "constructor" must not reach Object.prototype.

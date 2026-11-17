@@ -13,6 +13,7 @@ import { promises as fsp } from 'fs';
 import * as path from 'path';
 
 import { localDateKey } from './event-pump.js';
+import { GM_SKILLS, PLAYER_SKILL } from './skill-guide.js';
 import { toolSetOf } from './tool-sets.js';
 import type { ToolResultLike } from './tool-router.js';
 import { usageLogEnabled } from './usage-log.js';
@@ -51,18 +52,39 @@ export interface ToolCallLine {
 
 const SKILL_GUIDE_TOOLS = new Set(['get-skill-guide', 'get-player-skill-guide']);
 const USER_ID_RE = /^[A-Za-z0-9]{1,32}$/;
-const SKILL_RE = /^[a-z0-9-]{1,40}$/;
+/** The skills each guide tool serves: a slug outside the list is typed text and is never kept. */
+const SKILLS_OF_TOOL: Record<string, readonly string[]> = {
+  'get-skill-guide': GM_SKILLS,
+  'get-player-skill-guide': [PLAYER_SKILL],
+};
 
 /** The skill name and stub revision of a skill-guide call; nothing else of its arguments. */
 export function skillFields(tool: string, args: unknown): { skill?: string; stub?: number } {
   if (!SKILL_GUIDE_TOOLS.has(tool) || args === null || typeof args !== 'object') return {};
   const a = args as { skill?: unknown; stubRevision?: unknown };
   const out: { skill?: string; stub?: number } = {};
-  if (typeof a.skill === 'string' && SKILL_RE.test(a.skill)) out.skill = a.skill;
+  if (typeof a.skill === 'string' && SKILLS_OF_TOOL[tool]?.includes(a.skill)) out.skill = a.skill;
   if (typeof a.stubRevision === 'number' && Number.isInteger(a.stubRevision)) {
     out.stub = Math.max(0, Math.min(1000, a.stubRevision));
   }
   return out;
+}
+
+/**
+ * The caller of a control-channel `call_tool`: the GM, through the dashboard (its connection said
+ * hello as `dashboard`, or the call names `requestedBy`) or through a connector (the GM's Claude).
+ */
+export function gmCaller(
+  dashboardConnection: boolean,
+  requestedBy: unknown,
+  tool: string,
+  args: unknown
+): CallCaller {
+  return {
+    who: 'gm',
+    via: dashboardConnection || typeof requestedBy === 'string' ? 'dashboard' : 'connector',
+    ...skillFields(tool, args),
+  };
 }
 
 /** Characters of text in a tool result (what Claude receives). */

@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import {
   GATE_FLAGS,
   TRAIN_FULL_LINE,
+  TRAIN_KEY,
   gateArgs,
   gateOutcome,
   main,
@@ -323,7 +324,7 @@ test('a failed CI check (exit 3) and a moved head under --wait-ci (exit 4) are r
   }
 });
 
-test('train limit: one Discord line, the ready line stays, the runner stops', () => {
+test('train limit: the PR waits, the ones behind it are gated and merged, the runner stays up', () => {
   const f = fakes({
     text: backlog([
       ['one', `PR #5 ready, head ${SHA}`],
@@ -336,14 +337,50 @@ test('train limit: one Discord line, the ready line stays, the runner stops', ()
         stdout:
           'lane:merge: refused because train: merge train full (4/4): the planner runs npm run live:roundtrip on main',
       },
+      6: merged(6),
     },
   });
-  const r = round(f.deps, new Set());
-  assert.equal(r.stop, 'merge train full');
-  assert.deepEqual(f.calls.gate, [5], 'nothing after the full train');
-  assert.deepEqual(f.calls.backlog, [], 'the ready line stays for the next start');
-  assert.equal(f.calls.post.length, 1);
-  assert.ok(f.calls.post[0].startsWith(TRAIN_FULL_LINE));
+  const attempts = new Map();
+  const r = round(f.deps, new Set(), attempts);
+  assert.equal(r.stop, null);
+  assert.deepEqual(r.merged, [6]);
+  assert.deepEqual(f.calls.gate, [5, 6], 'the PR behind the train-blocked one is still gated');
+  assert.ok(attempts.has(`${TRAIN_KEY}5@${SHA}`));
+  assert.deepEqual(
+    f.calls.backlog.map(b => b[0]),
+    ['done'],
+    'the blocked ready line stays; only #6 is closed'
+  );
+  // The next round does not gate the blocked PR again until the train is reset.
+  const f2 = fakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: open() },
+  });
+  round(f2.deps, new Set(), attempts);
+  assert.deepEqual(f2.calls.gate, []);
+});
+
+test('readyItems: an item with two PRs holds one ready line each, both are read', () => {
+  const text = backlog([
+    ['one', `PR #5 ready, head ${SHA}\n- progress: PR #6 ready, head ${SHA2}`],
+  ]);
+  assert.deepEqual(readyItems(text), [
+    { id: 'one', pr: 5, head: SHA },
+    { id: 'one', pr: 6, head: SHA2 },
+  ]);
+});
+
+test('a merge of one PR of a two-PR item keeps the other PR open (part line, --if-ready)', () => {
+  const text = backlog([
+    ['one', `PR #5 ready, head ${SHA}\n- progress: PR #6 ready, head ${SHA2}`],
+  ]);
+  const f = fakes({ text, prs: { 5: open() }, gates: { 5: merged(5) } });
+  round(f.deps, new Set());
+  const b = f.calls.backlog.at(-1);
+  assert.equal(b[0], 'progress');
+  assert.match(b[2], /part PR #5 landed/);
+  assert.deepEqual(b.slice(3), ['--if-ready', `5@${SHA}`]);
+  assert.ok(!f.calls.backlog.some(x => x[0] === 'done'));
 });
 
 test('main red: one line, no gate, no Backlog write, the runner stops', () => {
@@ -1276,6 +1313,7 @@ test('queue: a failed group (open, out of the queue) is confirmed in a second ro
   assert.deepEqual(f.calls.train, [5]);
   assert.equal(f.calls.backlog.length, 1);
   assert.match(f.calls.backlog[0][2], /left the merge queue without merging/);
+  assert.deepEqual(f.calls.backlog[0].slice(-2), ['--pr', '5'], 'M1: names its PR, keeps others');
   assert.equal(f.calls.post.length, 1);
   round(f.deps, tried, attempts);
   assert.equal(f.calls.backlog.length, 1, 'not handled twice');
@@ -1465,7 +1503,7 @@ test('Backlog-part: an unreadable PR body keeps the item open (a progress line, 
   assert.match(f.calls.backlog[0][2], /body unreadable/);
 });
 
-test('Backlog-part through the merge queue: no --if-ready, sha from the PR', () => {
+test('Backlog-part through the merge queue: --pr instead of --if-ready (M1), sha from the PR', () => {
   const f = fakes({
     text: backlog([['one', enqueuedLine(5, SHA)]]),
     prs: { 5: { ...open(), body: 'Backlog-part: one', mergeCommit: { oid: 'abcdef0123' } } },
@@ -1480,7 +1518,25 @@ test('Backlog-part through the merge queue: no --if-ready, sha from the PR', () 
         }
       : gh(args);
   round(f.deps, new Set());
-  assert.deepEqual(f.calls.backlog, [['progress', 'one', 'part PR #5 landed on main (abcdef0)']]);
+  assert.deepEqual(f.calls.backlog, [
+    ['progress', 'one', 'part PR #5 landed on main (abcdef0)', '--pr', '5'],
+  ]);
+});
+
+test('M5: the train tick runs before each gate, and a stop from it ends the round before the gate', () => {
+  const f = fakes({
+    text: backlog([
+      ['one', `PR #5 ready, head ${SHA}`],
+      ['two', `PR #6 ready, head ${'b'.repeat(40)}`],
+    ]),
+    prs: { 5: { ...open(), body: 'Backlog: one' } },
+    gates: { 5: merged(5) },
+  });
+  let ticks = 0;
+  const r = roundWith(f.deps, new Set(), new Map(), () => (++ticks === 2 ? { stop: 'red' } : {}));
+  assert.equal(ticks, 2, 'before the first gate and before the second');
+  assert.equal(r.stop, 'red');
+  assert.deepEqual(r.merged, [5]);
 });
 
 test('Backlog line PR merged: done, as before', () => {

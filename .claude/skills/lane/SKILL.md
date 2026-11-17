@@ -114,7 +114,7 @@ scripts/heavy-lock.mjs status`). `SKIP_PREPUSH=1 git push ...` skips the em-dash
 - **Ready to merge (the merge runner merges, D-140):** once every review for the head says Merge, run
   `backlog.mjs progress <id> --ready <n> --head <40-char sha> --review <note path>`, keep the branch
   pushed and stop; message nobody. The runner may push a main merge to it: fetch first. The runner gates that head in its own checkout and writes a
-  refusal over the line. With the merge queue on, the gate enqueues; a failed queue run needs
+  refusal over the line. Plain progress text takes back every line; a ready line for another PR keeps the old one. With the merge queue on, the gate enqueues; a failed queue run needs
   a fresh ready line. Never run the
   gate without `--dry-run`; don't offer Auto-fix. To check
   the gate, from the clean, pushed PR branch, run main's copy (never the branch's own):

@@ -1,17 +1,17 @@
 # =============================================================================
-#  Foundry AI Tool — Dockerfile TEMPLATE
+#  Foundry AI Tool: Dockerfile TEMPLATE
 #  NOT a tested, production image. This is a scaffold for running the bridge
 #  backend + co-GM dashboard on an always-on host (Pi/VPS/container). Read the
 #  comments before using it.
 #
 #  What this image includes:
-#    - packages/mcp-server  (bridge backend — standalone entrypoint)
+#    - packages/mcp-server  (bridge backend, standalone entrypoint)
 #    - packages/cogm-dashboard  (co-GM dashboard Node server)
 #    - shared  (internal types package)
 #
 #  What is intentionally NOT included:
-#    - The Foundry module — that installs into Foundry, not here.
-#    - cloudflared — use the sidecar in docker-compose.yml.template instead.
+#    - The Foundry module. It installs into Foundry, not here.
+#    - cloudflared. Use the sidecar in docker-compose.yml.template instead.
 #
 #  Runtime secrets:
 #    All secrets (GM_DASHBOARD_TOKEN, GM_EMAILS, etc.) must
@@ -42,7 +42,7 @@ COPY packages/mcp-server/package.json     ./packages/mcp-server/
 COPY packages/cogm-dashboard/package.json ./packages/cogm-dashboard/
 COPY shared/package.json                  ./shared/
 
-# Install all workspace dependencies (including devDependencies — needed for tsc).
+# Install all workspace dependencies (including devDependencies, needed for tsc).
 # npm ci installs exactly what package-lock.json says (reproducible builds).
 RUN npm ci
 
@@ -80,7 +80,7 @@ RUN npm run build && test -f shared/dist/index.js && test -f shared/dist/index.d
 
 # ── Stage 2: runtime ────────────────────────────────────────────────────────
 #
-# Lean runtime image — no devDependencies, no TypeScript compiler.
+# Lean runtime image: no devDependencies, no TypeScript compiler.
 
 FROM node:24.22.2-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS runtime
 
@@ -112,13 +112,13 @@ USER nodeapp
 
 # ── Ports ───────────────────────────────────────────────────────────────────
 #
-# 3000  — co-GM dashboard HTTP + SSE (fronted by cloudflared in compose).
-#         NEVER expose this directly to the internet — put the tunnel in front.
+# 3000  : co-GM dashboard HTTP + SSE (fronted by cloudflared in compose).
+#         NEVER expose this directly to the internet; put the tunnel in front.
 #
-# 31414 — MCP control channel (TCP JSON-lines). Keep on loopback (see env below).
+# 31414 : MCP control channel (TCP JSON-lines). Keep on loopback (see env below).
 #         NOT exposed via EXPOSE; it is internal to the container network.
 #
-# 31415 — Foundry WebSocket connector. The Foundry module dials this.
+# 31415 : Foundry WebSocket connector. The Foundry module dials this.
 #         Unauthenticated: publish it on the host's loopback or tailnet IP only.
 #         (Alternatively, run bridge and dashboard as separate services; see compose template.)
 #

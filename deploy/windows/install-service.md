@@ -1,12 +1,12 @@
 # Run the standalone bridge as a Windows service (scaffold)
 
-> **Scaffold — not executed by this repo.** These are the steps to keep the
+> **Scaffold, not executed by this repo.** These are the steps to keep the
 > standalone bridge running unattended (survives logout / reboot) on the Windows
 > box. Pick **one** of the two options. Fill in the absolute paths for your machine.
 >
 > Phase 6 target: the bridge eventually moves to an always-on host (Pi/VPS, see
 > [docs/dev/REMOTE-ACCESS.md](../../docs/dev/REMOTE-ACCESS.md)); until then this keeps it up
-> on your PC. The control channel stays bound to **loopback** — remote reach is
+> on your PC. The control channel stays bound to **loopback**; remote reach is
 > provided by the Cloudflare Tunnel in front of the **dashboard**, never by
 > exposing 31414 directly.
 
@@ -14,9 +14,9 @@
 
 - A production build: `npm run build:server` (or install the packaged build).
 - Decide the bind: keep `MCP_CONTROL_HOST=127.0.0.1` (recommended). Do **not** bind
-  the control channel to a public interface — front it with the tunnel instead.
+  the control channel to a public interface; front it with the tunnel instead.
 
-## Option A — NSSM (the Non-Sucking Service Manager)
+## Option A: NSSM (the Non-Sucking Service Manager)
 
 `nssm` wraps any console app as a service with restart-on-crash. Download it from
 nssm.cc (not installed here).
@@ -34,7 +34,7 @@ Manage: `nssm restart FoundryMcpBridge`, `nssm stop FoundryMcpBridge`,
 `nssm remove FoundryMcpBridge confirm`. Logs: `nssm set FoundryMcpBridge AppStdout`/`AppStderr`
 to a file path.
 
-## Option B — Task Scheduler (no extra tooling)
+## Option B: Task Scheduler (no extra tooling)
 
 Run at logon / startup, restart on failure:
 
@@ -55,11 +55,11 @@ node "<REPO>\scripts\standalone-smoke-test.mjs"
 ```
 
 (That smoke test uses a throwaway port; to check the _real_ service, point the
-dashboard at `127.0.0.1:31414` — `npm run dev:cogm` — and confirm the feed connects.)
+dashboard at `127.0.0.1:31414` (`npm run dev:cogm`) and confirm the feed connects.)
 
 ## ⚠️ Single-instance note
 
 The backend takes a port-scoped singleton lock. Do **not** run this service on
-`31414` at the same time as a Claude-Desktop-spawned backend — they'd both want the
+`31414` at the same time as a Claude-Desktop-spawned backend, because they'd both want the
 same control channel. Either close Claude Desktop's MCP server, or run the service on
 an alternate `MCP_CONTROL_PORT` and point the dashboard there.

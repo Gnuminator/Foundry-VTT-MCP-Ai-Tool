@@ -14,7 +14,7 @@ import { cp, mkdtemp, open, readdir, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 
-import { SCENE_RESTORE_PARTS, type SceneRestorePart } from '@gnuminator/shared';
+import { rootFolder, SCENE_RESTORE_PARTS, type SceneRestorePart } from '@gnuminator/shared';
 
 /** The documents of one scene found in a backup. */
 export interface BackupScene {
@@ -65,9 +65,11 @@ type ClassicLevelConstructor = new (
 
 /** Foundry's app folders to try when none is given (Plan B first, then the test server). */
 export function defaultFoundryAppDirs(env: NodeJS.ProcessEnv = process.env): string[] {
-  return [env.FOUNDRY_AI_FOUNDRY_APP_DIR, 'C:\\FoundryPlanB\\app', 'C:\\FoundryTest\\app'].filter(
-    (d): d is string => typeof d === 'string' && d.length > 0
-  );
+  return [
+    env.FOUNDRY_AI_FOUNDRY_APP_DIR,
+    join(rootFolder('FoundryPlanB'), 'app'),
+    'C:\\FoundryTest\\app',
+  ].filter((d): d is string => typeof d === 'string' && d.length > 0);
 }
 
 /** Open a LevelDB folder with the `classic-level` found in one of Foundry's app folders. */

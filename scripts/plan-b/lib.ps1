@@ -31,8 +31,12 @@ $PlanBModuleId = 'foundry-mcp-bridge'
 # scripts/pi still carry the backup drive letter themselves.
 $MachinePaths = Get-Content (Join-Path $PlanBRepoRoot 'scripts/machine-paths.json') -Raw | ConvertFrom-Json
 
+. (Join-Path $PlanBRepoRoot 'scripts/data-folder.ps1')
+
 $PlanBDefaults = [ordered]@{
-  Root     = if ($IsWindows) { $MachinePaths.planBRoot } else { Join-Path $HOME 'foundry-plan-b' }
+  # machine-paths.json holds the old place (C:\FoundryPlanB); Resolve-RootPath follows the folder
+  # when it has been moved under FVTT_DATA_DIR.
+  Root     = if ($IsWindows) { Resolve-RootPath $MachinePaths.planBRoot } else { Join-Path $HOME 'foundry-plan-b' }
   World    = 'curse-of-strahd'
   # String concatenation, not Join-Path: Join-Path throws when the drive (an unplugged E:) is absent.
   Repo     = ($MachinePaths.backupDestination.TrimEnd('\') + '\restic')

@@ -334,6 +334,23 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
     assert.equal(r.local.dataPath, 'C:/FoundryPlanB/data');
   });
 
+  test('root folders: C:\\<name> without a data folder, the data folder once the folder is there', () => {
+    const r = ps(`
+      $d = Join-Path ([IO.Path]::GetTempPath()) ('rootf-' + [guid]::NewGuid().ToString('N'))
+      New-Item -ItemType Directory -Path (Join-Path $d 'FoundryPlanB') | Out-Null
+      try {
+        $env:FVTT_DATA_DIR = ''
+        $none = Resolve-RootPath 'C:\\FoundryPlanB\\data'
+        $env:FVTT_DATA_DIR = $d
+        $moved = Resolve-RootPath 'C:\\FoundryPlanB\\data'
+        $other = Resolve-RootPath 'C:\\FoundryTest\\app'
+        @{ none = $none; moved = $moved; expected = (Join-Path (Join-Path $d 'FoundryPlanB') 'data'); other = $other }
+      } finally { $env:FVTT_DATA_DIR = ''; Remove-Item -Recurse -Force $d }`);
+    assert.equal(r.none, 'C:\\FoundryPlanB\\data');
+    assert.equal(r.moved, r.expected);
+    assert.equal(r.other, 'C:\\FoundryTest\\app');
+  });
+
   test('env file: comments, quotes and = in values', () => {
     const r = ps(
       `ConvertFrom-EnvText "# a comment\`nASSISTANT_GM_USER=Assistant GM\`n\`nASSISTANT_GM_PASSWORD='a=b c'\`nBAD LINE\`nQ=""x"""`

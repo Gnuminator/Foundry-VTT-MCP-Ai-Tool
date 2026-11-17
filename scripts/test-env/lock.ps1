@@ -41,7 +41,9 @@ $isGpu = ($Server -eq 'GPU') -or (-not $Server -and $env:FOUNDRY_TEST_SERVER -eq
 if ($isGpu) { $Server = 'A'; $env:FOUNDRY_TEST_SERVER = 'A' }
 . (Join-Path $PSScriptRoot 'config.ps1')
 
-$gpuRoot = if ($IsWindows) { 'C:\FoundryAI\gpu-lock' } else { Join-Path $HOME 'foundry-ai/gpu-lock' }
+. (Join-Path $PSScriptRoot '..\data-folder.ps1')
+# FoundryAI is C:\FoundryAI until it is moved under FVTT_DATA_DIR (Get-RootFolder knows which).
+$gpuRoot = if ($IsWindows) { Join-Path (Get-RootFolder 'FoundryAI') 'gpu-lock' } else { Join-Path $HOME 'foundry-ai/gpu-lock' }
 $lockRoot = if ($Root) { $Root } elseif ($isGpu) { $gpuRoot } else { $TestEnv.Root }
 $lockFile = Join-Path $lockRoot 'lock.json'
 $label = if ($isGpu) { 'GPU lock' } elseif ($TestEnv.Server -eq 'A') { 'Test server lock' } else { "Test server $($TestEnv.Server) lock" }

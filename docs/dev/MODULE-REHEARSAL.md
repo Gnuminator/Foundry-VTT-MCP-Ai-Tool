@@ -60,7 +60,7 @@ the findings a report carries.
 
 ## The archive
 
-A PC folder, `C:\FoundryAI\module-archive` (or `$MODULE_ARCHIVE`), never inside a repo or the vault:
+A PC folder, `C:\FoundryAI\module-archive` (inside `FVTT_DATA_DIR` once FoundryAI has moved there; or `$MODULE_ARCHIVE`), never inside a repo or the vault:
 
 ```text
 pinned.json                       what the Pi may install: version, zip, sha256, licensed, tested on, report

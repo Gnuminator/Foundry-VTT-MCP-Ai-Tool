@@ -412,6 +412,19 @@ describe('stairs', () => {
 describe('hazard', () => {
   const area = { x: 0, y: 0, width: 2, height: 2 };
 
+  it('warns about options that do not apply to the kind', async () => {
+    world.setActiveScene(scene('a', 'Hall').id);
+    const plan = await planRoomSetup({
+      action: 'hazard',
+      kind: 'difficult',
+      name: 'Mud',
+      area,
+      modifier: 0.3,
+      effectUuid: 'Actor.x.ActiveEffect.y',
+    });
+    expect(plan.warnings).toContain('modifier, effectUuid not used for kind difficult');
+  });
+
   it('difficult terrain uses the dnd5e behavior and needs the system', async () => {
     world.setActiveScene(scene('a', 'Hall').id);
     const plan = await planRoomSetup({

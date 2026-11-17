@@ -28,6 +28,7 @@ export * from './client-versions.js';
 export * from './preflight.js';
 export * from './prep-digest.js';
 export * from './party.js';
+export * from './renown.js';
 export * from './live-play.js';
 export * from './ownership.js';
 export * from './foundry-setup.js';

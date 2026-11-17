@@ -721,6 +721,7 @@ const NOT_CONTRACT = [
   'player-view',
   'preflight',
   'prep-digest',
+  'renown',
   'room-setup',
   'rules-check',
   'scene-change',

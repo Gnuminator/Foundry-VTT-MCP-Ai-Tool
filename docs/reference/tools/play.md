@@ -561,3 +561,28 @@ Parameters:
 - `tokenIds` (array of string): start: the tokens to fight. Omit for player characters and Hostiles.
 - `sceneId` (string): start: scene (default: the viewed one).
 - `combatId` (string): end: the combat to close. Omit for the active one.
+
+## get-renown
+
+dnd5e 6.1 factions and renown: each faction actor (identifier, category, ranks with the renown each needs, members with rank and role) and each character or group that holds renown items, with its renown per faction and the rank that reaches. Says when the "Renown Scores" world setting is off. Read-only. GM only: not for player chat.
+
+Kind: read-only. Title: Get renown.
+
+No parameters.
+
+## plan-renown-change
+
+Plan one faction or renown change; nothing changes until apply-planned-change (the GM confirms; needs the "AI Tool: Party (writes)" switch and the dnd5e "Renown Scores" setting). action "adjust": add "amount" (may be negative) to an actor's renown with a faction. "set": make the actor's renown with the faction exactly "amount". Both create or update one renown item named "Renown adjustment: &lt;faction>" on the actor (a character or a group); the faction is its identifier or name. "set-member": put the actor "member" in the faction actor "factionId", or change its rank ("rank" is a rank id from get-renown) and role. Returns a planId; undo-change reverts it.
+
+Kind: read-only. Title: Plan renown change.
+
+Parameters:
+
+- `action` (string, required): What to plan: adjust, set or set-member. One of: `adjust`, `set`, `set-member`.
+- `actorId` (string): For adjust and set: the character or group actor id.
+- `faction` (string): For adjust and set: the faction identifier or name.
+- `amount` (integer): For adjust: the change (may be negative). For set: the new score.
+- `factionId` (string): For set-member: the faction actor id.
+- `member` (string): For set-member: the member actor id.
+- `rank` (string): For set-member: the rank id (empty for none).
+- `role` (string): For set-member: the role text.

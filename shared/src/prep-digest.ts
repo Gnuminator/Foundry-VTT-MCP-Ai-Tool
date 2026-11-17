@@ -263,7 +263,7 @@ export const PREP_PREVIOUSLY_MAX_CHARS = 1500;
 
 /**
  * "Previously on": the GM summary (`notes/summary.<lang>.md`) of the newest recorded session that
- * has one, read from the sessions folder (FVTT_SESSIONS_DIR, else Documents/FoundrySessions).
+ * has one, read from the sessions folder (FVTT_SESSIONS_DIR, else FoundrySessions in FVTT_DATA_DIR or Documents).
  * Only that file is read: never the player recap draft or a transcript.
  *
  * - `found`: `session` is the folder name, `title` the summary's heading after "Summary:",

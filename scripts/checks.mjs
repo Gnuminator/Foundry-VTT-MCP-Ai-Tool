@@ -169,6 +169,7 @@ export const CHECKS = [
     'scripts/merge-runner/open-steps.test.mjs',
     'scripts/merge-runner/refresh.test.mjs',
     'scripts/merge-runner/self-check.test.mjs',
+    'scripts/merge-runner/train-run.test.mjs',
     'scripts/merge-runner/unready.test.mjs',
     'scripts/main-red-revert.test.mjs',
     'scripts/line-ratchet.test.mjs',

@@ -8,20 +8,20 @@ The bridge has 112 tools. Their definitions are about 123,000 characters of JSON
 38,400 tokens that Claude reads at the start of every conversation, before anyone types. Many
 tools also look alike, which makes Claude pick the wrong one more often. Eight of the 112 are the
 player set (see below), which no Claude Desktop entry carries: the GM's Claude Desktop can load at
-most the other 105, about 120,600 characters.
+most the other 104, about 120,600 characters.
 
 So the tools are split into five sets. Each set is its own entry in Claude Desktop's
 configuration, so Claude Desktop shows one switch per set in the **Search and tools** menu. Turn on
 what the conversation needs. The switches are remembered for new chats.
 
-| Set        | Claude Desktop entry      | Tools | Size (characters) | For                                                                                                                                                                           |
-| ---------- | ------------------------- | ----- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **core**   | `foundry-mcp`             | 25    | about 19,000      | Looking things up, and reviewing, applying or undoing planned changes. Always on.                                                                                             |
-| **play**   | `foundry-mcp-play`        | 39    | about 41,700      | Running the table live: tokens, combat, rolls, damage, conditions, chat, mood, loot.                                                                                          |
-| **prep**   | `foundry-mcp-prep`        | 20    | about 22,200      | Prep and recaps: quests, journals, encounter budgets, Tarokka, handouts, session log, stats.                                                                                  |
-| **build**  | `foundry-mcp-build`       | 9     | about 27,600      | Making NPCs, monsters and items, from a compendium or from scratch; room setup; characters; pictures.                                                                         |
-| **admin**  | `foundry-mcp-admin`       | 11    | about 10,500      | Modules and their errors, actor ownership, Foundry setup, token rings, the Obsidian mirror.                                                                                   |
-| **player** | none (`/mcp/player` only) | 8     | about 3,050       | A player's own read-only view: their character, level-up advice, short passages from the books they can see, their revealed handouts, recap and quests, and their play stats. |
+| Set        | Claude Desktop entry      | Tools | Size (characters) | For                                                                                                                                                                                                                                                           |
+| ---------- | ------------------------- | ----- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **core**   | `foundry-mcp`             | 25    | about 19,000      | Look things up (world, characters, scenes, journals, compendiums, combat) and review, apply or undo planned changes. Always on.                                                                                                                               |
+| **play**   | `foundry-mcp-play`        | 39    | about 41,700      | Run the table live: tokens, combat turns, rolls, damage, conditions, resources, chat, scene mood, map notes and loot.                                                                                                                                         |
+| **prep**   | `foundry-mcp-prep`        | 20    | about 22,200      | Prepare sessions and write recaps: quests and journals, encounter budgets, the Tarokka reading, handouts, the session log, play stats and the pre-flight check.                                                                                               |
+| **build**  | `foundry-mcp-build`       | 9     | about 27,600      | Make and change NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells. Set up rooms: teleports and tokens in a room.                                                                                                 |
+| **admin**  | `foundry-mcp-admin`       | 11    | about 10,500      | Set up and troubleshoot: installed modules and their errors, Foundry settings, modules on or off, user roles, who can open a compendium pack, a journal or a scene, who owns which actor, round token rings for all actors, and the Obsidian mirror settings. |
+| **player** | none (`/mcp/player` only) | 8     | about 3,050       | A player's own read-only view: their character sheet, what their next level grants, short passages from the books their Foundry user can see, their revealed handouts, recap and quests, and their play stats. Served only on /mcp/player, never on stdio.    |
 
 A prep chat with core and prep on carries about 41,200 characters instead of 116,600. Core alone is
 about 15% of everything.

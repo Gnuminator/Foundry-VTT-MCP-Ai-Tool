@@ -773,7 +773,7 @@ describe('CompendiumTools.handleListCreaturesByCriteria', () => {
     expect(listCall![1]).toMatchObject({ challengeRating: { min: 5, max: 10 } });
   });
 
-  it('default limit is 100 when not specified', async () => {
+  it('default limit is 50 when not specified', async () => {
     const { tools, query } = makeTools(
       CompendiumTools,
       makeQueryWithSystem('dnd5e', bridgeResponse)
@@ -782,7 +782,7 @@ describe('CompendiumTools.handleListCreaturesByCriteria', () => {
     const listCall = query.mock.calls.find(
       ([m]) => m === 'foundry-mcp-bridge.listCreaturesByCriteria'
     );
-    expect((listCall![1] as { limit: number }).limit).toBe(100);
+    expect((listCall![1] as { limit: number }).limit).toBe(50);
   });
 });
 

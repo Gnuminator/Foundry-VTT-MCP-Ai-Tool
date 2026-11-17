@@ -16,7 +16,7 @@
  *                                         or enqueued line is replaced; a ready line for a PR also
  *                                         keeps the item's other PRs' lines (one line per PR)
  *   node scripts/backlog.mjs release <id>                  removes the claimed and link lines
- *   node scripts/backlog.mjs set <id> "<field>" "<value>"  replaces one planning field (board, gate, area,
+ *   node scripts/backlog.mjs set <id> "<field>" "<value>"  replaces one planning field (title, link, board, gate, area,
  *                                         "blocked by", "depends on", touches, source, "done when"); "" removes it
  *   node scripts/backlog.mjs done <id> <PR> [--sha <sha>] [--summary <text>] [--by <who>]
  *                                         [--pi-run <text>]
@@ -178,8 +178,15 @@ export function releaseEdit(text, o) {
   return { text: out, notes: [] };
 }
 
-/** Fields `set` may change: planning data, never the claim, the link, the progress or the id. */
+const LINK_RE = /^claude:\/\/claude\.ai\/epitaxy\/local_[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/;
+
+/**
+ * Fields `set` may change: planning data and the heading title, plus the link of a claimed item
+ * (to repair a wrong one); never the claim, the progress or the id.
+ */
 export const SETTABLE = [
+  'title',
+  'link',
   'board',
   'gate',
   'area',
@@ -200,11 +207,26 @@ export function setFieldEdit(text, o) {
     throw new Error(`set changes only: ${SETTABLE.join(', ')} (not "${o.name}")`);
   }
   const value = oneLine(o.value);
-  if (!value && name === 'board') throw new Error('an item keeps its board line (give a value)');
+  if (!value && (name === 'board' || name === 'title'))
+    throw new Error(`an item keeps its ${name} (give a value)`);
   const p = parseBacklog(text);
   const item = findItem(p, o.id);
+  if (name === 'title') {
+    const lines = [...p.lines];
+    lines[item.start] = `## ${item.size} ${value}`;
+    const out = lines.join(p.nl);
+    checkEdit(text, out, { id: o.id, items: 0, lines: 0 });
+    return { text: out, notes: [] };
+  }
+  if (name === 'link') {
+    if (!field(item, 'claimed')) throw new Error(`${o.id} is not claimed; claim it with --link`);
+    if (value && !LINK_RE.test(value))
+      throw new Error(`link must look like claude://claude.ai/epitaxy/local_<uuid> (got "${value}")`);
+  }
   const { body, tail } = trimBlock(item);
-  const next = setField(body, name, value ? [`- ${name}: ${value}`] : [], ['board']);
+  const next = setField(body, name, value ? [`- ${name}: ${value}`] : [], [
+    name === 'link' ? 'claimed' : 'board',
+  ]);
   const out = splice(p, item.start, item.end, [...next, ...tail]);
   checkEdit(text, out, { id: o.id, items: 0, lines: next.length - body.length });
   return { text: out, notes: [] };

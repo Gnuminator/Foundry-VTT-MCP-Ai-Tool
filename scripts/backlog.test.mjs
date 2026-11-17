@@ -276,6 +276,27 @@ test('set replaces, adds and removes one planning field; refuses claim, progress
   assert.throws(() => setFieldEdit(FIXTURE, { id: 'nope', name: 'gate', value: 'G1' }), /nope/);
 });
 
+test('set retitles an item and repairs the link of a claimed one', () => {
+  const t = setFieldEdit(FIXTURE, { id: 'second', name: 'title', value: 'Second, retitled' });
+  assert.match(t.text, /^## S Second, retitled$/m);
+  assert.equal(parseBacklog(t.text).items.length, parseBacklog(FIXTURE).items.length);
+  assert.throws(() => setFieldEdit(FIXTURE, { id: 'second', name: 'title', value: '' }), /keeps/);
+  const good = 'claude://claude.ai/epitaxy/local_bb64ca65-8689-447c-9a77-560b3c881d4a';
+  const l = setFieldEdit(FIXTURE, { id: 'first', name: 'link', value: good });
+  assert.match(block(l.text, 'first') ?? '', /claimed: First lane 2026-11-11\r?\n- link: claude:/);
+  const again = setFieldEdit(l.text, {
+    id: 'first',
+    name: 'link',
+    value: good.replace('bb64ca65', 'cc221c20'),
+  });
+  assert.equal(((block(again.text, 'first') ?? '').match(/- link:/g) ?? []).length, 1);
+  assert.throws(
+    () => setFieldEdit(FIXTURE, { id: 'first', name: 'link', value: 'claude://claude.ai/epitaphy/local_x' }),
+    /link must look like/
+  );
+  assert.throws(() => setFieldEdit(FIXTURE, { id: 'second', name: 'link', value: good }), /not claimed/);
+});
+
 test('release refuses an unclaimed item', () => {
   assert.throws(() => releaseEdit(FIXTURE, { id: 'second' }), /not claimed/);
 });

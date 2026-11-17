@@ -4,7 +4,7 @@
     ".claude/hooks/guard-remote-commands.mjs": 1020,
     "packages/foundry-module/src/data-access/actor-builder.ts": 1418,
     "packages/foundry-module/src/data-access/guarded-write.ts": 1094,
-    "packages/foundry-module/src/data-access/player-rolls.ts": 1640,
+    "packages/foundry-module/src/data-access/player-rolls.ts": 1252,
     "packages/foundry-module/src/export-index.ts": 1425,
     "packages/foundry-module/src/npc-turn.ts": 1158,
     "packages/foundry-module/src/play-recorder.ts": 2127,

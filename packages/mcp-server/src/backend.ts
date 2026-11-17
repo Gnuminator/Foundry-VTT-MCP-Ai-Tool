@@ -620,7 +620,7 @@ async function startBackend(): Promise<void> {
             continue;
           }
 
-          // The five player tool definitions, for the dashboard's /mcp/player `tools/list`.
+          // The player tool definitions, for the dashboard's /mcp/player `tools/list`.
           if (msg.method === 'list_player_tools') {
             socket.write(
               `${JSON.stringify({ id: msg.id, result: { tools: playerToolDefinitions } })}\n`
@@ -815,7 +815,7 @@ async function startBackend(): Promise<void> {
 
           // A player's own Claude (D-136): the dashboard's /mcp/player route sends the verified
           // Foundry user id in `params.userId`; the tool arguments are untrusted and never carry
-          // one. Only the five player tools run here, all read-only. Not a call_tool route, never
+          // one. Only the player tools run here, all read-only. Not a call_tool route, never
           // listed to Claude, and the stdio wrapper never forwards it.
           if (msg.method === 'player_tool') {
             const startedAt = Date.now();

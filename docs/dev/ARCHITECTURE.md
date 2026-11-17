@@ -155,6 +155,11 @@ indexes, creating documents, attaching roll buttons to chat cards, etc.) lives i
 `data-access.ts`. Every handler routes through a `validateGMAccess()` check that **silently
 fails** for non-GM users — defense in depth on top of the `ready`-hook gate.
 
+One handler stands alone: `foundry-mcp-bridge.addActorsToScene` (`handleAddActorsToScene` in
+`queries.ts`, `addActorsToScene` in `data-access/actor-creation.ts`) puts actors on the current
+scene directly, with no plan step. It is a write, so it is listed in `write-gate.ts` like every
+other direct write.
+
 ---
 
 ## 3. The two wire contracts

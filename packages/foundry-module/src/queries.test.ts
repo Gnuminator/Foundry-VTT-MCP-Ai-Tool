@@ -38,10 +38,16 @@ const queries = (): Record<string, any> =>
   new Proxy({} as Record<string, any>, {
     get: (_target, key: string) => bridgeHandlers.get(key),
     set: (_target, key: string, value): boolean => {
-      bridgeHandlers.set(key, value);
+      bridgeHandlers.set(key, 'read', value);
       return true;
     },
   });
+
+/** Register the handlers, then call one by its name (without the module prefix). */
+const call = (name: string, data?: unknown): Promise<any> => {
+  qh.registerHandlers();
+  return Promise.resolve(bridgeHandlers.get(`${MODULE_ID}.${name}`)!(data));
+};
 
 beforeEach(() => {
   vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -313,15 +319,15 @@ describe('QueryHandlers: GM gate', () => {
     (globalThis as any).game.user.isGM = false;
     const da = stubDataAccess({ getCharacterInfo: vi.fn() });
 
-    const res = await (qh as any).handleGetCharacterInfo({ characterName: 'X' });
+    const res = await call('getCharacterInfo', { characterName: 'X' });
 
     expect(res).toEqual({ error: 'Access denied', success: false });
     expect(da.getCharacterInfo).not.toHaveBeenCalled();
   });
 
-  it('handlePing is ungated: returns status/version/world/user even for non-GM', async () => {
+  it('ping is ungated: returns status/version/world/user even for non-GM', async () => {
     (globalThis as any).game.user.isGM = false;
-    const res = await (qh as any).handlePing();
+    const res = await call('ping');
     expect(res).toMatchObject({ status: 'ok', module: MODULE_ID });
     expect(res.foundryVersion).toBeDefined();
     expect(res.worldId).toBeDefined();
@@ -358,7 +364,7 @@ describe('QueryHandlers: GM gate', () => {
     await (globalThis as any).game.settings.set(MODULE_ID, 'allowNonGmAccess', true);
     const da = stubDataAccess({ getCharacterInfo: vi.fn().mockResolvedValue({ name: 'Aldric' }) });
 
-    const res = await (qh as any).handleGetCharacterInfo({ characterName: 'Aldric' });
+    const res = await call('getCharacterInfo', { characterName: 'Aldric' });
 
     expect(da.getCharacterInfo).toHaveBeenCalledWith('Aldric');
     expect(res).toEqual({ name: 'Aldric' });
@@ -372,26 +378,26 @@ describe('QueryHandlers: GM gate', () => {
 describe('QueryHandlers: handler convention', () => {
   it('delegates the resolved identifier to dataAccess and returns its result', async () => {
     const da = stubDataAccess({ getCharacterInfo: vi.fn().mockResolvedValue({ name: 'Aldric' }) });
-    const res = await (qh as any).handleGetCharacterInfo({ characterName: 'Aldric' });
+    const res = await call('getCharacterInfo', { characterName: 'Aldric' });
     expect(da.getCharacterInfo).toHaveBeenCalledWith('Aldric');
     expect(res).toEqual({ name: 'Aldric' });
   });
 
   it('throws a wrapped error when a required input is missing', async () => {
     stubDataAccess({ getCharacterInfo: vi.fn() });
-    await expect((qh as any).handleGetCharacterInfo({})).rejects.toThrow(
+    await expect(call('getCharacterInfo', {})).rejects.toThrow(
       'Failed to get character info: characterName or characterId is required'
     );
   });
 
   it('wraps a dataAccess failure with the handler-specific prefix', async () => {
     stubDataAccess({ getCharacterInfo: vi.fn().mockRejectedValue(new Error('nope')) });
-    await expect((qh as any).handleGetCharacterInfo({ characterId: 'id' })).rejects.toThrow(
+    await expect(call('getCharacterInfo', { characterId: 'id' })).rejects.toThrow(
       'Failed to get character info: nope'
     );
   });
 
-  it('handleGetCharacterEntity delegates and prefixes failures (get-character-entity)', async () => {
+  it('getCharacterEntity delegates and prefixes failures (get-character-entity)', async () => {
     const entity = { success: true, entityType: 'item', entity: { id: 'i1', name: 'Mace' } };
     const da = stubDataAccess({
       getCharacterEntity: vi
@@ -400,34 +406,30 @@ describe('QueryHandlers: handler convention', () => {
         .mockRejectedValueOnce(new Error('Entity not found: "Axe" in character "Test Cleric"')),
     });
     const args = { characterIdentifier: 'Test Cleric', entityIdentifier: 'Mace' };
-    expect(await (qh as any).handleGetCharacterEntity(args)).toEqual(entity);
+    expect(await call('getCharacterEntity', args)).toEqual(entity);
     expect(da.getCharacterEntity).toHaveBeenCalledWith(args);
-    await expect(
-      (qh as any).handleGetCharacterEntity({ ...args, entityIdentifier: 'Axe' })
-    ).rejects.toThrow(
+    await expect(call('getCharacterEntity', { ...args, entityIdentifier: 'Axe' })).rejects.toThrow(
       'Failed to get character entity: Entity not found: "Axe" in character "Test Cleric"'
     );
     await expect(
-      (qh as any).handleGetCharacterEntity({ characterIdentifier: 'Test Cleric' })
+      call('getCharacterEntity', { characterIdentifier: 'Test Cleric' })
     ).rejects.toThrow('Failed to get character entity: entityIdentifier is required');
   });
 
-  it('handleListActors filters by type only when supplied', async () => {
+  it('listActors filters by type only when supplied', async () => {
     stubDataAccess({
       listActors: vi.fn().mockResolvedValue([
         { name: 'A', type: 'npc' },
         { name: 'B', type: 'character' },
       ]),
     });
-    expect(await (qh as any).handleListActors({})).toHaveLength(2);
-    expect(await (qh as any).handleListActors({ type: 'npc' })).toEqual([
-      { name: 'A', type: 'npc' },
-    ]);
+    expect(await call('listActors', {})).toHaveLength(2);
+    expect(await call('listActors', { type: 'npc' })).toEqual([{ name: 'A', type: 'npc' }]);
   });
 
-  it('handleListCreaturesByCriteria wraps the result under { response }', async () => {
+  it('listCreaturesByCriteria wraps the result under { response }', async () => {
     stubDataAccess({ listCreaturesByCriteria: vi.fn().mockResolvedValue([{ name: 'Goblin' }]) });
-    const res = await (qh as any).handleListCreaturesByCriteria({ challengeRating: 1 });
+    const res = await call('listCreaturesByCriteria', { challengeRating: 1 });
     expect(res).toEqual({ response: [{ name: 'Goblin' }] });
   });
 });
@@ -453,7 +455,7 @@ describe('QueryHandlers: updateCampaignProgress', () => {
   });
 
   it('saves the status in the flag the GM click uses', async () => {
-    const result = await qh.handleUpdateCampaignProgress({
+    const result = await call('updateCampaignProgress', {
       campaignId: 'camp1',
       partId: 'part-2',
       newStatus: 'completed',
@@ -465,7 +467,7 @@ describe('QueryHandlers: updateCampaignProgress', () => {
 
   it('refuses an unknown status, campaign or part without writing', async () => {
     const run = (campaignId: string, partId: string, newStatus: string): Promise<unknown> =>
-      qh.handleUpdateCampaignProgress({ campaignId, partId, newStatus });
+      call('updateCampaignProgress', { campaignId, partId, newStatus });
     await expect(run('camp1', 'part-1', 'done')).rejects.toThrow(/newStatus must be one of/);
     await expect(run('other', 'part-1', 'completed')).rejects.toThrow(/No campaign dashboard/);
     await expect(run('camp1', 'part-9', 'completed')).rejects.toThrow(/has no part part-9/);

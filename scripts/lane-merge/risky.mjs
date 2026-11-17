@@ -17,6 +17,7 @@ export const RISKY_CATEGORIES = [
       'packages/foundry-module/src/guarded-features*',
       'packages/foundry-module/src/change-journal*',
       'packages/foundry-module/src/queries.ts',
+      'packages/foundry-module/src/queries/**',
       'packages/mcp-server/src/guarded-write/**',
       'packages/mcp-server/src/tools/guarded-changes*',
       'packages/mcp-server/src/tools/modules/guarded-changes*',

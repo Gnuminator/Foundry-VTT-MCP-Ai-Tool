@@ -21,7 +21,7 @@ import {
   SCENE_MOODS_QUERY,
 } from './scene-mood.js';
 import { createTestWorld, type TestWorld } from './test-support/foundry-mock/index.js';
-import { NON_WRITE_METHODS, WRITE_METHODS } from './write-gate.js';
+import { handlerKind } from './test-support/handler-kind.js';
 
 let world: TestWorld;
 let restore: () => void;
@@ -79,8 +79,7 @@ describe('names and classification', () => {
     expect(SCENE_MOOD_PLAN_QUERY).toBe(SHARED_PLAN);
     expect(SCENE_MOODS_QUERY).toBe(SHARED_LIST);
     for (const m of [SCENE_MOOD_PLAN_QUERY, SCENE_MOODS_QUERY]) {
-      expect(NON_WRITE_METHODS).toContain(m);
-      expect(WRITE_METHODS).not.toContain(m);
+      expect(handlerKind(m)).toBe('read');
     }
   });
 

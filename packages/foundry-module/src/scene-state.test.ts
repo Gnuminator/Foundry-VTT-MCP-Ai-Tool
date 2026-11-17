@@ -9,7 +9,7 @@ import {
   SCENE_STATE_QUERY as SHARED_QUERY,
 } from '@gnuminator/shared';
 import { getSceneState, SCENE_RESTORE_FEATURE_ID, SCENE_STATE_QUERY } from './scene-state.js';
-import { NON_WRITE_METHODS } from './write-gate.js';
+import { handlerKind } from './test-support/handler-kind.js';
 import { createTestWorld, type TestWorld } from './test-support/foundry-mock/index.js';
 
 let world: TestWorld;
@@ -29,7 +29,7 @@ describe('getSceneState', () => {
   it('mirrors the shared names and is classified as a read', () => {
     expect(SCENE_STATE_QUERY).toBe(SHARED_QUERY);
     expect(SCENE_RESTORE_FEATURE_ID).toBe(SHARED_FEATURE);
-    expect(NON_WRITE_METHODS).toContain('getSceneState');
+    expect(handlerKind('getSceneState')).toBe('read');
   });
 
   it('returns the viewed scene with its embedded documents, without stats', () => {

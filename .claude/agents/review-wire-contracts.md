@@ -18,9 +18,10 @@ Do not invent line numbers. Return the finished review note as your answer.
 1. **Wire identifiers never change** without a migration plan: module id, socket channel and
    settings namespace `foundry-mcp-bridge`; query methods `foundry-mcp-bridge.*`. Any rename in
    the diff is at least a High finding.
-2. **New bridge handler** is classified in `packages/foundry-module/src/write-gate.ts` (write or
-   read list); a test fails otherwise, but check the classification is right (a read that changes
-   the world, or a write listed as read, is a High).
+2. **New bridge handler** is registered with a kind (`write`, `recordless-write` or `read`) in its
+   `packages/foundry-module/src/queries/<domain>.ts` table; the compiler requires a kind, and a
+   test pins the write sets, but check the classification is right (a read that changes
+   the world, or a write registered as read, is a High).
 3. **New tool** has an entry in its module's `tools` map (`packages/mcp-server/src/tools/modules/*.ts`)
    with exactly one `set` (core, play, prep, build, admin); `tool-sets.ts` derives its lists from the
    modules, and a new family is one module plus one line in `tools/index.ts`. Prep is near its size budget: check the size figures in

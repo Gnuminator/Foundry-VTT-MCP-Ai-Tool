@@ -20,7 +20,7 @@ import {
   SLOT_KEYS,
   planPaperSync,
 } from './paper-sync-plan.js';
-import { NON_WRITE_METHODS, WRITE_METHODS } from './write-gate.js';
+import { handlerKind } from './test-support/handler-kind.js';
 import {
   createTestWorld,
   makeEffect,
@@ -154,8 +154,7 @@ describe('wire contract', () => {
   });
 
   it('is a read-only method: planning goes through the write gate list as a non-write', () => {
-    expect(NON_WRITE_METHODS).toContain(PAPER_SYNC_QUERY);
-    expect(WRITE_METHODS).not.toContain(PAPER_SYNC_QUERY);
+    expect(handlerKind(PAPER_SYNC_QUERY)).toBe('read');
   });
 });
 

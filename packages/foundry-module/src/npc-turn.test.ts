@@ -10,7 +10,7 @@ import {
 } from '@gnuminator/shared';
 import { NPC_TURN_FEATURE_ID, NPC_TURN_QUERY, planNpcTurn } from './npc-turn.js';
 import { createTestWorld, type TestWorld } from './test-support/foundry-mock/index.js';
-import { NON_WRITE_METHODS } from './write-gate.js';
+import { handlerKind } from './test-support/handler-kind.js';
 
 let world: TestWorld;
 let restore: () => void;
@@ -126,7 +126,7 @@ describe('planNpcTurn: names', () => {
   it('mirrors the shared names and is classified as a read', () => {
     expect(NPC_TURN_QUERY).toBe(SHARED_QUERY);
     expect(NPC_TURN_FEATURE_ID).toBe(SHARED_FEATURE);
-    expect(NON_WRITE_METHODS).toContain(NPC_TURN_QUERY);
+    expect(handlerKind(NPC_TURN_QUERY)).toBe('read');
   });
 });
 

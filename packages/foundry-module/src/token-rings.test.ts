@@ -16,7 +16,7 @@ import {
   TOKEN_RINGS_FEATURE_ID,
   TOKEN_RINGS_PLAN_QUERY,
 } from './token-rings.js';
-import { NON_WRITE_METHODS, WRITE_METHODS } from './write-gate.js';
+import { handlerKind } from './test-support/handler-kind.js';
 
 let world: TestWorld;
 let restore: () => void;
@@ -42,8 +42,7 @@ describe('planTokenRings', () => {
     expect(TOKEN_RINGS_PLAN_QUERY).toBe(SHARED_QUERY);
     expect(TOKEN_RINGS_FEATURE_ID).toBe(SHARED_FEATURE);
     expect(TOKEN_RINGS_BATCH).toBe(SHARED_BATCH);
-    expect(NON_WRITE_METHODS).toContain(TOKEN_RINGS_PLAN_QUERY);
-    expect(WRITE_METHODS).not.toContain(TOKEN_RINGS_PLAN_QUERY);
+    expect(handlerKind(TOKEN_RINGS_PLAN_QUERY)).toBe('read');
   });
 
   it('plans one update per actor without a ring and skips groups and finished actors', () => {

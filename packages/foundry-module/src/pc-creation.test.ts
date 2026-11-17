@@ -10,7 +10,7 @@ import {
   PC_CREATION_QUERY as SHARED_QUERY,
 } from '@gnuminator/shared';
 import { planPcCreation, PC_CREATION_FEATURE_ID, PC_CREATION_QUERY } from './pc-creation.js';
-import { NON_WRITE_METHODS } from './write-gate.js';
+import { handlerKind } from './test-support/handler-kind.js';
 
 const g = globalThis as any;
 let saved: Record<string, unknown>;
@@ -78,7 +78,7 @@ describe('names', () => {
   it('mirror the shared contract and the query is a read', () => {
     expect(PC_CREATION_QUERY).toBe(SHARED_QUERY);
     expect(PC_CREATION_FEATURE_ID).toBe(SHARED_FEATURE);
-    expect(NON_WRITE_METHODS).toContain('planPcCreation');
+    expect(handlerKind('planPcCreation')).toBe('read');
   });
 });
 

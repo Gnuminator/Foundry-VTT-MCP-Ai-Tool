@@ -11,7 +11,7 @@ import {
 } from '@gnuminator/shared';
 import { planRoomSetup, ROOM_SETUP_FEATURE_ID, ROOM_SETUP_QUERY } from './room-setup.js';
 import { createTestWorld, type TestWorld } from './test-support/foundry-mock/index.js';
-import { NON_WRITE_METHODS } from './write-gate.js';
+import { handlerKind } from './test-support/handler-kind.js';
 
 let world: TestWorld;
 let restore: () => void;
@@ -51,7 +51,7 @@ describe('names', () => {
   it('mirror the shared contract and the query is a read', () => {
     expect(ROOM_SETUP_QUERY).toBe(SHARED_QUERY);
     expect(ROOM_SETUP_FEATURE_ID).toBe(SHARED_FEATURE);
-    expect(NON_WRITE_METHODS).toContain('planRoomSetup');
+    expect(handlerKind('planRoomSetup')).toBe('read');
   });
 });
 

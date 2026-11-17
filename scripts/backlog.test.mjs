@@ -15,6 +15,7 @@ import {
   parseBacklog,
   parseProgress,
   parseReady,
+  parseReadyAll,
 } from './backlog-items.mjs';
 import {
   BACKLOG,
@@ -129,12 +130,12 @@ for (const [name, conv] of /** @type {const} */ ([
   });
 
   test(`${name}: progress replaces the line, keeps its place, adds the date`, () => {
-    const r = progressEdit(fx, { id: 'first', text: 'PR #1 ready, head abc', date: D });
+    const r = progressEdit(fx, { id: 'first', text: 'PR #1 in review, head abc', date: D });
     keepsEndings(r.text);
-    assert.equal(parseProgress(r.text).get('first'), '2026-11-12 PR #1 ready, head abc');
+    assert.equal(parseProgress(r.text).get('first'), '2026-11-12 PR #1 in review, head abc');
     assert.match(
       block(r.text, 'first') ?? '',
-      /claimed: First lane 2026-11-11\n- progress: 2026-11-12 PR #1 ready/
+      /claimed: First lane 2026-11-11\n- progress: 2026-11-12 PR #1 in review/
     );
     assert.equal(r.text.split(/\r?\n/).length, fx.split(/\r?\n/).length);
   });
@@ -583,7 +584,7 @@ test('git: a dirty Backlog.md is refused before anything happens', () => {
 test("git: a push race redoes the edit on the board's new text and keeps both changes", () => {
   const v = vaults();
   let raced = 0;
-  const r = v.cli(['progress', 'first', 'PR #1 ready'], {
+  const r = v.cli(['progress', 'first', 'PR #1 in review'], {
     beforePush: (/** @type {number} */ attempt) => {
       if (attempt > 1) return;
       raced++;
@@ -604,7 +605,7 @@ test("git: a push race redoes the edit on the board's new text and keeps both ch
   assert.equal(raced, 1);
   assert.match(r.err, /push rejected \(attempt 1 of 5\)/);
   const final = v.remoteFile(BACKLOG);
-  assert.match(final, /- progress: 2026-11-12 PR #1 ready\r\n/);
+  assert.match(final, /- progress: 2026-11-12 PR #1 in review\r\n/);
   assert.match(final, /- claimed: board 2026-11-12\r\n/);
   assert.equal(final.split('\r\n').length, crlf(FIXTURE).split('\r\n').length + 1);
   assert.equal(git(v.a, ['status', '--porcelain']).trim(), '');
@@ -884,7 +885,16 @@ test('git: a rebase conflict is aborted, so the shared vault is never left mid-r
 test('progress --ready writes the fixed ready line the merge runner reads back', () => {
   const sha = 'a'.repeat(40);
   const v = vaults();
-  const r = v.cli(['progress', 'first', '--ready', '12', '--head', sha, '--review', 'Handoff/x.md']);
+  const r = v.cli([
+    'progress',
+    'first',
+    '--ready',
+    '12',
+    '--head',
+    sha,
+    '--review',
+    'Handoff/x.md',
+  ]);
   assert.equal(r.code, 0, r.err);
   const line = parseProgress(v.remoteFile(BACKLOG)).get('first') ?? '';
   assert.equal(line, `${D} PR #12 ready, head ${sha}, review Handoff/x.md`);
@@ -913,4 +923,71 @@ test('parseReady: the last line, a date in front or not; a short sha or other te
   assert.equal(parseReady(`PR #5 ready, head ${sha.slice(0, 7)}`), null);
   assert.equal(parseReady(`PR #5 ready, head ${sha}\nlater: fixing`), null);
   assert.equal(parseReady(`2026-11-12 PR #5 merged; was PR #5 ready, head ${sha}`), null);
+});
+
+test('progress: prose that says a PR is ready is refused, a real ready line and runner texts pass', () => {
+  const sha = 'a'.repeat(40);
+  for (const bad of [
+    `PR 1129 ready, head ${sha}`,
+    'PR #12 is ready for review',
+    'ready to merge',
+  ]) {
+    assert.throws(
+      () => progressEdit(FIXTURE, { id: 'second', text: bad, date: D }),
+      /not a ready line.*--ready/,
+      bad
+    );
+  }
+  const ok = progressEdit(FIXTURE, { id: 'second', text: `PR #5 ready, head ${sha}`, date: D });
+  assert.match(ok.text, /- progress: 2026-11-12 PR #5 ready, head a+/);
+  for (const text of [
+    'PR #5 refused by the merge gate: write a new ready line',
+    'PR #5 left the merge queue without merging; fix it, then write a new ready line',
+    'not yet ready, still testing',
+  ]) {
+    assert.doesNotThrow(() => progressEdit(FIXTURE, { id: 'second', text, date: D }), text);
+  }
+});
+
+test('progress: one ready line per PR; a new one or a runner write keeps the other PR line', () => {
+  const a = 'a'.repeat(40);
+  const b = 'b'.repeat(40);
+  const one = progressEdit(FIXTURE, { id: 'second', text: `PR #5 ready, head ${a}`, date: D }).text;
+  const two = progressEdit(one, { id: 'second', text: `PR #6 ready, head ${b}`, date: D }).text;
+  const readyOf = (/** @type {string} */ t) =>
+    parseReadyAll(parseProgress(t).get('second') ?? '').sort((x, y) => x.pr - y.pr);
+  assert.deepEqual(readyOf(two), [
+    { pr: 5, head: a },
+    { pr: 6, head: b },
+  ]);
+  // The runner closes PR 5 with --if-ready: PR 6's line stays.
+  const part = progressEdit(two, {
+    id: 'second',
+    text: 'part PR #5 landed on main',
+    date: D,
+    ifReady: { pr: 5, head: a },
+  }).text;
+  assert.deepEqual(readyOf(part), [{ pr: 6, head: b }]);
+  assert.match(parseProgress(part).get('second') ?? '', /part PR #5 landed/);
+  // A refusal for a line that is gone is not written.
+  assert.throws(
+    () =>
+      progressEdit(part, {
+        id: 'second',
+        text: 'PR #5 refused by the merge gate: x',
+        date: D,
+        ifReady: { pr: 5, head: a },
+      }),
+    /no longer the ready line/
+  );
+  // A new head for the same PR replaces that PR's line only.
+  const c = 'c'.repeat(40);
+  const moved = progressEdit(two, { id: 'second', text: `PR #5 ready, head ${c}`, date: D }).text;
+  assert.deepEqual(readyOf(moved), [
+    { pr: 5, head: c },
+    { pr: 6, head: b },
+  ]);
+  // Plain text takes the lane's own ready lines back (nothing is left for the runner).
+  const plain = progressEdit(two, { id: 'second', text: 'fixing a review finding', date: D }).text;
+  assert.deepEqual(readyOf(plain), []);
 });

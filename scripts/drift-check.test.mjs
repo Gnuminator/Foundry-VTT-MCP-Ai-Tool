@@ -408,7 +408,10 @@ test('shared/dist missing: the lane checkout builds shared before the guards run
     commit(other, 'main.txt', 'from another lane\n', 'other lane merged');
     git(other, 'push', '-q', 'origin', 'HEAD:main');
     fs.rmSync(path.join(lane, 'shared', 'dist'), { recursive: true });
-    const { code, out } = runWith(lane, { checks: [readsSharedDist('v1')], sharedBuild: buildShared });
+    const { code, out } = runWith(lane, {
+      checks: [readsSharedDist('v1')],
+      sharedBuild: buildShared,
+    });
     assert.equal(code, 0, out);
     assert.match(out, /shared\/dist is missing; building shared/);
   } finally {
@@ -475,7 +478,10 @@ test('shared/dist older than shared/src: rebuilt; a failing build stops with its
     assert.match(failing.out, /shared\/dist is older than shared\/src; building shared/);
     assert.match(failing.out, /building it failed:\r?\ntsc exploded/);
     assert.doesNotMatch(failing.out, /never/);
-    const { code, out } = runWith(lane, { checks: [readsSharedDist('v1')], sharedBuild: buildShared });
+    const { code, out } = runWith(lane, {
+      checks: [readsSharedDist('v1')],
+      sharedBuild: buildShared,
+    });
     assert.equal(code, 0, out);
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });

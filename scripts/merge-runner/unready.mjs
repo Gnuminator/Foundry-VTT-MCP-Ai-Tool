@@ -11,7 +11,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { parseProgress, parseReady } from '../backlog-items.mjs';
+import { parseProgress, parseReadyAll } from '../backlog-items.mjs';
 import { findReviewNotes, judgeReviews } from '../lane-merge/reviews.mjs';
 import { ciState } from '../planner-state.mjs';
 import { enqueuedItems } from './queue.mjs';
@@ -58,13 +58,14 @@ export function findUnready(prs, backlogText, notesFor) {
   /** PRs a ready or enqueued line already names: the runner handles those. */
   const handled = new Set(enqueuedItems(backlogText).map(e => e.pr));
   for (const [, progress] of parseProgress(backlogText)) {
-    const r = parseReady(progress);
-    if (r) handled.add(r.pr);
+    for (const r of parseReadyAll(progress)) handled.add(r.pr);
     // The runner's own refusal replaced the ready line: the lane has been told, no second notice.
-    const refused = /^(?:\d{4}-\d{2}-\d{2} )?PR #(\d+) refused by the merge gate/.exec(
-      (progress.split('\n').at(-1) ?? '').trim()
-    );
-    if (refused) handled.add(Number(refused[1]));
+    for (const line of progress.split('\n')) {
+      const refused = /^(?:\d{4}-\d{2}-\d{2} )?PR #(\d+) refused by the merge gate/.exec(
+        line.trim()
+      );
+      if (refused) handled.add(Number(refused[1]));
+    }
   }
   /** @type {Unready[]} */
   const out = [];

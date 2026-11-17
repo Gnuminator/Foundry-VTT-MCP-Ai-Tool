@@ -55,7 +55,9 @@ import {
   newestProgress,
   newlineOf,
   parseBacklog,
-  parseReady,
+  parseReadyAll,
+  readyOrEnqueuedPr,
+  looksLikeReadyProse,
   readyText,
   setField,
   splice,
@@ -124,15 +126,33 @@ export function progressEdit(text, o) {
   const p = parseBacklog(text);
   const item = findItem(p, o.id);
   if (o.ifReady) {
-    const now = parseReady(field(item, 'progress'));
-    if (!now || now.pr !== o.ifReady.pr || now.head !== o.ifReady.head)
+    const now = parseReadyAll((item.fields.get('progress') ?? []).join('\n'));
+    if (!now.some(r => r.pr === o.ifReady?.pr && r.head === o.ifReady?.head))
       throw new Error(
         `${o.id}: the progress line is no longer the ready line of PR #${o.ifReady.pr} at ${o.ifReady.head.slice(0, 7)}; not written`
       );
   }
+  if (looksLikeReadyProse(o.text) && !o.ifReady)
+    throw new Error(
+      `${o.id}: that text says a PR is ready but is not a ready line (the merge runner would skip it); use progress ${o.id} --ready <PR> --head <40-character sha>`
+    );
   const { body, tail } = trimBlock(item);
+  // One ready or enqueued line per PR: a ready line (or a runner write under --if-ready) replaces
+  // only its own PR's lines; other PRs' lines stay. Plain text replaces the whole progress (a lane
+  // that takes back its ready line must not leave it for the runner).
+  const ownPr = o.ifReady?.pr ?? readyOrEnqueuedPr(oneLine(o.text));
+  const keep =
+    ownPr === null
+      ? []
+      : (item.fields.get('progress') ?? [])
+          .filter(Boolean)
+          .filter(l => {
+            const pr = readyOrEnqueuedPr(l);
+            return pr !== null && pr !== ownPr;
+          })
+          .map(l => `- progress: ${l}`);
   const line = `- progress: ${dated(o.date, oneLine(o.text))}`;
-  const next = setField(body, 'progress', [line], ['link', 'claimed']);
+  const next = setField(body, 'progress', [line, ...keep], ['link', 'claimed']);
   const out = splice(p, item.start, item.end, [...next, ...tail]);
   checkEdit(text, out, { id: o.id, items: 0 });
   return { text: out, notes: [] };

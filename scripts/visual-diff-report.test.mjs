@@ -41,7 +41,10 @@ test('merges shards, sorts, counts and hashes the flagged ids', () => {
   assert.match(report.hash, /^[0-9a-f]{8}$/);
   assert.ok(existsSync(path.join(out, 'diff', 'b--one.png')));
   assert.ok(existsSync(path.join(out, 'after', 'c--new.png')));
-  assert.equal(JSON.parse(readFileSync(path.join(out, 'visual-diff.json'), 'utf8')).hash, report.hash);
+  assert.equal(
+    JSON.parse(readFileSync(path.join(out, 'visual-diff.json'), 'utf8')).hash,
+    report.hash
+  );
   assert.match(readFileSync(path.join(out, 'index.html'), 'utf8'), /b--one/);
 });
 

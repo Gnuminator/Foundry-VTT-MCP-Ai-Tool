@@ -152,7 +152,10 @@ test('ledgerLines skips a folder named *.md and a malformed date', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ledgers-'));
   fs.mkdirSync(path.join(dir, 'Odd.md'));
   const good = Array.from({ length: 10 }, (_, i) => `- 2026-11-10 PR 1 L${i}: x, y`).join('\n');
-  fs.writeFileSync(path.join(dir, 'Big.md'), `# Lows: Big\n\n${good}\n- 2026-13-45 PR 2 L1: x, y\n`);
+  fs.writeFileSync(
+    path.join(dir, 'Big.md'),
+    `# Lows: Big\n\n${good}\n- 2026-13-45 PR 2 L1: x, y\n`
+  );
   assert.equal(ledgerLines(dir, '2026-11-13'), 'Lows ledgers over 10 lines: none');
 });
 

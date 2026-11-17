@@ -107,6 +107,95 @@ const PINNED_WRITES = [
   'useNpcActivity',
 ];
 
+/**
+ * Every other registered handler, pinned by name. This is the wire contract of the read
+ * surface: a renamed or dropped read handler fails here, and a new handler has to be added to
+ * one of the three lists, so it shows up in a review of this write-gate file.
+ */
+const PINNED_READS = [
+  'aiChangesUpdated',
+  'applyGuardedOps',
+  'characterSheet',
+  'clearModuleErrors',
+  'findActor',
+  'findPlayers',
+  'get-available-conditions',
+  'get-token-details',
+  'getActiveEffects',
+  'getActiveScene',
+  'getActorOwnership',
+  'getAvailableConditions',
+  'getAvailablePacks',
+  'getChangeJournal',
+  'getCharacterEntity',
+  'getCharacterInfo',
+  'getCharacterResources',
+  'getChatLog',
+  'getCombatPlayByPlay',
+  'getCombatState',
+  'getCompendiumDocumentFull',
+  'getConnectedPlayers',
+  'getEnhancedCreatureIndex',
+  'getExportIndex',
+  'getFriendlyNPCs',
+  'getJournalContent',
+  'getJournalPageContent',
+  'getLevelUpOptions',
+  'getLibraryDocuments',
+  'getLibraryIndex',
+  'getModuleErrors',
+  'getModuleManifest',
+  'getModules',
+  'getPagesForPlayers',
+  'getPartyCharacters',
+  'getPartyState',
+  'getPlayRecords',
+  'getPlayerVisibility',
+  'getPreflightScan',
+  'getPrepScan',
+  'getRecentEvents',
+  'getSceneMoods',
+  'getSceneState',
+  'getSessionLog',
+  'getSetupInfo',
+  'getSpentActions',
+  'getTargets',
+  'getTokenDetails',
+  'getTokenPositions',
+  'getUsageRecords',
+  'getWorldInfo',
+  'guardedApplyOutcome',
+  'list-scenes',
+  'listActors',
+  'listCreaturesByCriteria',
+  'listGuardedFeatures',
+  'listJournals',
+  'listRefChoices',
+  'listWorldItems',
+  'logGmChange',
+  'measureDistance',
+  'openDocumentForGm',
+  'ping',
+  'planCombatChange',
+  'planLiveChange',
+  'planNpcTurn',
+  'planPaperSync',
+  'planPartyPlacement',
+  'planPcCreation',
+  'planRoomSetup',
+  'planSceneChange',
+  'planSceneMood',
+  'planTokenRings',
+  'playerRead',
+  'searchCharacterItems',
+  'searchCompendium',
+  'searchLinkCandidates',
+  'searchRules',
+  'sessionSwitches',
+  'snapshotGuardedOps',
+  'suggestBalancedEncounter',
+];
+
 describe('write gate: classification', () => {
   it('registers every handler with a kind, and the wire names did not change', () => {
     qh.registerHandlers();
@@ -125,6 +214,7 @@ describe('write gate: classification', () => {
     qh.registerHandlers();
     expect(namesOfKind('recordless-write')).toEqual([...PINNED_RECORDLESS_WRITES].sort());
     expect(namesOfKind('write')).toEqual([...PINNED_WRITES].sort());
+    expect(namesOfKind('read')).toEqual([...PINNED_READS].sort());
   });
 
   it('keeps the reads that must work with writes off, and the plans, as reads', () => {

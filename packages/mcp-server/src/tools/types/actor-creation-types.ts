@@ -15,10 +15,6 @@ export interface CreateActorBridgeReply {
   errors?: unknown[];
 }
 
-export interface CompendiumEntryNamed {
-  name?: unknown;
-}
-
 export interface ActorCreationResponse {
   summary: string;
   success: unknown;

@@ -204,6 +204,8 @@ export const GM_ACTIONS = {
   setFeatureSwitches: 'setFeatureSwitches',
   /** ({name, memberIds, folderId?}) => {groupId, created} the kit's party group actor, made when missing */
   ensurePartyGroup: 'ensurePartyGroup',
+  /** ({names, folderId?}) => {actorIds} plain kit actors for the scene fixture (first a character, the rest npcs), reused by name */
+  createFixtureActors: 'createFixtureActors',
   /** ({since?}) => {errors: [{at, message, source}]} console errors the GM page collected */
   consoleErrors: 'consoleErrors',
   /**

@@ -46,7 +46,9 @@ describe('tool call log', () => {
 
   it('appends one JSON line per call under _usage', async () => {
     const log = new ToolCallLog({ dataDir, enabled: true });
-    const a = buildCallLine('x', 0, undefined, 1);
+    // A real timestamp: a 1970 line lands in a day file the start-up prune deletes (the race).
+    const now = Date.now();
+    const a = buildCallLine('x', now, undefined, now + 1);
     expect(await log.record(a)).toBe(true);
     expect(await log.record(a)).toBe(true);
     const dir = path.join(dataDir, TOOL_CALL_LOG_DIR);

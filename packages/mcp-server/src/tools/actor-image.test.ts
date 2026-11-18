@@ -9,13 +9,9 @@ import { afterAll, beforeEach, describe, expect, it, vi, type Mock } from 'vites
 
 import { ACTOR_IMAGE_FEATURE_ID } from '@gnuminator/shared';
 
-import { ActorImageTools, checkPathText, defaultImageRoots } from './actor-image.js';
+import { makeLogger } from '../test-support/stub-tool-deps.js';
 
-function logger(): any {
-  const l: any = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
-  l.child = (): unknown => l;
-  return l;
-}
+import { ActorImageTools, checkPathText, defaultImageRoots } from './actor-image.js';
 
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
 const base = mkdtempSync(join(tmpdir(), 'actor-image-'));
@@ -63,7 +59,7 @@ beforeEach(() => {
   tools = new ActorImageTools({
     foundryClient: { query },
     guardedWrites: { createPlan },
-    logger: logger(),
+    logger: makeLogger(),
     roots: [root],
   });
 });
@@ -166,7 +162,7 @@ describe('plan-actor-image', () => {
     tools = new ActorImageTools({
       foundryClient: { query },
       guardedWrites: { createPlan },
-      logger: logger(),
+      logger: makeLogger(),
       roots: [via],
     });
     await expect(call({ actor: 'Ebbe', file: join(via, 'ebbe.png') })).resolves.toMatchObject({

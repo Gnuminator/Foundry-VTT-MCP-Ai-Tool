@@ -15,6 +15,7 @@
 
 import { mkdirSync, readFileSync, existsSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { ciLines } from '../ci-health.mjs';
 
 const KEYS = [
   ['startup', 'startup', 0],
@@ -56,6 +57,8 @@ export function sectionFor(report) {
     lines.push(`- tools-used: ${calls.used}`);
     if (Number.isInteger(calls.never)) lines.push(`- tools-never-used: ${calls.never}`);
   }
+  // CI health of the last 7 days (scripts/ci-health.mjs, I-160); only when gh answered.
+  if (report.ci) lines.push(...ciLines(report.ci));
   return lines.join('\n');
 }
 

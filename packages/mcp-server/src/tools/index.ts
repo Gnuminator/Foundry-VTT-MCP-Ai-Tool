@@ -40,6 +40,7 @@ import { playerViewModule } from './modules/player-view.js';
 import { playerModule } from './modules/player.js';
 import { preflightModule } from './modules/preflight.js';
 import { prepDigestModule } from './modules/prep-digest.js';
+import { readAloudModule } from './modules/read-aloud.js';
 import { questCreationModule } from './modules/quest-creation.js';
 import { refChoicesModule } from './modules/ref-choices.js';
 import { renownModule } from './modules/renown.js';
@@ -111,6 +112,7 @@ export const TOOL_MODULES: readonly AnyToolModule[] = [
   playerViewModule,
   preflightModule,
   prepDigestModule,
+  readAloudModule,
   partyModule,
   livePlayModule,
   sceneChangeModule,

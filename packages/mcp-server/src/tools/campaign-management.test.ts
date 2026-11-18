@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
+import { makeFoundryClient } from '../test-support/make-tool-harness.js';
+import { makeLogger } from '../test-support/stub-tool-deps.js';
+
 import { CampaignManagementTools } from './campaign-management.js';
 
 /**
@@ -13,11 +16,11 @@ import { CampaignManagementTools } from './campaign-management.js';
  * (not an options object like CombatTools / MovementTools).
  */
 
-function makeTools(queryImpl?: (method: string, data: unknown) => unknown): {
+function buildTools(queryImpl?: (method: string, data: unknown) => unknown): {
   tools: CampaignManagementTools;
   query: Mock;
 } {
-  const query = vi.fn(
+  const { foundryClient, query } = makeFoundryClient(
     queryImpl ??
       ((): unknown => ({
         success: true,
@@ -25,17 +28,8 @@ function makeTools(queryImpl?: (method: string, data: unknown) => unknown): {
         name: 'Test Campaign - Campaign Dashboard',
       }))
   );
-  const foundryClient = { query } as any;
-  // Minimal Logger stub: `.child()` returns itself; level methods are no-ops.
-  const logger: any = {
-    error: vi.fn(),
-    warn: vi.fn(),
-    info: vi.fn(),
-    debug: vi.fn(),
-  };
-  logger.child = (): unknown => logger;
   // Positional constructor: (foundryClient, logger)
-  return { tools: new CampaignManagementTools(foundryClient, logger), query };
+  return { tools: new CampaignManagementTools(foundryClient, makeLogger()), query };
 }
 
 // Minimal valid args for the happy path
@@ -51,20 +45,20 @@ const VALID_ARGS = {
 
 describe('CampaignManagementTools.getToolDefinitions', () => {
   it('exposes exactly one tool: create-campaign-dashboard', () => {
-    const { tools } = makeTools();
+    const { tools } = buildTools();
     const defs = tools.getToolDefinitions();
     expect(defs).toHaveLength(1);
     expect(defs[0].name).toBe('create-campaign-dashboard');
   });
 
   it('has an object inputSchema', () => {
-    const { tools } = makeTools();
+    const { tools } = buildTools();
     const defs = tools.getToolDefinitions();
     expect((defs[0].inputSchema as any).type).toBe('object');
   });
 
   it('requires campaignTitle, campaignDescription, and template', () => {
-    const { tools } = makeTools();
+    const { tools } = buildTools();
     const defs = tools.getToolDefinitions();
     expect((defs[0].inputSchema as any).required).toEqual([
       'campaignTitle',
@@ -74,7 +68,7 @@ describe('CampaignManagementTools.getToolDefinitions', () => {
   });
 
   it('template property enumerates the five expected values', () => {
-    const { tools } = makeTools();
+    const { tools } = buildTools();
     const defs = tools.getToolDefinitions();
     const templateProp = (defs[0].inputSchema as any).properties.template;
     expect(templateProp.enum).toEqual([
@@ -93,7 +87,7 @@ describe('CampaignManagementTools.getToolDefinitions', () => {
 
 describe('CampaignManagementTools.handleCreateCampaignDashboard: dispatch', () => {
   it('dispatches foundry-mcp-bridge.createJournalEntry with the correct name and folderName', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = buildTools();
     await tools.handleCreateCampaignDashboard(VALID_ARGS);
 
     expect(query).toHaveBeenCalledOnce();
@@ -107,7 +101,7 @@ describe('CampaignManagementTools.handleCreateCampaignDashboard: dispatch', () =
   });
 
   it('returns success:true with campaignId, dashboardJournalId, and a message', async () => {
-    const { tools } = makeTools();
+    const { tools } = buildTools();
     const result = await tools.handleCreateCampaignDashboard(VALID_ARGS);
 
     expect(result.success).toBe(true);
@@ -117,7 +111,7 @@ describe('CampaignManagementTools.handleCreateCampaignDashboard: dispatch', () =
   });
 
   it('includes the generated campaignStructure in the response', async () => {
-    const { tools } = makeTools();
+    const { tools } = buildTools();
     const result = await tools.handleCreateCampaignDashboard(VALID_ARGS);
 
     expect(result.campaignStructure).toBeDefined();
@@ -126,7 +120,7 @@ describe('CampaignManagementTools.handleCreateCampaignDashboard: dispatch', () =
   });
 
   it('five-part-adventure template yields 5 parts', async () => {
-    const { tools } = makeTools();
+    const { tools } = buildTools();
     const result = await tools.handleCreateCampaignDashboard({
       ...VALID_ARGS,
       template: 'five-part-adventure',
@@ -135,7 +129,7 @@ describe('CampaignManagementTools.handleCreateCampaignDashboard: dispatch', () =
   });
 
   it('dungeon-crawl template yields 4 parts', async () => {
-    const { tools } = makeTools();
+    const { tools } = buildTools();
     const result = await tools.handleCreateCampaignDashboard({
       ...VALID_ARGS,
       template: 'dungeon-crawl',
@@ -144,7 +138,7 @@ describe('CampaignManagementTools.handleCreateCampaignDashboard: dispatch', () =
   });
 
   it('investigation template yields 5 parts', async () => {
-    const { tools } = makeTools();
+    const { tools } = buildTools();
     const result = await tools.handleCreateCampaignDashboard({
       ...VALID_ARGS,
       template: 'investigation',
@@ -153,7 +147,7 @@ describe('CampaignManagementTools.handleCreateCampaignDashboard: dispatch', () =
   });
 
   it('sandbox template yields 4 parts', async () => {
-    const { tools } = makeTools();
+    const { tools } = buildTools();
     const result = await tools.handleCreateCampaignDashboard({
       ...VALID_ARGS,
       template: 'sandbox',
@@ -162,7 +156,7 @@ describe('CampaignManagementTools.handleCreateCampaignDashboard: dispatch', () =
   });
 
   it('passes optional defaultQuestGiver and defaultLocation through to the structure', async () => {
-    const { tools } = makeTools();
+    const { tools } = buildTools();
     const result = await tools.handleCreateCampaignDashboard({
       ...VALID_ARGS,
       defaultQuestGiver: 'Elder Mira',
@@ -173,7 +167,7 @@ describe('CampaignManagementTools.handleCreateCampaignDashboard: dispatch', () =
   });
 
   it('accepts custom template with customParts and uses them directly', async () => {
-    const { tools } = makeTools();
+    const { tools } = buildTools();
     const customParts = [
       {
         title: 'Prologue',
@@ -202,7 +196,7 @@ describe('CampaignManagementTools.handleCreateCampaignDashboard: dispatch', () =
   });
 
   it('only dispatches one query (storeCampaignStructure does not call foundryClient)', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = buildTools();
     await tools.handleCreateCampaignDashboard(VALID_ARGS);
     expect(query).toHaveBeenCalledOnce();
   });
@@ -219,7 +213,7 @@ describe('CampaignManagementTools.handleCreateCampaignDashboard: failure handlin
   });
 
   it('throws when Foundry returns an error field', async () => {
-    const { tools } = makeTools(() => ({
+    const { tools } = buildTools(() => ({
       error: 'Failed to create journal',
     }));
     await expect(tools.handleCreateCampaignDashboard(VALID_ARGS)).rejects.toThrow();
@@ -227,13 +221,13 @@ describe('CampaignManagementTools.handleCreateCampaignDashboard: failure handlin
   });
 
   it('throws when Foundry returns a falsy result (null)', async () => {
-    const { tools } = makeTools(() => null);
+    const { tools } = buildTools(() => null);
     await expect(tools.handleCreateCampaignDashboard(VALID_ARGS)).rejects.toThrow();
     consoleErr.mockRestore();
   });
 
   it('throws when query itself rejects (connection failure)', async () => {
-    const { tools } = makeTools(() => {
+    const { tools } = buildTools(() => {
       throw new Error('connection refused');
     });
     await expect(tools.handleCreateCampaignDashboard(VALID_ARGS)).rejects.toThrow();
@@ -241,7 +235,7 @@ describe('CampaignManagementTools.handleCreateCampaignDashboard: failure handlin
   });
 
   it('throws (not returns string) on zod validation failure: missing campaignTitle', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = buildTools();
     await expect(
       tools.handleCreateCampaignDashboard({
         campaignDescription: 'desc',
@@ -253,7 +247,7 @@ describe('CampaignManagementTools.handleCreateCampaignDashboard: failure handlin
   });
 
   it('throws (not returns string) on zod validation failure: missing template', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = buildTools();
     await expect(
       tools.handleCreateCampaignDashboard({
         campaignTitle: 'My Campaign',
@@ -265,7 +259,7 @@ describe('CampaignManagementTools.handleCreateCampaignDashboard: failure handlin
   });
 
   it('throws (not returns string) on zod validation failure: invalid template enum', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = buildTools();
     await expect(
       tools.handleCreateCampaignDashboard({
         campaignTitle: 'My Campaign',
@@ -278,7 +272,7 @@ describe('CampaignManagementTools.handleCreateCampaignDashboard: failure handlin
   });
 
   it('throws (not returns string) on zod validation failure: empty campaignTitle string', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = buildTools();
     await expect(
       tools.handleCreateCampaignDashboard({
         campaignTitle: '',
@@ -291,7 +285,7 @@ describe('CampaignManagementTools.handleCreateCampaignDashboard: failure handlin
   });
 
   it('throws (not returns string) on zod validation failure: invalid customParts type field', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = buildTools();
     await expect(
       tools.handleCreateCampaignDashboard({
         campaignTitle: 'My Campaign',

@@ -19,6 +19,8 @@ const RECORDED_SKIPS: Record<string, string> = {
     'needs a picture file in an allowed folder on the PC (FOUNDRY_AI_TOOL_IMAGE_ROOTS); checked by hand on server A (plan, apply, actor read back, file served, undo, a file outside the folder refused, a 3 MB picture), see the PR',
   'plan-token-rings':
     'ships off (feature token-rings); bulk write on every actor of the world (I-093); checked by hand on the strahd-kit copy on server C (plan, apply 150, apply the 7 left, new tokens ringed, undo both, ring count back to 0), and for tokens placed on a scene on server C (scenes without placed refused, plan one named token with a missing scene and name reported, apply, ring on, undo, ring off), see the PRs',
+  'plan-macro':
+    'ships off (feature macro-forge); creates a script Macro that runs only for a GM; checked by hand on a test server (plan with full source and summary, a macro with a world read or network call refused, apply, undo), see the PR',
   'plan-table-viewer':
     'creates a Foundry user; checked by hand on server A (plan, apply, join as Table, undo), see the PR',
   'plan-foundry-setup':

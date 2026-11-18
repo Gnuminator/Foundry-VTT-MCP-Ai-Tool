@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { PLAN_GONE_TAIL } from '@gnuminator/shared';
 
 import { ApiError, errorText } from './api';
-import { failCode, mayHaveApplied, rewordMayHaveApplied } from './guarded';
+import { failCode, mayHaveApplied, needsConfirm, rewordMayHaveApplied } from './guarded';
 
 // The page reads its token from the URL at load; there is no page here.
 vi.mock('./auth', () => ({ authHeaders: (): Record<string, string> => ({}) }));
@@ -58,5 +58,29 @@ describe('failCode', () => {
     expect(failCode(new ApiError('x', 500, 'internal'))).toBe('internal');
     expect(failCode(new ApiError('x', 404))).toBe('404');
     expect(failCode(new Error('x'))).toBe('network');
+  });
+});
+
+describe('needsConfirm', () => {
+  const line = { title: 't', question: 'q', confirmLabel: 'c' };
+  const opt = { confirmLine: line, skipConfirmWhenAutoApply: true };
+  it('asks for a confirm line, a destructive plan and an unknown risk', () => {
+    expect(needsConfirm({ risk: 'write' }, { confirmLine: line })).toBe(true);
+    expect(needsConfirm({ risk: 'destructive' }, {})).toBe(true);
+    expect(needsConfirm({}, {})).toBe(true);
+    expect(needsConfirm({ risk: 'write' }, {})).toBe(false);
+  });
+  it('skips the question only for a write plan with autoApply and the opt-in', () => {
+    expect(needsConfirm({ risk: 'write', autoApply: true }, opt)).toBe(false);
+    expect(needsConfirm({ risk: 'write', autoApply: false }, opt)).toBe(true);
+    expect(needsConfirm({ risk: 'write' }, opt)).toBe(true);
+  });
+  it('still asks without the opt-in, for a non-write plan, or with alwaysConfirm', () => {
+    expect(needsConfirm({ risk: 'write', autoApply: true }, { confirmLine: line })).toBe(true);
+    expect(needsConfirm({ risk: 'destructive', autoApply: true }, opt)).toBe(true);
+    expect(needsConfirm({ autoApply: true }, opt)).toBe(true);
+    expect(needsConfirm({ risk: 'write', autoApply: true }, { ...opt, alwaysConfirm: true })).toBe(
+      true
+    );
   });
 });

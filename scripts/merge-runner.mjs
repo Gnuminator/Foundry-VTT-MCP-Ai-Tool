@@ -55,14 +55,14 @@
  *
  * Train roundtrip (the user, 2026-11-17): while a PR waits for the full train the runner queues for
  * test server A's lock and, holding it, runs live:roundtrip (plus live:sweep) on main and
- * `--train-reset`; red stops it with a bisect hint (merge-runner/train-run.mjs says how, server A
- * only, never the live ports of shared/ports.json). One ready line per PR: an item with two PRs holds two lines
- * (a runner write with --if-ready changes only its own PR's line). A lock
- * file (~/.foundry-ai-tool/merge-runner.lock, the holder's pid) lets one runner run; a second one
- * posts one line and exits 1. A holder pid that is gone or is no longer a merge runner (Windows
- * reuses pids after a logoff) is taken over. A vault write that fails is logged; the PR is not tried
- * again in this run.
- * Discord lines go through main's copy of the bot's announce sender (`pr-note`, #pr-log, silent).
+ * `--train-reset`; red stops it with a bisect hint (merge-runner/train-run.mjs). One ready line per
+ * PR (an item with two PRs holds two lines; a runner write with --if-ready changes only its own).
+ * A lock file (~/.foundry-ai-tool/merge-runner.lock, the holder's pid) lets one runner run; a second
+ * posts one line and exits 1; a gone or reused pid is taken over. A failed vault write is logged and
+ * the PR is not tried again in this run. Discord lines go through main's copy of the bot's announce sender.
+ *
+ * Release step (merge-runner/release-ready.mjs): a `release-*` item whose dependencies have all
+ * merged gets live:roundtrip, one #pr-log line and one Waiting item. Never tags, never the Pi.
  *
  * Its own code: at the start of each round (not with --once) it compares its files (this one,
  * backlog.mjs and what they import) with aitool/main (merge-runner/self-check.mjs). When they
@@ -99,6 +99,7 @@ import { makeRefresh, refreshStep } from './merge-runner/refresh.mjs';
 import { EXIT_RESTART, makeSelfCheck, reexec } from './merge-runner/self-check.mjs';
 import { isRunnerProcess, takeRunnerLock } from './merge-runner/runner-lock.mjs';
 import { makeTrainDeps, makeTrainRun, trainTick } from './merge-runner/train-run.mjs';
+import { makeReleaseDeps, makeReleaseRun, releaseTick } from './merge-runner/release-ready.mjs';
 import { announceUnready, isPartOnly, makeUnreadyDeps } from './merge-runner/unready.mjs';
 
 export const REPO = 'Gnuminator/Foundry-VTT-MCP-Ai-Tool';
@@ -288,6 +289,7 @@ const norm = p => {
  *   noticeSeen?: (key: string) => boolean,
  *   noticeMark?: (key: string) => void,
  *   trainRun?: ReturnType<typeof makeTrainRun>,
+ *   releaseRun?: ReturnType<typeof makeReleaseRun>,
  * }} Deps
  * `queueOn`: main's ruleset holds a merge queue (then a running main CI does not hold the next
  * PR back: the queue tests every PR on top of the ones ahead). `ghosts`: stuck checks, see
@@ -876,6 +878,7 @@ export function parseArgs(argv) {
         throw new Error('--interval is at least 10 seconds');
     } else if (a === '--vault') o.vault = value();
     else if (a === '--checkout') o.checkout = path.resolve(value());
+    else if (a === '--release-session') o.releaseSession = true;
     else throw new Error(`unknown argument ${a}`);
   }
   return o;
@@ -888,6 +891,24 @@ const stamp = line => console.log(`merge-runner: ${new Date().toISOString()} ${l
 function realDeps(o) {
   const vaultGit = (/** @type {string[]} */ args) =>
     sh('git', ['-C', o.vault, ...args], { timeout: 60_000 });
+  const trainDeps = makeTrainDeps({
+    sh,
+    stamp,
+    repo: REPO,
+    repoRoot: path.resolve(here, '..'),
+    checkout: o.checkout,
+    vault: o.vault,
+    prepare: r => {
+      try {
+        return prepareCheckout(o.checkout, r);
+      } catch (e) {
+        return e instanceof Error ? e.message : String(e);
+      }
+    },
+    mainCopy,
+    post: t => deps.post(t),
+    trainFile: path.join(os.homedir(), '.foundry-ai-tool', 'merge-train.json'),
+  });
   /** @type {Deps} */
   const deps = {
     readBacklog: () => readUpstreamBacklog(vaultGit, m => stamp(`WARNING: ${m}`)),
@@ -939,25 +960,9 @@ function realDeps(o) {
     ...makeUnreadyDeps({ sh, repo: REPO, vault: o.vault }),
     ...makeQueueDeps({ sh, stamp, repo: REPO }),
     ...makeBaseDeps({ sh, repo: REPO }),
-    trainRun: makeTrainRun(
-      makeTrainDeps({
-        sh,
-        stamp,
-        repo: REPO,
-        repoRoot: path.resolve(here, '..'),
-        checkout: o.checkout,
-        vault: o.vault,
-        prepare: r => {
-          try {
-            return prepareCheckout(o.checkout, r);
-          } catch (e) {
-            return e instanceof Error ? e.message : String(e);
-          }
-        },
-        mainCopy,
-        post: t => deps.post(t),
-        trainFile: path.join(os.homedir(), '.foundry-ai-tool', 'merge-train.json'),
-      })
+    trainRun: makeTrainRun(trainDeps),
+    releaseRun: makeReleaseRun(
+      makeReleaseDeps({ sh, stamp, repo: REPO, vaultGit, train: trainDeps, deps: () => deps, ...o })
     ),
     selfCheck:
       makeSelfCheck({
@@ -1029,11 +1034,13 @@ export async function main(argv, inject = {}) {
         d.log(`exiting: ${tr.stop}`);
         return EXIT_STOPPED;
       }
+      if (!o.once) releaseTick(d.releaseRun, d); // never stops the runner
       if (o.once) return 0;
       await sleep(o.interval * 1000);
     }
   } finally {
     d.trainRun?.leave();
+    d.releaseRun?.leave();
     lock.release();
   }
 }

@@ -1,6 +1,6 @@
 ---
 source: gm/README.md
-sourceHash: 9af2482ee89f
+sourceHash: f2745b4c4683
 title: GM-guides
 description: Guides til en GM, der kører et spil med Foundry AI Tool, skrevet til en, der er ny i Foundry og i værktøjet.
 ---
@@ -52,6 +52,7 @@ du gør, hvis det ikke gjorde.
 | [Funktioner og hvornår du slår dem til](features.md)             | Hver funktionskontakt, hvad den gør, og hvornår du slår den til.                                                 |
 | [Spørg Claude](asking-claude.md)                                 | Gode forespørgsler, de færdige prompts, hvordan Claudes ændringer godkendes, og dens grænser.                    |
 | [Din GM-coach i Claude](gm-coach.md)                             | Læg Foundry GM coach-skillen ind på din Claude-konto, og lær, hvordan du spørger den.                            |
+| [Lad os forberede: forberedelsen på 30 minutter](prep-ritual.md) | Sig "let's prep", og Claude fører dig gennem fem faste trin, der slutter med pre-flight-tjekket.                 |
 | [Kogebog](cookbook.md)                                           | Færdige forespørgsler og klik før, under og efter en session.                                                    |
 | [Din Obsidian-vault](obsidian.md)                                | Hvad der ligger i din vault, hvor din forberedelse havner, og hvordan du forbinder pluginet til serveren.        |
 | [Forberedelse og forventninger](prep-and-expectations.md)        | Hvad du skal forberede, forventningssnakken, ability scores og en dagsorden til session 0.                       |

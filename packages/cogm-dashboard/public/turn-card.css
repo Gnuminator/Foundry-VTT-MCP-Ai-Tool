@@ -1,0 +1,47 @@
+/* "On my turn" card on /me (I-170): groups by action cost, notes held to two lines. */
+.turn-card h3 {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin: 0.5rem 0 0.25rem;
+}
+.turn-card ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.turn-card li {
+  padding: 0.35rem 0;
+  border-top: 1px solid var(--line);
+  min-width: 0;
+}
+.turn-card li b {
+  display: block;
+}
+.turn-card li span {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+.me-prefs {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.25rem;
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+@media print {
+  .turn-card,
+  .me-prefs {
+    display: none;
+  }
+}

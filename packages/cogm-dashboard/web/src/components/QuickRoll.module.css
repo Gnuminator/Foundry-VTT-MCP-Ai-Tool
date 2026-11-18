@@ -36,6 +36,13 @@
   color: var(--text-dim);
 }
 
+.statusActions {
+  display: flex;
+  flex-wrap: wrap;
+  flex-basis: 100%;
+  gap: var(--space-2);
+}
+
 .statusDone {
   color: var(--ok);
 }

@@ -17,7 +17,7 @@ what the conversation needs. The switches are remembered for new chats.
 | Set        | Claude Desktop entry      | Tools | Size (characters) | For                                                                                                                                                                                                                                                           |
 | ---------- | ------------------------- | ----- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **core**   | `foundry-mcp`             | 25    | about 19,000      | Look things up (world, characters, scenes, journals, compendiums, combat) and review, apply or undo planned changes. Always on.                                                                                                                               |
-| **play**   | `foundry-mcp-play`        | 39    | about 41,700      | Run the table live: tokens, combat turns, rolls, damage, conditions, resources, chat, scene mood, map notes and loot.                                                                                                                                         |
+| **play**   | `foundry-mcp-play`        | 40    | about 42,000      | Run the table live: tokens, combat turns, rolls, damage, conditions, resources, chat, scene mood, map notes and loot.                                                                                                                                         |
 | **prep**   | `foundry-mcp-prep`        | 20    | about 22,200      | Prepare sessions and write recaps: quests and journals, encounter budgets, the Tarokka reading, handouts, the session log, play stats and the pre-flight check.                                                                                               |
 | **build**  | `foundry-mcp-build`       | 10    | about 27,600      | Make and change NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells. Set up rooms: teleports and tokens in a room.                                                                                                 |
 | **admin**  | `foundry-mcp-admin`       | 11    | about 10,500      | Set up and troubleshoot: installed modules and their errors, Foundry settings, modules on or off, user roles, who can open a compendium pack, a journal or a scene, who owns which actor, round token rings for all actors, and the Obsidian mirror settings. |
@@ -61,7 +61,7 @@ Each tool's set is the `set` field of its entry in the `tools` map of its module
   `get-character-resources`, `get-active-effects`, `advance-combat-turn`, `set-initiative`,
   `roll-initiative-for-npcs`, `measure-distance`, `get-targets`, `get-recent-events`,
   `wait-for-game-event`, `roll-saving-throws`, `use-npc-activity`, `manage-rest`,
-  `mark-play-session`, `get-party`, `plan-party-change`, `plan-actor-change`, `plan-token-change`,
+  `mark-play-session`, `get-read-aloud`, `get-party`, `plan-party-change`, `plan-actor-change`, `plan-token-change`,
   `plan-scene-change`, `play-playlist`, `plan-combat-change`, `get-renown`, `plan-renown-change`
 - **prep:** `create-quest-journal`, `link-quest-to-npc`, `update-quest-journal`,
   `create-campaign-dashboard`, `get-session-log`, `suggest-balanced-encounter`,

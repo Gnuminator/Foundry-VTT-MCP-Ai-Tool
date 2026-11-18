@@ -15,13 +15,9 @@ import {
   type LiveChangePlan,
 } from '@gnuminator/shared';
 
-import { LivePlayTools } from './live-play.js';
+import { makeLogger } from '../test-support/stub-tool-deps.js';
 
-function logger(): any {
-  const l: any = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
-  l.child = (): unknown => l;
-  return l;
-}
+import { LivePlayTools } from './live-play.js';
 
 const OPS: GuardedOp[] = [
   { kind: 'update', uuid: 'Actor.a1', changes: { 'system.attributes.hp.value': 5 } },
@@ -56,7 +52,7 @@ beforeEach(() => {
   tools = new LivePlayTools({
     foundryClient: { query },
     guardedWrites: { createPlan, autoApplyEnabled },
-    logger: logger(),
+    logger: makeLogger(),
   });
 });
 
@@ -337,7 +333,7 @@ describe('plan-token-change', () => {
     const withCheck = new LivePlayTools({
       foundryClient: { query },
       guardedWrites: { createPlan, autoApplyEnabled },
-      logger: logger(),
+      logger: makeLogger(),
       rulesCheck: { tryCheckMove } as any,
     });
     const result = await withCheck.handlePlanTokenChange({

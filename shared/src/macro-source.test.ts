@@ -87,12 +87,50 @@ describe('scanMacroSource', () => {
     ['a shadowed global used outside its scope', '(open => 1)(); open("x")'],
     ['an inner declaration used outside', 'function f() { var open = 1 } open("x")'],
     ['arguments', 'return arguments.callee'],
+    // Round 2 of the review: a computed key built from `.length` or a re-declared counter.
+    [
+      'length of an object literal as a key',
+      "const k = { length: 'constr' + 'uctor' }; const F = (() => 0)[k.length]; F('return 1')()",
+    ],
+    ['two lengths added as a key', 'a[b.length + c.length]'],
+    [
+      'a var counter declared again',
+      "for (var i = 0; i < 0; i++); var i = 'constr' + 'uctor'; (() => 0)[i]('return 1')()",
+    ],
+    [
+      'a counter reassigned by for-of',
+      "for (let i = 0; i < 1; i++) for (i of ['constr' + 'uctor']) (() => 0)[i]('return 1')()",
+    ],
+    [
+      'a regular expression holding an address',
+      'const s = /<img src="https:\\/\\/e.example\\/x">/.source',
+    ],
+    ['keys built from entries', "await actor.update(Object.fromEntries([['im' + 'g', 'x']]))"],
+    ['text parsed at run time', "const o = JSON.parse('{}')"],
+    [
+      'an event that hands back the window',
+      'ui.chat.element.addEventListener("click", e => e.view)',
+    ],
+    [
+      'rewriting another macro',
+      'const m = await fromUuid("Macro.x"); await m.update({ command: "1" })',
+    ],
+    ['running a chat command', 'ui.chat.processMessage("/macro X")'],
     [
       'a counter that is reassigned',
       "for (let i = 0; i < 2; i++) { i = 'constr' + 'uctor'; a[i] }",
     ],
   ])('refuses the bypass: %s', (_label, source) => {
     expect(scanMacroSource(source).length).toBeGreaterThan(0);
+  });
+
+  it('still allows number keys: literals, let counters, sums with a minus or a Math call', () => {
+    expect(
+      scanMacroSource(
+        'const xs = [1, 2, 3]; let n = 0; for (let i = 0; i < xs.length; i++) n += xs[i]; ' +
+          'return xs[xs.length - 1] + xs[Math.floor(n / 2)] + xs[-1 + 2] + xs[1 + 1];'
+      )
+    ).toEqual([]);
   });
 
   it('refuses a source over the size limit', () => {

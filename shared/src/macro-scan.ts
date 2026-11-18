@@ -141,6 +141,14 @@ const BANNED_MEMBERS = new Map<string, string>([
   ['execute', 'running another macro'],
   ['documentClass', 'creating a document outside the plan'],
   ['modules', 'other modules'],
+  ['fromEntries', 'building member names at run time'],
+  ['groupBy', 'building member names at run time'],
+  ['parse', 'building values out of text'],
+  ['addEventListener', 'reaching the browser window through an event'],
+  ['dispatchEvent', 'reaching the browser window through an event'],
+  ['setHTMLUnsafe', 'the web page itself'],
+  ['command', 'a macro script'],
+  ['processMessage', 'running a chat command'],
 ]);
 
 /** Names of fields that hold a picture, sound or file path: set to an address they send data out when loaded. */
@@ -236,6 +244,14 @@ function assignedNames(node: unknown, into: Set<string>): void {
       typeof right.value === 'number';
     if (!numericStep) patternNames(node.left, into);
   }
+  // `for (i of xs)` and `for (i in o)` without a declaration assign the name too.
+  if (
+    (node.type === 'ForOfStatement' || node.type === 'ForInStatement') &&
+    isNode(node.left) &&
+    node.left.type !== 'VariableDeclaration'
+  ) {
+    patternNames(node.left, into);
+  }
   for (const value of Object.values(node)) {
     if (Array.isArray(value)) for (const v of value) assignedNames(v, into);
     else assignedNames(value, into);
@@ -300,29 +316,29 @@ class Scanner {
         const owner = this.declared(scope, name);
         return owner !== null && owner.counters.has(name) && !this.assigned.has(name);
       }
+      // Unary plus and minus and binary minus, times and remainder always give a number, whatever
+      // the operands are (the caller still visits the operands). Binary plus joins strings, so it
+      // counts only when both sides are certain numbers.
       case 'UnaryExpression':
-        return (
-          (node.operator === '-' || node.operator === '+') &&
-          this.isNumericKey(node.argument, scope)
-        );
+        return node.operator === '-' || node.operator === '+';
       case 'BinaryExpression':
+        if (['-', '*', '%'].includes(node.operator as string)) return true;
         return (
-          ['+', '-', '*', '%'].includes(node.operator as string) &&
+          node.operator === '+' &&
           this.isNumericKey(node.left, scope) &&
           this.isNumericKey(node.right, scope)
         );
-      case 'MemberExpression':
-        return node.computed === false && isNode(node.property) && node.property.name === 'length';
       case 'CallExpression': {
         const c = node.callee;
         return (
           isNode(c) &&
           c.type === 'MemberExpression' &&
+          c.computed === false &&
           isNode(c.object) &&
           c.object.name === 'Math' &&
+          this.declared(scope, 'Math') === null &&
           isNode(c.property) &&
-          MATH_CALLS.has(c.property.name as string) &&
-          (node.arguments as unknown[]).every(a => this.isNumericKey(a, scope))
+          MATH_CALLS.has(c.property.name as string)
         );
       }
       default:
@@ -383,6 +399,7 @@ class Scanner {
       }
       case 'Literal':
         if (typeof node.value === 'string') this.checkString(node.value);
+        else if (node.regex) this.checkString(String((node.regex as { pattern: string }).pattern));
         return;
       case 'TemplateLiteral':
         for (const q of node.quasis as AstNode[]) {
@@ -458,17 +475,16 @@ class Scanner {
         if (isNode(init) && init.type === 'VariableDeclaration') {
           for (const d of init.declarations as AstNode[]) {
             const start = d.init;
+            // Only a `let` counter: a `var` can be declared again further down with another value.
             if (
+              init.kind === 'let' &&
               isNode(d.id) &&
               d.id.type === 'Identifier' &&
               isNode(start) &&
               start.type === 'Literal' &&
               typeof start.value === 'number'
             ) {
-              // A `var` counter lives in the function scope, not the loop's own.
-              (this.declared(inner, d.id.name as string) ?? inner).counters.add(
-                d.id.name as string
-              );
+              inner.counters.add(d.id.name as string);
             }
           }
         }

@@ -78,6 +78,26 @@ test('a PR with no Backlog line in its body still shows, without an item', () =>
   assert.deepEqual(backlogIds('Backlog-part: x\nBacklog: a, `b`'), ['a', 'b']);
 });
 
+test('a PR naming a Backlog item that does not exist gets an add-then-progress hint, not a failing progress command', () => {
+  const [u] = findUnready([pr({ body: 'Backlog: none, ghost-item\n' })], backlog(''), () =>
+    notes(H1)
+  );
+  assert.deepEqual(u.ids, []);
+  assert.deepEqual(u.missing, ['none', 'ghost-item']);
+  assert.match(unreadyLine(u), /no such Backlog item: none, ghost-item/);
+  const cmd = readyCommand(u);
+  assert.match(cmd, /no Backlog item exists/);
+  assert.match(cmd, /backlog\.mjs add --id <slug>/);
+  assert.doesNotMatch(cmd, /progress none /);
+  assert.match(cmd, new RegExp(`progress <slug> --ready 7 --head ${H1}`));
+  // an existing item among the named ones still gets the plain command
+  const [v] = findUnready([pr({ body: 'Backlog: ghost, skip-item\n' })], backlog(''), () =>
+    notes(H1)
+  );
+  assert.deepEqual(v.ids, ['skip-item']);
+  assert.match(readyCommand(v), /^node scripts\/backlog\.mjs progress skip-item --ready 7/);
+});
+
 /** A vault with one review note, for the planner section. */
 function vaultWith(head) {
   const vault = fs.mkdtempSync(path.join(os.tmpdir(), 'unready-'));

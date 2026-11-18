@@ -398,24 +398,20 @@ export async function tarokkaRows(sweep, { t, gm, player }) {
   });
 
   // An empty text is a warning notification (not a console error), so the row names no expected error.
-  await sweep.row(
-    'foundry.tarokka.reveal-form',
-    'gm',
-    async () => {
-      const open = gm.locator(`${TK} li[data-position] button[data-action="revealOpen"]`).first();
-      await open.click();
-      const area = gm.locator(`${TK} textarea[data-field="revealText"]`);
-      await area.waitFor({ state: 'visible', timeout: 5000 });
-      await gm.locator(`${TK} button[data-action="revealGo"]`).click();
-      await waitNotification(gm, /Write the text the players will read first/);
-      await gm.locator(`${TK} button[data-action="revealCancel"]`).click();
-      await until(
-        async () => (await gm.locator(`${TK} textarea`).count()) === 0,
-        'the form to close'
-      );
-      return 'the form opens; an empty text is refused with a message; Cancel closes it';
-    }
-  );
+  await sweep.row('foundry.tarokka.reveal-form', 'gm', async () => {
+    const open = gm.locator(`${TK} li[data-position] button[data-action="revealOpen"]`).first();
+    await open.click();
+    const area = gm.locator(`${TK} textarea[data-field="revealText"]`);
+    await area.waitFor({ state: 'visible', timeout: 5000 });
+    await gm.locator(`${TK} button[data-action="revealGo"]`).click();
+    await waitNotification(gm, /Write the text the players will read first/);
+    await gm.locator(`${TK} button[data-action="revealCancel"]`).click();
+    await until(
+      async () => (await gm.locator(`${TK} textarea`).count()) === 0,
+      'the form to close'
+    );
+    return 'the form opens; an empty text is refused with a message; Cancel closes it';
+  });
 
   await sweep.row('foundry.tarokka.reveal', 'gm', async () => {
     const position = gm.locator(`${TK} li[data-position]`).first();
@@ -508,14 +504,26 @@ function journalSheetCount(page) {
   );
 }
 
-/** @param {import('playwright-core').Page} page */
+/**
+ * Closes every journal sheet. A sheet is closed only once it is fully rendered and has settled:
+ * closing it while dnd5e's post-render sidebar sync still runs gives a "reading 'querySelector'"
+ * page error from JournalEntrySheet5e._synchronizeSidebar (a race in the kit, not the module;
+ * it failed foundry-controls in two of three runs on 2026-11-18).
+ * @param {import('playwright-core').Page} page
+ */
 async function closeAllJournalSheets(page) {
   await page.evaluate(async () => {
+    const wait = ms => new Promise(r => setTimeout(r, ms));
     for (const app of [...foundry.applications.instances.values()]) {
       if (
         /JournalEntry|journal/i.test(app.constructor?.name ?? '') ||
         app.element?.classList?.contains('journal-sheet')
       ) {
+        const states = foundry.applications.api.ApplicationV2.RENDER_STATES;
+        const rendered = states?.RENDERED ?? 3;
+        if (app.state <= (states?.CLOSED ?? 0)) continue;
+        for (let i = 0; i < 50 && app.state !== rendered; i += 1) await wait(100);
+        await wait(1500);
         await app.close({ animate: false });
       }
     }

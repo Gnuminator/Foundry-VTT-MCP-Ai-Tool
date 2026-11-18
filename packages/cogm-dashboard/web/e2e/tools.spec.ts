@@ -1035,7 +1035,9 @@ test('pins can be renamed and removed; recent runs and the calls used most are l
   // Rename it, then remove it.
   await pinned.locator('[data-pin] input').fill('Four squares');
   await pinned.locator('[data-pin] input').press('Enter');
-  await drawer.getByRole('button', { name: 'Close' }).click();
+  // Escape after the Enter keeps the new name and closes the drawer.
+  await page.keyboard.press('Escape');
+  await expect(drawer).toBeHidden();
   await expect(page.locator('#pin-row [data-pin]')).toHaveText(['Four squares']);
   await fromMenu(page, 'btn-tools');
   await drawer.getByRole('button', { name: 'Remove pin Four squares' }).click();

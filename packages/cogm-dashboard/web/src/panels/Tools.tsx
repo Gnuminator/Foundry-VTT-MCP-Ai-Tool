@@ -769,6 +769,9 @@ function PinName({
   const [text, setText] = useState(pin.label);
   const shown = useRef(text);
   shown.current = text;
+  // The saved name as of now: an Enter renames the pin while the box keeps its focus.
+  const saved = useRef(pin.label);
+  saved.current = pin.label;
   const keep = (): void => {
     if (text.trim() === '') setText(pin.label);
     else if (text.trim() !== pin.label) pinActions.rename(pin.id, text);
@@ -784,8 +787,8 @@ function PinName({
       onFocus={() => {
         // Escape is the drawer's: it asks here first and only closes when nothing was changed.
         revert.current = (): boolean => {
-          if (shown.current === pin.label) return false;
-          setText(pin.label);
+          if (shown.current === saved.current) return false;
+          setText(saved.current);
           return true;
         };
       }}

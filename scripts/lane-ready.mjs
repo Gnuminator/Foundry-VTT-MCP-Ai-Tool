@@ -9,7 +9,7 @@
  * The PR defaults to the one of the current branch. The checks are the gate's own: this runs
  * `scripts/lane-merge.mjs <PR> --dry-run` (which relaunches main's copy of the gate, so the branch
  * cannot change what it judges) and adds what the gate does not look at: a `Backlog: <id>` line in
- * the PR description and an item this lane has claimed. When the gate says
+ * the PR description. When the gate says
  * `lane:merge: OK #<PR>` the ready line is written with `backlog.mjs progress <id> --ready <PR>
  * --head <sha> --review <note>`; `--check` stops before the write. Exit 0 ready, 1 not ready.
  * Never edits the gate; reuses it by running it. Tests: scripts/lane-ready.test.mjs.
@@ -20,34 +20,32 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defaultRun } from './lane-merge/run.mjs';
 import { findReviewNotes } from './lane-merge/reviews.mjs';
+import { backlogIds as runnerIds } from './merge-runner/unready.mjs';
 
 /** @import { Run } from './lane-merge/run.mjs' */
 
 /**
- * The reasons in a gate refusal: the lines between `NOT merged` and the one-line summary, minus the
- * notices (`lane:merge: ...`) and the log tail details.
+ * The reasons in a gate refusal, from its last line (`lane:merge: refused because (1) a (2) b`),
+ * which the gate builds from the failures alone: no notices, no drift log tail. One reason stays one.
  * @param {string} output @returns {string[]}
  */
 export function gateProblems(output) {
-  const lines = output.split(/\r?\n/);
-  const start = lines.findIndex(l => /^lane:merge: NOT merged/.test(l));
-  if (start < 0) return [];
-  const out = [];
-  for (const l of lines.slice(start + 1)) {
-    if (/^lane:merge: refused because/.test(l)) break;
-    if (/^lane:merge: /.test(l) || !l.trim()) continue;
-    out.push(l.trim());
-  }
-  return out.length ? out : lines.filter(l => /^lane:merge: refused because/.test(l));
+  const last = output
+    .split(/\r?\n/)
+    .filter(l => /^lane:merge: refused because /.test(l))
+    .at(-1);
+  if (!last) return [];
+  const text = last.replace(/^lane:merge: refused because /, '').trim();
+  if (!/^\(1\) /.test(text)) return [text];
+  return text
+    .split(/\s*\(\d+\) /)
+    .map(s => s.trim())
+    .filter(Boolean);
 }
 
-/** The Backlog ids a PR description names (`Backlog: a, b` or `Backlog-part: a`). @param {string} body */
+/** The Backlog ids a PR description names, once each (`Backlog` and `Backlog-part` lines). @param {string} body */
 export function backlogIds(body) {
-  const ids = [];
-  for (const m of body.matchAll(/^\s*Backlog(?:-part)?:\s*(.+)$/gim)) {
-    ids.push(...m[1].split(/[,\s]+/).filter(s => /^[a-z0-9][a-z0-9-]*$/.test(s)));
-  }
-  return ids;
+  return [...new Set([...runnerIds(body), ...runnerIds(body, 'Backlog-part')])];
 }
 
 /**
@@ -59,10 +57,14 @@ export function reviewNotePath(vault, pr, head) {
   const handoff = path.join(vault, 'Dev', 'Foundry AI Tool', 'Handoff');
   const notes = findReviewNotes(vault, pr) ?? [];
   const named = notes.filter(n => n.entries.some(e => e.head === head));
-  const pick = (named.length ? named : notes).map(n => n.name).sort();
-  const name = pick.at(-1);
+  const from = named.length ? named : notes;
+  // An Opus note wins (a risky PR needs it), else the newest by name.
+  const name = (from.some(n => n.opus) ? from.filter(n => n.opus) : from)
+    .map(n => n.name)
+    .sort()
+    .at(-1);
   if (!name || !fs.existsSync(handoff)) return null;
-  for (const dir of fs.readdirSync(handoff)) {
+  for (const dir of fs.readdirSync(handoff).sort().reverse()) {
     if (dir.startsWith('Reviews ') && fs.existsSync(path.join(handoff, dir, name))) {
       return `Handoff/${dir}/${name}`;
     }
@@ -92,8 +94,15 @@ export function main(o = {}) {
   let check = false;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === '--item') item = argv[++i] ?? null;
-    else if (a === '--vault') vaultArg = argv[++i] ?? null;
+    if (a === '--item' || a === '--vault') {
+      const v = argv[++i];
+      if (!v || v.startsWith('--')) {
+        log(`lane:ready: usage: ${a} needs a value`);
+        return 2;
+      }
+      if (a === '--item') item = v;
+      else vaultArg = v;
+    }
     else if (a === '--check') check = true;
     else if (/^\d+$/.test(a) && prArg === null) prArg = a;
     else {
@@ -119,7 +128,7 @@ export function main(o = {}) {
   }
   if (!pr) {
     log(
-      `lane:ready: NOT ready: no pull request found${prArg ? ` for #${prArg}` : ' for this branch'}; push the branch and open a draft PR first`
+      `lane:ready: NOT ready: no pull request found${prArg ? ` for #${prArg}` : ' for this branch'}; push the branch and open a PR first`
     );
     return 1;
   }

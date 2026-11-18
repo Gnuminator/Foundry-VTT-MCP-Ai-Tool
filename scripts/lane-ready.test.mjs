@@ -12,19 +12,25 @@ const refusal = [
   'review: no review note for head aaaaaaa',
   'changelog: no added or changed changelog.d/*.md fragment',
   'lane:merge: risky (guarded writes): x.ts; an Opus review is required',
-  'lane:merge: refused because (1) a (2) b',
+  '  FAIL drift tail line one',
+  'second drift tail line',
+  'lane:merge: refused because (1) review: no review note for head aaaaaaa (2) changelog: no added or changed changelog.d/*.md fragment',
 ].join('\n');
 
-test('gateProblems lists the reasons, not the notices', () => {
+test('gateProblems lists the reasons, not the notices or the drift tail', () => {
   assert.deepEqual(gateProblems(refusal), [
     'review: no review note for head aaaaaaa',
     'changelog: no added or changed changelog.d/*.md fragment',
   ]);
+  assert.deepEqual(gateProblems('lane:merge: refused because ci: failing: x'), [
+    'ci: failing: x',
+  ]);
   assert.deepEqual(gateProblems('lane:merge: OK #7'), []);
 });
 
-test('backlogIds reads Backlog and Backlog-part lines', () => {
+test('backlogIds reads Backlog and Backlog-part lines, backticks and repeats', () => {
   assert.deepEqual(backlogIds('x\nBacklog: a-b, c\nBacklog-part: d'), ['a-b', 'c', 'd']);
+  assert.deepEqual(backlogIds('Backlog: `a-b`\nBacklog-part: a-b'), ['a-b']);
   assert.deepEqual(backlogIds('nothing'), []);
 });
 
@@ -79,6 +85,14 @@ test('writes the ready line when the gate says OK', () => {
   assert.ok(w);
   assert.ok(w.join(' ').includes(`item-x --ready 7 --head ${HEAD}`));
   assert.match(f.out[0], /ready #7 at aaaaaaa; progress line written on item-x/);
+});
+
+test('usage errors exit 2; a silent gate failure still gives a line', () => {
+  const f = fake('', 1);
+  assert.equal(main({ argv: ['--item', '--check'], run: f.run, log: f.log }), 2);
+  assert.equal(main({ argv: ['--vault', '/none'], run: f.run, log: f.log }), 1);
+  assert.ok(f.out.some(l => /dry run ended with exit 1/.test(l)));
+  assert.ok(f.calls.some(c => c.join(' ').includes('7 --dry-run --vault /none')));
 });
 
 test('--check writes nothing', () => {

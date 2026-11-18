@@ -18,8 +18,7 @@ test('every backticked name is on the allowlist', () => {
     assert.ok(names.includes(n), `missing ${n}`);
   }
   for (const n of names) {
-    // Words in the rules list (no tool names) are tolerated only if they hold no tool-like dash.
-    if (n.includes('-')) assert.ok(ALLOWED.has(n), `tool-like name not allowed: ${n}`);
+    assert.ok(ALLOWED.has(n), `name not allowed: ${n}`);
   }
 });
 

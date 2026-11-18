@@ -189,7 +189,17 @@ test('plannerSections assembles every section from a vault dir and a fake gh', (
           },
         ]
       : [{ status: 'completed', conclusion: 'success', headSha: H1 }];
-  const s = plannerSections({ devDir: dev, backlog: BACKLOG, today: '2026-11-12', gh }).join('\n');
+  fs.writeFileSync(
+    path.join(dev, 'last-run.json'),
+    JSON.stringify({ version: 1, last: { state: 'passed', at: '2026-11-12T01:00:00Z' } })
+  );
+  const s = plannerSections({
+    devDir: dev,
+    kitHome: dev,
+    backlog: BACKLOG,
+    today: '2026-11-12',
+    gh,
+  }).join('\n');
   assert.equal(seen.length, 2);
   for (const a of seen)
     assert.deepEqual(a.slice(a.indexOf('-R'), a.indexOf('-R') + 2), ['-R', REPO]);
@@ -198,6 +208,7 @@ test('plannerSections assembles every section from a vault dir and a fake gh', (
   assert.match(s, /Merge train: 1 of 4/);
   assert.match(s, /Main's CI: success/);
   assert.match(s, /W9 Do it/);
+  assert.match(s, /Nightly kit: no run has finished yet/);
   const dark = plannerSections({
     devDir: dev,
     backlog: '',

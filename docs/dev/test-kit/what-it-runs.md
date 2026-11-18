@@ -243,7 +243,7 @@ This PC is not on all night, so by default the task fires 10 minutes after every
 12:00 each day (it catches up on wake when missed, for a PC that stays logged on) and runs
 `kit-run.mjs --daily`: the full nightly kit run, but it does nothing when a run already finished
 today, so it runs at most once a day. It takes test server **B**'s lock (A stays free for lanes),
-waits up to 2 hours when a lane holds it, then records a skipped run and the next logon tries
+waits up to 2 hours when a lane holds it, then records a skipped run and the next logon or the 12:00 start tries
 again. It runs in the main checkout with the portable Node 24, in a hidden console, and appends
 its output to `<kit home>\nightly.log`. `-At 03:30` registers a fixed daily time instead (a PC that
 is off then skips the day; a missed run is not started later). The task stops a run after 6 hours

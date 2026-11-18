@@ -10,6 +10,7 @@ import { describe, expect, it } from 'vitest';
 
 import { stubToolRouterDeps } from './test-support/stub-tool-deps.js';
 import { collectToolDefinitions } from './tool-router.js';
+import { TOOL_SETS } from './tool-sets.js';
 
 const SKILL = readFileSync(
   fileURLToPath(new URL('../../../tools/prep-ritual/SKILL.md', import.meta.url)),
@@ -39,6 +40,12 @@ describe('prep ritual skill', () => {
   it('names only real tools', () => {
     const unknown = names.filter(n => !tools.has(n) && !OTHER_NAMES.has(n));
     expect(unknown).toEqual([]);
+  });
+
+  it('names only tools of the core and prep sets', () => {
+    const allowed = new Set([...TOOL_SETS.core.tools, ...TOOL_SETS.prep.tools]);
+    const outside = names.filter(n => tools.has(n) && !allowed.has(n));
+    expect(outside).toEqual([]);
   });
 
   it('has five numbered steps and ends with the ready checklist', () => {

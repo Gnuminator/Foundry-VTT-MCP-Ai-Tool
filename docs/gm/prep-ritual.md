@@ -12,8 +12,9 @@ without your yes.
 
 ## Add it
 
-Add the skill like the [GM coach](setup-gm-coach.md): Claude Desktop, Settings, Plugins, then add
-the file `foundry-prep-ritual.zip`. Then start a new chat and switch on the Foundry connectors
+The skill is not in a release download yet: whoever runs the tool for you builds the file
+`foundry-prep-ritual.zip` and sends it. Then add it like the [GM coach](setup-gm-coach.md): Claude
+Desktop, Settings, Plugins, and add the file. Then start a new chat and switch on the Foundry connectors
 **foundry-mcp** and **foundry-mcp-prep** in the Search and tools menu.
 
 ## The five steps
@@ -24,8 +25,9 @@ the file `foundry-prep-ritual.zip`. Then start a new chat and switch on the Foun
    You pick the two or three you want to touch.
 3. **This night's scenes.** You pick two to four scenes from your world and say what you want to
    happen in each.
-4. **Encounter budget.** For each fight, Claude says easy, fair, hard or deadly for your party
-   and suggests one change if it is off.
+4. **Encounter budget.** For each fight, Claude gets the XP budget for your party, compares the
+   creatures on the scene with it and says whether the fight looks under, near or over. It is an
+   estimate, and Claude suggests one change if it is off.
 5. **Handouts to queue.** You choose which handouts to have ready. Nothing is shown to players
    during prep.
 

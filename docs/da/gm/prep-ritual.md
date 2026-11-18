@@ -1,6 +1,6 @@
 ---
 source: gm/prep-ritual.md
-sourceHash: 9664ea18a969
+sourceHash: c3383b18568b
 title: Lad os forberede, forberedelsen på 30 minutter
 description: Én sætning, der fører dig gennem forberedelsen af næste session i fem trin og slutter med pre-flight-tjekket.
 ---
@@ -13,8 +13,9 @@ kun dit spil og kommer med forslag. Du bestemmer historien, og intet ændres i F
 
 ## Læg den ind
 
-Ligesom [GM-coachen](setup-gm-coach.md): Claude Desktop, Settings, Plugins, og tilføj filen
-`foundry-prep-ritual.zip`. Start derefter en ny chat og slå Foundry-connectorerne **foundry-mcp** og
+Skillen ligger ikke i en release-download endnu: den, der kører værktøjet for dig, bygger filen
+`foundry-prep-ritual.zip` og sender den. Tilføj den derefter som [GM-coachen](setup-gm-coach.md):
+Claude Desktop, Settings, Plugins, og tilføj filen. Start derefter en ny chat og slå Foundry-connectorerne **foundry-mcp** og
 **foundry-mcp-prep** til i menuen Search and tools.
 
 ## De fem trin
@@ -25,8 +26,9 @@ Ligesom [GM-coachen](setup-gm-coach.md): Claude Desktop, Settings, Plugins, og t
    de to eller tre, du vil røre ved.
 3. **Aftenens scener.** Du vælger to til fire scener fra din verden og siger, hvad du vil have der
    sker i hver.
-4. **Encounter-budget.** For hver kamp siger Claude easy, fair, hard eller deadly for din gruppe og
-   foreslår én ændring, hvis den er skæv.
+4. **Encounter-budget.** For hver kamp henter Claude XP-budgettet for din gruppe, sammenligner
+   creatures på scenen med det og siger, om kampen ser ud til at være under, nær eller over. Det er
+   et overslag, og Claude foreslår én ændring, hvis den er skæv.
 5. **Handouts i kø.** Du vælger, hvilke handouts der skal være klar. Intet vises for spillerne under
    forberedelsen.
 

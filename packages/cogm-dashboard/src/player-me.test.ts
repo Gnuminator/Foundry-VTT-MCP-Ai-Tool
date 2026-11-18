@@ -242,6 +242,20 @@ describe('turnOptions', () => {
     expect(all.every(o => o.note.length <= 70)).toBe(true);
   });
 
+  it('files 2024 costs right and keeps odd action labels', () => {
+    const groups = turnOptions({
+      features: [{ name: 'Wild Shape' }, { name: 'Lay on Hands' }, { name: 'Divine Smite' }],
+      spells: [{ name: 'Zap', level: 0, prepared: true, castingTime: 'Magic action' }],
+    });
+    const names = (id: string): string[] =>
+      (groups.find(g => g.id === id)?.options ?? []).map((o: { name: string }) => o.name);
+    expect(names('bonus')).toEqual(['Wild Shape', 'Lay on Hands']);
+    expect(names('action')).toContain('Zap');
+    expect(groups.flatMap(g => g.options.map((o: { name: string }) => o.name))).not.toContain(
+      'Divine Smite'
+    );
+  });
+
   it('returns nothing without a sheet', () => {
     expect(turnOptions(null)).toEqual([]);
   });

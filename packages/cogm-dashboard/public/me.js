@@ -213,7 +213,7 @@ function render() {
               new Date().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
             )
           : renderFancy(s);
-  if (hadFocus) $('me-pref-turn')?.focus();
+  if (hadFocus) $('me-pref-turn')?.focus({ preventScroll: true });
 }
 
 /** The outdated-helper notice (Danish, then English): server text goes in as textContent only. */

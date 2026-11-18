@@ -8,6 +8,7 @@ import { expect, test, type Locator, type Page, type Route } from '@playwright/t
 
 import {
   GM_TOKEN,
+  PREFLIGHT_OK,
   fakeCommonRoutes,
   fakeStream,
   fakeTools,
@@ -908,6 +909,140 @@ test('+ Queue a page opens the Tool Runner filled in, names shown, and queues on
   await handouts.locator('#handouts-add').click();
   await expect(field(drawer, 'action')).toHaveValue('queue');
   await expect(field(drawer, 'pageUuid')).toHaveValue('');
+});
+
+/** The bridge with an open play session, so the During bar (and its pin row) is on the page. */
+const duringBridge = (call: ToolCall): ToolAnswer =>
+  call.name === 'get-play-session'
+    ? ok({ success: true, worldId: 'w', startedAt: null, lastEventAt: null, open: true })
+    : bridge(call);
+
+test('a pinned form is a button on the During bar: a read runs at once, a plan asks first', async ({
+  page,
+}) => {
+  await fakeStream(page, gmActions(true));
+  await fakeCatalog(page);
+  await page.route('**/api/preflight', route => route.fulfill({ json: PREFLIGHT_OK }));
+  const calls = await fakeTools(page, duringBridge, { playSession: true });
+  const drawer = await openTools(page);
+  await expect(drawer.locator('#pin-lists')).toHaveCount(0);
+
+  // Pin a read with its own name, and a plan with the default name.
+  await openTool(drawer, 'measure-distance');
+  await field(drawer, 'squares').fill('2');
+  await drawer.locator('#tool-pin').click();
+  await expect(toast(page, '✓ Pinned to the During bar')).toBeVisible();
+  await drawer.locator('#tool-pin-name').fill('Two squares');
+  await drawer.locator('#tool-pin').click();
+  await drawer.locator('#tool-back').click();
+  await openTool(drawer, 'plan-actor-change');
+  await field(drawer, 'action').selectOption('damage');
+  await field(drawer, 'targets').fill('Wolf');
+  await field(drawer, 'amount').fill('5');
+  // Enter in the name box names the pin and runs nothing.
+  await drawer.locator('#tool-pin-name').fill('Hurt the wolf');
+  await drawer.locator('#tool-pin-name').press('Enter');
+  expect(named(calls, 'plan-actor-change')).toEqual([]);
+  // A form that does not collect cleanly is not pinned.
+  await drawer.locator('#tool-back').click();
+  await openTool(drawer, 'measure-distance');
+  await field(drawer, 'squares').fill('');
+  await drawer.locator('#tool-pin').click();
+  await expect(drawer.locator('#tool-form-error')).toHaveText('Required: squares');
+  await drawer.getByRole('button', { name: 'Close' }).click();
+
+  const row = page.locator('#pin-row');
+  await expect(row.locator('[data-pin]')).toHaveText([
+    'measure-distance',
+    'Two squares',
+    'Hurt the wolf',
+  ]);
+
+  // The read runs on the click, with GM Actions in whatever state; its answer shows under the row.
+  await row.getByRole('button', { name: 'Two squares' }).click();
+  await expect(page.locator('#pin-result pre')).toHaveText(JSON.stringify({ feet: 10 }, null, 2));
+  expect(named(calls, 'measure-distance').map(c => c.args)).toEqual([{ squares: 2, exact: true }]);
+
+  // The plan goes through the confirm window: Cancel applies nothing, Confirm applies.
+  await row.getByRole('button', { name: 'Hurt the wolf' }).click();
+  const confirm = confirmWindow(page);
+  await expect(confirm.locator('.modal-summary')).toHaveText('Damage: 5 to Wolf');
+  await confirm.getByRole('button', { name: 'Cancel' }).click();
+  expect(named(calls, 'apply-planned-change')).toEqual([]);
+  await row.getByRole('button', { name: 'Hurt the wolf' }).click();
+  await confirm.getByRole('button', { name: 'Confirm' }).click();
+  await expect(toast(page, '✓ Applied: Damage: 5 to Wolf')).toBeVisible();
+  expect(named(calls, 'plan-actor-change').map(c => c.args)).toEqual([
+    { action: 'damage', targets: ['Wolf'], amount: 5 },
+    { action: 'damage', targets: ['Wolf'], amount: 5 },
+  ]);
+  expect(named(calls, 'apply-planned-change')).toHaveLength(1);
+
+  // The pins survive a reload (kept in this browser).
+  await page.reload();
+  await expect(page.locator('#pin-row [data-pin]')).toHaveCount(3);
+});
+
+test('pins can be renamed and removed; recent runs and the calls used most are listed', async ({
+  page,
+}) => {
+  await fakeStream(page, gmActions(true));
+  await fakeCatalog(page);
+  await page.route('**/api/preflight', route => route.fulfill({ json: PREFLIGHT_OK }));
+  const calls = await fakeTools(page, duringBridge, { playSession: true });
+  const drawer = await openTools(page);
+
+  // Three reads of one call and one of another: the first is used most, and both are recent.
+  await openTool(drawer, 'measure-distance');
+  await field(drawer, 'squares').fill('4');
+  for (let i = 0; i < 3; i++) {
+    await drawer.locator('#tool-run').click();
+    await expect(drawer.locator('#tool-result')).toBeVisible();
+  }
+  await drawer.locator('#tool-back').click();
+  await openTool(drawer, 'get-world-info');
+  await drawer.locator('#tool-run').click();
+  await expect(drawer.locator('#tool-result')).toBeVisible();
+  await drawer.locator('#tool-back').click();
+
+  const often = drawer.getByRole('group', { name: 'Used most' });
+  await expect(often.locator('.tool-item-name')).toHaveText(['measure-distance']);
+  await expect(often.locator('.tool-item-desc')).toHaveText('3 runs squares=4 exact=true');
+  const recent = drawer.getByRole('group', { name: 'Recent runs' });
+  await expect(recent.locator('.tool-item-name')).toHaveText([
+    'get-world-info',
+    'measure-distance',
+  ]);
+
+  // A recent run opens the form with its values.
+  await recent.locator('[data-recent="measure-distance"]').click();
+  await expect(drawer.locator('#tool-detail-name')).toHaveText('measure-distance');
+  await expect(field(drawer, 'squares')).toHaveValue('4');
+  await drawer.locator('#tool-back').click();
+
+  // Pin the used-most call from its row: it leaves the list and shows as a button.
+  await often.getByRole('button', { name: 'Pin measure-distance' }).click();
+  await expect(drawer.getByRole('group', { name: 'Used most' })).toHaveCount(0);
+  const pinned = drawer.getByRole('group', { name: 'Pinned' });
+  await expect(pinned.locator('[data-pin] input')).toHaveValue('measure-distance');
+
+  // Escape in a name being edited puts the name back and keeps the drawer open.
+  await pinned.locator('[data-pin] input').fill('half typed');
+  await page.keyboard.press('Escape');
+  await expect(drawer).toBeVisible();
+  await expect(pinned.locator('[data-pin] input')).toHaveValue('measure-distance');
+
+  // Rename it, then remove it.
+  await pinned.locator('[data-pin] input').fill('Four squares');
+  await pinned.locator('[data-pin] input').press('Enter');
+  // Escape after the Enter keeps the new name and closes the drawer.
+  await page.keyboard.press('Escape');
+  await expect(drawer).toBeHidden();
+  await expect(page.locator('#pin-row [data-pin]')).toHaveText(['Four squares']);
+  await fromMenu(page, 'btn-tools');
+  await drawer.getByRole('button', { name: 'Remove pin Four squares' }).click();
+  await expect(page.locator('#pin-row')).toHaveCount(0);
+  expect(named(calls, 'measure-distance')).toHaveLength(3);
 });
 
 test('a request for a tool the catalog lacks says so and shows the list', async ({ page }) => {

@@ -630,6 +630,46 @@ export const DASHBOARD_CONTROLS = [
     expect: '#tool-browser',
   },
   {
+    name: 'dash.pins.pin',
+    how: 'skip',
+    why: 'not driven by the sweep (saves the open form as a pin in this browser; the e2e spec covers it)',
+  },
+  {
+    name: 'dash.pins.run',
+    how: 'skip',
+    why: 'not driven by the sweep (a pinned button on the During bar runs a tool, a write asks first; needs a pin, the e2e spec covers it)',
+  },
+  {
+    name: 'dash.pins.result-close',
+    how: 'skip',
+    why: 'not driven by the sweep (closes the answer under the pin row; needs a pin run, the e2e spec covers it)',
+  },
+  {
+    name: 'dash.pins.edit',
+    how: 'skip',
+    why: 'not driven by the sweep (opens a pin in the Tool Runner; needs a pin, the e2e spec covers it)',
+  },
+  {
+    name: 'dash.pins.remove',
+    how: 'skip',
+    why: 'not driven by the sweep (removes a pin; needs a pin, the e2e spec covers it)',
+  },
+  {
+    name: 'dash.pins.open-recent',
+    how: 'skip',
+    why: 'not driven by the sweep (needs a recent run, the e2e spec covers it)',
+  },
+  {
+    name: 'dash.pins.open-often',
+    how: 'skip',
+    why: 'not driven by the sweep (needs a tool run twice, the e2e spec covers it)',
+  },
+  {
+    name: 'dash.pins.pin-often',
+    how: 'skip',
+    why: 'not driven by the sweep (pins a call used most; needs a tool run twice, the e2e spec covers it)',
+  },
+  {
     name: 'dash.tools.pick-open',
     how: 'open',
     reach: PICKER,

@@ -1,6 +1,6 @@
 ---
 source: gm/game-night-runbook.md
-sourceHash: f49bdad33a2d
+sourceHash: 1ade4b9cba24
 title: Spilaftenens runbook
 description: Én side til selve aftenen. Hvad du gør, når Foundry, en spiller, Claude, dashboardet eller hjemmeserveren fejler, og hvornår du råber om hjælp.
 ---
@@ -20,6 +20,9 @@ spilaftenen, ved bordet eller i Discord-voice. Ring i voice eller skriv en direk
 Du skal ikke selv løse tekniske problemer.
 
 ## Før du starter (15 minutter før)
+
+Cirka to timer før kan administratorens pc sende en enkelt linje, **game-day brief** (pre-flight-resultat og
+hvad du skal åbne først). Den læser kun, og den er en forvarsel: pre-flight-tjekket herunder er stadig det rigtige.
 
 - [ ] Åbn spillets adresse og kom ind som din GM-bruger. Tjek spillerlisten nederst til venstre.
 - [ ] Gå checklisten [Før hver session](before-session.md) igennem (pre-flight, Turn on for tonight).

@@ -592,7 +592,7 @@ export function runGroup(name, io = {}) {
  * discord-bot), the Pi setup doc, and the manifests and workflow. Pinned by scripts/pi/ci-pi-filter.test.mjs.
  */
 export const PI_GROUP_PATHS =
-  /^(scripts\/pi\/|scripts\/plan-b\/|scripts\/gamenight-watch|scripts\/checks\.mjs$|deploy\/|shared\/|packages\/discord-bot(\/|$)|docs\/dev\/PI-SETUP\.md$|package\.json$|package-lock\.json$|\.github\/workflows\/ci\.yml$)/;
+  /^(scripts\/pi\/|scripts\/plan-b\/|scripts\/gamenight-watch|scripts\/checks\.mjs$|deploy\/|shared\/|packages\/discord-bot(\/|$)|docs\/dev\/PI-SETUP\.md$|package\.json$|package-lock\.json$|\.github\/workflows\/)/;
 
 /**
  * Whether the `pi` group has to run. Only a pull request that changed no Pi input skips it; every

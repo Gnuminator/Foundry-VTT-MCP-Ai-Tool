@@ -228,6 +228,7 @@ test('piGroupApplies: only a pull request without a Pi input skips the pi group'
     'packages/discord-bot/src/cli.ts',
     'package-lock.json',
     '.github/workflows/ci.yml',
+    '.github/workflows/pi-images.yml', // container-lib.test.mjs reads it
   ])
     assert.equal(piGroupApplies('pull_request', files(['docs/a.md', f])), true, f);
   // Anything that is not a pull request always runs it, and so does a diff that cannot be read.
@@ -273,7 +274,13 @@ test('every repo path a pi-group test file names in a string literal is inside P
   for (const f of files) {
     if (f === 'scripts/pi/ci-pi-filter.test.mjs') continue; // names paths as examples of what must skip
     const text = fs.readFileSync(path.join(root, f), 'utf8');
-    for (const m of text.matchAll(/['"`]((?:packages|docs|shared|tools|\.claude)\/[\w./-]+)/g)) {
+    // a workflow file read through any join: `'.github', 'workflows', 'x.yml'` or `.github/workflows/x.yml`
+    for (const m of text.matchAll(/\.github['"`,/\s]+workflows['"`,/\s]+([\w-]+\.ya?ml)/g)) {
+      if (!PI_GROUP_PATHS.test(`.github/workflows/${m[1]}`)) missed.push(`${f}: ${m[1]}`);
+    }
+    for (const m of text.matchAll(
+      /['"`]((?:packages|docs|shared|tools|\.claude|\.github)\/[\w./-]+)/g
+    )) {
       // build output and a bare directory name are not inputs a source change can break
       if (/\/dist(\/|$)/.test(m[1])) continue;
       if (!PI_GROUP_PATHS.test(m[1])) missed.push(`${f}: ${m[1]}`);

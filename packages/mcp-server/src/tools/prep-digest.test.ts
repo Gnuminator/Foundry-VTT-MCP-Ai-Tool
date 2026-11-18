@@ -513,11 +513,11 @@ describe('get-prep-digest', () => {
 
   it('looseEnds: counts the sessions and warns when the scene list fails', async () => {
     await seedSessions();
-    const ok = await makeTools({ scenes: [{ id: 'sX', name: 'Tower' }] }).handleGetPrepDigest({});
+    const ok = await buildTools({ scenes: [{ id: 'sX', name: 'Tower' }] }).handleGetPrepDigest({});
     expect(ok.looseEnds?.sessions).toBe(2);
     expect(ok.looseEnds?.neverVisitedScenes).toBe(1);
     expect(ok.warnings).toEqual([]);
-    const bad = await makeTools({ scenes: new Error('scenes boom') }).handleGetPrepDigest({});
+    const bad = await buildTools({ scenes: new Error('scenes boom') }).handleGetPrepDigest({});
     expect(bad.looseEnds?.unavailable).toEqual(['scenes']);
     expect(bad.warnings.some(w => w.includes('scenes boom'))).toBe(true);
   });

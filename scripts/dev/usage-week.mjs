@@ -698,6 +698,7 @@ export async function main(argv = process.argv.slice(2), env = process.env, out 
   if (env.USAGE_WEEK_GH !== 'off') {
     try {
       report.ci = buildCiHealth(await fetchCiRuns(), now).find(w => w.hours === 24 * 7);
+      if (report.ci.truncated) notes.push('CI health skipped: 7 days hold more than 1000 runs.');
     } catch (e) {
       notes.push(`CI health unavailable (gh failed: ${String(e.message).split('\n')[0]}).`);
     }

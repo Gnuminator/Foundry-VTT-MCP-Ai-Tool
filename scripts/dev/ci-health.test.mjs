@@ -28,7 +28,7 @@ test('three runs match a hand count, per window', () => {
   assert.equal(day.failed, 1);
   assert.equal(day.failPercent, 50);
   assert.equal(day.redMain, 1);
-  assert.equal(day.medianMinutes, 10); // sorted [10, 20], nearest rank p50 = first
+  assert.equal(day.medianMinutes, 15); // sorted [10, 20], mean of the middle two
   assert.equal(day.p90Minutes, 20);
   assert.equal(week.runs, 3);
   assert.equal(week.success, 2);
@@ -51,6 +51,25 @@ test('cancelled and running runs are counted but not timed or failed', () => {
     [s.runs, s.running, s.cancelled, s.failed, s.success, s.medianMinutes],
     [3, 1, 1, 0, 1, 12]
   );
+});
+
+test('a timeout or startup failure is red; a cut-off window is flagged and writes no ci lines', () => {
+  const s = summarizeRuns(
+    [
+      run('2026-11-18T09:00:00Z', 25, 'timed_out', 'push'),
+      run('2026-11-18T09:10:00Z', 0, 'startup_failure'),
+      run('2026-11-18T09:40:00Z', 12, 'success'),
+    ],
+    NOW,
+    24
+  );
+  assert.deepEqual([s.failed, s.success, s.redMain, s.failPercent], [2, 1, 1, 66.7]);
+  const cut = buildCiHealth(THREE, NOW, 3); // the list is as long as the limit: the 7 day window is cut
+  assert.equal(cut[1].truncated, true);
+  assert.equal(cut[0].truncated, false); // the 24 h window starts after the oldest run
+  assert.deepEqual(ciLines(cut[1]), []);
+  assert.match(formatTable(cut), /cut off at the newest 1000 runs.*last 7 days/);
+  assert.equal(buildCiHealth(THREE, NOW)[1].truncated, false);
 });
 
 test('runs outside the window and an empty list give n/a, not 0', () => {

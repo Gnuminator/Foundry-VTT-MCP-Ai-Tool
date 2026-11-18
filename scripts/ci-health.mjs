@@ -26,6 +26,16 @@ function percentile(sorted, p) {
   return sorted[Math.min(sorted.length - 1, Math.max(0, i))];
 }
 
+/** @param {number[]} sorted ascending; the middle value, or the mean of the two middle ones */
+function median(sorted) {
+  if (!sorted.length) return null;
+  const m = sorted.length >> 1;
+  return sorted.length % 2 ? sorted[m] : (sorted[m - 1] + sorted[m]) / 2;
+}
+
+/** Conclusions that count as a red run (a timeout and a startup failure are red too). */
+const RED = new Set(['failure', 'timed_out', 'startup_failure']);
+
 const round1 = v => (v === null ? null : Math.round(v * 10) / 10);
 
 /**
@@ -42,12 +52,13 @@ export function summarizeRuns(runs, now, hours) {
   });
   const finished = inWindow.filter(r => r.status === 'completed');
   const count = c => finished.filter(r => r.conclusion === c).length;
+  const isFailed = r => RED.has(r.conclusion);
   const minutes = finished
-    .filter(r => r.conclusion === 'success' || r.conclusion === 'failure')
+    .filter(r => r.conclusion === 'success' || isFailed(r))
     .map(r => (Date.parse(r.updatedAt ?? '') - Date.parse(r.startedAt ?? r.createdAt)) / 60_000)
     .filter(m => Number.isFinite(m) && m >= 0)
     .sort((a, b) => a - b);
-  const failed = count('failure');
+  const failed = finished.filter(isFailed).length;
   const success = count('success');
   const done = failed + success;
   return {
@@ -58,8 +69,8 @@ export function summarizeRuns(runs, now, hours) {
     failed,
     cancelled: count('cancelled'),
     failPercent: done ? round1((failed / done) * 100) : null,
-    redMain: finished.filter(r => r.event === 'push' && r.conclusion === 'failure').length,
-    medianMinutes: round1(percentile(minutes, 50)),
+    redMain: finished.filter(r => r.event === 'push' && isFailed(r)).length,
+    medianMinutes: round1(median(minutes)),
     p90Minutes: round1(percentile(minutes, 90)),
   };
 }
@@ -83,11 +94,16 @@ export function formatTable(summaries) {
   const body = rows.map(([name, f]) => [name, ...summaries.map(s => cell(f(s)))]);
   const widths = head.map((h, i) => Math.max(h.length, ...body.map(r => r[i].length)));
   const line = r => r.map((c, i) => (i ? c.padStart(widths[i]) : c.padEnd(widths[i]))).join('  ');
-  return [line(head), ...body.map(line)].join('\n');
+  const cut = summaries.filter(s => s.truncated).map(s => s.label);
+  const note = cut.length
+    ? [`(cut off at the newest 1000 runs, so too low: ${cut.join(', ')})`]
+    : [];
+  return [line(head), ...body.map(line), ...note].join('\n');
 }
 
 /** The lines the Saturday section of Weekly check.md gets (numbers only, same `- key: value` form). */
 export function ciLines(week) {
+  if (week.truncated) return []; // a cut-off window would write wrong numbers
   const lines = [
     `- ci-runs: ${week.runs}`,
     `- ci-failed: ${week.failed}`,
@@ -100,8 +116,16 @@ export function ciLines(week) {
 }
 
 /** Both windows from one run list, each with its label. */
-export function buildCiHealth(runs, now = new Date()) {
-  return WINDOWS.map(w => ({ label: w.label, ...summarizeRuns(runs, now, w.hours) }));
+export function buildCiHealth(runs, now = new Date(), limit = 1000) {
+  const oldest = runs.length
+    ? Math.min(...runs.map(r => Date.parse(r.createdAt)).filter(Number.isFinite))
+    : Infinity;
+  return WINDOWS.map(w => ({
+    label: w.label,
+    ...summarizeRuns(runs, now, w.hours),
+    // The list is the newest `limit` runs: a window that reaches back past the oldest one is cut off.
+    truncated: runs.length >= limit && oldest > now.getTime() - w.hours * 3_600_000,
+  }));
 }
 
 /** The last runs of ci.yml (all events). */

@@ -394,6 +394,24 @@ export async function showPlayerScreen(page: Page, screen: PlayerScreen): Promis
       },
     })
   );
+  // The party stash card (I-175) reads this once a link is set: answered here so the page settles.
+  await page.route('**/api/me/stash', route =>
+    route.fulfill({
+      json: {
+        totalGold: 120.5,
+        holders: [
+          {
+            name: 'Mara',
+            currency: { pp: 0, gp: 120, ep: 0, sp: 5, cp: 0 },
+            items: [
+              { name: 'Rope, hempen', quantity: 1, type: 'loot', unidentified: false },
+              { name: 'Unidentified item', quantity: 1, type: 'unknown', unidentified: true },
+            ],
+          },
+        ],
+      },
+    })
+  );
   await page.route('**/api/me/connector', route =>
     route.fulfill({
       json:

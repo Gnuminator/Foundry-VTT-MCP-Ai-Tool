@@ -56,6 +56,13 @@ When the TV shows Cloudflare's sign-in page, do the sign-in step on the [setup p
   the active scene.
 - To leave full screen, press **Alt + F4** on the TV's keyboard.
 
+## Flashes for natural 20s and 1s
+
+When a natural 20 or a natural 1 lands on an attack or a saving throw, the TV flashes **CRITICAL!**
+(gold) or **FUMBLE!** (red) with the character's name for 2 seconds. It shows on the TV only, never
+more than one every 20 seconds, and never for a whispered or blind roll. In Foundry's module settings,
+**Table TV stingers** turns it off or limits it to natural 20s.
+
 ## What the TV can never show
 
 - The dashboard, your notes, the chat of the GM, or any GM-only page. The Table player is a

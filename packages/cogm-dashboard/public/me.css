@@ -19,11 +19,31 @@
   --bg: #1a1d1c;
   --card: #262b29;
   --card-2: #2d3330;
-  --line: #3a423f;
+  --line: #3f4743;
   --text: #e8e6df;
-  --muted: #9ba39d;
-  --accent: #8fa39a;
+  --muted: #a5ada7;
+  --accent: #f2d88a;
   --num: #f2d88a;
+  --font: 'Spectral', Georgia, 'Times New Roman', serif;
+  --font-display: 'Gloock', Georgia, 'Times New Roman', serif;
+}
+/* The Veil look (I-179): Gloock headings, Spectral text, lamplit selection and numbers. The
+   fonts, ground and mist come from themes/veil.css; the paper views stay black on white. */
+:root[data-theme='veil'] body:not(.paper) {
+  font-size: 1.0625rem;
+}
+:root[data-theme='veil'] body:not(.paper) .me-head h1 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
+:root[data-theme='veil'] body:not(.paper) .me-head {
+  border-bottom-color: color-mix(in srgb, #f2d88a 30%, transparent);
+}
+:root[data-theme='veil'] body:not(.paper) .me-views button,
+:root[data-theme='veil'] body:not(.paper) .me-chars button,
+:root[data-theme='veil'] body:not(.paper) .me-foot button {
+  border-radius: 3px;
 }
 * {
   box-sizing: border-box;

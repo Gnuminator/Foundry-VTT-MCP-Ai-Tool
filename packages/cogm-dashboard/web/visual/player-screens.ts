@@ -5,7 +5,7 @@
 // fixtures.ts). One list, used by the screenshot tests and by the axe check.
 import { expect, type Page } from '@playwright/test';
 
-import { apiBody, fakeCommonRoutes } from '../e2e/support';
+import { apiBody, fakeCommonRoutes, themeBody } from '../e2e/support';
 
 import { NOW } from './fixtures';
 
@@ -19,6 +19,8 @@ export interface PlayerScreen {
   key: boolean;
   /** The player stream's frames for this screen. */
   stream: 'quiet' | 'roll' | 'handouts' | 'fight';
+  /** The GM's theme for the world; neutral when left out. */
+  theme?: 'neutral' | 'veil';
   /** Waits until the page shows what the screen is about. */
   ready: (page: Page) => Promise<void>;
 }
@@ -312,6 +314,44 @@ export const PLAYER_SCREENS: PlayerScreen[] = [
     },
   },
   {
+    // The Veil look on /player (I-179): the same screen as player-key under the Veil theme.
+    name: 'player-key-veil',
+    path: '/player',
+    who: MARA,
+    key: true,
+    stream: 'roll',
+    theme: 'veil',
+    ready: async (page): Promise<void> => {
+      await expect(page.locator('#mine-chars').getByText('Brenna Quill')).toBeVisible();
+      await expect(page.locator('#roll-banner')).toBeVisible();
+    },
+  },
+  {
+    // The Veil look on /player during a fight.
+    name: 'player-fight-veil',
+    path: '/player',
+    who: MARA,
+    key: true,
+    stream: 'fight',
+    theme: 'veil',
+    ready: async (page): Promise<void> => {
+      await expect(page.locator('#combat').getByText('Harbor thug').first()).toBeVisible();
+    },
+  },
+  {
+    // The Veil look on /me (I-179).
+    name: 'me-veil',
+    path: '/me',
+    who: null,
+    key: true,
+    stream: 'quiet',
+    theme: 'veil',
+    ready: async (page): Promise<void> => {
+      await expect(page.locator('#me-name')).toHaveText('Brenna Quill');
+      await expect(page.locator('#me-updated')).toContainText('Updated');
+    },
+  },
+  {
     // The "Your Claude connector" card, opened (made-up values, never a real pair).
     name: 'me-connector',
     path: '/me',
@@ -335,7 +375,7 @@ async function fakePlayerStream(page: Page, screen: PlayerScreen): Promise<void>
       event: 'handouts',
       data: { handouts: screen.stream === 'handouts' ? HANDOUTS : HANDOUTS.slice(0, 2) },
     },
-    { event: 'theme', data: { theme: 'neutral' } },
+    { event: 'theme', data: { theme: screen.theme ?? 'neutral' } },
     {
       event: 'rolls',
       data: {
@@ -389,7 +429,7 @@ export async function showPlayerScreen(page: Page, screen: PlayerScreen): Promis
         sheets: [SHEET],
         rollRequests:
           screen.stream === 'roll' ? [{ buttonId: 'b1', label: 'Perception (Private)' }] : [],
-        theme: 'neutral',
+        theme: screen.theme ?? 'neutral',
         privateRolls: [],
       },
     })
@@ -408,8 +448,12 @@ export async function showPlayerScreen(page: Page, screen: PlayerScreen): Promis
     })
   );
   await fakePlayerStream(page, screen);
+  // The page also asks for the theme itself; that answer must agree with the stream's.
+  await page.route('**/api/theme', route =>
+    route.fulfill({ json: themeBody(screen.theme ?? 'neutral') })
+  );
   await page.goto(screen.path);
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'neutral');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', screen.theme ?? 'neutral');
   await screen.ready(page);
   await page.evaluate(() => document.fonts.ready);
   await page.waitForLoadState('networkidle');

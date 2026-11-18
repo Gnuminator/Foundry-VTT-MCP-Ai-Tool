@@ -112,7 +112,8 @@ scripts/heavy-lock.mjs status`). `SKIP_PREPUSH=1 git push ...` skips the em-dash
   in a generated tools file (`docs/reference/tools*`) is never hand-merged: take either side and rerun
   `npm run docs:tools`.
 - **Ready to merge (the merge runner merges, D-140):** once every review for the head says Merge, run
-  `backlog.mjs progress <id> --ready <n> --head <40-char sha> --review <note path>`, keep the branch
+  `/ready` (`node scripts/lane-ready.mjs`: the gate's dry run, then `backlog.mjs progress <id> --ready <n>
+--head <40-char sha> --review <note path>`, or one list of what is missing), keep the branch
   pushed and stop; message nobody. The runner may push a main merge to it: fetch first. The runner gates that head in its own checkout and writes a
   refusal over the line. Plain progress text takes back every line; a ready line for another PR keeps the old one. With the merge queue on, the gate enqueues; a failed queue run needs
   a fresh ready line. Never run the

@@ -41,6 +41,7 @@
     "deps:check": "node scripts/dep-ranges-check.mjs && node --test scripts/dep-ranges-check.test.mjs",
     "drift:check": "node scripts/drift-check.mjs",
     "green": "node scripts/green.mjs",
+    "lane:ready": "node scripts/lane-ready.mjs",
     "lane:merge": "node scripts/lane-merge.mjs",
     "lane:risky": "node scripts/lane-merge.mjs --risky-list",
     "docs:lint": "markdownlint-cli2",

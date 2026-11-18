@@ -291,7 +291,11 @@ export function QuickRollBar({
                   size="sm"
                   data-track="dash.quickroll.nudge"
                   title={nudges.map(r => r.targetName).join(', ')}
-                  aria-label={`Nudge ${nudges.map(r => r.targetName).join(', ')} in chat`}
+                  aria-label={
+                    posted.has(nudgeKey)
+                      ? 'Nudge sent'
+                      : `Nudge ${nudges.map(r => r.targetName).join(', ')} in chat`
+                  }
                   disabled={sending || posted.has(nudgeKey)}
                   onClick={() => post(nudgeLine(round, nudges), nudgeKey)}
                 >

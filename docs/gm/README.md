@@ -50,6 +50,7 @@ should see when it worked and what to do if it did not.
 | [Features and when to turn them on](features.md)                  | Each feature switch, what it does, and the moment to turn it on.                                               |
 | [Asking Claude](asking-claude.md)                                 | Good requests, the ready-made prompts, how Claude's changes are approved, its limits.                          |
 | [Your GM coach in Claude](gm-coach.md)                            | Add the Foundry GM coach skill to your Claude account, and how to ask it.                                      |
+| [Let's prep: the 30-minute prep ritual](prep-ritual.md)           | Say "let's prep" and Claude walks you through five fixed steps, ending with the pre-flight check.              |
 | [Cookbook](cookbook.md)                                           | Ready-to-use requests and clicks before, during and after a session.                                           |
 | [Your Obsidian vault](obsidian.md)                                | What is in your vault, where your prep goes, and connecting the plugin to the server.                          |
 | [Prep and expectations](prep-and-expectations.md)                 | What to prepare, the expectations talk, ability scores and a session 0 agenda.                                 |

@@ -6,13 +6,13 @@
 import { MODULE_ID } from './constants.js';
 import { dnd5eRollType } from './systems/dnd5e/chat-roll-kind.js';
 import {
-  cooldownOver,
   DEFAULT_STINGER_MODE,
   parseStingerMode,
+  planStinger,
   STINGER_SHOW_MS,
-  stingerFor,
   stingerText,
   type StingerKind,
+  type StingerMessage,
   type StingerMode,
 } from './stinger-model.js';
 import { isTableViewerUser } from './table-viewer-user.js';
@@ -21,6 +21,9 @@ import { isTableViewerUser } from './table-viewer-user.js';
 const STINGER_SETTING = 'tvStingers';
 
 let lastAt: number | null = null;
+
+/** Longest wait for Dice So Nice to finish before the stinger shows anyway. */
+const DICE_WAIT_MS = 6000;
 
 /** Register the setting. Call from the module `init` hook, every client. */
 export function registerStingerSettings(): void {
@@ -66,22 +69,34 @@ function showStinger(kind: StingerKind, who: string): void {
 /** A chat message arrived: flash a stinger when it is a natural 20 or 1 and the TV may show it. */
 function onStingerMessage(message: unknown, now: number = Date.now()): void {
   try {
-    if (!isTableViewerUser(game.user)) return;
-    const m = message as {
-      rolls?: unknown;
-      whisper?: unknown[];
-      blind?: boolean;
-      speakerActor?: { name?: string } | null;
-      alias?: string;
-    };
-    if ((Array.isArray(m.whisper) && m.whisper.length > 0) || m.blind === true) return;
-    const mode = currentMode();
-    if (mode === 'off') return;
-    const rollType = dnd5eRollType(message as Parameters<typeof dnd5eRollType>[0]);
-    const kind = stingerFor(mode, rollType, m.rolls);
-    if (!kind || !cooldownOver(now, lastAt)) return;
+    const plan = planStinger(message as StingerMessage, {
+      isTableUser: isTableViewerUser(game.user),
+      mode: currentMode(),
+      rollType: dnd5eRollType(message as Parameters<typeof dnd5eRollType>[0]),
+      now,
+      lastAt,
+    });
+    if (!plan) return;
     lastAt = now;
-    showStinger(kind, m.speakerActor?.name ?? m.alias ?? '');
+    const { kind, who } = plan;
+    const id = (message as { id?: string }).id;
+    // Dice So Nice shows the 3D dice after the message exists: wait for them to stop so the
+    // stinger does not give the result away (a fallback timer covers a roll it never animates).
+    if (id && (game as unknown as { dice3d?: unknown }).dice3d) {
+      let done = false;
+      const hookId: number = Hooks.on('diceSoNiceRollComplete', (rolledId: unknown) => {
+        if (rolledId === id) go();
+      });
+      const go = (): void => {
+        if (done) return;
+        done = true;
+        Hooks.off('diceSoNiceRollComplete', hookId);
+        showStinger(kind, who);
+      };
+      window.setTimeout(go, DICE_WAIT_MS);
+      return;
+    }
+    showStinger(kind, who);
   } catch (error) {
     console.warn(`[${MODULE_ID}] Stinger failed:`, error);
   }

@@ -3,6 +3,7 @@ import {
   cooldownOver,
   naturalD20,
   parseStingerMode,
+  planStinger,
   STINGER_COOLDOWN_MS,
   stingerFor,
   stingerText,
@@ -42,6 +43,25 @@ describe('stinger model', () => {
     expect(cooldownOver(1000, null)).toBe(true);
     expect(cooldownOver(1000 + STINGER_COOLDOWN_MS - 1, 1000)).toBe(false);
     expect(cooldownOver(1000 + STINGER_COOLDOWN_MS, 1000)).toBe(true);
+  });
+
+  it('plans a stinger for the Table user only, never for a whisper, with the alias as name', () => {
+    const base = {
+      isTableUser: true,
+      mode: 'both' as const,
+      rollType: 'attack',
+      now: 50000,
+      lastAt: null,
+    };
+    const msg = { rolls: d20(20), alias: 'Mysterious figure', speakerActor: { name: 'Strahd' } };
+    expect(planStinger(msg, base)).toEqual({ kind: 'crit', who: 'Mysterious figure' });
+    expect(planStinger({ ...msg, alias: '' }, base)?.who).toBe('Strahd');
+    expect(planStinger(msg, { ...base, isTableUser: false })).toBeNull();
+    expect(planStinger({ ...msg, whisper: ['u1'] }, base)).toBeNull();
+    expect(planStinger({ ...msg, blind: true }, base)).toBeNull();
+    expect(planStinger(msg, { ...base, mode: 'off' })).toBeNull();
+    expect(planStinger(msg, { ...base, lastAt: 40000 })).toBeNull();
+    expect(planStinger(msg, { ...base, lastAt: 20000 })).not.toBeNull();
   });
 
   it('falls back to the default mode and words the text', () => {

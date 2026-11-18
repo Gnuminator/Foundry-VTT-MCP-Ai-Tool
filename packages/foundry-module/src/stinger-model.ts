@@ -67,6 +67,41 @@ export function cooldownOver(now: number, lastAt: number | null): boolean {
   return lastAt === null || now - lastAt >= STINGER_COOLDOWN_MS;
 }
 
+/** The parts of a chat message the decision reads. */
+export interface StingerMessage {
+  rolls?: unknown;
+  whisper?: unknown[];
+  blind?: boolean;
+  alias?: string;
+  speakerActor?: { name?: string } | null;
+}
+
+/**
+ * Whether this message gets a stinger now, and for whom. Only the Table user, never a whispered
+ * or blind roll, per the mode and the cool-down. The name is the chat alias (what the card shows
+ * everybody, so a hidden NPC name stays hidden), the actor's name only when there is no alias.
+ * Only the first roll counts (a dnd5e attack or save carries a single d20 roll).
+ */
+export function planStinger(
+  message: StingerMessage,
+  ctx: {
+    isTableUser: boolean;
+    mode: StingerMode;
+    rollType: string;
+    now: number;
+    lastAt: number | null;
+  }
+): { kind: StingerKind; who: string } | null {
+  if (!ctx.isTableUser) return null;
+  if ((Array.isArray(message.whisper) && message.whisper.length > 0) || message.blind === true) {
+    return null;
+  }
+  const kind = stingerFor(ctx.mode, ctx.rollType, message.rolls);
+  if (!kind || !cooldownOver(ctx.now, ctx.lastAt)) return null;
+  const alias = typeof message.alias === 'string' ? message.alias.trim() : '';
+  return { kind, who: alias || (message.speakerActor?.name ?? '') };
+}
+
 /** The big word and the small line under it. */
 export function stingerText(kind: StingerKind, who: string): { big: string; small: string } {
   const name = who.trim();

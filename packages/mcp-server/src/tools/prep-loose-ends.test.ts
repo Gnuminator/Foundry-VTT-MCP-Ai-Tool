@@ -86,6 +86,41 @@ describe('computeLooseEnds', () => {
     expect(result?.omitted.quests).toBe(2);
   });
 
+  it('counts an NPC only when it spoke, not a monster that took damage', () => {
+    const groups = [
+      session([
+        npc('m1', 'Zombie', { kind: 'hp' }),
+        npc('n1', 'Ismark'),
+        npc('f1', 'Fresh', { sceneId: 'fresh' }),
+      ]),
+      session([rec({ sceneId: 'fresh' })]),
+    ];
+    const result = computeLooseEnds({
+      groups,
+      openQuests: [],
+      scenes: [{ id: 'fresh', name: 'Fresh scene' }],
+    });
+    expect(result?.npcs.map(n => n.name)).toEqual(['Fresh', 'Ismark']);
+    expect(result?.scenes).toEqual([]);
+  });
+
+  it('matches a quest by id first; the name only helps events without an id', () => {
+    const groups = [
+      {
+        playRecords: [],
+        events: [{ eventType: 'journal-updated', details: { name: 'Old Bones' } }],
+      },
+      session([]),
+      session([], [{ id: 'other', name: 'Old Bones' }]),
+    ];
+    const result = computeLooseEnds({
+      groups,
+      openQuests: [{ journalId: 'q1', name: 'Old Bones', status: 'Active', open: true }],
+      scenes: [],
+    });
+    expect(result?.quests.map(q => q.label)).toEqual(['Old Bones: last seen session 1']);
+  });
+
   it('leaves the latest session alone: nothing is stale yet', () => {
     const groups = [session([npc('a1', 'Ismark')], [{ id: 'q1', name: 'Old Bones' }])];
     const result = computeLooseEnds({

@@ -74,11 +74,14 @@ export function computeLooseEnds(input: LooseEndsInput): PrepLooseEnds | null {
       const id = event.details?.journalId;
       if (typeof id === 'string' && id) questSeen.set(id, number);
       const name = event.details?.name;
-      if (typeof name === 'string' && name) questSeenByName.set(name, number);
+      if (typeof id !== 'string' && typeof name === 'string' && name) {
+        questSeenByName.set(name, number);
+      }
     }
     for (const record of group.playRecords) {
       if (record.sceneId) sceneSeen.set(record.sceneId, number);
-      if (record.actor?.isPC === false) {
+      // Only NPCs that spoke count as met: a monster fought once is not a loose end.
+      if (record.kind === 'chat' && record.actor?.isPC === false) {
         const uuid = baseActorUuid(record.actor.uuid);
         const entry = npcSessions.get(uuid) ?? { name: record.actor.name, sessions: new Set() };
         entry.name = record.actor.name || entry.name;
@@ -90,6 +93,7 @@ export function computeLooseEnds(input: LooseEndsInput): PrepLooseEnds | null {
 
   const quests: PrepLooseEnd[] = [];
   for (const quest of input.openQuests ?? []) {
+    // Match by journal id; the name only helps events that carry no id.
     const seen = questSeen.get(quest.journalId) ?? questSeenByName.get(quest.name) ?? null;
     const gap = seen === null ? latest : latest - seen;
     if (gap >= LOOSE_ENDS_STALE_AFTER) quests.push(describe(quest.name, seen, latest));

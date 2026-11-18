@@ -49,13 +49,19 @@ systemctl() {
     show)
       case "$*" in
         *InvocationID*) printf '%s\\n' "\${INVOCATION:-}" ;;
+        *MainPID*) printf '%s\\n' "\${MAIN_PID:-}" ;;
         *) printf '%s\\n' "\${SHOW_TS:-}" ;;
       esac ;;
   esac
   return 0
 }
-# JOURNAL is the log of the run with invocation id JOURNAL_ID; asking for any other run gives nothing.
-journalctl() { case "$*" in *"_SYSTEMD_INVOCATION_ID=\${JOURNAL_ID:-none}"*) printf '%s\\n' "\${JOURNAL:-}" ;; esac; }
+# JOURNAL is the log of the run with invocation id JOURNAL_ID (or main PID JOURNAL_PID); asking for any other run gives nothing.
+journalctl() {
+  case "$*" in
+    *"_SYSTEMD_INVOCATION_ID=\${JOURNAL_ID:-none}"*) printf '%s\\n' "\${JOURNAL:-}" ;;
+    *"_PID=\${JOURNAL_PID:-none} "*) printf '%s\\n' "\${JOURNAL:-}" ;;
+  esac
+}
 curl() { ${readable ? `echo '{"active":true,"users":${users}}'` : 'return 22'}; }
 NODE_DIR="${posix(process.execPath.replace(/[\\/]node(\.exe)?$/, ''))}/.."
 mkdir -p "$NODE_DIR/bin" 2>/dev/null || true
@@ -313,6 +319,29 @@ ${body}`,
     const r = quiet(1, { INVOCATION: 'run-2', JOURNAL_ID: 'run-1', JOURNAL: joinedLine });
     assert.notEqual(r.status, 0, r.out);
     assert.match(r.out, /1 player\(s\) are online/);
+  });
+
+  test('a run whose journal lines carry another invocation id than systemd reports is found by its main PID', () => {
+    // Seen on the Pi 2026-11-17: after a quick restart the unit said one id and its lines carried another.
+    const r = quiet(1, {
+      INVOCATION: 'run-2',
+      JOURNAL_ID: 'other-id',
+      MAIN_PID: '4242',
+      JOURNAL_PID: '4242',
+      JOURNAL: joinedLine,
+    });
+    assert.equal(r.status, 0, r.out);
+  });
+
+  test('a PID match does not count a line from another process', () => {
+    const r = quiet(1, {
+      INVOCATION: 'run-2',
+      JOURNAL_ID: 'other-id',
+      MAIN_PID: '4242',
+      JOURNAL_PID: '9999',
+      JOURNAL: joinedLine,
+    });
+    assert.notEqual(r.status, 0, r.out);
   });
 
   test('when the invocation id cannot be read the Assistant GM is not subtracted (errs towards refusing)', () => {

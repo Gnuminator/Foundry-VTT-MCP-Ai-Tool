@@ -350,12 +350,18 @@ require_no_recording() {
 # it must not be subtracted from the count of users online. Read-only. Anything that cannot be read (also a journal
 # that rotated the line out) counts as "not joined": the count then errs towards refusing.
 browser_joined() {
-  local unit="$1" id
+  local unit="$1" id pid
   systemctl is-active --quiet "$unit" || return 1
   id="$(systemctl show -p InvocationID --value "$unit" 2>/dev/null || true)"
   [ -n "$id" ] || return 1
   # grep -c reads everything: with pipefail, grep -q could stop early and make journalctl's SIGPIPE fail the pipeline.
-  [ "$(journalctl "_SYSTEMD_INVOCATION_ID=$id" --no-pager -o cat 2>/dev/null | grep -c '\[assistant-gm\] joined world' || true)" -gt 0 ]
+  [ "$(journalctl "_SYSTEMD_INVOCATION_ID=$id" --no-pager -o cat 2>/dev/null | grep -c '\[assistant-gm\] joined world' || true)" -gt 0 ] && return 0
+  # After a quick restart systemd can report an invocation id that the journal lines of the new run do not carry (seen on
+  # the Pi 2026-11-17: the unit said cf157491, its lines said f434a47f), so the id finds nothing and the Assistant GM is
+  # counted as a player. The main PID is also unique to the run, so a line logged by it counts too.
+  pid="$(systemctl show -p MainPID --value "$unit" 2>/dev/null || true)"
+  case "$pid" in '' | 0 | *[!0-9]*) return 1 ;; esac
+  [ "$(journalctl "_PID=$pid" -u "$unit" --no-pager -o cat 2>/dev/null | grep -c '\[assistant-gm\] joined world' || true)" -gt 0 ]
 }
 
 # gm_browsers_joined: prints how many of the two GM browsers (the Assistant GM, and the Kit GM of a kit session, which

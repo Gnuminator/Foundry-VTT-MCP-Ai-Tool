@@ -191,9 +191,10 @@ const FEATURE_COSTS = [
 ];
 
 const CASTING_GROUP = [
-  [/^1 bonus action/i, 'bonus'],
-  [/^1 reaction/i, 'reaction'],
-  [/^1 action/i, 'action'],
+  // dnd5e's label is "Action", "Bonus Action" or "Reaction" (older data may say "1 Action").
+  [/^(1 )?bonus action/i, 'bonus'],
+  [/^(1 )?reaction/i, 'reaction'],
+  [/^(1 )?action/i, 'action'],
 ];
 
 /** The shortest text that still says it: at most `max` characters, cut at a word. */

@@ -6,6 +6,7 @@
 import type { BridgeHandlerTable } from '../bridge-handlers.js';
 import { MODULE_ID } from '../constants.js';
 import { setCampaignPartStatus } from '../campaign-hooks.js';
+import { getScenePages } from '../data-access/scene-pages.js';
 import { ensureJournalFolder } from '../data-access/journal-folder.js';
 import { postHandoutNotice, showJournalPage } from '../data-access/journal-show.js';
 import {
@@ -26,6 +27,12 @@ export function registerJournalHandlers(ctx: QueryContext, table: BridgeHandlerT
   table.set(`${MODULE_ID}.listJournals`, 'read', () => listJournals(ctx));
   table.set(`${MODULE_ID}.getJournalContent`, 'read', withCtx(ctx, getJournalContent));
   table.set(`${MODULE_ID}.getJournalPageContent`, 'read', withCtx(ctx, getJournalPageContent));
+  // The pages a scene links (read-aloud shelf, I-167; GM-only, read-only)
+  table.set(`${MODULE_ID}.getScenePages`, 'read', (data: { sceneId?: unknown } | undefined) =>
+    ctx.withGmGate('Failed to get the scene pages', () =>
+      Promise.resolve(getScenePages(typeof data?.sceneId === 'string' ? data.sceneId : undefined))
+    )
+  );
   table.set(`${MODULE_ID}.updateJournalContent`, 'write', withCtx(ctx, updateJournalContent));
   table.set(`${MODULE_ID}.updateCampaignProgress`, 'write', withCtx(ctx, updateCampaignProgress));
 

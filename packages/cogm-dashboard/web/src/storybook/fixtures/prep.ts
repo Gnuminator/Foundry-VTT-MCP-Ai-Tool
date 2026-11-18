@@ -72,6 +72,16 @@ export const PREP = {
   preflight: { fail: 0, warn: 1, items: [{ severity: 'warn', title: 'Hidden tokens' }] },
   recentChanges: { count: 1, latest: [{ title: 'Moved a token', appliedAt: '' }] },
   tarokka: { hasReading: true },
+  looseEnds: {
+    sessions: 3,
+    staleAfter: 2,
+    quests: [{ name: 'Old Bones', lastSeenSession: 1, sessionsSince: 2, label: '' }],
+    npcs: [{ name: 'Ismark', lastSeenSession: 1, sessionsSince: 2, label: '' }],
+    scenes: [{ name: 'Cellar', lastSeenSession: 1, sessionsSince: 2, label: '' }],
+    neverVisitedScenes: 4,
+    omitted: { quests: 0, npcs: 0, scenes: 0 },
+    unavailable: [],
+  },
   warnings: [],
 };
 
@@ -87,6 +97,7 @@ export const PREP_FRESH = {
   preflight: { fail: 0, warn: 0, items: [] },
   recentChanges: { count: 0, latest: [] },
   tarokka: { hasReading: false },
+  looseEnds: null,
 };
 
 /** Warnings, a failed pre-flight, and names that run long. */

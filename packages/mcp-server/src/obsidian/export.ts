@@ -42,8 +42,20 @@ import { mergeChangeHistory } from './audit-merge.js';
 import { changeNoteNames, changeNoteParts } from './change-note-parts.js';
 import { isUntouchedLegacyHome } from './campaign-home-legacy.js';
 import { groupWithPlayRecords, type SessionEvent } from './grouping.js';
-import { campaignDir, NoteWriter } from './note-writer.js';
-import { baseOwnershipCheck, checkCanvasOwnership, checkMarkdownOwnership } from './ownership.js';
+import { campaignDir, errorMessage, NoteWriter } from './note-writer.js';
+import {
+  checkAtlasOwnership,
+  isAtlasGeneratedId,
+  mergeCanvas,
+  SPREAD_CARD_IDS,
+  PLACES_CANVAS_PATH,
+  QUESTS_CANVAS_PATH,
+  readExisting,
+  renderPlacesCanvas,
+  renderQuestsCanvas,
+} from './atlas.js';
+import { scanCampaign } from './mirror-scan.js';
+import { baseOwnershipCheck, checkMarkdownOwnership } from './ownership.js';
 import { createPrepTemplates } from './prep-templates.js';
 import { renderUsageNote, USAGE_NOTE_PATH } from './render-usage.js';
 import { buildSeenIndex, SEEN_INDEX_FILE, type SeenIndex } from './seen-in.js';
@@ -377,11 +389,56 @@ export async function exportWorldToObsidian(options: {
         checkMarkdownOwnership
       );
     }
+    const spreadPath = 'AI Tool/Tarokka/Spread.canvas';
     await writer.owned(
-      'AI Tool/Tarokka/Spread.canvas',
-      renderSpreadCanvas(reading, config?.cardNames ?? {}),
-      checkCanvasOwnership
+      spreadPath,
+      mergeCanvas(
+        renderSpreadCanvas(reading, config?.cardNames ?? {}),
+        await readExisting(root, spreadPath).catch(() => null),
+        id => SPREAD_CARD_IDS.has(id)
+      ),
+      checkAtlasOwnership
     );
+  }
+
+  // Campaign Atlas (I-185): quest web and place map from the mirror notes, once the mirror has
+  // written some. GM vault only.
+  if (await writer.exists('AI Tool/Foundry')) {
+    try {
+      const targets: Array<[string, string | null, typeof renderQuestsCanvas]> = [];
+      for (const [relPath, render] of [
+        [QUESTS_CANVAS_PATH, renderQuestsCanvas],
+        [PLACES_CANVAS_PATH, renderPlacesCanvas],
+      ] as const) {
+        const existing = await readExisting(root, relPath);
+        // A canvas the GM took over (marker card deleted) needs no scan.
+        if (existing !== null && !checkAtlasOwnership(existing).owned) {
+          await writer.owned(relPath, existing, checkAtlasOwnership);
+          continue;
+        }
+        targets.push([relPath, existing, render]);
+      }
+      if (targets.length > 0) {
+        const scan = await scanCampaign(options.vaultDir, worldId);
+        // An incomplete scan would drop cards (and their saved positions): leave the canvases as they are.
+        if (scan.errors.length > 0 || scan.limitsHit.length > 0) {
+          writer.errors.push({
+            path: 'AI Tool/Atlas',
+            error: 'the mirror scan was incomplete; the canvases were left as they are',
+          });
+        } else {
+          for (const [relPath, existing, render] of targets) {
+            await writer.owned(
+              relPath,
+              mergeCanvas(await render(worldId, root, scan), existing, isAtlasGeneratedId, true),
+              checkAtlasOwnership
+            );
+          }
+        }
+      }
+    } catch (error) {
+      writer.errors.push({ path: 'AI Tool/Atlas', error: errorMessage(error) });
+    }
   }
 
   // Usage log (I-084): GM vault only, written only once the world has usage events.

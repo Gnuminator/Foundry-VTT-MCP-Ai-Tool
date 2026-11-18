@@ -32,6 +32,7 @@ test('the menu lists the panels and tools in their set order', async ({ page }) 
     '📜 Handouts',
     '🃏 Tarokka',
     '📝 After a paper night',
+    '📖 Read-aloud',
     '🧛 2024 twin of a monster',
     '▦ Try the During layouts',
     '🛠 Tool Runner',

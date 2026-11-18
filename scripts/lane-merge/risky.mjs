@@ -24,7 +24,7 @@ export const RISKY_CATEGORIES = [
       'packages/mcp-server/src/change-journal-pump*',
       'shared/src/guarded-write*',
       'shared/src/change-journal*',
-      'shared/src/macro-source*',
+      'shared/src/macro-*',
     ],
   },
   {

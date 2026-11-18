@@ -2,15 +2,18 @@ import { describe, expect, it } from 'vitest';
 import { assertMacroCreateData, scanMacroSource, summarizeMacroEffects } from './macro-source.js';
 
 const good = `
-const actor = canvas.tokens.controlled[0]?.actor;
-if (!actor) return ui.notifications.warn('Select a token');
-const roll = await new Roll('1d20 + @abilities.str.mod', actor.getRollData()).evaluate();
-await ChatMessage.create({ content: \`\${actor.name} rolls \${roll.total}\`, speaker: ChatMessage.getSpeaker({ actor }) });
+const target = canvas.tokens.controlled[0]?.actor;
+if (!target) return ui.notifications.warn('Select a token');
+const roll = await new Roll('1d20 + @abilities.str.mod', target.getRollData()).evaluate();
+await ChatMessage.create({ content: \`<p>\${target.name} rolls <strong>\${roll.total}</strong></p>\`, speaker: ChatMessage.getSpeaker({ actor: target }) });
 const scores = [10, 12, 14];
 const first = scores[0];
-const key = 'str';
-const mod = actor.system.abilities[key].mod + actor.system.abilities["dex"].mod;
+let total = 0;
+for (let i = 0; i < scores.length; i++) total += scores[i];
+const last = scores[scores.length - 1];
+const mod = target.system.abilities['str'].mod + target.system.abilities["dex"].mod;
 const owner = item.parent;
+const named = Object.entries(target.system.abilities).map(([k, v]) => k + v.value);
 `;
 
 describe('scanMacroSource', () => {
@@ -32,7 +35,6 @@ describe('scanMacroSource', () => {
     ['Function', 'new Function("return 1")()'],
     ['constructor', '[].constructor.constructor("return 1")()'],
     ['this', 'return this'],
-    ['function', '(function(){ return 1 })()'],
     ['import', 'await import("x")'],
     ['FilePicker', 'FilePicker.browse("data", "worlds")'],
     ['socket', 'game.socket.emit("a", 1)'],
@@ -45,7 +47,51 @@ describe('scanMacroSource', () => {
     ['concat key', 'game["fe" + "tch"]'],
     ['call key', 'obj[getKey()]'],
     ['empty', '   '],
+    ['syntax error', 'const = ;'],
+    ['breaking out of the wrapper', '}); fetch(u); (() => {'],
+    ['class', 'class A {}'],
+    ['with', 'with (game) { }'],
+    ['tagged template', 'String.raw`a`'],
   ])('refuses %s', (_label, source) => {
+    expect(scanMacroSource(source).length).toBeGreaterThan(0);
+  });
+
+  it.each([
+    // The review of the first version (PR 1165): each of these got through the word scan.
+    ['Foundry fetch helper', 'await foundry.utils.fetchWithTimeout(u)'],
+    ['Foundry fetch helper through a local alias', 'const f = game.foo.fetchJsonWithTimeout; f(u)'],
+    ['texture loader', 'await game.foo.loadTexture(u)'],
+    ['audio helper', 'game.foo.AudioHelper.play({ src: u })'],
+    ['split URL', "const u = 'ht' + 'tps://evil.example/?d=' + JSON.stringify(game.actors)"],
+    ['split URL, three parts', "const u = 'ht' + 'tp:' + '//evil.example'"],
+    ['split markup', "const h = '<im' + 'g src=x>'"],
+    ['markup with an attribute', "ChatMessage.create({ content: '<p onclick=x>hi</p>' })"],
+    [
+      'runtime member name',
+      "const k = 'constr' + 'uctor'; const F = (() => 0)[k]; F('return 1')()",
+    ],
+    ['runtime member name on game', "const k = 'soc' + 'ket'; game[k].emit('a', 1)"],
+    ['nested index', 'x[ks[0]]'],
+    ['unicode escape in a name', '\\u0066etch(u)'],
+    ['unicode escape in a member', 'a.\\u0063onstructor'],
+    ['unicode escape in a string', "const u = 'ht\\u0074ps://evil.example'"],
+    ['hex escape for a slash', "const u = 'ht' + 'tp:' + '\\x2f\\x2fevil.example'"],
+    ['destructured constructor', 'const { constructor: C } = () => 0; C("return 1")'],
+    ['text from char codes', 'const c = String.fromCharCode(60)'],
+    ['text rewritten at run time', "const h = '<~img src=x>'.replace('~', '')"],
+    ['picture field set to an address', 'await actor.update({ img: u })'],
+    ['dotted picture field', "await actor.update({ 'prototypeToken.texture.src': u })"],
+    ['creating another macro', 'await Macro.create({ name: "x", type: "script", command: "1" })'],
+    ['running another macro', 'game.foo.macros.getName("x").execute()'],
+    ['a name that is not in the API', 'Hooks.on("updateActor", () => {})'],
+    ['a shadowed global used outside its scope', '(open => 1)(); open("x")'],
+    ['an inner declaration used outside', 'function f() { var open = 1 } open("x")'],
+    ['arguments', 'return arguments.callee'],
+    [
+      'a counter that is reassigned',
+      "for (let i = 0; i < 2; i++) { i = 'constr' + 'uctor'; a[i] }",
+    ],
+  ])('refuses the bypass: %s', (_label, source) => {
     expect(scanMacroSource(source).length).toBeGreaterThan(0);
   });
 
@@ -55,7 +101,17 @@ describe('scanMacroSource', () => {
 
   it('does not trip on words that only contain a banned one', () => {
     expect(
-      scanMacroSource('const selfish = topple + parentage + importance; item.parent.name;')
+      scanMacroSource(
+        'const selfish = 1; const topple = 2; const importance = selfish + topple; item.parent.name;'
+      )
+    ).toEqual([]);
+  });
+
+  it('accepts local functions and names that are declared in the macro', () => {
+    expect(
+      scanMacroSource(
+        'const fetchName = (a) => a.name; function open2(x) { return x }; const open = 3; open + fetchName({ name: 1 })'
+      )
     ).toEqual([]);
   });
 });
@@ -102,6 +158,17 @@ describe('assertMacroCreateData', () => {
     expect(() => assertMacroCreateData('change-undo', { ...data, command: 'fetch(u)' })).toThrow(
       /not allowed/
     );
+  });
+  it('lets a redo of a forge macro through: undo mode keeps the creating GM as owner', () => {
+    const redo = { ...data, ownership: { default: 0, gm1: 3 } };
+    expect(() => assertMacroCreateData('macro-forge', redo, 'undo')).not.toThrow();
+    expect(() => assertMacroCreateData('macro-forge', redo, 'apply')).toThrow(/GM only/);
+    expect(() =>
+      assertMacroCreateData('macro-forge', { ...redo, ownership: { default: 2 } }, 'undo')
+    ).toThrow(/GM only/);
+    expect(() =>
+      assertMacroCreateData('macro-forge', { ...redo, command: 'fetch(u)' }, 'undo')
+    ).toThrow(/not allowed/);
   });
   it('refuses dotted and operator keys', () => {
     expect(() => assertMacroCreateData('macro-forge', { ...data, 'flags.x': 1 })).toThrow(

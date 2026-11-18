@@ -773,7 +773,7 @@ async function executeCreate(
 ): Promise<GuardedOpResult> {
   if (op.documentName === 'Setting') throw new Error(SETTING_DOCUMENT_REFUSAL);
   if (op.documentName === 'User') assertUserCreateAllowed(req.feature, op.data);
-  if (op.documentName === 'Macro') assertMacroCreateData(req.feature, op.data);
+  if (op.documentName === 'Macro') assertMacroCreateData(req.feature, op.data, req.mode);
   const data = foundry.utils.deepClone(op.data);
   if (req.mode === 'apply' && isRulesTagged(op.documentName)) {
     const tag = rulesTagForCreate(data, req.rulesVersion);

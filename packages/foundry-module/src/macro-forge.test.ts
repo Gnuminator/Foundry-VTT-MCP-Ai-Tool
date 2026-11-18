@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { assertMacroUpdateAllowed } from './macro-forge.js';
 
 describe('assertMacroUpdateAllowed', () => {
+  // The create rules (source scan, GM only, redo in undo mode) are tested in shared/src/macro-source.test.ts.
   it('refuses a plan that changes the script, type, owners or flags', () => {
     for (const path of [
       'command',

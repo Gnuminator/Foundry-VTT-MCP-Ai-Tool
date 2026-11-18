@@ -5,8 +5,14 @@ import { makeTools } from '../test-support/make-tool-harness.js';
 import { MacroForgeTools } from './macro-forge.js';
 
 function setup(): { tools: MacroForgeTools; createPlan: Mock } {
+  // Like the real service: a plan view carries the summary and the diff, never the ops. The notes
+  // become diff lines of kind `note`.
   const createPlan = vi.fn((input: any) =>
-    Promise.resolve({ planId: 'plan-1', ...input, diff: [] })
+    Promise.resolve({
+      planId: 'plan-1',
+      summary: input.summary,
+      diff: (input.notes ?? []).map((text: string) => ({ kind: 'note', text })),
+    })
   );
   const { tools } = makeTools(MacroForgeTools, { extra: { guardedWrites: { createPlan } } });
   return { tools, createPlan };
@@ -29,6 +35,10 @@ describe('MacroForgeTools', () => {
     const { tools, createPlan } = setup();
     const plan: any = await tools.handleToolCall('plan-macro', args);
     expect(plan.autoApply).toBe(false);
+    // The GM reads the source in the plan: it must be in the view, in full.
+    expect(plan.diff.some((d: any) => d.kind === 'note' && d.text.includes(args.source))).toBe(
+      true
+    );
     const input = createPlan.mock.calls[0]?.[0];
     expect(input.feature).toBe('macro-forge');
     expect(input.summary).toContain('rolls dice or posts a chat message');

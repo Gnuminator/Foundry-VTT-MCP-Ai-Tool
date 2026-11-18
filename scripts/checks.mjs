@@ -255,7 +255,7 @@ export const CHECKS = [
   { name: 'wiki-scripts', group: 'scripts', cmd: 'npm', args: ['run', 'wiki:test'], env: CI },
   nodeTest('dnd-helper-test', 'tools', 'tools/dnd-helper/build.test.mjs'),
   nodeTest('backstory-buddy-test', 'tools', 'tools/backstory-buddy/build.test.mjs'),
-  nodeTest('skill-stubs-test','tools', 'tools/dnd-helper/stub.test.mjs'),
+  nodeTest('skill-stubs-test', 'tools', 'tools/dnd-helper/stub.test.mjs'),
   nodeTest('sync-skill-plugins-test', 'scripts', 'scripts/sync-skill-plugins.test.mjs'),
   nodeTest('player-connector-test', 'tools', 'tools/player-connector/build.test.mjs'),
   {

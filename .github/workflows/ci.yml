@@ -83,6 +83,13 @@ jobs:
           path: tools/gm-coach/dist/foundry-gm-coach.zip
           retention-days: 30
 
+      - name: Keep the prep ritual zip
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: foundry-prep-ritual
+          path: tools/prep-ritual/dist/foundry-prep-ritual.zip
+          retention-days: 30
+
       - name: Build and dashboard bundle budget
         run: node scripts/checks.mjs --run build
 

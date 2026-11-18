@@ -106,7 +106,7 @@ while players are online.
      `module=<id>|<old or NONE>|<new>` line each) before the first move, stops the Assistant GM browser and Foundry,
      moves each old folder to `prev-<time>-modules/<id>`, moves the unpacked one in (owned by the foundry user), starts
      Foundry and the browser, and **reads back**: the world answers, the browser has joined the world in its current run
-     (`browser_joined` in `lib.sh`, matched on the systemd invocation id, so a line from before the restart does not
+     (`browser_joined` in `lib.sh`, matched on the systemd invocation id or the main PID of this boot, so a line from before the restart does not
      count), every `module.json` shows the pinned version and the foundry user as owner, and the journal since the
      start has no module error line (a warning). Foundry has to be running with a world before the run starts.
      Every line of a real run or UNDO also goes to `/var/lib/foundry-import/modules-stage.log`.

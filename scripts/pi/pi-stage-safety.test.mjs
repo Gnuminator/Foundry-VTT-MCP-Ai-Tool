@@ -59,7 +59,7 @@ systemctl() {
 journalctl() {
   case "$*" in
     *"_SYSTEMD_INVOCATION_ID=\${JOURNAL_ID:-none}"*) printf '%s\\n' "\${JOURNAL:-}" ;;
-    *"_PID=\${JOURNAL_PID:-none} "*) printf '%s\\n' "\${JOURNAL:-}" ;;
+    "-b "*"_PID=\${JOURNAL_PID:-none} "*) printf '%s\\n' "\${JOURNAL:-}" ;;
   esac
 }
 curl() { ${readable ? `echo '{"active":true,"users":${users}}'` : 'return 22'}; }
@@ -1008,7 +1008,7 @@ case "$1" in
   start) touch "$LOG.started"; [ "\${RESTART_FAILS:-0}" = 1 ] || rm -f "$LOG.down" ;;
   is-active) [ "\${@: -1}" = foundry.service ] && [ -f "$LOG.down" ] && exit 1
     case " $ACTIVE " in *" \${@: -1} "*) exit 0 ;; esac; exit 1 ;;
-  show) case "$*" in *InvocationID*) echo "\${INVOCATION:-}" ;; *) echo "\${SHOW_TS:-}" ;; esac ;;
+  show) case "$*" in *InvocationID*) echo "\${INVOCATION:-}" ;; *MainPID*) echo "\${MAIN_PID:-}" ;; *) echo "\${SHOW_TS:-}" ;; esac ;;
 esac
 exit 0`
     );
@@ -1105,7 +1105,7 @@ exit 0`
     // JOURNAL is the log of the run with invocation id JOURNAL_ID; any other run has nothing.
     tool(
       'journalctl',
-      'case "$*" in *"_SYSTEMD_INVOCATION_ID=${JOURNAL_ID:-none}"*) printf "%s\\n" "${JOURNAL:-}" ;; esac'
+      'case "$*" in *"_SYSTEMD_INVOCATION_ID=${JOURNAL_ID:-none}"*) printf "%s\\n" "${JOURNAL:-}" ;; "-b "*"_PID=${JOURNAL_PID:-none} "*) printf "%s\\n" "${JOURNAL:-}" ;; esac'
     );
     const script = join(d, 'foundry-backup.sh');
     writeFileSync(script, body, { mode: 0o755 });
@@ -1554,7 +1554,31 @@ exit 0`
         },
       });
       assert.notEqual(earlier.status, 0, earlier.out);
+      // The invocation id the journal carries differs from systemd's (seen 2026-11-17): the main PID finds the join.
+      const byPid = nightly({
+        users: [1],
+        active,
+        env: {
+          INVOCATION: 'run-2',
+          JOURNAL_ID: 'other-id',
+          MAIN_PID: '4242',
+          JOURNAL_PID: '4242',
+          JOURNAL: joinedLine,
+        },
+      });
+      assert.equal(byPid.status, 0, byPid.out);
+      assert.equal(byPid.sleeps, 0, unit);
     }
+  });
+
+  test('browser_joined is the same in lib.sh and the nightly backup script, and the PID lookup is scoped to this boot', () => {
+    const body = rel => /browser_joined\(\) \{\n[\s\S]*?\n\}\n/.exec(read(rel))?.[0];
+    assert.ok(body('scripts/pi/remote/lib.sh'));
+    assert.equal(body('scripts/pi/remote/6-backup.sh'), body('scripts/pi/remote/lib.sh'));
+    assert.match(
+      body('scripts/pi/remote/lib.sh'),
+      /journalctl -b "_PID=\$pid" "_SYSTEMD_UNIT=\$unit"/
+    );
   });
 
   test('the service allows for the waiting, and the stage runs the first backup without it under FORCE=1', () => {

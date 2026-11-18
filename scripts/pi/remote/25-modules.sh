@@ -83,7 +83,7 @@ world_up() { # the join page of a running world; curl's output is captured first
 }
 GM_UNIT=foundry-ai-tool-gm-browser.service
 # wait_back_up: after Foundry was started, wait for its world and (when it ran before) the Assistant GM browser to join it
-# in its current run (lib.sh browser_joined: the systemd invocation id, so a line from before the restart does not count).
+# in its current run (lib.sh browser_joined: the systemd invocation id or main PID of this boot, so a line from before the restart does not count).
 # Returns 1 when the world did not come back, 2 when the browser did not join.
 wait_back_up() {
   local _

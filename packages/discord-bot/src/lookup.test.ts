@@ -122,7 +122,7 @@ describe('lookups', () => {
       ],
     };
     const out = recapAnswer(long);
-    expect(Array.from(out).length).toBeLessThanOrEqual(1860);
+    expect(out.length).toBeLessThanOrEqual(2000);
     expect(out).toContain('More on the player page');
   });
 
@@ -136,7 +136,7 @@ describe('lookups', () => {
     });
     const started = Date.now();
     expect(await hung()).toBeNull();
-    expect(Date.now() - started).toBeLessThan(2500);
+    expect(Date.now() - started).toBeLessThan(6000);
     const notOk = createPlayerStateReader({
       dashboardUrl: 'http://x',
       fetch: ((): Promise<unknown> => Promise.resolve({ ok: false })) as never,

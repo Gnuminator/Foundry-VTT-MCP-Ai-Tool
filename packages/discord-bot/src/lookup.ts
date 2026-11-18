@@ -97,13 +97,14 @@ function norm(s: string): string {
 }
 
 function clip(text: string): string {
-  const chars = Array.from(text);
-  return chars.length <= MAX_ANSWER
-    ? text
-    : `${chars
-        .slice(0, MAX_ANSWER - 60)
-        .join('')
-        .trimEnd()}…\n${CLIPPED}`;
+  // Counted in UTF-16 units (JS length), the safe reading of Discord's limit; cut on whole characters.
+  if (text.length <= MAX_ANSWER) return text;
+  let kept = '';
+  for (const ch of text) {
+    if (kept.length + ch.length > MAX_ANSWER - 60) break;
+    kept += ch;
+  }
+  return `${kept.trimEnd()}…\n${CLIPPED}`;
 }
 
 function answer(h: LookupHandout): string {

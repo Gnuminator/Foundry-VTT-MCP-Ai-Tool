@@ -143,7 +143,7 @@ export const DASHBOARD_CONTROLS = [
   ].map(name => ({
     name,
     how: 'skip',
-    why: 'only on the live strip page (/next?strip=1); the e2e spec and the live check cover it',
+    why: 'only on the live strip page (/next?strip=1); the e2e specs or the live check cover it',
   })),
   ...[
     'dash.changes.ai-only',

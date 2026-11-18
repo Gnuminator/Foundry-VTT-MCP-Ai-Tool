@@ -15,9 +15,10 @@ import {
   NO_TARGET_NOTE,
   actionsOf,
   activityArgs,
-  applyArgs,
-  applyQuestion,
+  appliedLine,
+  applyParts,
   damageParts,
+  landed,
   readActivity,
   resultLine,
 } from '../lib/monster-actions';
@@ -104,21 +105,10 @@ export function MonsterActions({
           setLine(l => `${l}. Damage not applied: ${damageOff}.`);
           return;
         }
-        for (const part of parts) {
-          const done = await plan('plan-actor-change', applyArgs(target.tokenId, part), {
-            confirmLine: {
-              title: 'Apply damage',
-              question: applyQuestion(target.name, part),
-              confirmLabel: 'Apply damage',
-            },
-            // The module's "apply without confirming" switch for live play skips the question.
-            skipConfirmWhenAutoApply: true,
-            label: 'Apply damage',
-          });
-          if (done.status !== 'done') {
-            setLine(l => `${l}. Damage not applied.`);
-            return;
-          }
+        const { applied, last } = await applyParts(plan, target, parts, landed(result));
+        if (last && last.status !== 'done') {
+          const may = last.status === 'failed' && last.mayHaveApplied === true;
+          setLine(l => `${l}. ${appliedLine(parts, applied, may)}`);
         }
       } catch (e) {
         setLine(`✗ ${errorText(e)}`);

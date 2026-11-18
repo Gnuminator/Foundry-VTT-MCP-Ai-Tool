@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
+import type { GuardedOutcome, GuardedTools } from './guarded';
 import {
   actionsOf,
   activityArgs,
-  applyArgs,
-  applyQuestion,
+  appliedLine,
+  applyParts,
   damageParts,
+  landed,
   readActivity,
   resultLine,
 } from './monster-actions';
@@ -57,9 +59,14 @@ describe('readActivity and resultLine', () => {
   it('asks to check the card when the verdict is unknown', () => {
     expect(resultLine('G', 'Bow', readActivity({}))).toContain('check the chat card');
   });
+  it('counts a critical as a hit even when the total is under the AC', () => {
+    const nat20 = readActivity({ attackTotal: 14, targetAC: 15, hit: false, isCritical: true });
+    expect(landed(nat20)).toBe(true);
+    expect(resultLine('G', 'Bow', nat20)).toContain(': hit, critical');
+  });
 });
 
-describe('damageParts and applyArgs', () => {
+describe('damageParts', () => {
   it('splits by type, else one untyped part', () => {
     const typed = readActivity({
       hit: true,
@@ -70,19 +77,81 @@ describe('damageParts and applyArgs', () => {
       ],
     });
     expect(damageParts(typed)).toHaveLength(2);
-    const plain = readActivity({ hit: null, damageTotal: 4 });
-    expect(damageParts(plain)).toEqual([{ type: null, total: 4 }]);
+    expect(damageParts(readActivity({ hit: true, damageTotal: 4 }))).toEqual([
+      { type: null, total: 4 },
+    ]);
   });
-  it('builds plan-actor-change arguments', () => {
-    expect(applyArgs('t', { type: 'fire', total: 3 })).toEqual({
+  it('lists damage on an unknown verdict (applied behind the confirm only), none on a miss', () => {
+    const unknown = readActivity({ hit: null, damageTotal: 4 });
+    expect(damageParts(unknown)).toEqual([{ type: null, total: 4 }]);
+    expect(landed(unknown)).toBe(false);
+    expect(damageParts(readActivity({ hit: false, damageTotal: 4 }))).toEqual([]);
+  });
+  it('lists the damage of a critical that read as a miss', () => {
+    const nat20 = readActivity({ hit: false, isCritical: true, damageTotal: 8 });
+    expect(damageParts(nat20)).toEqual([{ type: null, total: 8 }]);
+  });
+});
+
+describe('applyParts and appliedLine', () => {
+  const parts = [
+    { type: 'piercing', total: 7 },
+    { type: 'poison', total: 5 },
+  ];
+  const target = { tokenId: 'tok', name: 'Ilvara' };
+  const fake = (outcomes: GuardedOutcome[]): { plan: GuardedTools['plan']; calls: unknown[][] } => {
+    const calls: unknown[][] = [];
+    const plan: GuardedTools['plan'] = (tool, args, options) => {
+      calls.push([tool, args, options]);
+      return Promise.resolve(outcomes[calls.length - 1] ?? { status: 'done', result: null });
+    };
+    return { plan, calls };
+  };
+  it('asks once for all parts, then applies the rest at once', async () => {
+    const { plan, calls } = fake([]);
+    const out = await applyParts(plan, target, parts, true);
+    expect(out.applied).toBe(2);
+    const first = calls[0]?.[2] as {
+      confirmLine?: { question: string };
+      skipConfirmWhenAutoApply?: boolean;
+    };
+    expect(first.confirmLine?.question).toBe('Deal 7 piercing and 5 poison damage to Ilvara?');
+    expect(first.skipConfirmWhenAutoApply).toBe(true);
+    expect(calls[0]?.[1]).toEqual({
       action: 'damage',
-      targets: ['t'],
-      amount: 3,
-      damageType: 'fire',
+      targets: ['tok'],
+      amount: 7,
+      damageType: 'piercing',
     });
-    expect(applyArgs('t', { type: null, total: 3 })).not.toHaveProperty('damageType');
-    expect(applyQuestion('Ilvara', { type: 'fire', total: 3 })).toBe(
-      'Deal 3 fire damage to Ilvara?'
+    expect(calls[1]?.[2]).toEqual({ label: 'Apply damage' });
+  });
+  it('never skips the question when the verdict is unknown', async () => {
+    const { plan, calls } = fake([]);
+    await applyParts(plan, target, [{ type: null, total: 4 }], false);
+    const first = calls[0]?.[2] as { skipConfirmWhenAutoApply?: boolean };
+    expect(first.skipConfirmWhenAutoApply).toBe(false);
+    expect(calls[0]?.[1]).not.toHaveProperty('damageType');
+  });
+  it('stops at the first part when the GM cancels: nothing applied', async () => {
+    const { plan, calls } = fake([{ status: 'cancelled' }]);
+    const out = await applyParts(plan, target, parts, false);
+    expect(out.applied).toBe(0);
+    expect(calls).toHaveLength(1);
+    expect(appliedLine(parts, out.applied, false)).toBe(
+      'Damage not applied: 7 piercing and 5 poison not applied'
     );
+  });
+  it('says what went in when a later part fails', async () => {
+    const { plan } = fake([
+      { status: 'done', result: null },
+      { status: 'failed', error: 'x' },
+    ]);
+    const out = await applyParts(plan, target, parts, false);
+    expect(out.applied).toBe(1);
+    expect(appliedLine(parts, 1, false)).toBe('7 piercing applied; 5 poison not applied');
+    expect(appliedLine(parts, 1, true)).toBe(
+      '7 piercing applied; 5 poison may have applied (check Recent Changes)'
+    );
+    expect(appliedLine(parts, 2, false)).toBe('');
   });
 });

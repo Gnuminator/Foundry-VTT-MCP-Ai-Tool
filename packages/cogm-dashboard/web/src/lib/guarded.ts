@@ -221,6 +221,24 @@ export interface GuardedTools {
   ) => Promise<GuardedOutcome>;
 }
 
+/**
+ * Whether a plan asks in the confirm window before it applies: anything but an ordinary write, a
+ * caller that always asks, or a confirm line, except a write plan the module says it may apply
+ * without confirming (`autoApply`) for a caller that opted in. Exported for its unit test.
+ */
+export function needsConfirm(
+  planned: Pick<Plan, 'risk' | 'autoApply'>,
+  options: Pick<GuardedOptions, 'alwaysConfirm' | 'confirmLine' | 'skipConfirmWhenAutoApply'>
+): boolean {
+  const autoApplied =
+    options.skipConfirmWhenAutoApply === true &&
+    planned.risk === 'write' &&
+    planned.autoApply === true &&
+    !options.alwaysConfirm;
+  if (autoApplied) return false;
+  return planned.risk !== 'write' || !!options.alwaysConfirm || !!options.confirmLine;
+}
+
 const REFUSED: GuardedOutcome = { status: 'refused' };
 const CANCELLED: GuardedOutcome = { status: 'cancelled' };
 
@@ -518,15 +536,7 @@ export function useGuardedTools(): GuardedTools {
       }
       // The click is the confirmation for an ordinary write; anything else asks first.
       let flags: ToolConfirm = { confirm: true };
-      const autoApplied =
-        options.skipConfirmWhenAutoApply === true &&
-        planned.risk === 'write' &&
-        planned.autoApply === true &&
-        !options.alwaysConfirm;
-      if (
-        !autoApplied &&
-        (planned.risk !== 'write' || options.alwaysConfirm || options.confirmLine)
-      ) {
+      if (needsConfirm(planned, options)) {
         const asked = await confirmPlan(planned, planned.planId, startedFrom, options.confirmLine);
         if ('outcome' in asked) return asked.outcome;
         flags = asked.flags;

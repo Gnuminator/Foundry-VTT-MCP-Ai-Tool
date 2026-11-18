@@ -2,6 +2,7 @@
 // on the live strip, read from the actor. The words and the tool arguments live here; nothing here
 // sends. The component is components/MonsterActions.tsx.
 import { weaponsOf, type Weapon } from './attack-form';
+import type { GuardedOutcome, GuardedTools } from './guarded';
 
 /** Most buttons shown for one creature. */
 const MAX_ACTIONS = 4;
@@ -58,27 +59,87 @@ export function resultLine(attacker: string, fallbackItem: string, a: ActivityRe
   const roll = a.attackTotal === null ? 'rolled' : `${a.attackTotal}`;
   const ac = a.targetAC === null ? '' : ` vs AC ${a.targetAC}`;
   const at = a.targetName ? ` at ${a.targetName}` : '';
-  const verdict = a.hit === null ? 'check the chat card' : a.hit ? 'hit' : 'miss';
-  const crit = a.isCritical && a.hit !== false ? ', critical' : '';
+  const verdict = landed(a) ? 'hit' : a.hit === null ? 'check the chat card' : 'miss';
+  const crit = a.isCritical ? ', critical' : '';
   const dmg =
-    a.hit !== false && a.damageTotal !== null && a.damageTotal > 0
+    (landed(a) || a.hit === null) && a.damageTotal !== null && a.damageTotal > 0
       ? `, ${a.damageTotal} damage`
       : '';
   return `${attacker}, ${item}: ${roll}${ac}${at}: ${verdict}${crit}${dmg}`;
 }
 
-/** The damage a hit deals, one entry per type (untyped when the roll named none); none on a miss. */
-export function damageParts(a: ActivityResult): Array<{ type: string | null; total: number }> {
-  if (a.hit === false) return [];
+/** The attack is known to have landed: a hit, or a critical (a natural 20 hits whatever the AC). */
+export function landed(a: ActivityResult): boolean {
+  return a.hit === true || a.isCritical;
+}
+
+interface DamagePart {
+  type: string | null;
+  total: number;
+}
+
+/**
+ * The damage the roll made, one entry per type (untyped when the roll named none); none on a known
+ * miss. With an unknown verdict (`hit` null, no critical) the damage is still listed so the GM can
+ * apply it behind the confirm; the caller never skips that confirm then.
+ */
+export function damageParts(a: ActivityResult): DamagePart[] {
+  if (!landed(a) && a.hit === false) return [];
   if (a.damageByType.length > 0) return a.damageByType;
   return a.damageTotal !== null && a.damageTotal > 0 ? [{ type: null, total: a.damageTotal }] : [];
 }
 
+/**
+ * Puts the damage on the target, one plan per damage type. The first plan asks once for all parts
+ * ("Deal 7 piercing and 5 poison damage to X?"; a cancel there changes nothing); the next ones
+ * apply at once, that question covering them. `canSkip` lets the module's "apply without
+ * confirming" switch skip the question, and is false while the verdict is unknown.
+ */
+export async function applyParts(
+  plan: GuardedTools['plan'],
+  target: { tokenId: string; name: string },
+  parts: DamagePart[],
+  canSkip: boolean
+): Promise<{ applied: number; last: GuardedOutcome | null }> {
+  let applied = 0;
+  let last: GuardedOutcome | null = null;
+  for (const part of parts) {
+    last = await plan(
+      'plan-actor-change',
+      applyArgs(target.tokenId, part),
+      applied === 0
+        ? {
+            confirmLine: {
+              title: 'Apply damage',
+              question: applyQuestion(target.name, parts),
+              confirmLabel: 'Apply damage',
+            },
+            // The module's "apply without confirming" switch for live play skips the question.
+            skipConfirmWhenAutoApply: canSkip,
+            label: 'Apply damage',
+          }
+        : { label: 'Apply damage' }
+    );
+    if (last.status !== 'done') break;
+    applied += 1;
+  }
+  return { applied, last };
+}
+
+/** What went in, said from the parts that applied: "7 piercing applied; 5 poison not applied". */
+export function appliedLine(parts: DamagePart[], applied: number, mayHaveApplied: boolean): string {
+  const word = (p: DamagePart): string => `${p.total}${p.type ? ` ${p.type}` : ''}`;
+  const done = parts.slice(0, applied).map(word);
+  const rest = parts.slice(applied).map(word);
+  if (rest.length === 0) return '';
+  const left = mayHaveApplied
+    ? `${rest.join(' and ')} may have applied (check Recent Changes)`
+    : `${rest.join(' and ')} not applied`;
+  return done.length > 0 ? `${done.join(' and ')} applied; ${left}` : `Damage not applied: ${left}`;
+}
+
 /** plan-actor-change arguments for one damage part. */
-export function applyArgs(
-  targetToken: string,
-  part: { type: string | null; total: number }
-): Record<string, unknown> {
+function applyArgs(targetToken: string, part: DamagePart): Record<string, unknown> {
   return {
     action: 'damage',
     targets: [targetToken],
@@ -88,11 +149,9 @@ export function applyArgs(
 }
 
 /** The question the confirm window asks before damage goes in. */
-export function applyQuestion(
-  target: string,
-  part: { type: string | null; total: number }
-): string {
-  return `Deal ${part.total} ${part.type ? `${part.type} ` : ''}damage to ${target}?`;
+function applyQuestion(target: string, parts: DamagePart[]): string {
+  const list = parts.map(p => `${p.total}${p.type ? ` ${p.type}` : ''}`).join(' and ');
+  return `Deal ${list} damage to ${target}?`;
 }
 
 export const NO_TARGET_NOTE =

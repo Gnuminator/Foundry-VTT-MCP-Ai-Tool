@@ -352,6 +352,20 @@ export const PLAYER_SCREENS: PlayerScreen[] = [
     },
   },
   {
+    // A paper view under the Veil theme stays black on white (I-179).
+    name: 'me-paper-veil',
+    path: '/me',
+    who: null,
+    key: true,
+    stream: 'quiet',
+    theme: 'veil',
+    ready: async (page): Promise<void> => {
+      await expect(page.locator('#me-name')).toHaveText('Brenna Quill');
+      await page.locator('button[data-view="paper2024"]').click();
+      await expect(page.locator('body.paper .paper-sheet')).toBeVisible();
+    },
+  },
+  {
     // The "Your Claude connector" card, opened (made-up values, never a real pair).
     name: 'me-connector',
     path: '/me',

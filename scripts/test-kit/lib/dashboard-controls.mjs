@@ -139,6 +139,8 @@ export const DASHBOARD_CONTROLS = [
     'dash.live.show-handout',
     'dash.live.undo',
     'dash.quickroll.again',
+    'dash.quickroll.nudge',
+    'dash.quickroll.post-results',
   ].map(name => ({
     name,
     how: 'skip',

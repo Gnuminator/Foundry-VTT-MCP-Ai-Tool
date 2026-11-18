@@ -88,6 +88,13 @@ const planParams = z.discriminatedUnion('action', [
     modifier: z.number().min(0).max(1).optional(),
     effectUuid: z.string().min(1).optional(),
   }),
+  z.object({
+    action: z.literal('whisper'),
+    name: z.string().min(1).max(120),
+    area,
+    text: z.string().min(1).max(2000),
+    once: z.boolean().optional(),
+  }),
 ]);
 
 /** What `plan-room-setup` returns beside the guarded plan. */
@@ -140,7 +147,7 @@ export class RoomSetupTools {
       {
         name: 'plan-room-setup',
         description:
-          'Plan Region-based scene parts: "teleport" moves tokens entering one rectangle to another (same or other scene); "spawn" makes a room rectangle plus tokens from actors on free squares in it; "levels" adds Scene Levels; "stairs" joins levels; "hazard" makes difficult terrain, darkness or an existing effect. Apply with apply-planned-change, undo with undo-change. Needs the module switch "Room setup" (off by default).',
+          'Plan Region-based scene parts: "teleport" moves tokens entering one rectangle to another (same or other scene); "spawn" makes a room rectangle plus tokens from actors on free squares in it; "levels" adds Scene Levels; "stairs" joins levels; "hazard" makes difficult terrain, darkness or an existing effect; "whisper" whispers a room card to the GM only when a token enters the rectangle. Apply with apply-planned-change, undo with undo-change. Needs the module switch "Room setup" (off by default).',
         inputSchema: {
           type: 'object',
           properties: {
@@ -185,6 +192,16 @@ export class RoomSetupTools {
             darknessMode: { type: 'string', enum: [...ROOM_DARKNESS_MODES] },
             modifier: { type: 'number', description: 'darkness: 0 to 1.' },
             effectUuid: { type: 'string', ...freeText('An existing ActiveEffect uuid') },
+            text: {
+              type: 'string',
+              description: 'whisper: the room card text for the GM (2000 characters at most).',
+              ...freeText('Room card text written for the GM'),
+            },
+            once: {
+              type: 'boolean',
+              description:
+                'whisper: only the first entry (default every entry; two tokens entering at the same moment can both whisper).',
+            },
           },
           required: ['action'],
         },

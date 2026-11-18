@@ -508,14 +508,24 @@ function journalSheetCount(page) {
   );
 }
 
-/** @param {import('playwright-core').Page} page */
+/**
+ * Closes every journal sheet. A sheet is closed only once it is fully rendered and has settled:
+ * closing it while dnd5e's post-render sidebar sync still runs gives a "reading 'querySelector'"
+ * page error from JournalEntrySheet5e._synchronizeSidebar (a race in the kit, not the module;
+ * it failed foundry-controls in two of three runs on 2026-11-18).
+ * @param {import('playwright-core').Page} page
+ */
 async function closeAllJournalSheets(page) {
   await page.evaluate(async () => {
+    const wait = ms => new Promise(r => setTimeout(r, ms));
     for (const app of [...foundry.applications.instances.values()]) {
       if (
         /JournalEntry|journal/i.test(app.constructor?.name ?? '') ||
         app.element?.classList?.contains('journal-sheet')
       ) {
+        const rendered = foundry.applications.api.ApplicationV2.RENDER_STATES?.RENDERED ?? 3;
+        for (let i = 0; i < 50 && app.state !== rendered; i += 1) await wait(100);
+        await wait(1500);
         await app.close({ animate: false });
       }
     }

@@ -25,7 +25,14 @@ interface Member {
   lastPacket: number | null;
   /** The current silence was reported; cleared by the next packet. */
   silenceReported: boolean;
+  /** Estimated time spoken since the recording started (ms), from the gaps between packets. */
+  speakingMs: number;
 }
+
+/** One packet is about this much audio. */
+const PACKET_MS = 20;
+/** A gap between two packets longer than this is a pause, not speech. */
+const SPEECH_GAP_MS = 500;
 
 /** "42 s", "7 min", "2 h 5 min". */
 export function formatAge(ms: number): string {
@@ -71,6 +78,7 @@ export class RecorderHealth {
       joinedAt: now,
       lastPacket: null,
       silenceReported: false,
+      speakingMs: 0,
     });
   }
 
@@ -90,15 +98,33 @@ export class RecorderHealth {
     if (muted) this.streamErrors.delete(userId);
   }
 
+  /** Estimated speaking time per person in the channel, longest first (spotlight balance). */
+  speaking(): { name: string; ms: number }[] {
+    return [...this.members.values()]
+      .filter(m => m.speakingMs > 0)
+      .map(m => ({ name: m.name, ms: Math.round(m.speakingMs) }))
+      .sort((a, b) => b.ms - a.ms);
+  }
+
   /** A packet arrived for this speaker. */
   packet(userId: string, name: string, now: number): void {
     let m = this.members.get(userId);
     // A late packet from someone who already left must not bring them back as a silent member.
     if (!m && this.left.has(userId)) return;
     if (!m) {
-      m = { name, muted: false, joinedAt: now, lastPacket: null, silenceReported: false };
+      m = {
+        name,
+        muted: false,
+        joinedAt: now,
+        lastPacket: null,
+        silenceReported: false,
+        speakingMs: 0,
+      };
       this.members.set(userId, m);
     }
+    // Packets come about every 20 ms while someone speaks: a short gap is speech, a long one a pause.
+    m.speakingMs +=
+      m.lastPacket === null ? PACKET_MS : Math.min(Math.max(now - m.lastPacket, 0), SPEECH_GAP_MS);
     m.lastPacket = now;
     m.silenceReported = false;
     this.streamErrors.delete(userId);

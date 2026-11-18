@@ -286,6 +286,7 @@ export class RecorderBot {
       () => ({
         recording: this.active !== undefined,
         problems: this.active?.health.problems(Date.now()) ?? [],
+        speaking: this.active?.health.speaking() ?? [],
       }),
       err =>
         log.error(

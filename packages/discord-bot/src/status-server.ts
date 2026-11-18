@@ -14,6 +14,8 @@ export interface BotStatus {
   recording: boolean;
   /** What is wrong, in plain words; empty when all is well or nothing records. */
   problems: RecorderProblem[];
+  /** Estimated speaking time per person since the recording started (ms), longest first. */
+  speaking?: { name: string; ms: number }[];
 }
 
 export function startStatusServer(

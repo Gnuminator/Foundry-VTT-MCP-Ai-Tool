@@ -12,6 +12,12 @@ import { EMPTY_FEED, addFeedEvents, hasNewGmChange, readFeedEvents, type FeedLog
 import { onPrefs } from './prefs';
 import { ROLLS_KEY } from './rolls-key';
 import { PLAY_SESSION_KEY } from './session';
+import {
+  EMPTY_SPOTLIGHT,
+  readSpotlight,
+  type SpeakerTime,
+  type SpotlightSnapshot,
+} from './spotlight';
 
 /** One Foundry module error or warning (feed/types.ts ModuleError on the server). */
 export interface ModuleError {
@@ -55,7 +61,12 @@ export interface RecordingDot {
 export interface RecordingHealth {
   recorder: RecordingDot | null;
   playLog: RecordingDot | null;
+  /** Speaking time per person while a recording runs (spotlight balance); absent otherwise. */
+  speaking?: SpeakerTime[];
 }
+
+/** What each player character did, tallied from the log (src/spotlight.ts); GM only. */
+const SPOTLIGHT_KEY = ['stream', 'spotlight'] as const;
 
 export const RECORDING_HEALTH_KEY = ['stream', 'recording-health'] as const;
 
@@ -218,9 +229,12 @@ const HANDLERS: Record<string, (queryClient: QueryClient, data: unknown) => void
   status: onStatus,
   'recording-health': (queryClient, data) =>
     queryClient.setQueryData<RecordingHealth>(RECORDING_HEALTH_KEY, data as RecordingHealth),
+  spotlight: (queryClient, data) =>
+    queryClient.setQueryData<SpotlightSnapshot>(SPOTLIGHT_KEY, readSpotlight(data)),
   // A different world opened (GM only, no payload): the old world's events, errors and fight go,
   // and everything read from the game (handouts, changes, ...) is read again.
   reset: queryClient => {
+    queryClient.setQueryData<SpotlightSnapshot>(SPOTLIGHT_KEY, EMPTY_SPOTLIGHT);
     // A direct fight read still out is about the old world: it must not put the old fight back.
     combatSeq += 1;
     queryClient.setQueryData<FeedLog>(FEED_KEY, EMPTY_FEED);
@@ -397,6 +411,18 @@ export function useFeed(): FeedLog | null {
     gcTime: Infinity,
   });
   return data ?? null;
+}
+
+/** The spotlight tally; empty until the first event. */
+export function useSpotlight(): SpotlightSnapshot {
+  const queryClient = useQueryClient();
+  const { data } = useQuery({
+    queryKey: SPOTLIGHT_KEY,
+    queryFn: () => queryClient.getQueryData<SpotlightSnapshot>(SPOTLIGHT_KEY) ?? EMPTY_SPOTLIGHT,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
+  return data ?? EMPTY_SPOTLIGHT;
 }
 
 /** The stream's own state; undefined before it first connects. */

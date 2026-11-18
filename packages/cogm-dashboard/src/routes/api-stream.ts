@@ -96,6 +96,7 @@ export function mountApiStreamRoutes(app: Express, ctx: RouteContext): void {
     // Always, null when no fight runs: a page that was disconnected while a fight ended would
     // otherwise keep showing it as live (the broadcast of the end went to nobody).
     sse.send(res, 'rolls', { rows: ctx.currentRolls().rows });
+    sse.send(res, 'spotlight', state.spotlight.snapshot());
     sse.send(res, 'combat', { combat: state.combat });
     sse.send(res, 'events', { events: state.recentEvents, initial: true });
     // The stream tests wait for this as the last snapshot event of the GM stream (SNAPSHOT_END in

@@ -61,7 +61,7 @@
       "file": "scripts/test-kit/lib/dashboard-controls.mjs",
       "lines": 1254,
       "reason": "two catalogue lines for the roll tracker buttons (I-166)",
-      "pr": ""
+      "pr": "1156"
     }
   ]
 }

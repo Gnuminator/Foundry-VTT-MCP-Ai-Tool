@@ -84,6 +84,14 @@ function changePick(change: Partial<RollPick>): void {
   listeners.forEach(l => l());
 }
 
+// What was posted to chat, for every bar on the page and across a remount (one post per key).
+let postedKeys: ReadonlySet<string> = new Set();
+const getPosted = (): ReadonlySet<string> => postedKeys;
+function markPosted(key: string): void {
+  postedKeys = new Set(postedKeys).add(key);
+  listeners.forEach(l => l());
+}
+
 /** The clock, re-read every `everyMs`, so "no answer after 5 minutes" shows without a click. */
 function useNow(everyMs: number): number {
   const [now, setNow] = useState(() => Date.now());
@@ -181,14 +189,20 @@ export function QuickRollBar({
   const now = useNow(30_000);
   const round = latestRound(rows, now);
   const guarded = useGuardedTools();
-  const [posted, setPosted] = useState<string | null>(null);
+  const posted = useSyncExternalStore(subscribe, getPosted);
+  const [sending, setSending] = useState(false);
   const nudges = round ? nudgeTargets(round, now) : [];
+  const resultsKey = `${round?.id}:results`;
+  const nudgeKey = `${round?.id}:nudge:${nudges.map(r => r.id).join(',')}`;
   const post = (text: string, key: string): void => {
+    if (sending) return;
+    setSending(true);
     void guarded
       .call('send-chat-message', { message: text, messageType: 'ooc' }, { confirm: true })
       .then(out => {
-        if (out.status === 'done') setPosted(key);
-      });
+        if (out.status === 'done') markPosted(key);
+      })
+      .finally(() => setSending(false));
   };
   return (
     <div className={styles['bar']} role="group" aria-label="Ask for a roll">
@@ -247,39 +261,50 @@ export function QuickRollBar({
       </select>
       {children}
       {round && (
-        <p
-          className={`${styles['status']} ${round.waiting.length === 0 ? styles['statusDone'] : ''}`}
-          role="status"
-          data-testid="roll-status"
-        >
-          <strong>{roundHeadline(round)}</strong>
-          {'. '}
-          {round.rows.map(rowLine).join(', ')}
-          {round.waiting.length === 0 && (
-            <Button
-              type="button"
-              size="sm"
-              data-track="dash.quickroll.post-results"
-              disabled={posted === `${round.id}:results`}
-              onClick={() => post(resultsLine(round), `${round.id}:results`)}
-            >
-              {posted === `${round.id}:results` ? 'Posted to chat' : 'Post results to chat'}
-            </Button>
+        <>
+          <p
+            className={`${styles['status']} ${round.waiting.length === 0 ? styles['statusDone'] : ''}`}
+            role="status"
+            data-testid="roll-status"
+          >
+            <strong>{roundHeadline(round)}</strong>
+            {'. '}
+            {round.rows.map(rowLine).join(', ')}
+          </p>
+          {(round.waiting.length === 0 || nudges.length > 0) && (
+            <div className={styles['statusActions']}>
+              {round.waiting.length === 0 && (
+                <Button
+                  type="button"
+                  size="sm"
+                  data-track="dash.quickroll.post-results"
+                  title={round.rows[0]?.isPublic ? undefined : 'Posts the totals to public chat'}
+                  disabled={sending || posted.has(resultsKey)}
+                  onClick={() => post(resultsLine(round), resultsKey)}
+                >
+                  {posted.has(resultsKey) ? 'Posted to chat' : 'Post results to chat'}
+                </Button>
+              )}
+              {nudges.length > 0 && (
+                <Button
+                  type="button"
+                  size="sm"
+                  data-track="dash.quickroll.nudge"
+                  title={nudges.map(r => r.targetName).join(', ')}
+                  aria-label={`Nudge ${nudges.map(r => r.targetName).join(', ')} in chat`}
+                  disabled={sending || posted.has(nudgeKey)}
+                  onClick={() => post(nudgeLine(round, nudges), nudgeKey)}
+                >
+                  {posted.has(nudgeKey)
+                    ? 'Nudge sent'
+                    : nudges.length === 1
+                      ? `Nudge ${nudges[0]?.targetName}`
+                      : `Nudge ${nudges.length} players`}
+                </Button>
+              )}
+            </div>
           )}
-          {nudges.length > 0 && (
-            <Button
-              type="button"
-              size="sm"
-              data-track="dash.quickroll.nudge"
-              disabled={posted === `${round.id}:nudge:${nudges.length}`}
-              onClick={() => post(nudgeLine(round, nudges), `${round.id}:nudge:${nudges.length}`)}
-            >
-              {posted === `${round.id}:nudge:${nudges.length}`
-                ? 'Nudge sent'
-                : `Nudge ${nudges.map(r => r.targetName).join(', ')}`}
-            </Button>
-          )}
-        </p>
+        </>
       )}
     </div>
   );

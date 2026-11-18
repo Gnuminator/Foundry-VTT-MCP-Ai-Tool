@@ -200,6 +200,8 @@ function render() {
   $('me-name').textContent = s.name;
   $('me-sub').textContent = classLine(s);
   document.title = `${s.name}: my character`;
+  // A rebuild (the 8 s refresh, a toggle) must not drop keyboard focus from the card switch.
+  const hadFocus = document.activeElement?.id === 'me-pref-turn';
   main.innerHTML =
     view === 'paper2024'
       ? renderPaper2024(s)
@@ -211,6 +213,7 @@ function render() {
               new Date().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
             )
           : renderFancy(s);
+  if (hadFocus) $('me-pref-turn')?.focus();
 }
 
 /** The outdated-helper notice (Danish, then English): server text goes in as textContent only. */

@@ -176,8 +176,8 @@ const FEATURE_COSTS = [
   [/^action surge/i, 'free', 'Take one extra action this turn.'],
   [/^(rage|barbarian rage)$/i, 'bonus', 'Enter a rage.'],
   [/^bardic inspiration/i, 'bonus', 'Give an ally a die to add to a roll.'],
-  [/^lay on hands/i, 'action', 'Heal from your pool of points.'],
-  [/^wild shape/i, 'action', 'Turn into a beast.'],
+  [/^lay on hands/i, 'bonus', 'Heal from your pool of points.'],
+  [/^wild shape/i, 'bonus', 'Turn into a beast.'],
   [/^cunning action/i, 'bonus', 'Dash, Disengage or Hide.'],
   [/^flurry of blows/i, 'bonus', 'Two unarmed strikes after Attack (Focus Point).'],
   [/^patient defense/i, 'bonus', 'Dodge as a bonus action.'],
@@ -186,7 +186,6 @@ const FEATURE_COSTS = [
   [/^deflect attacks?/i, 'reaction', 'Reduce damage from an attack.'],
   [/^hellish rebuke/i, 'reaction', 'Burn the creature that hit you.'],
   [/^sneak attack/i, 'free', 'Extra damage once per turn.'],
-  [/^(divine smite|searing smite)/i, 'free', 'Spend a slot on a hit for extra damage.'],
   [/^preserve life/i, 'action', 'Channel Divinity: heal creatures near you.'],
 ];
 
@@ -194,7 +193,7 @@ const CASTING_GROUP = [
   // dnd5e's label is "Action", "Bonus Action" or "Reaction" (older data may say "1 Action").
   [/^(1 )?bonus action/i, 'bonus'],
   [/^(1 )?reaction/i, 'reaction'],
-  [/^(1 )?action/i, 'action'],
+  [/action/i, 'action'], // "Action", "Magic action", "Utilize action" and the like
 ];
 
 /** The shortest text that still says it: at most `max` characters, cut at a word. */

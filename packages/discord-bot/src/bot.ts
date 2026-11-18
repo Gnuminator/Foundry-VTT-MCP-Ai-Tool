@@ -366,7 +366,7 @@ export class RecorderBot {
   private startSessionPost(c: Client<true>): void {
     const channelId = this.config.sessionPostChannelId;
     if (!channelId) return;
-    const dashboardUrl = this.config.dashboardUrl ?? 'http://127.0.0.1:3100';
+    const dashboardUrl = this.dashboardUrl();
     const pageUrl = this.config.playerPageUrl;
     if (!pageUrl) {
       log.info(
@@ -464,9 +464,14 @@ export class RecorderBot {
   }
 
   /** `/recap`, `/npc` and `/handouts`: one read of the player state, answered only to the asker. */
+  /** Where the bot reads the player state: the setting, else the local dashboard. */
+  private dashboardUrl(): string {
+    return this.config.dashboardUrl ?? 'http://127.0.0.1:3100';
+  }
+
   private async onLookup(i: ChatInputCommandInteraction): Promise<void> {
     this.readPlayerState ??= createPlayerStateReader({
-      dashboardUrl: this.config.dashboardUrl ?? 'http://127.0.0.1:3100',
+      dashboardUrl: this.dashboardUrl(),
       token: this.config.playerToken,
       log: log.info,
     });

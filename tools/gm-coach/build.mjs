@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Build the "Foundry GM coach" skill for the GM's own Claude account (D-097): SKILL.md from this
- * folder plus reference pages, as a folder and as the zip claude.ai takes (Customize, Skills).
+ * folder plus reference pages, as a folder and as the zip claude.ai takes (Settings, Plugins, Skills).
  *
  *   references/foundry/  the Foundry 14 / dnd5e 6 UI pages of .claude/skills/foundry-core-ui,
  *                        without the parts that only serve automation and our test server

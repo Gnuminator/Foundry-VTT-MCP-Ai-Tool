@@ -57,6 +57,8 @@ import {
   riskyHits,
   rollupProblems,
   waitForCi,
+  failureCause,
+  explainFailing,
 } from './lane-merge.mjs';
 
 const HEAD = '3d24f70a1b2c3d4e5f60718293a4b5c6d7e8f901';
@@ -4334,4 +4336,89 @@ test('acceptLines: bullet and bold forms, case, and prose mentions that do not c
     acceptLines('say visual: accepted 3 abcd1234 in the note\nvisual: accepted 3 abc'),
     []
   );
+});
+
+const jobCheck = (name, conclusion, job, extra = {}) => ({
+  name,
+  status: 'COMPLETED',
+  conclusion,
+  workflowName: 'ci',
+  startedAt: '2026-11-18T10:00:00Z',
+  detailsUrl: `https://github.com/o/r/actions/runs/900/job/${job}`,
+  ...extra,
+});
+const ghAnswers = (jobs, notes) => {
+  const calls = [];
+  const run = (cmd, args) => {
+    calls.push(args[1]);
+    const body = args[1].includes('/annotations') ? notes : jobs;
+    return body === null
+      ? { status: 1, stdout: '', stderr: 'boom' }
+      : { status: 0, stdout: JSON.stringify(body), stderr: '' };
+  };
+  return { run, calls };
+};
+
+test('failureCause: names the failing step, and a job at its timeout reads "timed out after 25 min"', () => {
+  const steps = {
+    steps: [
+      { name: 'Checkout', conclusion: 'success' },
+      { name: 'Run tests', conclusion: 'failure' },
+    ],
+  };
+  assert.equal(
+    failureCause(
+      JSON.stringify(steps),
+      JSON.stringify([{ message: 'Process completed with exit code 1.' }]),
+      'FAILURE'
+    ),
+    'step "Run tests" failed: Process completed with exit code 1.'
+  );
+  assert.equal(
+    failureCause(
+      JSON.stringify(steps),
+      JSON.stringify([
+        {
+          message:
+            'The job running on runner X has exceeded the maximum execution time of 25 minutes.',
+        },
+      ]),
+      'CANCELLED'
+    ),
+    'timed out after 25 min'
+  );
+  assert.equal(failureCause(null, null, 'TIMED_OUT'), 'timed out');
+  assert.equal(failureCause('not json', 'nor this', 'FAILURE'), '');
+});
+
+test('explainFailing: a fake failed check with an annotation names the step; green makes no gh call', () => {
+  const rollup = [jobCheck('lint', 'FAILURE', 77), jobCheck('build-test', 'SUCCESS', 78)];
+  const { failing } = rollupProblems(rollup);
+  const { run, calls } = ghAnswers({ steps: [{ name: 'ESLint', conclusion: 'failure' }] }, [
+    { message: 'Process completed with exit code 1.' },
+  ]);
+  assert.deepEqual(explainFailing(rollup, failing, run), [
+    'lint (FAILURE: step "ESLint" failed: Process completed with exit code 1.)',
+  ]);
+  assert.equal(calls.length, 2);
+  const green = ghAnswers(null, null);
+  assert.deepEqual(explainFailing([jobCheck('lint', 'SUCCESS', 77)], [], green.run), []);
+  assert.equal(green.calls.length, 0, 'no extra gh call when everything is green');
+  const broken = ghAnswers(null, null);
+  assert.deepEqual(explainFailing(rollup, failing, broken.run), ['lint (FAILURE)']);
+});
+
+test('explainFailing: looks into at most three failing checks', () => {
+  const rollup = [1, 2, 3, 4].map(i => jobCheck(`job${i}`, 'FAILURE', i));
+  const { failing } = rollupProblems(rollup);
+  const { run, calls } = ghAnswers({ steps: [{ name: 'S', conclusion: 'failure' }] }, []);
+  const out = explainFailing(rollup, failing, run);
+  assert.equal(calls.length, 6);
+  assert.equal(out[3], 'job4 (FAILURE)');
+});
+
+test('waitForCi: a failing check with a job url still ends the wait naming the check', () => {
+  const r = waitRun([{ statusCheckRollup: [jobCheck('e2e', 'CANCELLED', 55)] }]);
+  assert.equal(r.result.ok, false);
+  assert.match(r.result.reason, /CI failed on 3d24f70: e2e \(CANCELLED/);
 });

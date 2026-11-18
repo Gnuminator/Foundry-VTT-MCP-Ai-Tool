@@ -10,7 +10,21 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { runDriftCheck, pickRemote, entryDecision } from './drift-check.mjs';
+import { runDriftCheck, pickRemote, entryDecision, isWorkerStartFailure } from './drift-check.mjs';
+
+test('isWorkerStartFailure: a vitest worker that did not start, not a failing test', () => {
+  assert.equal(
+    isWorkerStartFailure(
+      'Error: [vitest-pool]: Failed to start forks worker for test files a.test.ts.'
+    ),
+    true
+  );
+  assert.equal(isWorkerStartFailure('Error: [vitest-pool]: Timeout starting forks runner.'), true);
+  assert.equal(
+    isWorkerStartFailure(' FAIL  src/a.test.ts > x\nAssertionError: expected 1 to be 2'),
+    false
+  );
+});
 import { entryDecision as checksEntryDecision } from './checks.mjs';
 
 test('entryDecision (drift-check.mjs and checks.mjs): run, mismatch for a same-named file, import', () => {
@@ -408,7 +422,10 @@ test('shared/dist missing: the lane checkout builds shared before the guards run
     commit(other, 'main.txt', 'from another lane\n', 'other lane merged');
     git(other, 'push', '-q', 'origin', 'HEAD:main');
     fs.rmSync(path.join(lane, 'shared', 'dist'), { recursive: true });
-    const { code, out } = runWith(lane, { checks: [readsSharedDist('v1')], sharedBuild: buildShared });
+    const { code, out } = runWith(lane, {
+      checks: [readsSharedDist('v1')],
+      sharedBuild: buildShared,
+    });
     assert.equal(code, 0, out);
     assert.match(out, /shared\/dist is missing; building shared/);
   } finally {
@@ -475,7 +492,10 @@ test('shared/dist older than shared/src: rebuilt; a failing build stops with its
     assert.match(failing.out, /shared\/dist is older than shared\/src; building shared/);
     assert.match(failing.out, /building it failed:\r?\ntsc exploded/);
     assert.doesNotMatch(failing.out, /never/);
-    const { code, out } = runWith(lane, { checks: [readsSharedDist('v1')], sharedBuild: buildShared });
+    const { code, out } = runWith(lane, {
+      checks: [readsSharedDist('v1')],
+      sharedBuild: buildShared,
+    });
     assert.equal(code, 0, out);
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });

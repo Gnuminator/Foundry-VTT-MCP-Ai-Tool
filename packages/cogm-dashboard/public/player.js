@@ -16,7 +16,11 @@ import {
   turnStatus,
 } from './player-me.js';
 import {
+  groupQuests,
   handoutTitle,
+  lastTimeLine,
+  questStatus,
+  revealDate,
   sessionPhase,
   splitHandouts,
   visibleHandouts,
@@ -420,12 +424,41 @@ function fill(el, list, emptyText) {
     : `<div class="empty">${emptyText}</div>`;
 }
 
+// Quest log: open quests with the day they were revealed, finished ones struck through under "Done".
+function questHtml(h) {
+  const status = questStatus(h);
+  const date = status === 'active' ? revealDate(h) : '';
+  const tag = status === 'failed' ? ' <span class="quest-failed">Failed</span>' : '';
+  const when = date ? ` <span class="quest-date">revealed ${escape(date)}</span>` : '';
+  return handoutHtml(h)
+    .replace('<details class="handout"', `<details class="handout quest-row-${status}"`)
+    .replace('</summary>', `${tag}${when}</summary>`);
+}
+
+function fillQuests(el, quests) {
+  if (!quests.length) {
+    el.innerHTML = '<div class="empty">No quests yet.</div>';
+    return;
+  }
+  const { active, closed } = groupQuests(quests);
+  el.innerHTML =
+    active.map(questHtml).join('') +
+    (closed.length ? `<h3 class="quest-done-head">Done</h3>${closed.map(questHtml).join('')}` : '');
+}
+
 function renderHandouts(handouts) {
   lastHandouts = Array.isArray(handouts) ? handouts : [];
   const { recap, quests, rest } = splitHandouts(
     visibleHandouts(lastHandouts, currentWho && currentWho.userId)
   );
   fill(elRecap, recap ? [recap] : [], 'No recap yet.');
+  const lastTime = lastTimeLine(recap);
+  if (lastTime) {
+    elRecap.insertAdjacentHTML(
+      'afterbegin',
+      `<p class="last-time"><strong>Last time:</strong> ${escape(lastTime)}</p>`
+    );
+  }
   fill(
     elHandouts,
     rest,
@@ -435,7 +468,7 @@ function renderHandouts(handouts) {
         ? 'Nothing revealed yet. Pick your name to see handouts meant just for you.'
         : 'Nothing revealed yet.'
   );
-  fill(elQuests, quests, 'No quests yet.');
+  fillQuests(elQuests, quests);
 }
 
 function reportSeen(handoutId) {

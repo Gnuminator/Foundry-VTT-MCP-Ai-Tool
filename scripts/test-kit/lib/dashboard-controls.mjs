@@ -133,6 +133,7 @@ export const DASHBOARD_CONTROLS = [
     'dash.live.condition',
     'dash.live.end-combat',
     'dash.live.next-turn',
+    'dash.live.monster-action',
     'dash.live.one-round',
     'dash.live.pan',
     'dash.live.pick',
@@ -145,7 +146,7 @@ export const DASHBOARD_CONTROLS = [
   ].map(name => ({
     name,
     how: 'skip',
-    why: 'only on the live strip page (/next?strip=1); the e2e spec and the live check cover it',
+    why: 'only on the live strip page (/next?strip=1); the e2e specs or the live check cover it',
   })),
   ...[
     'dash.changes.ai-only',

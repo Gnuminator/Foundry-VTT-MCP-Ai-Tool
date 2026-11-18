@@ -78,7 +78,7 @@ Each test server is shared: run one live job at a time on it. See the `foundry-t
 `node scripts/test-kit/kit.mjs fixture --profile strahd` adds a scene ("Kit Fixture Scene"), two named
 tokens and a party group to the kit world through the Kit GM's browser, so the canvas probes
 (`canvas-tools-headless`) have inputs in a world with no campaign scene. It is kit-flagged (the next
-`kit build` wipe removes it), changes no existing document, and a second run changes nothing. Local
+`kit build` wipe removes it), edits no existing document except that the fixture scene becomes the active one, and a second run changes nothing. Local
 target only: `--target pi` refuses it (a scene needs a canvas, which the Pi's GM browser lacks).
 
 ### Running it on the Pi

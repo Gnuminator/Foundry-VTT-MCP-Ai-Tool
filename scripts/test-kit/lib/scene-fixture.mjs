@@ -2,7 +2,8 @@
  * The scene fixture (backlog I-028, pass 2): a small scene with two named tokens and a party group,
  * so the canvas probes (scenarios/canvas-tools-headless) have something to work on in a world that
  * has no campaign scene, such as a fresh kit world. Everything is flagged as kit, so `kit build`'s
- * wipe removes it; it makes nothing outside the kit flag and changes no existing document.
+ * wipe removes it; it adds only kit-flagged documents and edits no existing one,
+ * except that the fixture scene becomes the active scene (a wipe does not restore the old one).
  *
  * It needs a canvas (createCombatScene waits for the first draw), so it runs from the Kit GM's
  * browser on this PC. It is idempotent: a kit scene with the fixture name means "already there".

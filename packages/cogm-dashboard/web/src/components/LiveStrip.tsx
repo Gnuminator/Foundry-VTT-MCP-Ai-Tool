@@ -593,7 +593,6 @@ export function LiveStrip(): JSX.Element {
             {monster?.tokenId && (
               <Suspense fallback={null}>
                 <MonsterActions
-                  key={monster.id}
                   token={monster.tokenId}
                   name={names.get(monster.id) ?? monster.name}
                   stale={stale}

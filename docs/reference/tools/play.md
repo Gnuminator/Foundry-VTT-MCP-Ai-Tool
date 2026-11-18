@@ -419,6 +419,16 @@ Parameters:
 - `synced` (boolean): Paper only: true = sheets already in Foundry; stops the pre-flight warning.
 - `note` (string): Optional note kept with the marker (up to 200 characters).
 
+## get-read-aloud
+
+GM ONLY. The boxed read-aloud text of the journal pages a scene links (the scene itself and its map notes: pages a link names come first, then the pages of a whole linked entry), ready to read to the table. Read from the world when asked; nothing is stored. Pages without a boxed text are counted, not listed. At most 12 pages are read; linkedPages and readPages show a cut.
+
+Kind: read-only. Title: Get read-aloud text.
+
+Parameters:
+
+- `sceneId` (string): The scene to read (default: the scene on screen).
+
 ## get-party
 
 The dnd5e party (group actors, primary party first): each member's HP, AC, passive Perception (with passive Investigation and Insight when the AI Tool: Who would notice switch is on), conditions, exhaustion, hit dice, tokens on the current scene and whether they are in the encounter; the travel pace and whether a slowed member forces slow pace; the current encounter. Read-only. Not for player chat: it shows more than players see.

@@ -102,11 +102,12 @@ export function main(o = {}) {
       }
       if (a === '--item') item = v;
       else vaultArg = v;
-    }
-    else if (a === '--check') check = true;
+    } else if (a === '--check') check = true;
     else if (/^\d+$/.test(a) && prArg === null) prArg = a;
     else {
-      log('lane:ready: usage: node scripts/lane-ready.mjs [<PR>] [--item <id>] [--vault DIR] [--check]');
+      log(
+        'lane:ready: usage: node scripts/lane-ready.mjs [<PR>] [--item <id>] [--vault DIR] [--check]'
+      );
       return 2;
     }
   }
@@ -163,7 +164,9 @@ export function main(o = {}) {
   }
 
   if (missing.length > 0) {
-    log(`lane:ready: NOT ready #${n}: ${missing.length} thing${missing.length === 1 ? '' : 's'} missing`);
+    log(
+      `lane:ready: NOT ready #${n}: ${missing.length} thing${missing.length === 1 ? '' : 's'} missing`
+    );
     for (const m of missing) log(`  - ${m}`);
     return 1;
   }
@@ -184,7 +187,9 @@ export function main(o = {}) {
   ];
   const w = run('node', args);
   if (w.status !== 0) {
-    log(`lane:ready: NOT ready #${n}: the ready line was not written: ${(w.stderr || w.stdout).trim().split(/\r?\n/)[0]}`);
+    log(
+      `lane:ready: NOT ready #${n}: the ready line was not written: ${(w.stderr || w.stdout).trim().split(/\r?\n/)[0]}`
+    );
     return 1;
   }
   log(

@@ -22,9 +22,7 @@ test('gateProblems lists the reasons, not the notices or the drift tail', () => 
     'review: no review note for head aaaaaaa',
     'changelog: no added or changed changelog.d/*.md fragment',
   ]);
-  assert.deepEqual(gateProblems('lane:merge: refused because ci: failing: x'), [
-    'ci: failing: x',
-  ]);
+  assert.deepEqual(gateProblems('lane:merge: refused because ci: failing: x'), ['ci: failing: x']);
   assert.deepEqual(gateProblems('lane:merge: OK #7'), []);
 });
 

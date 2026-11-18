@@ -27,7 +27,7 @@ export async function waitFor(fn, { label, timeoutMs = 20000, intervalMs = 1000 
 }
 
 /**
- * Runs `fn`, retrying for about 45 s while it fails with "lost its link": the bridge link can drop
+ * Runs `fn`, retrying up to 15 times, 3 s apart, while it fails with "lost its link": the bridge link can drop
  * for a few seconds mid-run (2026-11-18: three scenarios in a row saw it for about 15 s).
  * @template T
  * @param {() => Promise<T>} fn

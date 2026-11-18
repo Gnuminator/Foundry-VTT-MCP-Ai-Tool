@@ -398,24 +398,20 @@ export async function tarokkaRows(sweep, { t, gm, player }) {
   });
 
   // An empty text is a warning notification (not a console error), so the row names no expected error.
-  await sweep.row(
-    'foundry.tarokka.reveal-form',
-    'gm',
-    async () => {
-      const open = gm.locator(`${TK} li[data-position] button[data-action="revealOpen"]`).first();
-      await open.click();
-      const area = gm.locator(`${TK} textarea[data-field="revealText"]`);
-      await area.waitFor({ state: 'visible', timeout: 5000 });
-      await gm.locator(`${TK} button[data-action="revealGo"]`).click();
-      await waitNotification(gm, /Write the text the players will read first/);
-      await gm.locator(`${TK} button[data-action="revealCancel"]`).click();
-      await until(
-        async () => (await gm.locator(`${TK} textarea`).count()) === 0,
-        'the form to close'
-      );
-      return 'the form opens; an empty text is refused with a message; Cancel closes it';
-    }
-  );
+  await sweep.row('foundry.tarokka.reveal-form', 'gm', async () => {
+    const open = gm.locator(`${TK} li[data-position] button[data-action="revealOpen"]`).first();
+    await open.click();
+    const area = gm.locator(`${TK} textarea[data-field="revealText"]`);
+    await area.waitFor({ state: 'visible', timeout: 5000 });
+    await gm.locator(`${TK} button[data-action="revealGo"]`).click();
+    await waitNotification(gm, /Write the text the players will read first/);
+    await gm.locator(`${TK} button[data-action="revealCancel"]`).click();
+    await until(
+      async () => (await gm.locator(`${TK} textarea`).count()) === 0,
+      'the form to close'
+    );
+    return 'the form opens; an empty text is refused with a message; Cancel closes it';
+  });
 
   await sweep.row('foundry.tarokka.reveal', 'gm', async () => {
     const position = gm.locator(`${TK} li[data-position]`).first();
@@ -523,7 +519,9 @@ async function closeAllJournalSheets(page) {
         /JournalEntry|journal/i.test(app.constructor?.name ?? '') ||
         app.element?.classList?.contains('journal-sheet')
       ) {
-        const rendered = foundry.applications.api.ApplicationV2.RENDER_STATES?.RENDERED ?? 3;
+        const states = foundry.applications.api.ApplicationV2.RENDER_STATES;
+        const rendered = states?.RENDERED ?? 3;
+        if (app.state <= (states?.CLOSED ?? 0)) continue;
         for (let i = 0; i < 50 && app.state !== rendered; i += 1) await wait(100);
         await wait(1500);
         await app.close({ animate: false });

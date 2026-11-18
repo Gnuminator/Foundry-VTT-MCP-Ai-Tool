@@ -25,5 +25,5 @@ test('states the no-paid-API rule', () => {
 });
 
 test('has no em dash', () => {
-  assert.ok(!text.includes('—'));
+  assert.ok(!text.includes(String.fromCharCode(0x2014)));
 });

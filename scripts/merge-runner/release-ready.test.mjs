@@ -26,7 +26,7 @@ function fake(o = {}) {
     lastRoundtrip: () => null,
     worker: () => (calls.push('worker'), { code: 0, output: '' }),
     stopServer: () => calls.push('stop'),
-    waiting: (k, t) => (calls.push(`waiting:${k}`), ok),
+    waiting: (k, _t) => (calls.push(`waiting:${k}`), ok),
     post: t => posts.push(t),
     log: () => {},
     ...o,

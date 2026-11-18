@@ -265,6 +265,32 @@ test('PI_GROUP_PATHS covers every file a pi-group test names outside scripts/pi'
     assert.ok(container.test(f) && PI_GROUP_PATHS.test(f), f);
 });
 
+test('every repo path a pi-group test file names in a string literal is inside PI_GROUP_PATHS', () => {
+  const root = path.resolve(import.meta.dirname, '..');
+  const files = [...new Set(groupChecks('pi').flatMap(c => c.args.filter(a => /\.mjs$/.test(a))))];
+  assert.ok(files.length > 10);
+  const missed = [];
+  for (const f of files) {
+    if (f === 'scripts/pi/ci-pi-filter.test.mjs') continue; // names paths as examples of what must skip
+    const text = fs.readFileSync(path.join(root, f), 'utf8');
+    for (const m of text.matchAll(/['"`]((?:packages|docs|shared|tools|\.claude)\/[\w./-]+)/g)) {
+      // build output and a bare directory name are not inputs a source change can break
+      if (/\/dist(\/|$)/.test(m[1])) continue;
+      if (!PI_GROUP_PATHS.test(m[1])) missed.push(`${f}: ${m[1]}`);
+    }
+    for (const m of text.matchAll(/(?:join|resolve)\(\s*repo\s*,((?:\s*'[^']+',?)+)\s*\)/g)) {
+      const p = [...m[1].matchAll(/'([^']+)'/g)].map(x => x[1]).join('/');
+      if (
+        /^(packages|docs|shared|tools)\//.test(p) &&
+        !/\/dist(\/|$)/.test(p) &&
+        !PI_GROUP_PATHS.test(p)
+      )
+        missed.push(`${f}: ${p}`);
+    }
+  }
+  assert.deepEqual(missed, [], 'move that test to another group or widen PI_GROUP_PATHS');
+});
+
 test('the build-test checkout is deep enough for the pi group diff', () => {
   assert.equal(ciDoc.jobs['build-test'].steps[0].with['fetch-depth'], 2);
 });

@@ -179,6 +179,7 @@ export const CHECKS = [
   ),
   { name: 'dev-scripts', group: 'scripts', cmd: 'npm', args: ['run', 'dev:test'], env: CI },
   nodeTest('who-uses-what', 'scripts', 'scripts/who-uses-what.test.mjs'),
+  nodeTest('game-day-brief', 'scripts', 'scripts/game-day-brief.test.mjs'),
   nodeTest('gamenight-watch', 'scripts', 'scripts/gamenight-watch.test.mjs'),
   nodeTest('gamenight-watch-pi', 'scripts', 'scripts/gamenight-watch-pi.test.mjs'),
   nodeTest('pi-player-connector-stage', 'pi', 'scripts/pi/player-connector-stage.test.mjs'),

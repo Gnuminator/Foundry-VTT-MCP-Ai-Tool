@@ -19,8 +19,9 @@ solve technical problems yourself.
 
 ## Before you start (15 minutes before)
 
-About two hours before, the tool admin's PC can send a one-line **game-day brief** (pre-flight result and
-what to open first). It only reads, and it is a heads-up: the pre-flight check below is still the real one.
+About two hours before, the tool admin can get a one-line **game-day brief** on their own PC or phone
+(pre-flight result and what to open first) and tells you if something is red. It only reads, and it is a
+heads-up: the pre-flight check below is still the real one.
 
 - [ ] Open the game's address and join as your GM user. Check the player list at the bottom left.
 - [ ] Do the [Before each session](before-session.md) checklist (pre-flight, Turn on for tonight).

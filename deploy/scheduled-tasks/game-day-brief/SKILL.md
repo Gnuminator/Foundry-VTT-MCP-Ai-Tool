@@ -14,7 +14,7 @@ Rules (never break them):
 
 Steps:
 
-1. Call `get-preflight`. Note the overall result (ready, or how many things to fix) and the names of anything red or yellow, shortest form.
+1. Call `get-preflight`. Note the overall result (ready, or how many things to fix) and the names of anything red or yellow, shortest form. Give check titles only, never the names a check found.
 2. Call `get-prep-digest`. Note its headline: what changed since last time and what to open first. Do not repeat story secrets or monster stats; names of pages and scenes are fine.
 3. Call `PushNotification` once with `status: "proactive"` and one line under 200 characters, in this shape:
    `Game-day brief: pre-flight <ready | N to fix: a, b>. <digest headline>. Open first: <one thing>.`

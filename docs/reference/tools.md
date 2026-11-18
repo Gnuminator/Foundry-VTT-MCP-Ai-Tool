@@ -6,7 +6,7 @@ description: Every tool the bridge serves, by tool set; one page per set holds t
 
 # Tool reference
 
-The bridge serves 113 tools in six sets (five for Claude Desktop, the sixth for players only). [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; each set has its own page listing every tool with the description and parameters Claude reads.
+The bridge serves 114 tools in six sets (five for Claude Desktop, the sixth for players only). [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; each set has its own page listing every tool with the description and parameters Claude reads.
 
 | Set | Claude Desktop entry | Tools | For |
 | --- | --- | --- | --- |

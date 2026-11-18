@@ -853,6 +853,9 @@ const ALWAYS = [
   'advancement-values:advancement-value-of-size',
   'spells:the-raw-hero-has-no-class-spells',
   'current-hit-points:a-new-hero-does-not-start-at-full-hit-points',
+  // third-party console findings that no Actor Studio build changes
+  'console:pageerror:array-find',
+  'console:main.js',
 ];
 
 test('the expected list for upstream 2.10.5 holds every finding, the fork-fixed ones too', () => {

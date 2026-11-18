@@ -40,9 +40,9 @@ export function useLongPressDetail(rootId: string, show: (text: string) => void)
       start = null;
     };
     const down = (e: PointerEvent): void => {
-      if (e.pointerType === 'mouse') return;
       cancel();
       fired = false;
+      if (e.pointerType === 'mouse') return;
       const text = titleAt(e.target as Element | null, root);
       if (text === null) return;
       start = { x: e.clientX, y: e.clientY };
@@ -62,21 +62,30 @@ export function useLongPressDetail(rootId: string, show: (text: string) => void)
       e.preventDefault();
       e.stopPropagation();
     };
+    // Android fires the native menu at about 500 ms, before our timer: keep it off while a press
+    // on a titled element is pending or has fired.
     const menu = (e: Event): void => {
-      if (fired) e.preventDefault();
+      if (fired || start !== null) e.preventDefault();
+    };
+    // The click follows pointerup at once; a press that never gets one must not eat a later click.
+    const up = (): void => {
+      cancel();
+      window.setTimeout(() => {
+        fired = false;
+      }, 0);
     };
     root.addEventListener('pointerdown', down);
     root.addEventListener('pointermove', move);
-    root.addEventListener('pointerup', cancel);
-    root.addEventListener('pointercancel', cancel);
+    root.addEventListener('pointerup', up);
+    root.addEventListener('pointercancel', up);
     root.addEventListener('click', click, true);
     root.addEventListener('contextmenu', menu);
     return (): void => {
       cancel();
       root.removeEventListener('pointerdown', down);
       root.removeEventListener('pointermove', move);
-      root.removeEventListener('pointerup', cancel);
-      root.removeEventListener('pointercancel', cancel);
+      root.removeEventListener('pointerup', up);
+      root.removeEventListener('pointercancel', up);
       root.removeEventListener('click', click, true);
       root.removeEventListener('contextmenu', menu);
     };

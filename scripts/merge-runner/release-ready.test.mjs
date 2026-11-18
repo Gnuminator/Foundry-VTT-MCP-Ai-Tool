@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { makeReleaseDeps, makeReleaseRun, releaseItems, stillWaiting } from './release-ready.mjs';
 import { run } from '../backlog.mjs';
-import { waitingEdit } from '../backlog.mjs';
+import { waitingEdit } from '../backlog-waiting.mjs';
 
 const TIP = 'c'.repeat(40);
 const ok = { status: 0, stdout: '', stderr: '' };

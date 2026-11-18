@@ -17,22 +17,15 @@ import {
 import { Drawer, DrawerClose, raiseDrawer } from '../components/Drawer';
 import { RefPicker } from '../components/RefPicker';
 import { useToast } from '../components/Toasts';
-import { api, callTool, errorText } from '../lib/api';
-import {
-  GAME_STATE_KEY,
-  GmActionsGateContext,
-  argLines,
-  failCode,
-  useGuardedTools,
-  type GuardedOutcome,
-} from '../lib/guarded';
+import { api, errorText } from '../lib/api';
+import { GmActionsGateContext, argLines, useGuardedTools } from '../lib/guarded';
+import { runToolCall, type ToolResult } from '../lib/run-tool';
 import { SETTINGS_KEY, useDashboardSettings, type DashboardSettings } from '../lib/stream';
 import {
   collectArgs,
   fieldValues,
   groupTools,
   isPlanTool,
-  isQueueCall,
   kindOf,
   paramsOf,
   pickerRef,
@@ -43,6 +36,15 @@ import {
   type ParamDef,
   type ToolInfo,
 } from '../lib/tool-form';
+import {
+  callKey,
+  defaultLabel,
+  pinActions,
+  suggestions,
+  usePinStore,
+  type Pin,
+  type PinStore,
+} from '../lib/tool-pins';
 import { usage } from '../lib/usage';
 import { Button, type QueryLike, QueryState } from '../ui';
 
@@ -56,19 +58,10 @@ export interface ToolRequest {
 
 const TOOLS_KEY = ['tools'] as const;
 
-const GATE_TEXT = 'GM Actions are off. Enable GM Actions at the top of the Tool Runner.';
-
 /** How long a request for the gate bar's focus waits for the bar to draw. */
 const GATE_PENDING_MS = 1000;
 
 const stillWaiting = (until: number): boolean => performance.now() <= until;
-
-/** What shows under the form: the answer or the error. */
-interface ToolResult {
-  tool: string;
-  ok: boolean;
-  payload: unknown;
-}
 
 /** What is wrong with the form: the text under Run and the fields to mark. */
 interface Problems {
@@ -296,45 +289,46 @@ function ToolRunner({
           return `${key}: ${Array.isArray(value) ? value.map(named).join(', ') : named(value)}`;
         });
 
-  const fromOutcome = (name: string, outcome: GuardedOutcome): ToolResult | null => {
-    if (outcome.status === 'done') return { tool: name, ok: true, payload: outcome.result };
-    if (outcome.status === 'failed') return { tool: name, ok: false, payload: outcome.error };
-    // Refused or cancelled: nothing ran, the form keeps its values for another try.
-    return null;
-  };
-
   const execute = async (
     t: ToolInfo,
     args: Record<string, unknown>
   ): Promise<ToolResult | null> => {
-    const name = t.name;
-    if (isPlanTool(name) && !isQueueCall(name, args)) {
-      return fromOutcome(
-        name,
-        await guarded.plan(name, args, { alwaysConfirm: true, gateText: GATE_TEXT })
-      );
+    const shown = await runToolCall(
+      { guarded, toast, queryClient },
+      t,
+      args,
+      confirmLines(t, args)
+    );
+    // Refused or cancelled: nothing ran, the form keeps its values. A run that went ahead is
+    // remembered for the Recent runs list and the used-most suggestions.
+    if (shown?.ok) pinActions.ran({ tool: t.name, args, mutates: t.mutates });
+    return shown;
+  };
+
+  // Pinning: the form's current values, saved under a name. Only a form that collects cleanly.
+  const pinStore = usePinStore();
+  const pinCurrent = (label: string): boolean => {
+    if (!tool) return false;
+    const collected = collectArgs(tool, drafts[tool.name] ?? startDraft(tool));
+    if ('problems' in collected) {
+      setProblems({
+        tool: tool.name,
+        text: collected.problems.join(' '),
+        fields: collected.fields,
+      });
+      return false;
     }
-    if (t.mutates !== 'read') {
-      const lines = confirmLines(t, args);
-      return fromOutcome(
-        name,
-        await guarded.write(name, args, t.mutates, { gateText: GATE_TEXT, lines })
-      );
-    }
-    // A read, or a queue change that touches nothing in Foundry: runs at once, no GM Actions.
-    try {
-      const answer = await callTool<unknown>(name, args);
-      usage().trackTool(name, 'ok');
-      if (isQueueCall(name, args)) {
-        const note = (answer as { note?: unknown } | null)?.note;
-        toast(typeof note === 'string' ? `✓ ${note}` : `✓ ${name}`, 'ok');
-        void queryClient.invalidateQueries({ queryKey: GAME_STATE_KEY });
-      }
-      return { tool: name, ok: true, payload: answer };
-    } catch (err) {
-      usage().trackTool(name, 'error', failCode(err));
-      return { tool: name, ok: false, payload: errorText(err) };
-    }
+    const saved = pinActions.pin({
+      label: label.trim() || defaultLabel(tool.name, collected.args),
+      tool: tool.name,
+      args: collected.args,
+      mutates: tool.mutates,
+    });
+    toast(
+      saved ? '✓ Pinned to the During bar' : "Can't pin more: remove one first.",
+      saved ? 'ok' : 'warn'
+    );
+    return saved;
   };
 
   const submit = (): void => {
@@ -368,8 +362,11 @@ function ToolRunner({
       });
   };
 
-  // Escape closes an open picker list first (focus back on its button), then the drawer.
+  // Escape puts back a pin name being edited, then closes an open picker list (focus back on its
+  // button), then the drawer.
+  const pinRevert = useRef<(() => boolean) | null>(null);
   const escapeKey = (): boolean => {
+    if (pinRevert.current?.()) return true;
     if (!openPicker) return false;
     usage().track('shortcut', 'dash.shortcut.escape-picker');
     const button = document.getElementById(`${fieldId(openPicker)}-pick`);
@@ -391,6 +388,15 @@ function ToolRunner({
         value={search}
         onChange={e => setSearch(e.target.value)}
       />
+      {search.trim() === '' && (
+        <PinLists
+          store={pinStore}
+          revert={pinRevert}
+          toast={toast}
+          known={name => tools?.find(t => t.name === name)}
+          onOpen={(t, args) => openTool(t, args)}
+        />
+      )}
       <div className="tool-list" id="tool-list">
         <QueryState
           query={toolsQuery}
@@ -468,6 +474,7 @@ function ToolRunner({
         running={running}
         error={problems?.tool === tool.name ? problems.text : ''}
         onSubmit={submit}
+        onPin={pinCurrent}
       />
       {result?.tool === tool.name && (
         <div className={`tool-result ${result.ok ? 'ok' : 'err'}`} id="tool-result" role="status">
@@ -546,6 +553,7 @@ function ToolForm({
   running,
   error,
   onSubmit,
+  onPin,
 }: {
   tool: ToolInfo;
   draft: Draft;
@@ -557,7 +565,9 @@ function ToolForm({
   running: string | null;
   error: string;
   onSubmit: () => void;
+  onPin: (label: string) => boolean;
 }): JSX.Element {
+  const [pinName, setPinName] = useState('');
   const { props, required } = paramsOf(tool);
   const keys = Object.keys(props);
   const reads = tool.mutates === 'read' && !isPlanTool(tool.name);
@@ -693,6 +703,36 @@ function ToolForm({
     >
       {keys.map(field)}
       {keys.length === 0 && <p className="field-hint">This tool takes no parameters.</p>}
+      <div className="pin-save">
+        <input
+          id="tool-pin-name"
+          className="ask-input"
+          type="text"
+          autoComplete="off"
+          aria-label="Name for the pin"
+          placeholder={`Pin name (${defaultLabel(tool.name, {})})`}
+          value={pinName}
+          onChange={e => setPinName(e.target.value)}
+          onKeyDown={e => {
+            // Enter here names the pin; it never runs the tool.
+            if (e.key !== 'Enter') return;
+            e.preventDefault();
+            e.stopPropagation();
+            if (onPin(pinName)) setPinName('');
+          }}
+        />
+        <Button
+          type="button"
+          id="tool-pin"
+          data-track="dash.pins.pin"
+          title="Save this call as a button on the During bar"
+          onClick={() => {
+            if (onPin(pinName)) setPinName('');
+          }}
+        >
+          📌 Pin
+        </Button>
+      </div>
       <div className="form-actions">
         <Button type="submit" variant="primary" id="tool-run" disabled={running !== null}>
           {reads ? 'Run' : 'Plan and confirm'}
@@ -707,5 +747,181 @@ function ToolForm({
         </span>
       </div>
     </form>
+  );
+}
+
+/** A call in a few words for a list: the args as key=value. */
+function callSummary(args: Record<string, unknown>): string {
+  return Object.entries(args)
+    .map(([k, v]) => `${k}=${typeof v === 'string' ? v : JSON.stringify(v)}`)
+    .join(' ');
+}
+
+/** One pin's name, editable in place: Enter or leaving the box keeps it, Escape puts it back. */
+function PinName({
+  pin,
+  revert,
+}: {
+  pin: Pin;
+  /** Set while this box has focus: the drawer's Escape handler calls it (true = it put the name back). */
+  revert: { current: (() => boolean) | null };
+}): JSX.Element {
+  const [text, setText] = useState(pin.label);
+  const shown = useRef(text);
+  shown.current = text;
+  // The saved name as of now: an Enter renames the pin while the box keeps its focus.
+  const saved = useRef(pin.label);
+  saved.current = pin.label;
+  const keep = (): void => {
+    if (text.trim() === '') setText(pin.label);
+    else if (text.trim() !== pin.label) pinActions.rename(pin.id, text);
+  };
+  return (
+    <input
+      className="ask-input"
+      type="text"
+      autoComplete="off"
+      aria-label={`Name of pin ${pin.label}`}
+      value={text}
+      onChange={e => setText(e.target.value)}
+      onFocus={() => {
+        // Escape is the drawer's: it asks here first and only closes when nothing was changed.
+        revert.current = (): boolean => {
+          if (shown.current === saved.current) return false;
+          setText(saved.current);
+          return true;
+        };
+      }}
+      onBlur={() => {
+        revert.current = null;
+        keep();
+      }}
+      onKeyDown={e => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          keep();
+        }
+      }}
+    />
+  );
+}
+
+/** The pins (rename, remove), the three calls used most, and the recent runs. */
+function PinLists({
+  store,
+  revert,
+  toast,
+  known,
+  onOpen,
+}: {
+  store: PinStore;
+  revert: { current: (() => boolean) | null };
+  toast: ReturnType<typeof useToast>;
+  known: (name: string) => ToolInfo | undefined;
+  onOpen: (tool: ToolInfo, args: Record<string, unknown>) => void;
+}): JSX.Element | null {
+  const often = suggestions(store);
+  if (store.pins.length === 0 && often.length === 0 && store.recent.length === 0) return null;
+  const open = (name: string, args: Record<string, unknown>): void => {
+    const t = known(name);
+    if (t) onOpen(t, args);
+    else toast(`Tool "${name}" isn't in the catalog now.`, 'warn');
+  };
+  return (
+    <div className="pin-lists" id="pin-lists">
+      {store.pins.length > 0 && (
+        <div className="tool-group" role="group" aria-label="Pinned">
+          <div className="tool-cat">Pinned</div>
+          <div className="pin-list">
+            {store.pins.map(pin => (
+              <div className="pin-item" key={pin.id} data-pin={pin.id}>
+                <PinName pin={pin} revert={revert} />
+                <Button
+                  type="button"
+                  className="btn-small"
+                  data-track="dash.pins.edit"
+                  title={`Open ${pin.tool} with this call filled in`}
+                  onClick={() => open(pin.tool, pin.args)}
+                >
+                  Open
+                </Button>
+                <Button
+                  type="button"
+                  className="btn-small"
+                  data-track="dash.pins.remove"
+                  aria-label={`Remove pin ${pin.label}`}
+                  onClick={() => pinActions.remove(pin.id)}
+                >
+                  Remove
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {often.length > 0 && (
+        <div className="tool-group" role="group" aria-label="Used most">
+          <div className="tool-cat">Used most</div>
+          <div className="pin-list">
+            {often.map(c => (
+              <div className="pin-item" key={callKey(c.tool, c.args)} data-often={c.tool}>
+                <button
+                  type="button"
+                  className="tool-item pin-item-main"
+                  data-track="dash.pins.open-often"
+                  onClick={() => open(c.tool, c.args)}
+                >
+                  <span className="tool-item-main">
+                    <span className="tool-item-name">{c.tool}</span>
+                    <span className="tool-item-desc">
+                      {c.count} runs {callSummary(c.args)}
+                    </span>
+                  </span>
+                </button>
+                <Button
+                  type="button"
+                  className="btn-small"
+                  data-track="dash.pins.pin-often"
+                  aria-label={`Pin ${c.tool}`}
+                  onClick={() => {
+                    const saved = pinActions.pin({
+                      label: defaultLabel(c.tool, c.args),
+                      tool: c.tool,
+                      args: c.args,
+                      mutates: c.mutates,
+                    });
+                    if (!saved) toast("Can't pin more: remove one first.", 'warn');
+                  }}
+                >
+                  📌 Pin
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {store.recent.length > 0 && (
+        <div className="tool-group" role="group" aria-label="Recent runs">
+          <div className="tool-cat">Recent runs</div>
+          <div className="pin-list">
+            {store.recent.map(r => (
+              <button
+                key={callKey(r.tool, r.args)}
+                type="button"
+                className="tool-item"
+                data-recent={r.tool}
+                data-track="dash.pins.open-recent"
+                onClick={() => open(r.tool, r.args)}
+              >
+                <span className="tool-item-main">
+                  <span className="tool-item-name">{r.tool}</span>
+                  <span className="tool-item-desc">{callSummary(r.args) || 'no arguments'}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

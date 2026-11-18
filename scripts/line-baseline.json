@@ -24,7 +24,7 @@
     "scripts/green.mjs": 1210,
     "scripts/live-write-sweep.mjs": 1690,
     "scripts/merge-runner.mjs": 1064,
-    "scripts/test-kit/lib/dashboard-controls.mjs": 1261,
+    "scripts/test-kit/lib/dashboard-controls.mjs": 1301,
     "scripts/test-kit/lib/fake/origins.mjs": 1051,
     "scripts/test-kit/lib/features.mjs": 1387,
     "scripts/test-kit/lib/gm-actions.mjs": 1975,
@@ -86,6 +86,12 @@
       "lines": 1548,
       "reason": "PR undo-leaves-prone: +5 lines to call guarded-write/rider-undo.ts from undoChange",
       "pr": "1175"
+    },
+    {
+      "file": "scripts/test-kit/lib/dashboard-controls.mjs",
+      "lines": 1301,
+      "reason": "one row per dashboard control: the table grows with every new control (read-aloud, pin controls)",
+      "pr": "1155"
     }
   ]
 }

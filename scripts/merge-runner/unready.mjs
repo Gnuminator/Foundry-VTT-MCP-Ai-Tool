@@ -11,7 +11,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { parseProgress, parseReadyAll } from '../backlog-items.mjs';
+import { parseBacklog, parseProgress, parseReadyAll } from '../backlog-items.mjs';
 import { findReviewNotes, judgeReviews } from '../lane-merge/reviews.mjs';
 import { ciState } from '../planner-state.mjs';
 import { enqueuedItems } from './queue.mjs';
@@ -45,7 +45,8 @@ export function isPartOnly(body, id) {
 /**
  * @typedef {{ number: number, title?: string, headRefOid: string, isDraft?: boolean, body?: string,
  *   statusCheckRollup?: any[] }} OpenPr
- * @typedef {{ pr: number, head: string, ids: string[], title: string, note: string }} Unready
+ * @typedef {{ pr: number, head: string, ids: string[], title: string, note: string,
+ *   missing?: string[] }} Unready ids: the PR's Backlog items that exist; missing: ids it names that do not
  */
 
 /**
@@ -67,6 +68,7 @@ export function findUnready(prs, backlogText, notesFor) {
       if (refused) handled.add(Number(refused[1]));
     }
   }
+  const existing = new Set(parseBacklog(backlogText).items.map(i => i.id));
   /** @type {Unready[]} */
   const out = [];
   for (const p of prs) {
@@ -76,10 +78,12 @@ export function findUnready(prs, backlogText, notesFor) {
     if (!notes?.length) continue;
     const verdict = judgeReviews(notes, p.headRefOid, false, {}, p.number);
     if (!verdict.ok) continue;
+    const named = [...backlogIds(p.body ?? ''), ...backlogIds(p.body ?? '', 'Backlog-part')];
     out.push({
       pr: p.number,
       head: p.headRefOid,
-      ids: [...backlogIds(p.body ?? ''), ...backlogIds(p.body ?? '', 'Backlog-part')],
+      ids: named.filter(i => existing.has(i)),
+      missing: named.filter(i => !existing.has(i)),
       title: String(p.title ?? '')
         .split(/\s+/)
         .slice(0, 10)
@@ -92,13 +96,20 @@ export function findUnready(prs, backlogText, notesFor) {
 
 /** The command that writes the ready line. @param {Unready} u */
 export function readyCommand(u) {
-  const id = u.ids[0] ?? '<item id>';
-  return `node scripts/backlog.mjs progress ${id} --ready ${u.pr} --head ${u.head} --review "${u.note.split(', ')[0]}"`;
+  const ready = id =>
+    `node scripts/backlog.mjs progress ${id} --ready ${u.pr} --head ${u.head} --review "${u.note.split(', ')[0]}"`;
+  if (u.ids.length) return ready(u.ids[0]);
+  // No item to write the line on (progress fails with "no item with id"): add one first.
+  return `no Backlog item exists for it; add one (node scripts/backlog.mjs add --id <slug> --size S --title <t> --board <area> --done-when <t>), then ${ready('<slug>')}`;
 }
 
 /** One line for `status --planner` and #pr-log. @param {Unready} u */
 export function unreadyLine(u) {
-  const item = u.ids.length ? `item ${u.ids.join(', ')}` : 'no Backlog: line in the PR body';
+  const item = u.ids.length
+    ? `item ${u.ids.join(', ')}`
+    : u.missing?.length
+      ? `no such Backlog item: ${u.missing.join(', ')}`
+      : 'no Backlog: line in the PR body';
   return `#${u.pr}${u.title ? ` ${u.title}` : ''} (${item}): open, CI green and a Merge note for head ${u.head.slice(0, 7)}, but no ready line; the runner skips it. To queue it: ${readyCommand(u)}`;
 }
 

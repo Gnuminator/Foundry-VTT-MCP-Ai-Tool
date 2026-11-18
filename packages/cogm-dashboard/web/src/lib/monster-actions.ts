@@ -12,7 +12,10 @@ export function actionsOf(result: unknown): Weapon[] {
   return weaponsOf(result).slice(0, MAX_ACTIONS);
 }
 
-/** use-npc-activity arguments: the token runs the item; the AC of the target is read in Foundry. */
+/**
+ * use-npc-activity arguments: the token runs the item; the AC of the target is read in Foundry.
+ * The roll is public on purpose: the table sees a monster attack as it would at a real table.
+ */
 export function activityArgs(attackerToken: string, itemId: string): Record<string, unknown> {
   return { actor: attackerToken, itemName: itemId, isPublic: true };
 }
@@ -111,7 +114,7 @@ export async function applyParts(
         ? {
             confirmLine: {
               title: 'Apply damage',
-              question: applyQuestion(target.name, parts),
+              question: applyQuestion(target.name, parts, !canSkip),
               confirmLabel: 'Apply damage',
             },
             // The module's "apply without confirming" switch for live play skips the question.
@@ -149,9 +152,10 @@ function applyArgs(targetToken: string, part: DamagePart): Record<string, unknow
 }
 
 /** The question the confirm window asks before damage goes in. */
-function applyQuestion(target: string, parts: DamagePart[]): string {
+function applyQuestion(target: string, parts: DamagePart[], unknownHit: boolean): string {
   const list = parts.map(p => `${p.total}${p.type ? ` ${p.type}` : ''}`).join(' and ');
-  return `Deal ${list} damage to ${target}?`;
+  const ask = `Deal ${list} damage to ${target}?`;
+  return unknownHit ? `Hit not confirmed (check the chat card). ${ask}` : ask;
 }
 
 export const NO_TARGET_NOTE =

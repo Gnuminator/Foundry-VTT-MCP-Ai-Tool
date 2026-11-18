@@ -52,12 +52,14 @@ export function MonsterActions({
   const [error, setError] = useState('');
   const [line, setLine] = useState('');
   const ownLock = useRef(false);
+  /** The id of the button whose roll is running (it says so; the others wait). */
+  const [busyId, setBusyId] = useState('');
 
   useEffect(() => {
     let live = true;
     setActions(null);
     setError('');
-    setLine('');
+    // The result line stays: it names its own creature, and a press may still be running.
     callTool('search-character-items', { characterIdentifier: token, type: 'weapon', limit: 50 })
       .then(r => {
         if (live) setActions(actionsOf(r));
@@ -76,6 +78,7 @@ export function MonsterActions({
     if (stale || locked || ownLock.current || offTitle) return;
     void once(async (): Promise<void> => {
       ownLock.current = true;
+      setBusyId(action.id);
       setLine('');
       try {
         const found = await fetchFoundryTargets();
@@ -114,6 +117,7 @@ export function MonsterActions({
         setLine(`✗ ${errorText(e)}`);
       } finally {
         ownLock.current = false;
+        setBusyId('');
       }
     });
   };
@@ -134,7 +138,8 @@ export function MonsterActions({
             size="sm"
             data-track="dash.live.monster-action"
             data-action={a.name}
-            aria-disabled={stale || locked || offTitle ? 'true' : undefined}
+            aria-disabled={stale || locked || offTitle || busyId ? 'true' : undefined}
+            aria-busy={busyId === a.id ? 'true' : undefined}
             title={offTitle ?? `Roll ${a.name} against the creature targeted in Foundry`}
             onClick={() => press(a)}
           >

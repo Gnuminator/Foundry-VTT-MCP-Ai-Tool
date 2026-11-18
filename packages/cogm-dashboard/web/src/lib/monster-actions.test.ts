@@ -130,6 +130,9 @@ describe('applyParts and appliedLine', () => {
     await applyParts(plan, target, [{ type: null, total: 4 }], false);
     const first = calls[0]?.[2] as { skipConfirmWhenAutoApply?: boolean };
     expect(first.skipConfirmWhenAutoApply).toBe(false);
+    expect((calls[0]?.[2] as { confirmLine?: { question: string } }).confirmLine?.question).toBe(
+      'Hit not confirmed (check the chat card). Deal 4 damage to Ilvara?'
+    );
     expect(calls[0]?.[1]).not.toHaveProperty('damageType');
   });
   it('stops at the first part when the GM cancels: nothing applied', async () => {

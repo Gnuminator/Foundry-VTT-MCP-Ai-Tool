@@ -748,27 +748,33 @@ function escapeHtml(text: string): string {
     .replace(/"/g, '&quot;');
 }
 
+/** The card text as HTML paragraphs, escaped (stored on the GM-only journal page). */
+function cardHtml(text: string): string {
+  return escapeHtml(text.replace(/\r\n?/g, '\n'))
+    .split(/\n{2,}/)
+    .map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`)
+    .join('');
+}
+
 /**
- * The `executeScript` source of a room card. It runs on every client when a token enters, so only
- * the active GM's client posts, and the message is a whisper to the GM users: no player gets
- * the card. The card text is escaped now and embedded as a JSON string (no template parts).
+ * The `executeScript` source of a room card. Foundry loads a Region's behavior source on every
+ * client (`gmOnly` only blocks writes), so the card text is NOT in it: the script holds only the
+ * uuid of a GM-only journal entry (ownership none, never sent to players). Only the active GM's
+ * client reads it and posts a whisper to the GM users.
  */
-function whisperScript(name: string, text: string, once: boolean): string {
-  const heading = JSON.stringify(escapeHtml(name));
-  const body = JSON.stringify(
-    escapeHtml(text)
-      .split(/\n{2,}/)
-      .map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`)
-      .join('')
-  );
+function whisperScript(journalUuid: string, once: boolean): string {
   return [
     'if (!game.user.isActiveGM) return;',
-    'const who = String(event.data?.token?.name ?? "A token").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",\'"\':"&quot;"})[c]);',
-    `await ChatMessage.create({`,
-    `  whisper: ChatMessage.getWhisperRecipients("GM").map(u => u.id),`,
-    `  speaker: { alias: "Room card" },`,
-    `  content: "<h3>" + ${heading} + "</h3><p><em>" + who + " entered.</em></p>" + ${body}`,
-    `});`,
+    `const card = await fromUuid(${JSON.stringify(journalUuid)});`,
+    'if (!card) return;',
+    'const esc = t => String(t).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",\'"\':"&quot;"})[c]);',
+    'const who = esc(event.data?.token?.name ?? "A token");',
+    'const body = card.pages.contents.map(p => p.text?.content ?? "").join("");',
+    'await ChatMessage.create({',
+    '  whisper: ChatMessage.getWhisperRecipients("GM").map(u => u.id),',
+    '  speaker: { alias: "Room card" },',
+    '  content: "<h3>" + esc(card.name) + "</h3><p><em>" + who + " entered.</em></p>" + body',
+    '});',
     ...(once ? ['await behavior.update({ disabled: true });'] : []),
   ].join('\n');
 }
@@ -776,6 +782,7 @@ function whisperScript(name: string, text: string, once: boolean): string {
 function planWhisper(request: RoomWhisperRequest): RoomSetupPlan {
   const name = (request.name ?? '').trim();
   if (!name) throw new Error('A room whisper needs a name');
+  if (name.length > 120) throw new Error('The room name is 120 characters at most');
   const text = (request.text ?? '').trim();
   if (!text) throw new Error('A room whisper needs the card text');
   if (text.length > MAX_WHISPER_TEXT) {
@@ -786,18 +793,42 @@ function planWhisper(request: RoomWhisperRequest): RoomSetupPlan {
   const warnings: string[] = [];
   const rect = areaRect(scene, area, 'area', warnings);
   const once = request.once === true;
+  const journalId = newId();
   const behavior: Rec = {
     _id: newId(),
     type: 'executeScript',
     name: `${name} (whisper to GM)`,
-    system: { events: ['tokenMoveIn'], source: whisperScript(name, text, once) },
+    system: {
+      events: ['tokenMoveIn'],
+      source: whisperScript(`JournalEntry.${journalId}`, once),
+    },
   };
   warnings.push(
-    'Only GMs receive the card (a whisper from the active GM client); it does not post while no GM is logged in'
+    'Only GMs receive the card (a whisper from the active GM client); it does not post while no GM is logged in',
+    'The card text is kept in a GM-only journal entry; the Region name and the entry name are readable by players, so choose a neutral name'
   );
   return {
     summary: `Add the room card ${quoted(name)} (whispered to the GM when a token enters${once ? ', first time only' : ''}) on ${quoted(scene.name)}`,
     ops: [
+      {
+        kind: 'create',
+        documentName: 'JournalEntry',
+        data: {
+          _id: journalId,
+          name: `${name} (room card)`,
+          ownership: { default: 0 },
+          pages: [
+            {
+              _id: newId(),
+              name: 'Room card',
+              type: 'text',
+              text: { content: cardHtml(text), format: 1 },
+            },
+          ],
+          flags: { [MODULE_ID]: { roomSetup: true } },
+        },
+        keepId: true,
+      },
       {
         kind: 'create',
         documentName: 'Region',

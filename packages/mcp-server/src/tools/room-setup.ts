@@ -90,7 +90,7 @@ const planParams = z.discriminatedUnion('action', [
   }),
   z.object({
     action: z.literal('whisper'),
-    name: z.string().min(1),
+    name: z.string().min(1).max(120),
     area,
     text: z.string().min(1).max(2000),
     once: z.boolean().optional(),
@@ -199,7 +199,8 @@ export class RoomSetupTools {
             },
             once: {
               type: 'boolean',
-              description: 'whisper: only the first entry (default every entry).',
+              description:
+                'whisper: only the first entry (default every entry; two tokens entering at the same moment can both whisper).',
             },
           },
           required: ['action'],

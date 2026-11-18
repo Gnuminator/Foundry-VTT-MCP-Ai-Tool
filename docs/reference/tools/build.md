@@ -240,7 +240,7 @@ Parameters:
 - `modifier` (number): darkness: 0 to 1.
 - `effectUuid` (string)
 - `text` (string): whisper: the room card text for the GM (2000 characters at most).
-- `once` (boolean): whisper: only the first entry (default every entry).
+- `once` (boolean): whisper: only the first entry (default every entry; two tokens entering at the same moment can both whisper).
 
 ## plan-pc-creation
 

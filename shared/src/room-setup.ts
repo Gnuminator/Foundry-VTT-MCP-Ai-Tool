@@ -135,8 +135,12 @@ export interface RoomHazardRequest {
 
 /**
  * A room card whispered to the GMs only when a token enters the area (I-168): a Region with
- * Foundry's `executeScript` behavior (its source is GM-only data) that posts one whispered chat
- * message from the active GM's client. Nothing is sent to players.
+ * Foundry's `executeScript` behavior that posts one whispered chat message from the active GM's
+ * client. Foundry loads a behavior's source on every client, so the card text is NOT in it: it
+ * lives on a GM-only journal entry (ownership none) made in the same plan; the script only names
+ * its uuid. Players are shown nothing (live check on 14.370: Foundry itself still delivers
+ * whispers and no-access entries to every client, as it does for any whisper, so a player's
+ * browser console can read them). The Region name and the entry name: use a neutral name.
  */
 export interface RoomWhisperRequest {
   action: 'whisper';

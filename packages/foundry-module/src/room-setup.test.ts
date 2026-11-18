@@ -560,9 +560,16 @@ describe('whisper (I-168)', () => {
       area,
       text: 'Cold air.\n\nA <b>lever</b> hides behind the altar.',
     });
-    expect(plan.ops).toHaveLength(1);
-    const op = plan.ops[0] as any;
+    expect(plan.ops).toHaveLength(2);
+    const card = plan.ops[0] as any;
+    expect(card).toMatchObject({ kind: 'create', documentName: 'JournalEntry', keepId: true });
+    expect(card.data.ownership).toEqual({ default: 0 });
+    const op = plan.ops[1] as any;
     expect(op).toMatchObject({ kind: 'create', documentName: 'Region', parentUuid: 'Scene.a' });
+    // Foundry loads a behavior source on every client: no card text may be in the Region.
+    expect(JSON.stringify(op)).not.toContain('lever');
+    expect(JSON.stringify(op)).not.toContain('Cold air');
+    expect(op.data.behaviors[0].system.source).toContain(`JournalEntry.${card.data._id}`);
     expect(op.data.shapes[0]).toMatchObject({ x: 100, y: 100, width: 300, height: 200 });
     expect(op.data.visibility).toBe(1);
     const b = op.data.behaviors[0];
@@ -573,14 +580,23 @@ describe('whisper (I-168)', () => {
 
   it('the script whispers to GMs only, escaped, once when asked', async () => {
     world.setActiveScene(scene('a', 'Hall').id);
+    const nasty = 'A <b>lever</b> "q" \\ ${x} `t`   end\r\n\r\nSecond';
     const plan = await planRoomSetup({
       action: 'whisper',
-      name: 'Vault',
+      name: 'Va"ult\\${y}',
       area,
-      text: 'A <b>lever</b>',
+      text: nasty,
       once: true,
     });
-    const source = (plan.ops[0] as any).data.behaviors[0].system.source as string;
+    const card = (plan.ops[0] as any).data;
+    const source = (plan.ops[1] as any).data.behaviors[0].system.source as string;
+    const fromUuid = async (uuid: string): Promise<unknown> =>
+      uuid === `JournalEntry.${card._id}`
+        ? {
+            name: card.name,
+            pages: { contents: card.pages.map((p: any) => ({ text: p.text })) },
+          }
+        : null;
     const create = vi.fn();
     const update = vi.fn();
     // Foundry builds the behavior script the same way (an AsyncFunction over the source).
@@ -588,22 +604,25 @@ describe('whisper (I-168)', () => {
       ...args: string[]
     ) => (...a: unknown[]) => Promise<void>;
     const run = (isActiveGM: boolean): Promise<void> =>
-      new AsyncFunction('game', 'ChatMessage', 'event', 'behavior', `{${source}\n}`)(
+      new AsyncFunction('game', 'ChatMessage', 'event', 'behavior', 'fromUuid', `{${source}\n}`)(
         { user: { isActiveGM } },
         {
           create,
           getWhisperRecipients: (n: string) => (n === 'GM' ? [{ id: 'gm1' }, { id: 'gm2' }] : []),
         },
-        { data: { token: { name: '<Gob>' } } },
-        { update }
+        { data: { token: { name: '<Gob>"&' } } },
+        { update },
+        fromUuid
       );
     await run(false);
     expect(create).not.toHaveBeenCalled();
     await run(true);
     const msg = create.mock.calls[0][0];
     expect(msg.whisper).toEqual(['gm1', 'gm2']);
-    expect(msg.content).toContain('&lt;Gob&gt; entered.');
-    expect(msg.content).toContain('A &lt;b&gt;lever&lt;/b&gt;');
+    expect(msg.content).toContain('&lt;Gob&gt;&quot;&amp; entered.');
+    expect(msg.content).toContain('A &lt;b&gt;lever&lt;/b&gt; &quot;q&quot; \\ ${x} `t`   end');
+    expect(msg.content).toContain('<p>Second</p>');
+    expect(msg.content).toContain('Va&quot;ult\\${y}');
     expect(update).toHaveBeenCalledWith({ disabled: true });
   });
 

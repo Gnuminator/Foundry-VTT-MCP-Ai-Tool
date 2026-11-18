@@ -6,6 +6,7 @@
 // changes) and has no undo, so there is no confirm window (GM Actions still has to be on).
 import {
   useCallback,
+  useEffect,
   useRef,
   useState,
   useSyncExternalStore,
@@ -29,7 +30,16 @@ import {
   type Advantage,
   type RollPick,
 } from '../lib/quick-roll';
-import { latestRound, roundHeadline, rowLine, useRollRows } from '../lib/roll-status';
+import {
+  latestRound,
+  nudgeLine,
+  nudgeTargets,
+  resultsLine,
+  roundHeadline,
+  rowLine,
+  useRollRows,
+} from '../lib/roll-status';
+import { Button } from '../ui';
 import { usage } from '../lib/usage';
 import { useToast } from './Toasts';
 import styles from './QuickRoll.module.css';
@@ -72,6 +82,16 @@ function changePick(change: Partial<RollPick>): void {
   current = cleanPick({ ...getPick(), ...change });
   writePick(current);
   listeners.forEach(l => l());
+}
+
+/** The clock, re-read every `everyMs`, so "no answer after 5 minutes" shows without a click. */
+function useNow(everyMs: number): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), everyMs);
+    return (): void => clearInterval(t);
+  }, [everyMs]);
+  return now;
 }
 
 export interface QuickRoll {
@@ -157,7 +177,19 @@ export function QuickRollBar({
   children: ReactNode;
 }): JSX.Element {
   const { pick, setPick } = roll;
-  const round = latestRound(useRollRows(), Date.now());
+  const rows = useRollRows();
+  const now = useNow(30_000);
+  const round = latestRound(rows, now);
+  const guarded = useGuardedTools();
+  const [posted, setPosted] = useState<string | null>(null);
+  const nudges = round ? nudgeTargets(round, now) : [];
+  const post = (text: string, key: string): void => {
+    void guarded
+      .call('send-chat-message', { message: text, messageType: 'ooc' }, { confirm: true })
+      .then(out => {
+        if (out.status === 'done') setPosted(key);
+      });
+  };
   return (
     <div className={styles['bar']} role="group" aria-label="Ask for a roll">
       <select
@@ -223,6 +255,30 @@ export function QuickRollBar({
           <strong>{roundHeadline(round)}</strong>
           {'. '}
           {round.rows.map(rowLine).join(', ')}
+          {round.waiting.length === 0 && (
+            <Button
+              type="button"
+              size="sm"
+              data-track="dash.quickroll.post-results"
+              disabled={posted === `${round.id}:results`}
+              onClick={() => post(resultsLine(round), `${round.id}:results`)}
+            >
+              {posted === `${round.id}:results` ? 'Posted to chat' : 'Post results to chat'}
+            </Button>
+          )}
+          {nudges.length > 0 && (
+            <Button
+              type="button"
+              size="sm"
+              data-track="dash.quickroll.nudge"
+              disabled={posted === `${round.id}:nudge:${nudges.length}`}
+              onClick={() => post(nudgeLine(round, nudges), `${round.id}:nudge:${nudges.length}`)}
+            >
+              {posted === `${round.id}:nudge:${nudges.length}`
+                ? 'Nudge sent'
+                : `Nudge ${nudges.map(r => r.targetName).join(', ')}`}
+            </Button>
+          )}
         </p>
       )}
     </div>

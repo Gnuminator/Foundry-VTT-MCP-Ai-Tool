@@ -1146,6 +1146,7 @@ export class GuardedWriteService {
           )
           .map(line => `undone: ${line}`),
         ...leftAlone,
+        ...riders.lines,
       ],
       undoOf: entry.changeId,
       ...(requestedBy ? { requestedBy } : {}),

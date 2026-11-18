@@ -757,7 +757,7 @@ export function buildActions(records: ChangeRecord[], users?: UserNames): Change
       const { aiRoots, link } = links[i];
       const mine = new Set(filed.get(i) ?? []);
       const followUps = [...mine].filter(
-        r => isCascade(r) || isDependentDelete(r, link) || isBatchRider(r, aiRoots)
+        r => isCascade(r) || isDependentDelete(r, link) || isBatchRider(r, segment.ai)
       );
       const theirs = new Set(
         [...mine].filter(r => !aiRoots.has(r.rootUuid) && !followUps.includes(r))

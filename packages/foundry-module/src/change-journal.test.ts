@@ -297,7 +297,12 @@ describe('pre-hooks: the stash', () => {
 
   describe('a rider effect dnd5e creates in a batch (no pre-hook, no stash)', () => {
     const prone = (actor: any): any =>
-      fixture({ documentName: 'ActiveEffect', id: 'dnd5eprone0000', name: 'Prone', parent: actor });
+      fixture({
+        documentName: 'ActiveEffect',
+        id: 'dnd5eprone000000',
+        name: 'Prone',
+        parent: actor,
+      });
     const hpWrite = (actor: any): string =>
       simulateUpdate(
         actor,

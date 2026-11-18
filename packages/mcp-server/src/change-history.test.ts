@@ -584,7 +584,7 @@ describe('buildActions', () => {
       t: ai.t + 400,
       op: 'create',
       documentName: 'ActiveEffect',
-      uuid: 'Actor.a1.ActiveEffect.dnd5eprone0000000',
+      uuid: 'Actor.a1.ActiveEffect.dnd5eprone000000',
       parentUuid: 'Actor.a1',
       rootUuid: 'Actor.a1',
       rootName: 'Kit Cleric',
@@ -598,10 +598,13 @@ describe('buildActions', () => {
     expect(buildActions([ai, ordinary])[0].followUps).toEqual([]);
     const elsewhere = {
       ...prone,
-      uuid: 'Actor.a2.ActiveEffect.dnd5eprone0000000',
+      uuid: 'Actor.a2.ActiveEffect.dnd5eprone000000',
       rootUuid: 'Actor.a2',
     };
     expect(buildActions([ai, elsewhere])[0].followUps).toEqual([]);
+    // A Prone the GM sets a moment after an AI hit that left the hero standing is not the change's.
+    const notDown = { ...ai, after: [val('system.attributes.hp.value', 7)] };
+    expect(buildActions([notDown, prone])[0].followUps).toEqual([]);
   });
 
   it("does not swallow a person's own concentration end into an AI item delete across browsers, and files a re-deleted dependent under the latest change", () => {

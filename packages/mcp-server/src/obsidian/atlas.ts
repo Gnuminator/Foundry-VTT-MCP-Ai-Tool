@@ -64,7 +64,10 @@ function parseDoc(text: string | null): CanvasDoc | null {
 export function mergeCanvas(
   nextText: string,
   existingText: string | null,
-  isGeneratedId: (id: string) => boolean
+  isGeneratedId: (id: string) => boolean,
+  /** Also keep the colour of a card and the label and colour of an arrow (Atlas canvases; the
+   * Spread's colour says whether a card is revealed, so it is always rebuilt). */
+  keepStyle = false
 ): string {
   const next = parseDoc(nextText);
   const existing = parseDoc(existingText);
@@ -77,6 +80,7 @@ export function mergeCanvas(
     if (!before || node.id === 'generated') return node;
     const merged = { ...node };
     for (const key of GEOMETRY) if (typeof before[key] === 'number') merged[key] = before[key];
+    if (keepStyle && typeof before.color === 'string') merged.color = before.color;
     return merged;
   });
   const taken = new Set(nodes.map(node => node.id));
@@ -86,11 +90,22 @@ export function mergeCanvas(
     nodes.push(node);
     taken.add(node.id);
   }
-  const edges = [...(next.edges ?? [])];
+  const oldEdges = new Map<string, CanvasEdge>();
+  for (const edge of existing.edges ?? [])
+    if (edge && typeof edge.id === 'string') oldEdges.set(edge.id, edge);
+  const edges = (next.edges ?? []).map(edge => {
+    const before = oldEdges.get(edge.id);
+    if (!keepStyle || !before) return edge;
+    const merged = { ...edge };
+    if (typeof before.label === 'string') merged.label = before.label;
+    if (typeof before.color === 'string') merged.color = before.color;
+    return merged;
+  });
   const takenEdges = new Set(edges.map(edge => edge.id));
-  for (const edge of existing.edges ?? []) {
-    if (!edge || typeof edge.id !== 'string') continue;
+  for (const edge of oldEdges.values()) {
     if (isGeneratedId(edge.id) || takenEdges.has(edge.id)) continue;
+    // An arrow of the GM's whose card is gone would dangle.
+    if (!taken.has(String(edge.fromNode)) || !taken.has(String(edge.toNode))) continue;
     edges.push(edge);
     takenEdges.add(edge.id);
   }
@@ -256,6 +271,7 @@ export async function renderQuestsCanvas(
   const quests = [...scan.mirror.values()].filter(isQuest).sort(byName).slice(0, MAX_CARDS);
   const nodes: CanvasNode[] = [];
   const edges: CanvasEdge[] = [];
+  const questIds = new Set(quests.map(quest => quest.uuid));
   const placed = new Set<string>();
   let right = 0;
   quests.forEach((quest, row) => {
@@ -265,7 +281,8 @@ export async function renderQuestsCanvas(
     for (const target of await linkedNotes(root, scan, index, quest)) {
       if (isQuest(target)) {
         // Another quest: an arrow to its card, no second card.
-        edges.push(edge(cardId(quest.uuid), cardId(target.uuid), 'right', 'left'));
+        if (questIds.has(target.uuid))
+          edges.push(edge(cardId(quest.uuid), cardId(target.uuid), 'right', 'left'));
         continue;
       }
       if (!placed.has(target.uuid)) {

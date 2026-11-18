@@ -202,6 +202,41 @@ describe('Campaign Atlas canvases', () => {
     expect(await fsp.readFile(file, 'utf8')).toBe(text);
   });
 
+  it('keeps card colours and arrow labels on the Atlas, drops arrows to cards that are gone', () => {
+    const next = JSON.stringify({
+      nodes: [
+        {
+          id: 'atlas-n-a',
+          type: 'file',
+          file: 'a.md',
+          color: '1',
+          x: 0,
+          y: 0,
+          width: 1,
+          height: 1,
+        },
+        { id: 'atlas-n-b', type: 'file', file: 'b.md', x: 0, y: 0, width: 1, height: 1 },
+        { id: 'generated', type: 'text', text: '', x: 0, y: 0, width: 1, height: 1 },
+      ],
+      edges: [{ id: 'atlas-e-a-b', fromNode: 'atlas-n-a', toNode: 'atlas-n-b' }],
+    });
+    const existing = JSON.stringify({
+      nodes: [{ id: 'atlas-n-a', color: '5', x: 9, y: 9, width: 1, height: 1 }],
+      edges: [
+        { id: 'atlas-e-a-b', label: 'owes', color: '3' },
+        { id: 'mine', fromNode: 'atlas-n-a', toNode: 'gone' },
+        { id: 'mine2', fromNode: 'atlas-n-a', toNode: 'atlas-n-b' },
+      ],
+    });
+    const merged = JSON.parse(mergeCanvas(next, existing, isAtlasGeneratedId, true)) as {
+      nodes: Array<{ id: string; color?: string }>;
+      edges: Array<{ id: string; label?: string }>;
+    };
+    expect(merged.nodes.find(n => n.id === 'atlas-n-a')?.color).toBe('5');
+    expect(merged.edges.map(e => e.id).sort()).toEqual(['atlas-e-a-b', 'mine2']);
+    expect(merged.edges.find(e => e.id === 'atlas-e-a-b')?.label).toBe('owes');
+  });
+
   it('keeps hand-moved cards on the Tarokka spread too', () => {
     const next = JSON.stringify({
       nodes: [

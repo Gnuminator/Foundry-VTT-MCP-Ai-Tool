@@ -69,6 +69,7 @@ import {
   renderSessionNote,
   renderSessionsBase,
   renderSpreadCanvas,
+  SPREAD_CARD_KEYS,
   renderStatusNote,
   renderTarokkaArchiveNote,
   renderTarokkaNote,
@@ -85,14 +86,7 @@ const SESSION_FILE = /^(\d{4}-\d{2}-\d{2})\.jsonl$/;
 const AUDIT_HISTORY_FILE = 'audit-log.jsonl';
 
 /** The card ids `renderSpreadCanvas` makes; any other card on Spread.canvas is the GM's. */
-const SPREAD_IDS = new Set([
-  'tome',
-  'holySymbol',
-  'sunsword',
-  'ally',
-  'strahdLocation',
-  'no-reading',
-]);
+const SPREAD_IDS = new Set([...SPREAD_CARD_KEYS, 'no-reading']);
 
 /** Folders whose notes not produced this run are pruned to `.trash/` (item 9). */
 const MANAGED_FOLDERS = [
@@ -414,20 +408,36 @@ export async function exportWorldToObsidian(options: {
   // written some. GM vault only.
   if (await writer.exists('AI Tool/Foundry')) {
     try {
-      const scan = await scanCampaign(options.vaultDir, worldId);
+      const targets: Array<[string, string | null, typeof renderQuestsCanvas]> = [];
       for (const [relPath, render] of [
         [QUESTS_CANVAS_PATH, renderQuestsCanvas],
         [PLACES_CANVAS_PATH, renderPlacesCanvas],
       ] as const) {
-        await writer.owned(
-          relPath,
-          mergeCanvas(
-            await render(worldId, root, scan),
-            await readExisting(root, relPath),
-            isAtlasGeneratedId
-          ),
-          checkAtlasOwnership
-        );
+        const existing = await readExisting(root, relPath);
+        // A canvas the GM took over (marker card deleted) needs no scan.
+        if (existing !== null && !checkAtlasOwnership(existing).owned) {
+          await writer.owned(relPath, existing, checkAtlasOwnership);
+          continue;
+        }
+        targets.push([relPath, existing, render]);
+      }
+      if (targets.length > 0) {
+        const scan = await scanCampaign(options.vaultDir, worldId);
+        // An incomplete scan would drop cards (and their saved positions): leave the canvases as they are.
+        if (scan.errors.length > 0 || scan.limitsHit.length > 0) {
+          writer.errors.push({
+            path: 'AI Tool/Atlas',
+            error: 'the mirror scan was incomplete; the canvases were left as they are',
+          });
+        } else {
+          for (const [relPath, existing, render] of targets) {
+            await writer.owned(
+              relPath,
+              mergeCanvas(await render(worldId, root, scan), existing, isAtlasGeneratedId, true),
+              checkAtlasOwnership
+            );
+          }
+        }
       }
     } catch (error) {
       writer.errors.push({ path: 'AI Tool/Atlas', error: errorMessage(error) });

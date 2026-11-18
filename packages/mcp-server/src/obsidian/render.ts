@@ -637,6 +637,9 @@ const CANVAS_LAYOUT: Record<string, { x: number; y: number }> = {
   ally: { x: 0, y: 300 },
 };
 
+/** The card ids of the Tarokka spread canvas (the position keys). */
+export const SPREAD_CARD_KEYS: readonly string[] = POSITIONS.map(([key]) => key);
+
 function canvasNode(
   id: string,
   text: string,

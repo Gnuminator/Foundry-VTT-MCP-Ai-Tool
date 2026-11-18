@@ -215,7 +215,7 @@ search is on in your chat); it does not copy the site.
 
 ## Optional: the backstory and roleplay buddy
 
-A second small skill, `foundry-backstory-buddy`, installs next to the helper. The person who runs
+A second small skill, the backstory buddy, installs next to the helper. The person who runs
 the tool sends you its zip; then go to Settings, Plugins, Skills, add a skill, and upload the zip
 without unpacking it. It uses the same player connector. Ask
 it "help me write a backstory for my character" or "how would my character talk?". It reads your

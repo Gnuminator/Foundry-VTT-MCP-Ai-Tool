@@ -59,6 +59,7 @@ import {
   waitForCi,
   failureCause,
   explainFailing,
+  infraCause,
 } from './lane-merge.mjs';
 
 const HEAD = '3d24f70a1b2c3d4e5f60718293a4b5c6d7e8f901';
@@ -4406,6 +4407,35 @@ test('explainFailing: a fake failed check with an annotation names the step; gre
   assert.equal(green.calls.length, 0, 'no extra gh call when everything is green');
   const broken = ghAnswers(null, null);
   assert.deepEqual(explainFailing(rollup, failing, broken.run), ['lint (FAILURE)']);
+});
+
+test('failureCause: only failure-level annotations count, and ":" ";" are flattened', () => {
+  const notes = JSON.stringify([
+    { annotation_level: 'warning', message: 'Node 20 is deprecated' },
+    { annotation_level: 'failure', message: 'unexpected error: pending: x; y' },
+  ]);
+  assert.equal(failureCause(null, notes, 'FAILURE'), 'unexpected error, pending, x, y');
+});
+
+test('explainFailing: two failing checks with one name each get looked into', () => {
+  const rollup = [
+    jobCheck('dup', 'FAILURE', 1, { workflowName: 'a' }),
+    jobCheck('dup', 'FAILURE', 2, { workflowName: 'b' }),
+  ];
+  const { run, calls } = ghAnswers({ steps: [{ name: 'S', conclusion: 'failure' }] }, []);
+  explainFailing(rollup, ['dup (FAILURE)', 'dup (FAILURE)'], run);
+  assert.deepEqual(
+    calls.filter(c => c.includes('/actions/jobs/')).map(c => c.split('/').pop()),
+    ['1', '2']
+  );
+});
+
+test('infraCause: only when every failing guard failed to start a worker', () => {
+  const infra = g =>
+    `  FAIL ${g}\n  INFRA ${g}: vitest could not start a worker, also on the retry\n`;
+  assert.match(infraCause(infra('a'), ['a']), /infrastructure, not the PR/);
+  assert.equal(infraCause(`${infra('a')}  FAIL b\n`, ['a', 'b']), '');
+  assert.equal(infraCause('  FAIL a\n', ['a']), '');
 });
 
 test('explainFailing: looks into at most three failing checks', () => {

@@ -10,7 +10,73 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { runDriftCheck, pickRemote, entryDecision, isWorkerStartFailure } from './drift-check.mjs';
+import {
+  runDriftCheck,
+  pickRemote,
+  entryDecision,
+  isWorkerStartFailure,
+  runChecks,
+} from './drift-check.mjs';
+
+/** runChecks on one stub guard that counts its runs in `n`; mode: 'worker-once', 'worker-always', 'real'. */
+function stubGuard(mode) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'drift-stub-'));
+  fs.writeFileSync(
+    path.join(dir, 's.mjs'),
+    `import fs from 'node:fs';
+const n = (fs.existsSync('n') ? Number(fs.readFileSync('n', 'utf8')) : 0) + 1;
+fs.writeFileSync('n', String(n));
+const mode = process.argv[2];
+if (mode === 'worker-once' && n === 1) { console.error('Error: [vitest-pool]: Failed to start forks worker'); process.exit(1); }
+if (mode === 'worker-always') { console.error('Error: [vitest-pool]: Timeout starting forks runner.'); process.exit(1); }
+if (mode === 'real') { console.error('AssertionError: expected 1 to be 2'); process.exit(1); }
+`
+  );
+  const lines = [];
+  const code = runChecks(
+    dir,
+    [{ name: 'guard', command: `node s.mjs ${mode}` }],
+    l => lines.push(l),
+    'main',
+    'abc',
+    false
+  );
+  return { code, lines, runs: Number(fs.readFileSync(path.join(dir, 'n'), 'utf8')) };
+}
+
+test('runChecks: a worker that did not start is retried once, a pass on the retry is ok', () => {
+  const r = stubGuard('worker-once');
+  assert.equal(r.runs, 2);
+  assert.equal(r.code, 0);
+  assert.ok(r.lines.some(l => /retry guard/.test(l)));
+  assert.ok(!r.lines.some(l => /INFRA/.test(l)));
+});
+
+test('runChecks: a worker that never starts logs INFRA after exactly one retry', () => {
+  const r = stubGuard('worker-always');
+  assert.equal(r.runs, 2);
+  assert.equal(r.code, 1);
+  assert.ok(r.lines.some(l => /^ {2}INFRA guard: vitest could not start a worker/.test(l)));
+});
+
+test('runChecks: a real failure is not retried and not marked INFRA', () => {
+  const r = stubGuard('real');
+  assert.equal(r.runs, 1);
+  assert.equal(r.code, 1);
+  assert.ok(!r.lines.some(l => /INFRA|retry/.test(l)));
+});
+
+test('isWorkerStartFailure: every pattern, and a failing test is not one', () => {
+  for (const t of [
+    'Failed to start threads worker',
+    'Failed to start vmForks worker',
+    'Timeout waiting for worker to respond',
+    'Timeout starting vmThreads runner',
+    '[vitest-pool]: Failed',
+  ]) {
+    assert.equal(isWorkerStartFailure(t), true, t);
+  }
+});
 
 test('isWorkerStartFailure: a vitest worker that did not start, not a failing test', () => {
   assert.equal(

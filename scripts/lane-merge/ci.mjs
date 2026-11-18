@@ -276,8 +276,13 @@ export function failureCause(jobJson, annotationsJson, conclusion = '') {
   } catch {
     /* no annotations then */
   }
+  // Only failure-level annotations (a deprecation warning is not the cause). The text ends up in the
+  // refusal line that the merge runner matches on, so ":" and ";" are flattened out of it.
   const messages = Array.isArray(notes)
-    ? notes.map(a => String(a?.message ?? '')).filter(Boolean)
+    ? notes
+        .filter(a => !a?.annotation_level || a.annotation_level === 'failure')
+        .map(a => String(a?.message ?? '').replace(/[:;]/g, ','))
+        .filter(Boolean)
     : [];
   const limit = messages
     .map(m => /exceeded the maximum execution time of (\d+) minutes?/i.exec(m))
@@ -308,15 +313,17 @@ export function failureCause(jobJson, annotationsJson, conclusion = '') {
  */
 export function explainFailing(rollup, failing, run) {
   if (failing.length === 0) return failing;
+  /** label to its checks, in rollup order: two checks of one name each get their own turn */
   const byLabel = new Map();
   for (const c of latestChecks(rollup)) {
     if (c.state !== undefined && c.status === undefined) continue;
     const conclusion = String(c.conclusion ?? '').toUpperCase() || 'no conclusion';
-    byLabel.set(`${c.name ?? c.context ?? 'check'} (${conclusion})`, c);
+    const label = `${c.name ?? c.context ?? 'check'} (${conclusion})`;
+    byLabel.set(label, [...(byLabel.get(label) ?? []), c]);
   }
   let looked = 0;
   return failing.map(label => {
-    const c = byLabel.get(label);
+    const c = byLabel.get(label)?.shift();
     const job = c ? jobIdOf(c) : null;
     if (!c || job === null || looked >= MAX_EXPLAINED) return label;
     looked += 1;

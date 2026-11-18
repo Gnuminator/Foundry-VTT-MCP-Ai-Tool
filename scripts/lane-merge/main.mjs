@@ -41,7 +41,7 @@ import { defaultAnnounce } from './announce.mjs';
 import { defaultRun, firstLine } from './run.mjs';
 import { parseArgs } from './args.mjs';
 import { refusedBecause, mainModules, sameGate } from './relaunch.mjs';
-import { runDrift } from './drift.mjs';
+import { runDrift, infraCause } from './drift.mjs';
 import { liveCheckProblem } from './live-check.mjs';
 import { mainRedCheck } from './main-red.mjs';
 import { visualAcceptProblem } from './visual-accept.mjs';
@@ -570,10 +570,8 @@ export function main(options = {}) {
       const guards = [...output.matchAll(/^ {2}FAIL (.+?)\s*$/gm)].map(m => m[1]);
       driftGuards.push(...guards);
       // drift-check retried a guard once when Vitest could not start a worker and says so with "  INFRA <guard>:"
-      const infra = /^ {2}INFRA .+?: vitest could not start a worker/m.test(output);
-      const cause = infra
-        ? ` [infrastructure, not the PR: vitest could not start a worker, also on a retry]`
-        : '';
+      // Only when every failing guard failed that way: one real failure beside it is the PR's.
+      const cause = infraCause(output, guards);
       failures.push(
         `drift: drift-check failed${guards.length > 0 ? ` (guards: ${guards.join(', ')})` : ''}${cause} (log ${logFile}); last lines below`
       );

@@ -105,8 +105,10 @@ export function getScenePages(sceneId?: string): ScenePagesReply {
   for (const note of Array.from(scene.notes ?? [])) {
     const journal = note.entry ?? null;
     if (!journal) continue;
-    if (note.page) add(named, journal, note.page, 'note');
-    else for (const page of pagesOf(journal)) add(whole, journal, page, 'note');
+    // A pin that names a page whose page is gone (deleted) gives nothing, not the whole entry.
+    if (note.pageId) {
+      if (note.page) add(named, journal, note.page, 'note');
+    } else for (const page of pagesOf(journal)) add(whole, journal, page, 'note');
   }
   const all = [...named, ...whole];
   return {

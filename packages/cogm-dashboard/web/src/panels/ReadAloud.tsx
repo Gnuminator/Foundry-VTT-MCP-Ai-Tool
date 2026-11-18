@@ -1,5 +1,5 @@
-// The read-aloud shelf (I-167): the boxed read-aloud text of the pages the scene links, in page
-// order, one block per box. "Copy" puts one block on the clipboard; "Show" opens it full size to
+// The read-aloud shelf (I-167): the boxed read-aloud text of the pages the scene links (pages
+// a link names first, then whole-entry pages by sort order), one block per box. "Copy" puts one block on the clipboard; "Show" opens it full size to
 // read from. Read from the world each time the drawer opens through get-read-aloud: nothing is
 // stored here or in the repo. GM only, read only.
 import { useQuery } from '@tanstack/react-query';

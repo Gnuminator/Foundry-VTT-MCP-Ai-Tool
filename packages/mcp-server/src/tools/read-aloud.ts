@@ -1,5 +1,5 @@
 /**
- * `get-read-aloud` (I-167): the boxed read-aloud text of the pages a scene links, in page order.
+ * `get-read-aloud` (I-167): the boxed read-aloud text of the pages a scene links (pages a link names first, then whole-entry pages by sort order).
  * The module hands over the raw page HTML (`getScenePages`); the boxes are picked out here with
  * the same class test the Obsidian export uses. Nothing is stored: the text is read from the
  * world when asked and returned to the GM, so no book text lives in the repo or the vault.

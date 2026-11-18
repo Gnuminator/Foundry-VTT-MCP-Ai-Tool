@@ -54,8 +54,8 @@ describe('getScenePages', () => {
       journal,
       journalEntryPage: 'a',
       notes: [
-        { entry: journal, page: pageA },
-        { entry: journal, page: pageB },
+        { entry: journal, pageId: 'a', page: pageA },
+        { entry: journal, pageId: 'b', page: pageB },
       ],
     });
     const reply = getScenePages('s1');
@@ -80,7 +80,7 @@ describe('getScenePages', () => {
       id: 's1',
       name: 'Hall',
       journal: chapter,
-      notes: [{ entry: room, page: room['pages'].get('r1') }],
+      notes: [{ entry: room, pageId: 'r1', page: room['pages'].get('r1') }],
     });
     const reply = getScenePages('s1');
     expect(reply.totalPages).toBe(15);
@@ -100,6 +100,16 @@ describe('getScenePages', () => {
     });
     world.addScene({ id: 's1', name: 'Hall', notes: [{ entry: journal }] });
     expect(getScenePages('s1').pages.map(p => p.pageId)).toEqual(['a', 'b']);
+  });
+
+  it('gives nothing for a pin whose page was deleted', () => {
+    const journal = makeJournal({
+      id: 'j1',
+      name: 'Book',
+      pages: [makeJournalPage({ id: 'a', name: 'A', text: html('A') })],
+    });
+    world.addScene({ id: 's1', name: 'Hall', notes: [{ entry: journal, pageId: 'gone' }] });
+    expect(getScenePages('s1').pages).toEqual([]);
   });
 
   it('is empty for a scene with no links and throws for an unknown scene', () => {

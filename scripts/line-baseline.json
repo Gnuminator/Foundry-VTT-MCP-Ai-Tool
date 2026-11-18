@@ -61,7 +61,7 @@
       "file": "scripts/test-kit/lib/dashboard-controls.mjs",
       "lines": 1258,
       "reason": "one row per dashboard control: the table grows with every new control",
-      "pr": ""
+      "pr": "1158"
     }
   ]
 }

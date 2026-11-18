@@ -4,6 +4,7 @@ import * as path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { localDateKey } from '../event-pump.js';
+import { makeLogger } from '../test-support/stub-tool-deps.js';
 import { VaultStore } from '../vault/store.js';
 import { PlaySessionTools, type PlaySessionToolsOptions } from './play-session.js';
 
@@ -13,7 +14,7 @@ let logger: any;
 let worldId: string;
 let nowMs: number;
 
-function makeTools(extra: Partial<PlaySessionToolsOptions> = {}): PlaySessionTools {
+function buildTools(extra: Partial<PlaySessionToolsOptions> = {}): PlaySessionTools {
   return new PlaySessionTools({
     worldIds: { currentOrLastKnown: (): Promise<string> => Promise.resolve(worldId) },
     store,
@@ -38,8 +39,7 @@ function playRecord(t: number, key: string): Record<string, unknown> {
 beforeEach(async () => {
   dataDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'play-session-'));
   store = new VaultStore({ dataDir });
-  logger = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
-  logger.child = (): unknown => logger;
+  logger = makeLogger();
   worldId = 'w1';
   nowMs = new Date(2026, 8, 28, 20, 0, 0).getTime();
 });
@@ -50,7 +50,7 @@ afterEach(async () => {
 
 describe('mark-play-session', () => {
   it('appends a start marker to the local-date session log', async () => {
-    const tools = makeTools();
+    const tools = buildTools();
     const result = await tools.handleMarkPlaySession({ action: 'start', note: '  Session 1  ' });
     expect(result).toEqual({
       success: true,
@@ -77,7 +77,7 @@ describe('mark-play-session', () => {
   });
 
   it('appends an end marker without a note when none is given', async () => {
-    const tools = makeTools();
+    const tools = buildTools();
     await tools.handleMarkPlaySession({ action: 'end' });
     const [line] = (await store.readLines(
       'w1',
@@ -89,14 +89,14 @@ describe('mark-play-session', () => {
   });
 
   it('trims the note and rejects one over 200 characters', async () => {
-    const tools = makeTools();
+    const tools = buildTools();
     await expect(
       tools.handleMarkPlaySession({ action: 'start', note: 'x'.repeat(201) })
     ).rejects.toThrow();
   });
 
   it('rejects an unknown action', async () => {
-    const tools = makeTools();
+    const tools = buildTools();
     await expect(tools.handleMarkPlaySession({ action: 'pause' })).rejects.toThrow();
   });
 
@@ -104,7 +104,7 @@ describe('mark-play-session', () => {
     const onMarked = vi.fn(() => {
       throw new Error('boom');
     });
-    const tools = makeTools({ onMarked });
+    const tools = buildTools({ onMarked });
     await tools.handleMarkPlaySession({ action: 'start' });
     expect(onMarked).toHaveBeenCalledWith('w1');
     expect(logger.warn).toHaveBeenCalledWith(
@@ -120,7 +120,7 @@ describe('mark-play-session, paper nights', () => {
   }
 
   it('marks a paper start right now', async () => {
-    const result = await makeTools().handleMarkPlaySession({ action: 'start', mode: 'paper' });
+    const result = await buildTools().handleMarkPlaySession({ action: 'start', mode: 'paper' });
     expect(result).toMatchObject({ mode: 'paper', markedAt: new Date(nowMs).toISOString() });
     const [line] = await lines(localDateKey(nowMs));
     expect(line).toMatchObject({
@@ -131,7 +131,7 @@ describe('mark-play-session, paper nights', () => {
   });
 
   it('puts a past date at local noon in that date file', async () => {
-    const result = await makeTools().handleMarkPlaySession({
+    const result = await buildTools().handleMarkPlaySession({
       action: 'start',
       mode: 'paper',
       date: '2026-09-20',
@@ -144,7 +144,7 @@ describe('mark-play-session, paper nights', () => {
   });
 
   it('takes a time, so an end can follow a start on the same date', async () => {
-    const tools = makeTools();
+    const tools = buildTools();
     await tools.handleMarkPlaySession({
       action: 'start',
       mode: 'paper',
@@ -163,7 +163,7 @@ describe('mark-play-session, paper nights', () => {
   });
 
   it('puts a date-only end at 23:59, after a date-only start', async () => {
-    const tools = makeTools();
+    const tools = buildTools();
     await tools.handleMarkPlaySession({ action: 'start', mode: 'paper', date: '2026-09-20' });
     await tools.handleMarkPlaySession({ action: 'end', mode: 'paper', date: '2026-09-20' });
     const got = await lines('2026-09-20');
@@ -174,7 +174,7 @@ describe('mark-play-session, paper nights', () => {
   });
 
   it("uses now for today's date without a time", async () => {
-    const result = await makeTools().handleMarkPlaySession({
+    const result = await buildTools().handleMarkPlaySession({
       action: 'start',
       mode: 'paper',
       date: localDateKey(nowMs),
@@ -183,7 +183,7 @@ describe('mark-play-session, paper nights', () => {
   });
 
   it('refuses a future date, a time later today, a date that does not exist and a bare time', async () => {
-    const tools = makeTools();
+    const tools = buildTools();
     const paper = { action: 'start', mode: 'paper' };
     await expect(tools.handleMarkPlaySession({ ...paper, date: '2026-09-29' })).rejects.toThrow(
       /future/
@@ -201,7 +201,7 @@ describe('mark-play-session, paper nights', () => {
   });
 
   it('keeps date, time and synced for paper nights only', async () => {
-    const tools = makeTools();
+    const tools = buildTools();
     await expect(
       tools.handleMarkPlaySession({ action: 'start', date: '2026-09-20' })
     ).rejects.toThrow(/paper/);
@@ -211,7 +211,7 @@ describe('mark-play-session, paper nights', () => {
   });
 
   it('works with Foundry closed through the last known world', async () => {
-    const tools = makeTools({
+    const tools = buildTools({
       worldIds: { currentOrLastKnown: (): Promise<string> => Promise.resolve('last-world') },
     });
     const result = await tools.handleMarkPlaySession({
@@ -224,7 +224,7 @@ describe('mark-play-session, paper nights', () => {
   });
 
   it('fails clearly when Foundry is closed and no world is known', async () => {
-    const tools = makeTools({
+    const tools = buildTools({
       worldIds: {
         currentOrLastKnown: (): Promise<string> => Promise.reject(new Error('no world yet')),
       },
@@ -265,12 +265,12 @@ describe('unsyncedPaperNights', () => {
         details: {},
       },
     ]);
-    expect(await makeTools().unsyncedPaperNights()).toEqual([]);
+    expect(await buildTools().unsyncedPaperNights()).toEqual([]);
   });
 
   it('lists a paper night with no sync after it', async () => {
     await put(20, [paperStart(20)]);
-    expect(await makeTools().unsyncedPaperNights()).toEqual([
+    expect(await buildTools().unsyncedPaperNights()).toEqual([
       { date: '2026-09-20', startedAt: new Date(2026, 8, 20, 12).toISOString() },
     ]);
   });
@@ -278,21 +278,21 @@ describe('unsyncedPaperNights', () => {
   it('clears a night once a paper sync was applied after it', async () => {
     await put(20, [paperStart(20)]);
     await put(22, [syncEvent(22)]);
-    expect(await makeTools().unsyncedPaperNights()).toEqual([]);
+    expect(await buildTools().unsyncedPaperNights()).toEqual([]);
   });
 
   it('counts a sync for the newest paper night before it only', async () => {
     await put(10, [paperStart(10)]);
     await put(20, [paperStart(20)]);
     await put(22, [syncEvent(22)]);
-    expect((await makeTools().unsyncedPaperNights()).map(n => n.date)).toEqual(['2026-09-10']);
+    expect((await buildTools().unsyncedPaperNights()).map(n => n.date)).toEqual(['2026-09-10']);
   });
 
   it('does not count an undo, or a sync before the night', async () => {
     await put(18, [syncEvent(18)]);
     await put(20, [paperStart(20)]);
     await put(22, [syncEvent(22, 'undo')]);
-    expect((await makeTools().unsyncedPaperNights()).map(n => n.date)).toEqual(['2026-09-20']);
+    expect((await buildTools().unsyncedPaperNights()).map(n => n.date)).toEqual(['2026-09-20']);
   });
 
   it('counts a sync that ran earlier the same day as a night marked afterwards', async () => {
@@ -301,7 +301,7 @@ describe('unsyncedPaperNights', () => {
       { ...syncEvent(20), timestampMs: new Date(2026, 8, 20, 10).getTime() },
       paperStart(20),
     ]);
-    expect(await makeTools().unsyncedPaperNights()).toEqual([]);
+    expect(await buildTools().unsyncedPaperNights()).toEqual([]);
   });
 
   it('gives a same-day sync to the night marked after it, leaving an older night unsynced', async () => {
@@ -310,12 +310,12 @@ describe('unsyncedPaperNights', () => {
       { ...syncEvent(20), timestampMs: new Date(2026, 8, 20, 10).getTime() },
       paperStart(20),
     ]);
-    expect((await makeTools().unsyncedPaperNights()).map(n => n.date)).toEqual(['2026-09-10']);
+    expect((await buildTools().unsyncedPaperNights()).map(n => n.date)).toEqual(['2026-09-10']);
   });
 
   it('clears a night the GM marked done', async () => {
     await put(20, [paperStart(20, { synced: true })]);
-    expect(await makeTools().unsyncedPaperNights()).toEqual([]);
+    expect(await buildTools().unsyncedPaperNights()).toEqual([]);
   });
 });
 
@@ -344,7 +344,7 @@ describe('get-play-session after a paper night', () => {
     await store.appendLines('w1', 'sessions', '2026-09-28.play.jsonl', [
       { ...playRecord(syncAt, 'r1'), source: { changeId: 'c1' } },
     ]);
-    const result = await makeTools().handleGetPlaySession({});
+    const result = await buildTools().handleGetPlaySession({});
     expect(result.open).toBe(false);
     expect(result.startedAt).toBeNull();
   });
@@ -360,13 +360,13 @@ describe('get-play-session after a paper night', () => {
         details: { source: 'mark-play-session', mode: 'paper' },
       },
     ]);
-    expect((await makeTools().handleGetPlaySession({})).open).toBe(true);
+    expect((await buildTools().handleGetPlaySession({})).open).toBe(true);
   });
 });
 
 describe('get-play-session', () => {
   it('reports no session when the log is empty', async () => {
-    const tools = makeTools();
+    const tools = buildTools();
     expect(await tools.handleGetPlaySession({})).toEqual({
       success: true,
       worldId: 'w1',
@@ -380,7 +380,7 @@ describe('get-play-session', () => {
   });
 
   it('is open right after a start marker', async () => {
-    const tools = makeTools();
+    const tools = buildTools();
     await tools.handleMarkPlaySession({ action: 'start' });
     expect(await tools.handleGetPlaySession({})).toEqual({
       success: true,
@@ -395,13 +395,13 @@ describe('get-play-session', () => {
   });
 
   it('says a paper night is open as mode paper (the Pi watch does not watch Foundry then)', async () => {
-    const tools = makeTools();
+    const tools = buildTools();
     await tools.handleMarkPlaySession({ action: 'start', mode: 'paper' });
     expect(await tools.handleGetPlaySession({})).toMatchObject({ open: true, mode: 'paper' });
   });
 
   it('while open, reports when the session before ended', async () => {
-    const tools = makeTools();
+    const tools = buildTools();
     await tools.handleMarkPlaySession({ action: 'start' });
     await tools.handleMarkPlaySession({ action: 'end' });
     const ended = new Date(nowMs).toISOString();
@@ -414,7 +414,7 @@ describe('get-play-session', () => {
   });
 
   it('previousEndedAt ignores prep events logged between the sessions', async () => {
-    const tools = makeTools();
+    const tools = buildTools();
     await tools.handleMarkPlaySession({ action: 'start' });
     await tools.handleMarkPlaySession({ action: 'end' });
     const ended = new Date(nowMs).toISOString();
@@ -435,7 +435,7 @@ describe('get-play-session', () => {
   });
 
   it('previousEndedAt for a session that never got an end marker is its last activity', async () => {
-    const tools = makeTools();
+    const tools = buildTools();
     await tools.handleMarkPlaySession({ action: 'start' });
     nowMs += 60_000;
     await store.appendLines('w1', 'sessions', `${localDateKey(nowMs)}.jsonl`, [
@@ -459,7 +459,7 @@ describe('get-play-session', () => {
   });
 
   it('closes on an end marker', async () => {
-    const tools = makeTools();
+    const tools = buildTools();
     await tools.handleMarkPlaySession({ action: 'start' });
     nowMs += 60_000;
     await tools.handleMarkPlaySession({ action: 'end' });
@@ -476,7 +476,7 @@ describe('get-play-session', () => {
   });
 
   it('keeps the end marker as endedAt when events follow it', async () => {
-    const tools = makeTools();
+    const tools = buildTools();
     await tools.handleMarkPlaySession({ action: 'start' });
     nowMs += 60_000;
     await tools.handleMarkPlaySession({ action: 'end' });
@@ -489,7 +489,7 @@ describe('get-play-session', () => {
   });
 
   it('closes after a gap of more than 3 hours since the last event, without an end marker', async () => {
-    const tools = makeTools();
+    const tools = buildTools();
     await tools.handleMarkPlaySession({ action: 'start' });
     const startedAt = new Date(nowMs).toISOString();
     nowMs += 3 * 60 * 60 * 1000 + 1;
@@ -501,14 +501,14 @@ describe('get-play-session', () => {
   });
 
   it('stays open exactly at the 3-hour boundary', async () => {
-    const tools = makeTools();
+    const tools = buildTools();
     await tools.handleMarkPlaySession({ action: 'start' });
     nowMs += 3 * 60 * 60 * 1000;
     expect((await tools.handleGetPlaySession({})).open).toBe(true);
   });
 
   it('uses the newest logged event (not just the marker) for the gap check', async () => {
-    const tools = makeTools();
+    const tools = buildTools();
     await tools.handleMarkPlaySession({ action: 'start' });
     const startedAt = new Date(nowMs).toISOString();
 
@@ -530,7 +530,7 @@ describe('get-play-session', () => {
   });
 
   it('scans across a midnight boundary', async () => {
-    const tools = makeTools();
+    const tools = buildTools();
     nowMs = new Date(2026, 8, 28, 23, 0, 0).getTime();
     await tools.handleMarkPlaySession({ action: 'start' });
     nowMs = new Date(2026, 8, 29, 1, 0, 0).getTime(); // next day, 2h later
@@ -538,7 +538,7 @@ describe('get-play-session', () => {
   });
 
   it('keeps a session per world', async () => {
-    const tools = makeTools();
+    const tools = buildTools();
     await tools.handleMarkPlaySession({ action: 'start' });
     worldId = 'w2';
     expect(await tools.handleGetPlaySession({})).toMatchObject({ worldId: 'w2', open: false });
@@ -567,7 +567,7 @@ describe('get-play-session', () => {
         },
       ]);
     }
-    const tools = makeTools();
+    const tools = buildTools();
     const result = await tools.handleGetPlaySession({});
     expect(result.open).toBe(false);
     expect(result.startedAt).toBeNull();
@@ -576,7 +576,7 @@ describe('get-play-session', () => {
 
 describe('get-play-session with play records (O3 contract 3)', () => {
   it('uses the newest play-log record for the gap check when there is no other event', async () => {
-    const tools = makeTools();
+    const tools = buildTools();
     await tools.handleMarkPlaySession({ action: 'start' });
     const startedAt = new Date(nowMs).toISOString();
 
@@ -598,7 +598,7 @@ describe('get-play-session with play records (O3 contract 3)', () => {
   });
 
   it('reads only the newest play-log file', async () => {
-    const tools = makeTools();
+    const tools = buildTools();
     await tools.handleMarkPlaySession({ action: 'start' });
 
     // An older-dated file with a (contrived) later time must be ignored: only
@@ -615,7 +615,7 @@ describe('get-play-session with play records (O3 contract 3)', () => {
   });
 
   it('ignores a play log with no valid records', async () => {
-    const tools = makeTools();
+    const tools = buildTools();
     await store.appendLines('w1', 'sessions', `${localDateKey(nowMs)}.play.jsonl`, [
       { v: 2, key: 'no-time', kind: 'hp', userId: null, sceneId: null },
     ]);

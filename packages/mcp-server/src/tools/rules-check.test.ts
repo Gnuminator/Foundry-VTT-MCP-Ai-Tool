@@ -1,15 +1,11 @@
 import { describe, expect, it, vi, type Mock } from 'vitest';
 import type { LiveTargetPreview } from '@gnuminator/shared';
 
+import { makeLogger } from '../test-support/stub-tool-deps.js';
+
 import { RulesCheckTools, findActivityData, itemRangeLabel } from './rules-check.js';
 
-const logger: any = {
-  child: () => logger,
-  error: vi.fn(),
-  warn: vi.fn(),
-  info: vi.fn(),
-  debug: vi.fn(),
-};
+const logger = makeLogger();
 
 const resources = {
   success: true,

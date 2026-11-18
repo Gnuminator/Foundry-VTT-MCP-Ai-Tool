@@ -1,13 +1,9 @@
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import type { NpcTurnPlan } from '@gnuminator/shared';
 
-import { NpcTurnTools } from './npc-turn.js';
+import { makeLogger } from '../test-support/stub-tool-deps.js';
 
-function logger(): any {
-  const l: any = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
-  l.child = (): unknown => l;
-  return l;
-}
+import { NpcTurnTools } from './npc-turn.js';
 
 const CONTEXT: NpcTurnPlan['context'] = {
   round: 2,
@@ -55,7 +51,7 @@ beforeEach(() => {
   tools = new NpcTurnTools({
     foundryClient: { query },
     guardedWrites: { createPlan },
-    logger: logger(),
+    logger: makeLogger(),
   });
 });
 

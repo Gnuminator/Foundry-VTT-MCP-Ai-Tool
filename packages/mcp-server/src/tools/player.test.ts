@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import { buildToolRouter, collectToolDefinitions } from '../tool-router.js';
-import { stubToolRouterDeps } from '../test-support/stub-tool-deps.js';
+import { makeLogger, stubToolRouterDeps } from '../test-support/stub-tool-deps.js';
 import {
   PLAYER_TOOL_SET,
   TOOL_SETS,
@@ -34,8 +34,7 @@ import {
   readExtraDenyTerms,
 } from './player.js';
 
-const logger: any = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
-logger.child = (): unknown => logger;
+const logger = makeLogger();
 
 function make(
   reply: unknown,

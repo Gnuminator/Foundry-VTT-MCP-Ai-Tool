@@ -2,7 +2,15 @@ import { errorMessage } from '@gnuminator/shared/browser';
 import { ERROR_MESSAGES } from '../constants.js';
 import * as shared from './shared.js';
 import { sceneBackgroundSrc, sceneHasLevels } from '../systems/core.js';
-import { rec, num, str, dig } from '../doc-read.js';
+import { rec, num, str, dig, contentsOf } from '../doc-read.js';
+
+/**
+ * A scene with more than one Scene Level (a castle with floors). Every Foundry 14 scene has at
+ * least one level, so a single-level scene counts as flat and keeps the map-only answers.
+ */
+function hasFloors(scene: Scene): boolean {
+  return sceneHasLevels(scene) && contentsOf(scene.levels).length > 1;
+}
 import { viewedScene } from '../viewed-scene.js';
 
 /** How long `switchScene` waits for the GM client's view to follow an activation. */
@@ -129,7 +137,7 @@ function tokenLevelInfo(scene: Scene, token: Record<string, unknown>): TokenLeve
   const source = rec(token._source);
   const rawElevation = num(source?.elevation) ?? num(token.elevation) ?? 0;
   const levelId = str(source?.level) ?? str(token.level);
-  const level = levelId ? rec(scene.levels?.get(levelId)) : null;
+  const level = levelId ? contentsOf(scene.levels).find(l => l.id === levelId) : undefined;
   if (!level || !levelId) return { level: null, elevation: rawElevation };
   const bottom = num(dig(level, 'elevation', 'bottom'));
   return {
@@ -433,7 +441,7 @@ export class ScenesTokensDataAccess {
     const grid: Partial<Scene['grid']> = scene.grid || {};
     const gridSize = grid.size || 100;
 
-    const levels = sceneHasLevels(scene);
+    const levels = hasFloors(scene);
     const tokens = scene.tokens.map((t): TokenPosition => {
       const actor = t.actor;
       const levelInfo = levels
@@ -456,7 +464,10 @@ export class ScenesTokensDataAccess {
         y,
         gridX: Math.floor(x / gridSize),
         gridY: Math.floor(y / gridSize),
-        elevation: (typeof sourceElevation === 'number' ? sourceElevation : t.elevation) ?? 0,
+        elevation:
+          levelInfo?.elevation ??
+          (typeof sourceElevation === 'number' ? sourceElevation : t.elevation) ??
+          0,
         ...(levelInfo ? { level: levelInfo.level } : {}),
         category: isPC ? 'pc' : t.disposition === -1 ? 'enemy' : 'npc',
         hidden: t.hidden ?? false,
@@ -524,10 +535,10 @@ export class ScenesTokensDataAccess {
     const toCenter = center(to);
 
     // Scene Levels (Foundry 14): height counts. A flat scene measures on the map only, as before.
-    const fromInfo = sceneHasLevels(scene)
+    const fromInfo = hasFloors(scene)
       ? tokenLevelInfo(scene, from as unknown as Record<string, unknown>)
       : null;
-    const toInfo = sceneHasLevels(scene)
+    const toInfo = hasFloors(scene)
       ? tokenLevelInfo(scene, to as unknown as Record<string, unknown>)
       : null;
     const vertical = fromInfo && toInfo ? Math.abs(toInfo.elevation - fromInfo.elevation) : 0;

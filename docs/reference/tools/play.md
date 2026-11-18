@@ -321,7 +321,7 @@ Parameters:
 
 ## measure-distance
 
-Measure the distance in the scene's grid units (e.g. feet) between two tokens on the active scene, using the scene's grid configuration. On a scene with Scene Levels (a castle with floors) the distance counts height too and the reply names the level of each token (fromLevel, toLevel) with the horizontal and vertical parts.
+Measure the distance in the scene's grid units (e.g. feet) between two tokens on the active scene, using the scene's grid configuration. On a scene with more than one Scene Level (a castle with floors) the distance counts height too and the reply names the level of each token (fromLevel, toLevel) with the horizontal and vertical parts.
 
 Kind: read-only. Title: Measure distance.
 

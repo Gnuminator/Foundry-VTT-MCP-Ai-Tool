@@ -4,6 +4,7 @@ import * as path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { localDateKey } from '../event-pump.js';
+import { makeLogger } from '../test-support/stub-tool-deps.js';
 import { VaultStore } from '../vault/store.js';
 import { PlaySessionTools, type PlaySessionToolsOptions } from './play-session.js';
 
@@ -38,8 +39,7 @@ function playRecord(t: number, key: string): Record<string, unknown> {
 beforeEach(async () => {
   dataDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'play-session-'));
   store = new VaultStore({ dataDir });
-  logger = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
-  logger.child = (): unknown => logger;
+  logger = makeLogger();
   worldId = 'w1';
   nowMs = new Date(2026, 8, 28, 20, 0, 0).getTime();
 });

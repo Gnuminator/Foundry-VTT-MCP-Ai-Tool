@@ -10,14 +10,9 @@ import { describe, expect, it, vi, type Mock } from 'vitest';
 import { SecretTermsService } from '../secret-terms.js';
 import { BUILD_ID } from '../build-id.js';
 import type { PumpHealthSnapshot } from '../pump-health.js';
+import { makeLogger } from '../test-support/stub-tool-deps.js';
 import { WrapperRegistry } from '../wrapper-registry.js';
 import { PreflightTools, type PreflightToolsOptions } from './preflight.js';
-
-function logger(): any {
-  const l: any = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
-  l.child = (): unknown => l;
-  return l;
-}
 
 const SCAN: PreflightScan = {
   schema: 1,
@@ -95,7 +90,7 @@ function tools(setup: Setup = {}): { tools: PreflightTools; query: Mock } {
     obsidianVaultDirSet: setup.vaultDirSet ?? true,
     ...(setup.mirror ? { mirrorStatus: () => setup.mirror ?? null, now: () => MIRROR_NOW } : {}),
     ...(setup.pumps ? { pumpHealth: () => setup.pumps ?? [] } : {}),
-    logger: logger(),
+    logger: makeLogger(),
     bridgeVersion: '1.2.3',
     wrapperStatus: () => {
       const registry = new WrapperRegistry('1.2.3');

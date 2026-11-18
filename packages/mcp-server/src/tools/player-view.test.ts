@@ -1,5 +1,7 @@
 import { describe, expect, it, vi, type Mock } from 'vitest';
 
+import { makeLogger } from '../test-support/stub-tool-deps.js';
+
 import { PlayerViewTools } from './player-view.js';
 
 function makeTools(): {
@@ -23,8 +25,7 @@ function makeTools(): {
   };
   const foundryClient = { query: vi.fn(() => Promise.resolve({ schema: 1 })) };
   const worldIds = { current: vi.fn(() => Promise.resolve('curse-of-strahd')) };
-  const logger: any = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
-  logger.child = (): unknown => logger;
+  const logger = makeLogger();
   const tools = new PlayerViewTools({
     handouts: handouts as never,
     secretTerms,

@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
+import { makeLogger } from '../test-support/stub-tool-deps.js';
+
 import { CampaignManagementTools } from './campaign-management.js';
 
 /**
@@ -26,14 +28,7 @@ function makeTools(queryImpl?: (method: string, data: unknown) => unknown): {
       }))
   );
   const foundryClient = { query } as any;
-  // Minimal Logger stub: `.child()` returns itself; level methods are no-ops.
-  const logger: any = {
-    error: vi.fn(),
-    warn: vi.fn(),
-    info: vi.fn(),
-    debug: vi.fn(),
-  };
-  logger.child = (): unknown => logger;
+  const logger = makeLogger();
   // Positional constructor: (foundryClient, logger)
   return { tools: new CampaignManagementTools(foundryClient, logger), query };
 }

@@ -16,6 +16,7 @@ import {
 
 import type { SessionEvent } from '../obsidian/grouping.js';
 import type * as PrepNotesModule from '../obsidian/prep-notes.js';
+import { makeLogger } from '../test-support/stub-tool-deps.js';
 import { VaultStore } from '../vault/store.js';
 
 import { PrepDigestTools, type PrepDigestToolsOptions } from './prep-digest.js';
@@ -52,12 +53,6 @@ vi.mock('../obsidian/prep-notes.js', async importOriginal => {
 let dataDir: string;
 let store: VaultStore;
 let obsidianDir: string;
-
-function logger(): any {
-  const l: any = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
-  l.child = (): unknown => l;
-  return l;
-}
 
 function event(
   id: string,
@@ -204,7 +199,7 @@ function makeTools(setup: Setup = {}): PrepDigestTools {
     },
     guardedWrites: { listRecentChanges: () => settle(setup.changes ?? []) },
     tarokka: { getReading: () => settle(setup.tarokka ?? { available: false }) },
-    logger: logger(),
+    logger: makeLogger(),
     now: () => 1234,
     ...(setup.vault
       ? { vaultDir: obsidianDir, prepNotesTimeoutMs: setup.prepTimeoutMs ?? PREP_TEST_TIMEOUT_MS }

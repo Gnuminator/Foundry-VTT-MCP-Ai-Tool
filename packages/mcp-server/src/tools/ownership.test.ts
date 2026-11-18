@@ -1,5 +1,7 @@
 import { describe, expect, it, vi, type Mock } from 'vitest';
 
+import { makeLogger } from '../test-support/stub-tool-deps.js';
+
 import { OwnershipTools } from './ownership.js';
 
 /**
@@ -52,14 +54,7 @@ function makeTools(
 } {
   const query = vi.fn(queryImpl ?? ((): unknown => ({ success: true })));
   const foundryClient = { query } as any;
-  // Minimal Logger stub: `.child()` returns itself; level methods are no-ops.
-  const logger: any = {
-    error: vi.fn(),
-    warn: vi.fn(),
-    info: vi.fn(),
-    debug: vi.fn(),
-  };
-  logger.child = (): unknown => logger;
+  const logger = makeLogger();
   const guardedWrites = { createPlan } as any;
   return {
     tools: new OwnershipTools({ foundryClient, guardedWrites, logger }),

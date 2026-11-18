@@ -189,7 +189,7 @@ describe('quest log', () => {
     id: status,
     title,
     html: `<h1>${title}</h1><ul><li><strong>Status:</strong> ${status}</li></ul>`,
-    revealedAt: '2026-11-12T20:00:00.000Z',
+    revealedAt: '2026-11-12T12:00:00.000Z',
   });
 
   it('reads the status line', () => {
@@ -199,6 +199,9 @@ describe('quest log', () => {
     expect(questStatus({ html: '<p>status: done</p>' })).toBe('done');
     expect(questStatus({ html: '<p>No status here</p>' })).toBe('active');
     expect(questStatus(null)).toBe('active');
+    expect(questStatus({ html: "<p>Ireena's status: failed to appear</p>" })).toBe('active');
+    expect(questStatus(quest('Abandoned'))).toBe('failed');
+    expect(questStatus(quest('Not started'))).toBe('active');
   });
 
   it('puts done and failed quests in the closed group', () => {
@@ -216,6 +219,9 @@ describe('quest log', () => {
   it('gives a one-line last time from the first sentence of the recap', () => {
     const html = '<p>The party fled Vallaki at dawn. Then more happened here.</p>';
     expect(lastTimeLine({ html })).toBe('The party fled Vallaki at dawn.');
+    expect(
+      lastTimeLine({ html: '<h1>Session 3 Recap</h1><p>The party fled Vallaki at dawn.</p>' })
+    ).toBe('The party fled Vallaki at dawn.');
     expect(lastTimeLine({ html: '<p></p>' })).toBe('');
     expect(lastTimeLine(null)).toBe('');
     expect(lastTimeLine({ html: `<p>${'word '.repeat(80)}</p>` }).length).toBeLessThanOrEqual(160);

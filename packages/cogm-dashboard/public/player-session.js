@@ -111,10 +111,13 @@ function plainText(html) {
 
 /** 'done', 'failed' or 'active' (the default) from the page's status line. */
 export function questStatus(h) {
-  const m = /\bstatus\s*:\s*(\p{L}+)/iu.exec(plainText(h && h.html));
+  // The status line stands at the start of a list item or paragraph, never mid-sentence.
+  const m = /(?:<(?:li|p)>\s*(?:<strong>)?)\s*status\s*:\s*(?:<\/strong>)?\s*(\p{L}+)/iu.exec(
+    String((h && h.html) || '')
+  );
   const word = m ? m[1].toLowerCase() : '';
   if (/^(done|completed?|finished|afsluttet|færdig)$/.test(word)) return 'done';
-  if (/^(failed|fail|mislykkedes)$/.test(word)) return 'failed';
+  if (/^(failed|fail|mislykkedes|abandoned|cancelled|canceled)$/.test(word)) return 'failed';
   return 'active';
 }
 
@@ -135,17 +138,20 @@ export function revealDate(h) {
   return new Date(t).toLocaleDateString('en-GB', {
     day: 'numeric',
     month: 'short',
-    timeZone: 'UTC',
   });
 }
 
 /** The "last time" line: the first sentence of the recap, cut to 160 characters. */
 export function lastTimeLine(recap) {
-  const text = plainText(recap && recap.html);
+  // Headings are not a sentence: drop them before reading the first one.
+  const text = plainText(
+    String((recap && recap.html) || '').replace(/<h[1-6]>[\s\S]*?<\/h[1-6]>/gi, ' ')
+  );
   if (!text) return '';
   const m = /^.{20,}?[.!?](?=\s|$)/u.exec(text);
   const line = m ? m[0] : text;
-  return line.length > 160 ? `${line.slice(0, 157).trimEnd()}...` : line;
+  const chars = Array.from(line);
+  return chars.length > 160 ? `${chars.slice(0, 157).join('').trimEnd()}...` : line;
 }
 
 /** The line that always says which name the page thinks the viewer is. */

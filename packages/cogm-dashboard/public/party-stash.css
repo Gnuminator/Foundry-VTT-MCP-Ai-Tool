@@ -1,0 +1,27 @@
+.party-stash .stash-gold {
+  margin: 0 0 0.5rem;
+}
+.party-stash #stash-search {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  font: inherit;
+}
+.party-stash .stash-holder h4 {
+  margin: 0.6rem 0 0.2rem;
+}
+.party-stash ul {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+.party-stash .stash-qty {
+  opacity: 0.7;
+}
+.party-stash .stash-hidden {
+  font-style: italic;
+  opacity: 0.8;
+}
+.party-stash .stash-empty {
+  opacity: 0.7;
+}

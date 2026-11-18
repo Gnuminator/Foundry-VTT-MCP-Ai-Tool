@@ -6,7 +6,9 @@
  *                                          player's private key comes in the `X-CoGM-Me` header
  *                                          (the page moves it out of the address bar at once,
  *                                          so it never lands in a log or the browser history)
- * - `POST /api/me/roll`                -> the player rolls one of their open roll requests (the body
+ * - `GET  /api/me/stash`                -> the party stash: items by holder, the group's gold
+ *                                          (unidentified items hidden; party characters only)
+ * - `POST /api/me/roll`               -> the player rolls one of their open roll requests (the body
  *                                          carries the button id; the module rolls for their character
  *                                          from the GM client and checks the request is theirs)
  * - `POST /api/me/portrait`            -> the player puts their own picture on a character they own
@@ -35,6 +37,7 @@ import type { PlayerLinksBody } from './api-bodies.js';
 import type { ClientRegistry } from './client-versions.js';
 import type { SessionEvent } from './feed/types.js';
 import type { Logger } from './logger.js';
+import { buildPartyStash } from './party-stash.js';
 import type { PlayerLinkStore } from './player-links.js';
 import { privateRollsFor } from './private-rolls.js';
 import type { PlayerDirectory } from './usage-route.js';
@@ -199,6 +202,43 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
         res
           .status(502)
           .json({ error: 'Could not read your character. Wait a moment and try again.' });
+      });
+  });
+
+  // "Party stash" (I-175): what the party carries, by holder, plus the group's gold. Any player
+  // with a valid key may read it. It is built only from the sheets of the players' own characters
+  // (never a monster, an NPC or another group's actor), and an unidentified or secret item is
+  // reduced to "Unidentified item" (party-stash.ts).
+  app.get('/api/me/stash', (req: Request, res: Response) => {
+    res.set('Cache-Control', 'no-store');
+    const world = worldId();
+    const raw = req.headers[ME_KEY_HEADER];
+    const key = Array.isArray(raw) ? raw[0] : raw;
+    const userId = world ? links.userFor(world, key) : null;
+    if (!userId) {
+      res
+        .status(401)
+        .json({ code: 'no-link', error: 'This link is not valid. Ask your GM for a new one.' });
+      return;
+    }
+    if (typeof client.characterSheet !== 'function') {
+      res.status(501).json({ error: 'The party stash is not available here. Ask your GM.' });
+      return;
+    }
+    const read = client.characterSheet.bind(client);
+    void directory
+      .refreshIfStale()
+      .catch(() => undefined)
+      .then(async () => {
+        const answers: unknown[] = [];
+        for (const player of directory.list()) {
+          try {
+            answers.push(await read(player.userId));
+          } catch {
+            // One unreadable player leaves their characters out; the rest still show.
+          }
+        }
+        res.json(buildPartyStash(answers));
       });
   });
 

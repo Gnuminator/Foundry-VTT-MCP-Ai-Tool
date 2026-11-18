@@ -211,13 +211,20 @@ test('plannerSections assembles every section from a vault dir and a fake gh', (
   assert.match(s, /Nightly kit: no run has finished yet/);
   const dark = plannerSections({
     devDir: dev,
+    kitHome: dev,
     backlog: '',
     today: '2026-11-12',
     gh: () => null,
   }).join('\n');
   assert.match(dark, /gh not available/);
   fs.rmSync(path.join(dev, 'Waiting.md'));
-  const gone = plannerSections({ devDir: dev, backlog: '', today: '2026-11-12', gh: () => null });
+  const gone = plannerSections({
+    devDir: dev,
+    kitHome: dev,
+    backlog: '',
+    today: '2026-11-12',
+    gh: () => null,
+  });
   assert.ok(gone.includes('Waiting due: not readable'));
 });
 

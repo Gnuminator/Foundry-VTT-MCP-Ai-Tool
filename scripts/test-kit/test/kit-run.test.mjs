@@ -136,7 +136,8 @@ test('--daily is a nightly run that does nothing when a run finished today', asy
 test('ranToday: only a finished full nightly run on the same local day counts', () => {
   const home = mkdtempSync(path.join(os.tmpdir(), 'ran-today-'));
   const day = new Date(2026, 10, 18, 15, 0, 0);
-  const write = lastRun => writeFileSync(path.join(home, 'last-run.json'), JSON.stringify({ lastRun }));
+  const write = lastRun =>
+    writeFileSync(path.join(home, 'last-run.json'), JSON.stringify({ lastRun }));
   try {
     assert.equal(ranToday(home, day), false, 'no file');
     writeFileSync(path.join(home, 'last-run.json'), '{bad');

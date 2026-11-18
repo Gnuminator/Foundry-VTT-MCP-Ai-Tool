@@ -47,6 +47,7 @@ import {
   checkAtlasOwnership,
   isAtlasGeneratedId,
   mergeCanvas,
+  SPREAD_CARD_IDS,
   PLACES_CANVAS_PATH,
   QUESTS_CANVAS_PATH,
   readExisting,
@@ -69,7 +70,6 @@ import {
   renderSessionNote,
   renderSessionsBase,
   renderSpreadCanvas,
-  SPREAD_CARD_KEYS,
   renderStatusNote,
   renderTarokkaArchiveNote,
   renderTarokkaNote,
@@ -84,9 +84,6 @@ export { campaignDir };
 
 const SESSION_FILE = /^(\d{4}-\d{2}-\d{2})\.jsonl$/;
 const AUDIT_HISTORY_FILE = 'audit-log.jsonl';
-
-/** The card ids `renderSpreadCanvas` makes; any other card on Spread.canvas is the GM's. */
-const SPREAD_IDS = new Set([...SPREAD_CARD_KEYS, 'no-reading']);
 
 /** Folders whose notes not produced this run are pruned to `.trash/` (item 9). */
 const MANAGED_FOLDERS = [
@@ -398,7 +395,7 @@ export async function exportWorldToObsidian(options: {
       mergeCanvas(
         renderSpreadCanvas(reading, config?.cardNames ?? {}),
         await readExisting(root, spreadPath).catch(() => null),
-        id => SPREAD_IDS.has(id)
+        id => SPREAD_CARD_IDS.has(id)
       ),
       checkAtlasOwnership
     );

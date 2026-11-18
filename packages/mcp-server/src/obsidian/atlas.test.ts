@@ -17,7 +17,9 @@ import {
   mergeCanvas,
   PLACES_CANVAS_PATH,
   QUESTS_CANVAS_PATH,
+  SPREAD_CARD_IDS,
 } from './atlas.js';
+import { renderSpreadCanvas } from './render.js';
 import { exportWorldToObsidian } from './export.js';
 import { campaignDir } from './note-writer.js';
 import { withGeneratedHash } from './ownership.js';
@@ -254,5 +256,25 @@ describe('Campaign Atlas canvases', () => {
     const tome = merged.nodes.find(n => n.id === 'tome');
     expect([tome?.text, tome?.x, tome?.width]).toEqual(['new', 50, 400]);
     expect(isAtlasGeneratedId('atlas-n-1')).toBe(true);
+  });
+
+  it('knows every card id the spread renderer makes', () => {
+    const positions = Object.fromEntries(
+      ['tome', 'holySymbol', 'sunsword', 'ally', 'strahdLocation'].map(key => [
+        key,
+        { cardId: `${key}-1`, cardName: key, revealed: false },
+      ])
+    );
+    const ids = (text: string): string[] =>
+      (JSON.parse(text) as { nodes: Array<{ id: string }> }).nodes
+        .map(node => node.id)
+        .filter(id => id !== 'generated');
+    const rendered = [
+      ...ids(renderSpreadCanvas({ readingId: 'r', positions } as never)),
+      ...ids(renderSpreadCanvas(null)),
+    ];
+    expect(rendered.length).toBeGreaterThan(5);
+    for (const id of rendered) expect(SPREAD_CARD_IDS.has(id)).toBe(true);
+    expect(SPREAD_CARD_IDS.size).toBe(rendered.length);
   });
 });

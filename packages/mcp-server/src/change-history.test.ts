@@ -22,6 +22,7 @@ import {
   labelOf,
   undoBlocker,
 } from './change-history.js';
+import { isBatchRider } from './guarded-write/rider-undo.js';
 import { localDateKey } from './event-pump.js';
 import type { RecentChange } from './guarded-write/service.js';
 import type { UndoState } from './guarded-write/undo-state.js';
@@ -561,6 +562,49 @@ describe('buildActions', () => {
     // Nor is a delete another user made, even when the data names it.
     const otherUser = { ...dependent, userId: 'u2', userName: 'Someone' };
     expect(buildActions([ai, otherUser])[0].followUps).toEqual([]);
+  });
+
+  it("files the status effect dnd5e creates with an AI hit (Prone at 0 HP) as that change's follow-up", () => {
+    const ai = rec({
+      actionId: 'bridge',
+      changeId: 'chg-x',
+      changeMode: 'apply',
+      op: 'update',
+      documentName: 'Actor',
+      uuid: 'Actor.a1',
+      parentUuid: null,
+      rootUuid: 'Actor.a1',
+      name: 'Kit Cleric',
+      rootName: 'Kit Cleric',
+      before: [val('system.attributes.hp.value', 20)],
+      after: [val('system.attributes.hp.value', 0)],
+    });
+    const prone = rec({
+      actionId: 'bridge',
+      t: ai.t + 400,
+      op: 'create',
+      documentName: 'ActiveEffect',
+      uuid: 'Actor.a1.ActiveEffect.dnd5eprone000000',
+      parentUuid: 'Actor.a1',
+      rootUuid: 'Actor.a1',
+      rootName: 'Kit Cleric',
+      name: 'Prone',
+    });
+    expect(isBatchRider(prone)).toBe(true);
+    expect(buildActions([ai, prone])[0]).toMatchObject({ changeId: 'chg-x', followUps: [prone] });
+    // A person's own effect (random id) and a rider on another actor stay out of the follow-ups.
+    const ordinary = { ...prone, uuid: 'Actor.a1.ActiveEffect.AbC123xYz456qwer' };
+    expect(isBatchRider(ordinary)).toBe(false);
+    expect(buildActions([ai, ordinary])[0].followUps).toEqual([]);
+    const elsewhere = {
+      ...prone,
+      uuid: 'Actor.a2.ActiveEffect.dnd5eprone000000',
+      rootUuid: 'Actor.a2',
+    };
+    expect(buildActions([ai, elsewhere])[0].followUps).toEqual([]);
+    // A Prone the GM sets a moment after an AI hit that left the hero standing is not the change's.
+    const notDown = { ...ai, after: [val('system.attributes.hp.value', 7)] };
+    expect(buildActions([notDown, prone])[0].followUps).toEqual([]);
   });
 
   it("does not swallow a person's own concentration end into an AI item delete across browsers, and files a re-deleted dependent under the latest change", () => {

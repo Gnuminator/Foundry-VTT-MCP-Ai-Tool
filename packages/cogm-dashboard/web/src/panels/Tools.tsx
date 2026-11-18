@@ -301,7 +301,7 @@ function ToolRunner({
     );
     // Refused or cancelled: nothing ran, the form keeps its values. A run that went ahead is
     // remembered for the Recent runs list and the used-most suggestions.
-    if (shown) pinActions.ran({ tool: t.name, args, mutates: t.mutates });
+    if (shown?.ok) pinActions.ran({ tool: t.name, args, mutates: t.mutates });
     return shown;
   };
 
@@ -362,8 +362,11 @@ function ToolRunner({
       });
   };
 
-  // Escape closes an open picker list first (focus back on its button), then the drawer.
+  // Escape puts back a pin name being edited, then closes an open picker list (focus back on its
+  // button), then the drawer.
+  const pinRevert = useRef<(() => boolean) | null>(null);
   const escapeKey = (): boolean => {
+    if (pinRevert.current?.()) return true;
     if (!openPicker) return false;
     usage().track('shortcut', 'dash.shortcut.escape-picker');
     const button = document.getElementById(`${fieldId(openPicker)}-pick`);
@@ -388,6 +391,8 @@ function ToolRunner({
       {search.trim() === '' && (
         <PinLists
           store={pinStore}
+          revert={pinRevert}
+          toast={toast}
           known={name => tools?.find(t => t.name === name)}
           onOpen={(t, args) => openTool(t, args)}
         />
@@ -753,8 +758,17 @@ function callSummary(args: Record<string, unknown>): string {
 }
 
 /** One pin's name, editable in place: Enter or leaving the box keeps it, Escape puts it back. */
-function PinName({ pin }: { pin: Pin }): JSX.Element {
+function PinName({
+  pin,
+  revert,
+}: {
+  pin: Pin;
+  /** Set while this box has focus: the drawer's Escape handler calls it (true = it put the name back). */
+  revert: { current: (() => boolean) | null };
+}): JSX.Element {
   const [text, setText] = useState(pin.label);
+  const shown = useRef(text);
+  shown.current = text;
   const keep = (): void => {
     if (text.trim() === '') setText(pin.label);
     else if (text.trim() !== pin.label) pinActions.rename(pin.id, text);
@@ -767,15 +781,22 @@ function PinName({ pin }: { pin: Pin }): JSX.Element {
       aria-label={`Name of pin ${pin.label}`}
       value={text}
       onChange={e => setText(e.target.value)}
-      onBlur={keep}
+      onFocus={() => {
+        // Escape is the drawer's: it asks here first and only closes when nothing was changed.
+        revert.current = (): boolean => {
+          if (shown.current === pin.label) return false;
+          setText(pin.label);
+          return true;
+        };
+      }}
+      onBlur={() => {
+        revert.current = null;
+        keep();
+      }}
       onKeyDown={e => {
         if (e.key === 'Enter') {
           e.preventDefault();
           keep();
-        } else if (e.key === 'Escape' && text !== pin.label) {
-          // Put the name back; the drawer stays open.
-          e.stopPropagation();
-          setText(pin.label);
         }
       }}
     />
@@ -785,10 +806,14 @@ function PinName({ pin }: { pin: Pin }): JSX.Element {
 /** The pins (rename, remove), the three calls used most, and the recent runs. */
 function PinLists({
   store,
+  revert,
+  toast,
   known,
   onOpen,
 }: {
   store: PinStore;
+  revert: { current: (() => boolean) | null };
+  toast: ReturnType<typeof useToast>;
   known: (name: string) => ToolInfo | undefined;
   onOpen: (tool: ToolInfo, args: Record<string, unknown>) => void;
 }): JSX.Element | null {
@@ -797,6 +822,7 @@ function PinLists({
   const open = (name: string, args: Record<string, unknown>): void => {
     const t = known(name);
     if (t) onOpen(t, args);
+    else toast(`Tool "${name}" isn't in the catalog now.`, 'warn');
   };
   return (
     <div className="pin-lists" id="pin-lists">
@@ -806,7 +832,7 @@ function PinLists({
           <div className="pin-list">
             {store.pins.map(pin => (
               <div className="pin-item" key={pin.id} data-pin={pin.id}>
-                <PinName pin={pin} />
+                <PinName pin={pin} revert={revert} />
                 <Button
                   type="button"
                   className="btn-small"
@@ -854,14 +880,15 @@ function PinLists({
                   className="btn-small"
                   data-track="dash.pins.pin-often"
                   aria-label={`Pin ${c.tool}`}
-                  onClick={() =>
-                    pinActions.pin({
+                  onClick={() => {
+                    const saved = pinActions.pin({
                       label: defaultLabel(c.tool, c.args),
                       tool: c.tool,
                       args: c.args,
                       mutates: c.mutates,
-                    })
-                  }
+                    });
+                    if (!saved) toast("Can't pin more: remove one first.", 'warn');
+                  }}
                 >
                   📌 Pin
                 </Button>

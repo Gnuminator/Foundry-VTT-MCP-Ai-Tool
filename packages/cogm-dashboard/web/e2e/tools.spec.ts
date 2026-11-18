@@ -1026,6 +1026,12 @@ test('pins can be renamed and removed; recent runs and the calls used most are l
   const pinned = drawer.getByRole('group', { name: 'Pinned' });
   await expect(pinned.locator('[data-pin] input')).toHaveValue('measure-distance');
 
+  // Escape in a name being edited puts the name back and keeps the drawer open.
+  await pinned.locator('[data-pin] input').fill('half typed');
+  await page.keyboard.press('Escape');
+  await expect(drawer).toBeVisible();
+  await expect(pinned.locator('[data-pin] input')).toHaveValue('measure-distance');
+
   // Rename it, then remove it.
   await pinned.locator('[data-pin] input').fill('Four squares');
   await pinned.locator('[data-pin] input').press('Enter');

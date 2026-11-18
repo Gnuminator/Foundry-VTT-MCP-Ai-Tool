@@ -109,7 +109,11 @@ export function parseStore(raw: unknown): PinStore {
       at: typeof c['at'] === 'number' ? c['at'] : 0,
     });
   }
-  return { pins: pins.slice(0, MAX_PINS), recent: recent.slice(0, MAX_RECENT), counts };
+  return {
+    pins: pins.slice(0, MAX_PINS).map(p => ({ ...p, label: p.label.slice(0, 60) })),
+    recent: recent.slice(0, MAX_RECENT),
+    counts: counts.slice(0, MAX_COUNTED),
+  };
 }
 
 /** A run recorded: newest first, the same call once, the count of that call up by one. */
@@ -176,6 +180,15 @@ function update(next: PinStore): void {
   current = next;
   writeJson(PINS_KEY, next);
   listeners.forEach(l => l());
+}
+
+// Another dashboard window changed the pins: read them again, so this window never writes over them.
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', e => {
+    if (e.key !== PINS_KEY) return;
+    current = null;
+    listeners.forEach(l => l());
+  });
 }
 
 /** The pin store, up to date in every component that asks. */

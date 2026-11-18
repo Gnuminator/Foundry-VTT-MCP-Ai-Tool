@@ -4,9 +4,8 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useRef, useState, type JSX } from 'react';
 
-import { useGuardedTools } from '../lib/guarded';
+import { argLines, useGuardedTools } from '../lib/guarded';
 import { runToolCall, type ToolResult } from '../lib/run-tool';
-import { argLines } from '../lib/guarded';
 import { pinActions, usePinStore, type Pin } from '../lib/tool-pins';
 import { Button } from '../ui';
 
@@ -40,7 +39,7 @@ export function PinRow(): JSX.Element | null {
       .then(shown => {
         // Cancelled or refused at the gate: nothing ran, so it is not a run.
         if (!shown) return;
-        pinActions.ran({ tool: pin.tool, args: pin.args, mutates: pin.mutates });
+        if (shown.ok) pinActions.ran({ tool: pin.tool, args: pin.args, mutates: pin.mutates });
         if (pin.mutates === 'read' && shown.ok) setResult({ ...shown, label: pin.label });
         else if (!shown.ok) setResult({ ...shown, label: pin.label });
       })
@@ -59,7 +58,8 @@ export function PinRow(): JSX.Element | null {
           data-pin={pin.id}
           data-track="dash.pins.run"
           title={`${pin.tool}${pin.mutates === 'read' ? '' : ' (asks first)'}`}
-          disabled={running !== null}
+          // aria-disabled, not disabled: the confirm window gives the focus back to this button.
+          aria-disabled={running !== null || undefined}
           aria-busy={running === pin.id || undefined}
           onClick={() => run(pin)}
         >

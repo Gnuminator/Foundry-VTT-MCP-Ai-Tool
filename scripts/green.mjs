@@ -32,6 +32,7 @@ import { SHARED_STEPS } from './check-shared-link.mjs';
 import { HELD_ENV, acquire, lockDir } from './heavy-lock.mjs';
 import { STEPS, HEAVY_STEPS, CI_ONLY } from './checks.mjs';
 import { lineRatchetQuickSteps } from './line-ratchet.mjs';
+import { cheapCiQuickSteps } from './cheap-ci-steps.mjs';
 export { STEPS, HEAVY_STEPS, CI_ONLY };
 
 /**
@@ -904,8 +905,7 @@ export function quickLintSteps(files, cwd) {
  * runs only that spec; a change under the dashboard web app or `scripts/test-kit/` also builds the
  * mcp-server and runs the kit scenario check; that or a usage-catalogue input also runs the kit
  * control tests (a new control without its skip row); a change to a `docs:ui` input (guides, UI
- * source) runs `docs:ui`, and to a `docs:kit` input runs `docs:kit:check`. None of these step names is in HEAVY_STEPS (hence `unit-*`, not `test-*`), so a quick run never takes a
- * heavy slot (the e2e spec step keeps the small solo lock the e2e port needs).
+ * source) runs `docs:ui`, and to a `docs:kit` input runs `docs:kit:check`; TypeScript changes add the unused ratchet, tool modules the sweep coverage test (cheap-ci-steps.mjs); no step is in HEAVY_STEPS.
  * @param {string[]} files repo-relative paths, forward slashes
  * @returns {Step[]}
  */
@@ -958,7 +958,7 @@ export function quickSteps(files, cwd = process.cwd()) {
   const tests = [...nodeTests].filter(f => fs.existsSync(path.join(cwd, f))).sort();
   if (tests.length > 0)
     steps.push({ name: 'node-tests', cmd: 'node', args: ['--test', ...tests], env: CI });
-  steps.push(...lineRatchetQuickSteps(files));
+  steps.push(...lineRatchetQuickSteps(files), ...cheapCiQuickSteps(files));
   const webTouched = touchesDashboardWeb(files);
   // Same order as the checks list: usage catalogue after typecheck, bundle budget after the build (dashboard typecheck covers web).
   if (files.some(f => USAGE_CATALOG_INPUT.test(f))) {

@@ -642,6 +642,17 @@ async function planHazard(request: RoomHazardRequest): Promise<RoomSetupPlan> {
   const scene = resolveScene(area.scene);
   const warnings: string[] = [];
   const rect = areaRect(scene, area, 'area', warnings);
+  // Options that belong to another kind are not used; say so instead of dropping them silently.
+  const unused: string[] = [];
+  if (request.kind !== 'difficult' && request.magical !== undefined) unused.push('magical');
+  if (request.kind !== 'darkness') {
+    if (request.darknessMode !== undefined) unused.push('darknessMode');
+    if (request.modifier !== undefined) unused.push('modifier');
+  }
+  if (request.kind !== 'effect' && request.effectUuid !== undefined) unused.push('effectUuid');
+  if (unused.length > 0) {
+    warnings.push(`${unused.join(', ')} not used for kind ${request.kind}`);
+  }
   let behavior: Rec;
   let what: string;
   switch (request.kind) {

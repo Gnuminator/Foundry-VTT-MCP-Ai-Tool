@@ -1,6 +1,22 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { countReport, compare } from './unused-ratchet.mjs';
+import { countReport, compare, itemsInFiles } from './unused-ratchet.mjs';
+
+test('itemsInFiles names the unused export, type and file of the changed files only', () => {
+  const report = {
+    files: ['packages/a/src/new.ts', 'packages/a/src/old.ts'],
+    issues: [
+      { file: 'packages/a/src/x.ts', exports: [{ name: 'fresh', line: 7 }], types: [{ name: 'T' }] },
+      { file: 'packages/a/src/y.ts', exports: [{ name: 'other', line: 1 }], types: [] },
+    ],
+  };
+  assert.deepEqual(itemsInFiles(report, ['packages/a/src/new.ts', 'packages/a/src/x.ts']), [
+    '  packages/a/src/new.ts: unused file',
+    '  packages/a/src/x.ts:7: unused export fresh',
+    '  packages/a/src/x.ts:?: unused type T',
+  ]);
+  assert.deepEqual(itemsInFiles(report, []), []);
+});
 
 test('countReport counts files, exports and types per workspace', () => {
   const counts = countReport({

@@ -112,8 +112,8 @@ install it the same way, and when a form asks, paste your **Client ID** into the
 your **Client Secret** into the second (the **My character** page has both with copy buttons).
 
 To check it works, open a new chat and click the **+** or the tools icon near the message box.
-You should see **Foundry** (or **foundry-player**) listed with eight tools (the seven table tools and
-**get-helper-guide**). If you do, the plug is in. The helper's instructions come with the extension,
+You should see **Foundry** (or **foundry-player**) listed with nine tools (the seven table tools,
+**get-player-skill-guide** and **get-helper-guide**). If you do, the plug is in. The helper's instructions come with the extension,
 so you should not need to add a skill or switch on Code execution. If Claude does not follow the
 helper's steps, see Troubleshooting.
 

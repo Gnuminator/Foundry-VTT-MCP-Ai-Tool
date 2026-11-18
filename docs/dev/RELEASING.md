@@ -21,7 +21,8 @@ Start from a clean, up-to-date checkout of `main` (the main checkout, or a workt
    The PR needs no `changelog.d` fragment: the gate sees a release PR and passes its changelog check
    (`lane:merge: changelog: a release PR ...`) when it changes only `CHANGELOG.md`, deletes `changelog.d/*.md`
    files, and changes nothing but the version in the places `version:sync` stamps (the package.json files, the
-   lock file's own entries, `module.json`, the Obsidian `manifest.json`, `shared/src/version.ts` and the NSIS
+   lock file's own entries, `module.json`, the Obsidian `manifest.json`, `tools/player-connector/manifest.json`,
+   the `VERSION` constant in `tools/player-connector/server/index.js`, `shared/src/version.ts` and the NSIS
    script), with the root `package.json` version changed. Anything more (a fix in the same PR, a fold without a
    version bump) is not a release PR: the refusal says which file, and then a fragment or
    `--no-changelog "reason"` is needed. The PR touches wire contracts (`module.json`, `shared/src`), so its

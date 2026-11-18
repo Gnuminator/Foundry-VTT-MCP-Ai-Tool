@@ -28,6 +28,7 @@ import {
   lowEdit,
   progressEdit,
   releaseEdit,
+  setFieldEdit,
   run,
   statusText,
   piListStatus,
@@ -250,6 +251,50 @@ test('progress puts several old progress lines into one and inserts one where no
   const s = progressEdit(FIXTURE, { id: 'second', text: 'started', date: D });
   assert.match(block(s.text, 'second') ?? '', /- id: second\n- progress: 2026-11-12 started\n/);
   assert.throws(() => progressEdit(FIXTURE, { id: 'second', text: 'a\nb', date: D }), /one line/);
+});
+
+test('set replaces, adds and removes one planning field; refuses claim, progress and an unknown item', () => {
+  const r = setFieldEdit(FIXTURE, { id: 'second', name: 'gate', value: 'G1 (revisit 2026-11-29)' });
+  assert.match(
+    block(r.text, 'second') ?? '',
+    /- board: Process and tooling\r?\n- gate: G1 \(revisit/
+  );
+  const again = setFieldEdit(r.text, { id: 'second', name: 'gate', value: 'G1' });
+  assert.equal(((block(again.text, 'second') ?? '').match(/- gate:/g) ?? []).length, 1);
+  const gone = setFieldEdit(again.text, { id: 'second', name: 'gate', value: '' });
+  assert.doesNotMatch(block(gone.text, 'second') ?? '', /- gate:/);
+  const area = 'Docs, videos, Danni onboarding';
+  const board = setFieldEdit(FIXTURE, { id: 'first', name: 'board', value: area });
+  assert.match(block(board.text, 'first') ?? '', /- board: Docs, videos, Danni onboarding/);
+  assert.equal(parseBacklog(board.text).items.length, parseBacklog(FIXTURE).items.length);
+  for (const name of ['claimed', 'progress', 'id']) {
+    assert.throws(
+      () => setFieldEdit(FIXTURE, { id: 'first', name, value: 'x' }),
+      /set changes only/
+    );
+  }
+  assert.throws(() => setFieldEdit(FIXTURE, { id: 'nope', name: 'gate', value: 'G1' }), /nope/);
+});
+
+test('set retitles an item and repairs the link of a claimed one', () => {
+  const t = setFieldEdit(FIXTURE, { id: 'second', name: 'title', value: 'Second, retitled' });
+  assert.match(t.text, /^## S Second, retitled$/m);
+  assert.equal(parseBacklog(t.text).items.length, parseBacklog(FIXTURE).items.length);
+  assert.throws(() => setFieldEdit(FIXTURE, { id: 'second', name: 'title', value: '' }), /keeps/);
+  const good = 'claude://claude.ai/epitaxy/local_bb64ca65-8689-447c-9a77-560b3c881d4a';
+  const l = setFieldEdit(FIXTURE, { id: 'first', name: 'link', value: good });
+  assert.match(block(l.text, 'first') ?? '', /claimed: First lane 2026-11-11\r?\n- link: claude:/);
+  const again = setFieldEdit(l.text, {
+    id: 'first',
+    name: 'link',
+    value: good.replace('bb64ca65', 'cc221c20'),
+  });
+  assert.equal(((block(again.text, 'first') ?? '').match(/- link:/g) ?? []).length, 1);
+  assert.throws(
+    () => setFieldEdit(FIXTURE, { id: 'first', name: 'link', value: 'claude://claude.ai/epitaphy/local_x' }),
+    /link must look like/
+  );
+  assert.throws(() => setFieldEdit(FIXTURE, { id: 'second', name: 'link', value: good }), /not claimed/);
 });
 
 test('release refuses an unclaimed item', () => {
@@ -743,6 +788,22 @@ test('dry run prints the change and writes nothing; unknown commands are usage e
   assert.match(r.out, /\+ - claimed: x 2026-11-12/);
   assert.equal(fs.readFileSync(path.join(v.a, BACKLOG), 'utf8'), crlf(FIXTURE));
   assert.equal(v.cli(['frobnicate']).code, 2);
+});
+
+test('set: the CLI needs a value argument, keeps CRLF, quotes two-word fields; board cannot go empty', () => {
+  const v = vaults();
+  assert.equal(v.cli(['set', 'second', 'gate']).code, 2, 'a forgotten value is a usage error');
+  const r = v.cli(['set', 'third', 'blocked by', 'item:first']);
+  assert.equal(r.code, 0, r.err);
+  assert.match(v.remoteFile(BACKLOG), /- id: third\r\n- board: CI\r\n- blocked by: item:first\r\n/);
+  assert.equal(v.cli(['set', 'second', 'touches', 'scripts/x.mjs']).code, 0);
+  assert.match(
+    v.remoteFile(BACKLOG),
+    /- board: Process and tooling\r\n- touches: scripts\/x\.mjs\r\n- done when/
+  );
+  assert.equal(v.cli(['set', 'second', 'board', '']).code, 1, 'an empty board is refused');
+  assert.equal(v.cli(['set', 'second', 'link', 'x']).code, 1, 'link has its own command');
+  assert.equal(v.cli(['set', 'second', 'Claimed', 'x']).code, 1, 'any case');
 });
 
 test('git: a second writer on the same vault is refused while the first holds the lock', () => {

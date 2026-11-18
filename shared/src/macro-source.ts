@@ -130,7 +130,7 @@ const BANNED_PATTERNS: Array<[RegExp, string, string]> = [
  * name; anything else (a concatenation, a call, a template) could spell a banned name at run time.
  * A bare name is checked against the banned words too, since `a[eval]` is the same call.
  */
-const COMPUTED_ACCESS = /\[\s*([^[\]]*?)\s*\]/g;
+const COMPUTED_ACCESS = /\[([^[\]]*)\]/g;
 const SAFE_INDEX =
   /^(?:\d+|-?\d+|'[\w -]*'|"[\w -]*"|[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*(?:\s*[+-]\s*\d+)?)$/;
 
@@ -162,7 +162,7 @@ export function scanMacroSource(source: string): MacroSourceProblem[] {
     if (hit) problems.push({ rule: why, match: `${rule}: ${hit[0].trim().slice(0, 60)}` });
   }
   for (const m of source.matchAll(COMPUTED_ACCESS)) {
-    const inner = m[1] ?? '';
+    const inner = (m[1] ?? '').trim();
     // Array literals and empty brackets are not member access; only look at an index that holds
     // something odd. An array literal of plain values has commas or is empty, so it needs the
     // same safe shapes joined by commas.

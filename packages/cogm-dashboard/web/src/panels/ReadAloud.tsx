@@ -12,33 +12,45 @@ import { Button, QueryState } from '../ui';
 
 import styles from './ReadAloud.module.css';
 
-export interface ReadAloudPage {
+interface ReadAloudPage {
   journalName: string;
   pageName: string;
   from: 'scene' | 'note';
   blocks: { text: string }[];
 }
 
-export interface ReadAloudAnswer {
+interface ReadAloudAnswer {
   sceneName: string;
   pages: ReadAloudPage[];
   pagesWithoutBoxes: number;
+  /** Text pages the scene links in all, and how many of them were read. */
+  linkedPages: number;
+  readPages: number;
+}
+
+/** "Showing 12 of 15 linked pages", or null when every linked page was read. */
+function cutNote(a: ReadAloudAnswer): string | null {
+  return a.linkedPages > a.readPages
+    ? `Showing the first ${a.readPages} of ${a.linkedPages} linked pages.`
+    : null;
 }
 
 const READ_ALOUD_KEY = ['read-aloud'] as const;
 
 /** One tool call; the answer's lists are checked so a short reply cannot break the drawer. */
-export async function loadReadAloud(): Promise<ReadAloudAnswer> {
+async function loadReadAloud(): Promise<ReadAloudAnswer> {
   const raw = await callTool<Partial<ReadAloudAnswer> | null>('get-read-aloud', {});
   return {
     sceneName: raw?.sceneName ?? '',
     pages: Array.isArray(raw?.pages) ? raw.pages : [],
     pagesWithoutBoxes: raw?.pagesWithoutBoxes ?? 0,
+    linkedPages: raw?.linkedPages ?? 0,
+    readPages: raw?.readPages ?? 0,
   };
 }
 
 /** Why the shelf is empty: no linked page at all, or linked pages that have no boxed text. */
-export function emptyMessage(a: ReadAloudAnswer): string {
+function emptyMessage(a: ReadAloudAnswer): string {
   return a.pagesWithoutBoxes > 0
     ? 'The pages this scene links have no boxed read-aloud text.'
     : 'This scene links no journal page, so there is nothing to read aloud.';
@@ -112,6 +124,7 @@ export function ReadAloudDrawer({
         {a => (
           <>
             {a.sceneName && <p className="pf-detail">Scene: {a.sceneName}</p>}
+            {cutNote(a) && <p className="pf-detail">{cutNote(a)}</p>}
             {a.pages.map((page, p) => (
               <section key={`${page.journalName}.${page.pageName}.${p}`} className={styles['page']}>
                 <h3 className={styles['pageTitle']}>

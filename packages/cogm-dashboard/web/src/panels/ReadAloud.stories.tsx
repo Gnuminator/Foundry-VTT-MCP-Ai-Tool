@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import type { JSX } from 'react';
 
 import { Opened } from '../storybook/Opened';
-import { toolOk } from '../storybook/fakeApi';
+import { bridgeDown, toolOk } from '../storybook/fakeApi';
 import { PHONE_VIEW } from '../storybook/modes';
 
 import { ReadAloudDrawer } from './ReadAloud';
@@ -50,6 +50,18 @@ export const NoBoxedText: Story = {
 };
 export const NoLinkedPage: Story = {
   parameters: withAnswer({ sceneName: 'Empty Field', pagesWithoutBoxes: 0, pages: [] }),
+};
+export const CutOff: Story = {
+  parameters: withAnswer({
+    sceneName: 'The Old Hall',
+    pagesWithoutBoxes: 0,
+    linkedPages: 15,
+    readPages: 12,
+    pages: [page('Room 1', 'scene', ['A cold hall stretches ahead of you.'])],
+  }),
+};
+export const BridgeDown: Story = {
+  parameters: { dashboard: { api: { tools: { 'get-read-aloud': bridgeDown } } } },
 };
 export const Phone: Story = {
   tags: ['phone'],

@@ -24,7 +24,7 @@
     "scripts/green.mjs": 1210,
     "scripts/live-write-sweep.mjs": 1690,
     "scripts/merge-runner.mjs": 1064,
-    "scripts/test-kit/lib/dashboard-controls.mjs": 1252,
+    "scripts/test-kit/lib/dashboard-controls.mjs": 1258,
     "scripts/test-kit/lib/fake/origins.mjs": 1051,
     "scripts/test-kit/lib/features.mjs": 1387,
     "scripts/test-kit/lib/gm-actions.mjs": 1975,
@@ -56,6 +56,12 @@
       "lines": 1812,
       "reason": "one more read-only query registration (getRenownState); the file is the registration table",
       "pr": "1126"
+    },
+    {
+      "file": "scripts/test-kit/lib/dashboard-controls.mjs",
+      "lines": 1258,
+      "reason": "one row per dashboard control: the table grows with every new control",
+      "pr": ""
     }
   ]
 }

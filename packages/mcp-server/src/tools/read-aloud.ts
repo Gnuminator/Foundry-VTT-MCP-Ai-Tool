@@ -4,7 +4,7 @@
  * the same class test the Obsidian export uses. Nothing is stored: the text is read from the
  * world when asked and returned to the GM, so no book text lives in the repo or the vault.
  */
-import { toolRef } from '@gnuminator/shared';
+import { toolRef, unwrapBridgeReply, type BridgeRefusal } from '@gnuminator/shared';
 import { parseDOM } from 'htmlparser2';
 import { z } from 'zod';
 
@@ -40,11 +40,11 @@ const BLOCKS = new Set([
   'h6',
 ]);
 
-export interface ReadAloudBlock {
+interface ReadAloudBlock {
   text: string;
 }
 
-export interface ReadAloudPage {
+interface ReadAloudPage {
   journalId: string;
   journalName: string;
   pageId: string;
@@ -53,7 +53,7 @@ export interface ReadAloudPage {
   blocks: ReadAloudBlock[];
 }
 
-export interface GetReadAloudResult {
+interface GetReadAloudResult {
   success: true;
   sceneId: string;
   sceneName: string;
@@ -61,6 +61,9 @@ export interface GetReadAloudResult {
   pages: ReadAloudPage[];
   /** How many linked pages had none (so the card can say "nothing boxed" rather than "no link"). */
   pagesWithoutBoxes: number;
+  /** Text pages the scene links in all, and how many of them were read (a cut shows here). */
+  linkedPages: number;
+  readPages: number;
 }
 
 function isElement(node: DomNode): node is DomNode & ElementNode {
@@ -75,9 +78,9 @@ function hasReadAloudClass(el: ElementNode): boolean {
 /** Foundry enrichers to plain words: `@UUID[...]{Label}` to Label, `[[/r 1d6]]` to 1d6. */
 function plainEnrichers(text: string): string {
   return text
-    .replace(/@[A-Za-z]+\[[^\]]*\]\{([^}]*)\}/g, '$1')
-    .replace(/@[A-Za-z]+\[([^\]]*)\]/g, '$1')
-    .replace(/\[\[\/?\w*\s*([^\]]*?)\]\]/g, '$1');
+    .replace(/[@&][A-Za-z]+\[[^\]]*\]\{([^}]*)\}/g, '$1')
+    .replace(/[@&][A-Za-z]+\[([^\]]*)\]/g, '$1')
+    .replace(/\[\[(?:\/\w+\s+)?([^\]]*?)\]\]/g, '$1');
 }
 
 /** The text of one box: block elements become paragraphs, `br` a line break. */
@@ -126,6 +129,7 @@ export function extractReadAloud(html: string): ReadAloudBlock[] {
 interface ScenePagesReply {
   sceneId: string;
   sceneName: string;
+  totalPages?: number;
   pages: Array<{
     journalId: string;
     journalName: string;
@@ -136,7 +140,7 @@ interface ScenePagesReply {
   }>;
 }
 
-export interface ReadAloudToolsOptions {
+interface ReadAloudToolsOptions {
   foundryClient: FoundryClient;
   logger: Logger;
 }
@@ -156,8 +160,10 @@ export class ReadAloudTools {
         name: 'get-read-aloud',
         description:
           'GM ONLY. The boxed read-aloud text of the journal pages a scene links (the scene itself ' +
-          'and its map notes), in page order, ready to read to the table. Read from the world ' +
-          'when asked; nothing is stored. Pages without a boxed text are counted, not listed.',
+          'and its map notes: pages a link names come first, then the pages of a whole linked ' +
+          'entry), ready to read to the table. Read from the world when asked; nothing is ' +
+          'stored. Pages without a boxed text are counted, not listed. At most 12 pages are ' +
+          'read; linkedPages and readPages show a cut.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -175,9 +181,12 @@ export class ReadAloudTools {
   async handleGetReadAloud(args: unknown): Promise<GetReadAloudResult> {
     const { sceneId } = z.object({ sceneId: z.string().optional() }).parse(args ?? {});
     try {
-      const reply = (await this.foundryClient.query('foundry-mcp-bridge.getScenePages', {
-        ...(sceneId ? { sceneId } : {}),
-      })) as ScenePagesReply;
+      const reply = unwrapBridgeReply(
+        (await this.foundryClient.query('foundry-mcp-bridge.getScenePages', {
+          ...(sceneId ? { sceneId } : {}),
+        })) as ScenePagesReply | BridgeRefusal,
+        'get-read-aloud'
+      );
       const pages: ReadAloudPage[] = [];
       let pagesWithoutBoxes = 0;
       for (const page of reply.pages ?? []) {
@@ -201,6 +210,8 @@ export class ReadAloudTools {
         sceneName: reply.sceneName,
         pages,
         pagesWithoutBoxes,
+        linkedPages: reply.totalPages ?? (reply.pages ?? []).length,
+        readPages: (reply.pages ?? []).length,
       };
     } catch (error) {
       this.logger.error('Failed to get read-aloud text', error);

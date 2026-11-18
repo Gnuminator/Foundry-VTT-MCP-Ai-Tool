@@ -9,7 +9,7 @@ import * as shared from './shared.js';
 /** Most pages one answer carries (a book scene with a pin per room stays bounded). */
 const MAX_PAGES = 12;
 
-export interface ScenePage {
+interface ScenePage {
   journalId: string;
   journalName: string;
   pageId: string;
@@ -19,9 +19,11 @@ export interface ScenePage {
   html: string;
 }
 
-export interface ScenePagesReply {
+interface ScenePagesReply {
   sceneId: string;
   sceneName: string;
+  /** How many text pages the scene links in all; `pages` holds at most MAX_PAGES of them. */
+  totalPages: number;
   pages: ScenePage[];
 }
 
@@ -29,6 +31,7 @@ interface PageLike {
   id?: string | null;
   name?: string | null;
   type?: string | null;
+  sort?: number | null;
   text?: { content?: string | null } | null;
 }
 interface JournalLike {
@@ -50,12 +53,16 @@ interface SceneLike {
 }
 
 function pagesOf(journal: JournalLike): PageLike[] {
-  return journal.pages ? Array.from(journal.pages) : [];
+  return journal.pages
+    ? Array.from(journal.pages).sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0))
+    : [];
 }
 
 /**
- * The text pages a scene links. With `sceneId` that scene, else the one on screen. A link to a
- * whole entry gives every text page of it; a link to one page (or a map pin on one) just that page.
+ * The text pages a scene links. With `sceneId` that scene, else the one on screen. Pages named
+ * by a link (the scene's own, then each map pin's) come first, in that order; the pages of a
+ * whole linked entry follow, by their sort order. The answer carries at most MAX_PAGES pages;
+ * `totalPages` says how many were found, so a cut is visible.
  */
 export function getScenePages(sceneId?: string): ScenePagesReply {
   shared.validateFoundryState();
@@ -66,18 +73,20 @@ export function getScenePages(sceneId?: string): ScenePagesReply {
     | undefined;
   if (!scene) throw new Error('Scene not found');
 
-  const out: ScenePage[] = [];
+  const named: ScenePage[] = [];
+  const whole: ScenePage[] = [];
   const seen = new Set<string>();
   const add = (
+    into: ScenePage[],
     journal: JournalLike | null | undefined,
     page: PageLike,
     from: ScenePage['from']
   ): void => {
-    if (!journal || page.type !== 'text' || out.length >= MAX_PAGES) return;
+    if (!journal || page.type !== 'text') return;
     const key = `${journal.id ?? ''}.${page.id ?? ''}`;
     if (seen.has(key)) return;
     seen.add(key);
-    out.push({
+    into.push({
       journalId: journal.id ?? '',
       journalName: journal.name ?? '',
       pageId: page.id ?? '',
@@ -90,17 +99,20 @@ export function getScenePages(sceneId?: string): ScenePagesReply {
   const entry = typeof scene.journal === 'object' ? scene.journal : null;
   if (entry) {
     const linked = scene.journalEntryPage ? entry.pages?.get?.(scene.journalEntryPage) : undefined;
-    if (linked) add(entry, linked, 'scene');
-    else for (const page of pagesOf(entry)) add(entry, page, 'scene');
+    if (linked) add(named, entry, linked, 'scene');
+    else for (const page of pagesOf(entry)) add(whole, entry, page, 'scene');
   }
   for (const note of Array.from(scene.notes ?? [])) {
     const journal = note.entry ?? null;
     if (!journal) continue;
-    if (note.page) add(journal, note.page, 'note');
-    else if (note.pageId) {
-      const page = journal.pages?.get?.(note.pageId);
-      if (page) add(journal, page, 'note');
-    } else for (const page of pagesOf(journal)) add(journal, page, 'note');
+    if (note.page) add(named, journal, note.page, 'note');
+    else for (const page of pagesOf(journal)) add(whole, journal, page, 'note');
   }
-  return { sceneId: scene.id, sceneName: scene.name, pages: out };
+  const all = [...named, ...whole];
+  return {
+    sceneId: scene.id,
+    sceneName: scene.name,
+    totalPages: all.length,
+    pages: all.slice(0, MAX_PAGES),
+  };
 }

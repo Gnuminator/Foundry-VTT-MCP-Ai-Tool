@@ -33,6 +33,30 @@ describe('extractReadAloud', () => {
   });
 });
 
+describe('ReadAloudTools edge cases', () => {
+  it('throws on a refusal from the module instead of answering an empty shelf', async () => {
+    const { tools } = makeTools(ReadAloudTools, () => ({ success: false, error: 'Access denied' }));
+    await expect(tools.handleGetReadAloud({})).rejects.toThrow('get-read-aloud: Access denied');
+  });
+
+  it('reports how many linked pages were read', async () => {
+    const { tools } = makeTools(ReadAloudTools, () => ({
+      sceneId: 's',
+      sceneName: 'N',
+      totalPages: 15,
+      pages: [],
+    }));
+    const result = await tools.handleGetReadAloud({});
+    expect(result).toMatchObject({ linkedPages: 15, readPages: 0 });
+  });
+
+  it('keeps inline rolls and reference enrichers as plain words', () => {
+    const html =
+      '<div class="read-aloud-text"><p>Take [[1d6]] damage, or be &amp;Reference[prone]{Prone}.</p></div>';
+    expect(extractReadAloud(html)).toEqual([{ text: 'Take 1d6 damage, or be Prone.' }]);
+  });
+});
+
 describe('ReadAloudTools.handleGetReadAloud', () => {
   it('asks the bridge for the scene pages and keeps only pages with boxes', async () => {
     const reply = {

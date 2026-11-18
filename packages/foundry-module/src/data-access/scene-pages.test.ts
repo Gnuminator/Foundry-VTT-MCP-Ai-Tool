@@ -66,6 +66,42 @@ describe('getScenePages', () => {
     expect(reply.pages[0]?.html).toContain('A');
   });
 
+  it('puts named pages before whole-entry pages, and says when the cap cut pages off', () => {
+    const pages = Array.from({ length: 14 }, (_, i) =>
+      makeJournalPage({ id: `p${i}`, name: `P${i}`, sort: i, text: html(String(i)) })
+    );
+    const chapter = makeJournal({ id: 'chapter', name: 'Chapter', pages });
+    const room = makeJournal({
+      id: 'room',
+      name: 'Room',
+      pages: [makeJournalPage({ id: 'r1', name: 'Pinned', text: html('pin') })],
+    });
+    world.addScene({
+      id: 's1',
+      name: 'Hall',
+      journal: chapter,
+      notes: [{ entry: room, page: room['pages'].get('r1') }],
+    });
+    const reply = getScenePages('s1');
+    expect(reply.totalPages).toBe(15);
+    expect(reply.pages).toHaveLength(12);
+    expect(reply.pages[0]?.pageId).toBe('r1');
+    expect(reply.pages[1]?.pageId).toBe('p0');
+  });
+
+  it('gives every text page of a whole entry a pin links, by sort order', () => {
+    const journal = makeJournal({
+      id: 'j1',
+      name: 'Book',
+      pages: [
+        makeJournalPage({ id: 'b', name: 'B', sort: 2, text: html('B') }),
+        makeJournalPage({ id: 'a', name: 'A', sort: 1, text: html('A') }),
+      ],
+    });
+    world.addScene({ id: 's1', name: 'Hall', notes: [{ entry: journal }] });
+    expect(getScenePages('s1').pages.map(p => p.pageId)).toEqual(['a', 'b']);
+  });
+
   it('is empty for a scene with no links and throws for an unknown scene', () => {
     world.addScene({ id: 's1', name: 'Field' });
     expect(getScenePages('s1').pages).toEqual([]);

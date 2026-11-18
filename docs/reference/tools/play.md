@@ -421,7 +421,7 @@ Parameters:
 
 ## get-read-aloud
 
-GM ONLY. The boxed read-aloud text of the journal pages a scene links (the scene itself and its map notes), in page order, ready to read to the table. Read from the world when asked; nothing is stored. Pages without a boxed text are counted, not listed.
+GM ONLY. The boxed read-aloud text of the journal pages a scene links (the scene itself and its map notes: pages a link names come first, then the pages of a whole linked entry), ready to read to the table. Read from the world when asked; nothing is stored. Pages without a boxed text are counted, not listed. At most 12 pages are read; linkedPages and readPages show a cut.
 
 Kind: read-only. Title: Get read-aloud text.
 

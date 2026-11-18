@@ -1,8 +1,10 @@
 import { describe, expect, it, vi, type Mock } from 'vitest';
 
+import { makeTools } from '../test-support/make-tool-harness.js';
+
 import { PlayerViewTools } from './player-view.js';
 
-function makeTools(): {
+function buildTools(): {
   tools: PlayerViewTools;
   handouts: Record<string, Mock>;
   secretTerms: Record<string, Mock>;
@@ -21,23 +23,17 @@ function makeTools(): {
   const secretTerms = {
     findSecretTerms: vi.fn(() => Promise.resolve({ matches: [] })),
   };
-  const foundryClient = { query: vi.fn(() => Promise.resolve({ schema: 1 })) };
   const worldIds = { current: vi.fn(() => Promise.resolve('curse-of-strahd')) };
-  const logger: any = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
-  logger.child = (): unknown => logger;
-  const tools = new PlayerViewTools({
-    handouts: handouts as never,
-    secretTerms,
-    foundryClient,
-    worldIds,
-    logger,
+  const { tools, foundryClient } = makeTools(PlayerViewTools, {
+    queryImpl: () => Promise.resolve({ schema: 1 }),
+    extra: { handouts, secretTerms, worldIds },
   });
   return { tools, handouts, secretTerms, foundryClient, worldIds };
 }
 
 describe('PlayerViewTools', () => {
   it('defines five tools, all read-only except plan-page-reveal', () => {
-    const defs = makeTools().tools.getToolDefinitions();
+    const defs = buildTools().tools.getToolDefinitions();
     expect(defs.map(d => d.name)).toEqual([
       'get-player-visibility',
       'list-revealed-pages',
@@ -52,7 +48,7 @@ describe('PlayerViewTools', () => {
   });
 
   it('get-player-visibility queries the module method with the prefixed name', async () => {
-    const { tools, foundryClient } = makeTools();
+    const { tools, foundryClient } = buildTools();
     foundryClient.query.mockResolvedValueOnce({
       schema: 1,
       computedAt: 1,
@@ -66,13 +62,13 @@ describe('PlayerViewTools', () => {
   });
 
   it('get-player-visibility throws on a refused query', async () => {
-    const { tools, foundryClient } = makeTools();
+    const { tools, foundryClient } = buildTools();
     foundryClient.query.mockResolvedValueOnce({ success: false, error: 'not GM' });
     await expect(tools.handleGetPlayerVisibility({})).rejects.toThrow('not GM');
   });
 
   it('list-revealed-pages wraps the service result', async () => {
-    const { tools, handouts } = makeTools();
+    const { tools, handouts } = buildTools();
     handouts.listRevealed.mockResolvedValueOnce([{ pageId: 'p', uuid: 'u' }]);
     handouts.listQueue.mockResolvedValueOnce([{ entryId: 'q', uuid: 'v' }]);
     expect(await tools.handleListRevealedPages({})).toEqual({
@@ -82,7 +78,7 @@ describe('PlayerViewTools', () => {
   });
 
   it('plan-page-reveal needs pageUuid except for reveal-next, and forwards players and sceneId', async () => {
-    const { tools, handouts } = makeTools();
+    const { tools, handouts } = buildTools();
     await expect(tools.handlePlanPageReveal({ action: 'queue' })).rejects.toThrow(/pageUuid/);
     await tools.handlePlanPageReveal({ action: 'reveal-next', sceneId: 'abcdefghijklmnop' });
     expect(handouts.planPageReveal).toHaveBeenLastCalledWith({
@@ -101,7 +97,7 @@ describe('PlayerViewTools', () => {
   });
 
   it('get-player-handouts forwards the service result as is', async () => {
-    const { tools, handouts } = makeTools();
+    const { tools, handouts } = buildTools();
     const view = {
       handouts: [{ id: 'p', uuid: 'u', title: 't', html: '<p>x</p>', revealedAt: 'a' }],
       revealedUuids: ['u'],
@@ -111,7 +107,7 @@ describe('PlayerViewTools', () => {
   });
 
   it('plan-page-reveal validates and forwards arguments', async () => {
-    const { tools, handouts } = makeTools();
+    const { tools, handouts } = buildTools();
     await tools.handlePlanPageReveal({
       pageUuid: 'JournalEntry.a.JournalEntryPage.b',
       action: 'reveal',
@@ -131,7 +127,7 @@ describe('PlayerViewTools', () => {
   });
 
   it('plan-page-reveal takes an optional showNow flag, forwards it, and refuses it for queueing', async () => {
-    const { tools, handouts } = makeTools();
+    const { tools, handouts } = buildTools();
     const schema = tools.getToolDefinitions().find(d => d.name === 'plan-page-reveal')!;
     expect(schema.inputSchema.properties.showNow).toMatchObject({ type: 'boolean' });
     expect(schema.inputSchema.required).not.toContain('showNow');
@@ -156,7 +152,7 @@ describe('PlayerViewTools', () => {
   });
 
   it('plan-page-reveal takes an optional copy flag and forwards it only when given', async () => {
-    const { tools, handouts } = makeTools();
+    const { tools, handouts } = buildTools();
     const schema = tools.getToolDefinitions().find(d => d.name === 'plan-page-reveal')!;
     expect(schema.inputSchema.properties.copy).toMatchObject({ type: 'boolean' });
     expect(schema.inputSchema.required).not.toContain('copy');
@@ -177,7 +173,7 @@ describe('PlayerViewTools', () => {
   });
 
   it('plan-page-reveal logs and rethrows a refused plan', async () => {
-    const { tools, handouts } = makeTools();
+    const { tools, handouts } = buildTools();
     handouts.planPageReveal.mockRejectedValueOnce(new Error('already revealed'));
     await expect(tools.handlePlanPageReveal({ pageUuid: 'x', action: 'reveal' })).rejects.toThrow(
       'already revealed'
@@ -185,7 +181,7 @@ describe('PlayerViewTools', () => {
   });
 
   it('check-secret-terms resolves the current world and forwards the text', async () => {
-    const { tools, secretTerms, worldIds } = makeTools();
+    const { tools, secretTerms, worldIds } = buildTools();
     secretTerms.findSecretTerms.mockResolvedValueOnce({
       matches: [{ category: 'tarokka-card', term: 'Raven' }],
     });
@@ -196,7 +192,7 @@ describe('PlayerViewTools', () => {
   });
 
   it('check-secret-terms rejects empty text', async () => {
-    const { tools } = makeTools();
+    const { tools } = buildTools();
     await expect(tools.handleCheckSecretTerms({ text: '' })).rejects.toThrow();
     await expect(tools.handleCheckSecretTerms({})).rejects.toThrow();
   });

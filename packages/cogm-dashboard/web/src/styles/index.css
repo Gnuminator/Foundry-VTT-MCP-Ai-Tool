@@ -3,6 +3,7 @@
    copy of The Veil), then what only the React markup needs. Keep this order: a later file wins. */
 @import './base.css';
 @import './tools.css';
+@import './pins.css';
 @import './changes.css';
 @import './moments.css';
 @import '../../../public/themes/brand.css';

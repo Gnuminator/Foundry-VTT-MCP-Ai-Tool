@@ -550,6 +550,14 @@ test('main tip with no run: a failed CI start posts one line asking a person to 
   assert.deepEqual(h.calls.gate, []);
 });
 
+test('gateOutcome: a drift refusal marked infrastructure is transient, a plain guard failure is not', () => {
+  const infra =
+    'drift: drift-check failed (guards: server tests) [infrastructure, not the PR: vitest could not start a worker, also on a retry] (log x); last lines below';
+  assert.equal(gateOutcome(1, `lane:merge: refused because ${infra}`, 5).kind, 'transient');
+  const plain = 'drift: drift-check failed (guards: server tests) (log x); last lines below';
+  assert.equal(gateOutcome(1, `lane:merge: refused because ${plain}`, 5).kind, 'refused');
+});
+
 test('gateOutcome: no run to judge on main, a list that is not a list, no run for the tip: transient', () => {
   for (const why of [
     'main red: no completed push run of ci.yml on main to judge; refusing',

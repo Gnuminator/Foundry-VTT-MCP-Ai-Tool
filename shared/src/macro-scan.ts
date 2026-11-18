@@ -157,8 +157,6 @@ const SINK_FIELD = /^(?:img|src|icon|texture|sound|path|href|thumb|thumbnail|ava
 const SAFE_TAGS =
   /<\/?(?:p|b|i|u|em|strong|br|hr|ul|ol|li|h[1-6]|span|div|table|thead|tbody|tr|td|th|code|pre|sup|sub|small)\s*\/?>/gi;
 
-const MATH_CALLS = new Set(['floor', 'ceil', 'round', 'min', 'max', 'abs', 'trunc', 'random']);
-
 interface Scope {
   names: Set<string>;
   counters: Set<string>;
@@ -300,12 +298,17 @@ class Scanner {
   private checkMember(name: string): void {
     const banned = BANNED_MEMBERS.get(name);
     if (banned) this.problem(banned, name);
-    if (SINK_FIELD.test(name)) {
+    // A dotted key (`'prototypeToken.texture.src'`) is judged by its last part.
+    if (SINK_FIELD.test(name.split('.').pop() ?? '')) {
       this.problem('a picture, sound or file field (loading one can send data out)', name);
     }
   }
 
-  /** A key that is certainly a number: a literal, a counting loop variable, simple sums, `x.length`, `Math.floor(..)`. */
+  /**
+   * A key that is certainly a number: a literal, a counting loop variable, or arithmetic that
+   * always gives a number (`xs[xs.length - 1]`, `xs[+Math.floor(n / 2)]`). A `Math` call alone does
+   * not count, since the macro could have replaced `Math.floor`; a leading `+` forces a number.
+   */
   private isNumericKey(node: unknown, scope: Scope): boolean {
     if (!isNode(node)) return false;
     switch (node.type) {
@@ -328,19 +331,6 @@ class Scanner {
           this.isNumericKey(node.left, scope) &&
           this.isNumericKey(node.right, scope)
         );
-      case 'CallExpression': {
-        const c = node.callee;
-        return (
-          isNode(c) &&
-          c.type === 'MemberExpression' &&
-          c.computed === false &&
-          isNode(c.object) &&
-          c.object.name === 'Math' &&
-          this.declared(scope, 'Math') === null &&
-          isNode(c.property) &&
-          MATH_CALLS.has(c.property.name as string)
-        );
-      }
       default:
         return false;
     }
@@ -399,7 +389,12 @@ class Scanner {
       }
       case 'Literal':
         if (typeof node.value === 'string') this.checkString(node.value);
-        else if (node.regex) this.checkString(String((node.regex as { pattern: string }).pattern));
+        else if (node.regex) {
+          // The pattern with its escapes taken out: `https:\/\/x` reads as an address.
+          this.checkString(
+            String((node.regex as { pattern: string }).pattern).replace(/\\(.)/g, '$1')
+          );
+        }
         return;
       case 'TemplateLiteral':
         for (const q of node.quasis as AstNode[]) {
@@ -506,7 +501,9 @@ class Scanner {
         if (isNode(handler)) {
           const names = new Set<string>();
           patternNames(handler.param, names);
-          this.visit(handler.body, { names, counters: new Set(), parent: scope });
+          const inner: Scope = { names, counters: new Set(), parent: scope };
+          this.visitDefaults(handler.param, inner);
+          this.visit(handler.body, inner);
         }
         return this.visit(node.finalizer, scope);
       }
@@ -530,8 +527,16 @@ class Scanner {
       case 'ObjectPattern':
         for (const p of pattern.properties as AstNode[]) {
           if (p.type === 'Property') {
-            if (p.computed === true) this.visit(p.key, scope);
-            else if (isNode(p.key)) this.checkMember(String(p.key.name ?? p.key.value));
+            if (p.computed === true) {
+              const key = p.key;
+              if (isNode(key) && key.type === 'Literal') {
+                if (typeof key.value === 'string') this.checkString(key.value);
+              } else if (!this.isNumericKey(key, scope)) {
+                this.problem('a computed member name', '{[...]: ...}');
+              } else {
+                this.visit(key, scope);
+              }
+            } else if (isNode(p.key)) this.checkMember(String(p.key.name ?? p.key.value));
             this.visitDefaults(p.value, scope);
           } else this.visitDefaults(p, scope);
         }

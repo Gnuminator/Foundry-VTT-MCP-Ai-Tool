@@ -79,8 +79,32 @@ describe('scanMacroSource', () => {
     ['destructured constructor', 'const { constructor: C } = () => 0; C("return 1")'],
     ['text from char codes', 'const c = String.fromCharCode(60)'],
     ['text rewritten at run time', "const h = '<~img src=x>'.replace('~', '')"],
-    ['picture field set to an address', 'await actor.update({ img: u })'],
-    ['dotted picture field', "await actor.update({ 'prototypeToken.texture.src': u })"],
+    ['picture field set to an address', "const u = 'x'; await actor.update({ img: u })"],
+    [
+      'dotted picture field',
+      "const u = 'x'; await actor.update({ 'prototypeToken.texture.src': u })",
+    ],
+    // Round 3 of the review.
+    [
+      'Math.floor replaced',
+      "Math.floor = () => 'constr' + 'uctor'; (() => 0)[Math.floor(1)]('r')()",
+    ],
+    [
+      'Math changed with Object.assign',
+      "Object.assign(Math, { floor: () => 'constr' + 'uctor' }); (() => 0)[Math.floor(1)]('r')()",
+    ],
+    [
+      'a catch pattern with a default that sends data out',
+      "try { throw {} } catch ({ x = fetch('x') }) {}",
+    ],
+    [
+      'a computed key in a parameter pattern',
+      "const k = 'constr' + 'uctor'; (({ [k]: F }) => F('return 1')())(() => 0)",
+    ],
+    [
+      'a regular expression that is only an address',
+      'const s = /https:\\/\\/evil\\.example/.source',
+    ],
     ['creating another macro', 'await Macro.create({ name: "x", type: "script", command: "1" })'],
     ['running another macro', 'game.foo.macros.getName("x").execute()'],
     ['a name that is not in the API', 'Hooks.on("updateActor", () => {})'],
@@ -128,7 +152,7 @@ describe('scanMacroSource', () => {
     expect(
       scanMacroSource(
         'const xs = [1, 2, 3]; let n = 0; for (let i = 0; i < xs.length; i++) n += xs[i]; ' +
-          'return xs[xs.length - 1] + xs[Math.floor(n / 2)] + xs[-1 + 2] + xs[1 + 1];'
+          'return xs[xs.length - 1] + xs[+Math.floor(n / 2)] + xs[-1 + 2] + xs[1 + 1];'
       )
     ).toEqual([]);
   });

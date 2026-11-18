@@ -6,9 +6,6 @@ import { weaponsOf, type Weapon } from './attack-form';
 /** Most buttons shown for one creature. */
 const MAX_ACTIONS = 4;
 
-/** The localStorage key of the "apply damage without asking" switch. */
-export const AUTO_APPLY_KEY = 'cogm_monster_autoapply';
-
 /** The NPC's attacks from search-character-items: up to four, in the actor's own order. */
 export function actionsOf(result: unknown): Weapon[] {
   return weaponsOf(result).slice(0, MAX_ACTIONS);

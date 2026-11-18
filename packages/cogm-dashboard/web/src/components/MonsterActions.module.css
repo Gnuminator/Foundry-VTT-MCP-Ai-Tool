@@ -14,14 +14,6 @@
   font-size: var(--text-sm);
   color: var(--text-mid);
 }
-.auto {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  margin-left: auto;
-  font-size: var(--text-sm);
-  color: var(--text-mid);
-}
 .line {
   margin: 0;
   font-size: var(--text-sm);

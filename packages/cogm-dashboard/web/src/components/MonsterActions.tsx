@@ -2,14 +2,14 @@
 // the one NPC picked, read from the actor. A click rolls the item against the creature targeted in
 // Foundry (use-npc-activity: the roll and its damage appear in Foundry's chat as normal), shows
 // the result line, and puts the damage on the target only after the confirm window, unless the
-// "apply damage without asking" switch is on. Every applied change has its Undo toast.
+// module's "apply without confirming" switch for live play is on. Every applied change has its
+// Undo toast.
 import { useEffect, useRef, useState, type JSX } from 'react';
 
 import { callTool, errorText } from '../lib/api';
 import { fetchFoundryTargets } from '../lib/foundry-targets';
 import { useGuardedTools } from '../lib/guarded';
 import {
-  AUTO_APPLY_KEY,
   MANY_TARGETS_NOTE,
   NO_ACTIONS_NOTE,
   NO_TARGET_NOTE,
@@ -24,22 +24,6 @@ import {
 import type { Weapon } from '../lib/attack-form';
 import { Button } from '../ui';
 import styles from './MonsterActions.module.css';
-
-function readAuto(): boolean {
-  try {
-    return localStorage.getItem(AUTO_APPLY_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
-
-function writeAuto(on: boolean): void {
-  try {
-    localStorage.setItem(AUTO_APPLY_KEY, on ? '1' : '0');
-  } catch {
-    // Storage is blocked: the switch lasts for this page load.
-  }
-}
 
 export function MonsterActions({
   token,
@@ -66,7 +50,6 @@ export function MonsterActions({
   const [actions, setActions] = useState<Weapon[] | null>(null);
   const [error, setError] = useState('');
   const [line, setLine] = useState('');
-  const [auto, setAuto] = useState(readAuto);
   const ownLock = useRef(false);
 
   useEffect(() => {
@@ -123,15 +106,13 @@ export function MonsterActions({
         }
         for (const part of parts) {
           const done = await plan('plan-actor-change', applyArgs(target.tokenId, part), {
-            ...(auto
-              ? {}
-              : {
-                  confirmLine: {
-                    title: 'Apply damage',
-                    question: applyQuestion(target.name, part),
-                    confirmLabel: 'Apply damage',
-                  },
-                }),
+            confirmLine: {
+              title: 'Apply damage',
+              question: applyQuestion(target.name, part),
+              confirmLabel: 'Apply damage',
+            },
+            // The module's "apply without confirming" switch for live play skips the question.
+            skipConfirmWhenAutoApply: true,
             label: 'Apply damage',
           });
           if (done.status !== 'done') {
@@ -173,18 +154,6 @@ export function MonsterActions({
         {actions !== null && actions.length === 0 && (
           <span className={styles['hint']}>{error || NO_ACTIONS_NOTE}</span>
         )}
-        <label className={styles['auto']}>
-          <input
-            type="checkbox"
-            checked={auto}
-            data-track="dash.live.monster-autoapply"
-            onChange={e => {
-              setAuto(e.target.checked);
-              writeAuto(e.target.checked);
-            }}
-          />
-          Apply damage without asking
-        </label>
       </div>
       <p className={styles['line']} role="status" id="live-action-result">
         {line}

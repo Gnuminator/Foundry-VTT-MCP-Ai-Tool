@@ -48,6 +48,8 @@ interface Plan {
   diff?: { text?: string }[];
   /** A live-play plan's own per-target lines ("Wolf 2: 12 fire damage, 6 taken"). */
   targets?: { line?: string }[];
+  /** A live-play write plan the module may apply without asking (its switch is on). */
+  autoApply?: boolean;
 }
 
 /**
@@ -165,6 +167,11 @@ export interface GuardedOptions {
     confirmLabel: string;
     pageUuid?: string | undefined;
   };
+  /**
+   * With confirmLine: apply without asking when the plan says `autoApply: true` (the module's
+   * "apply without confirming" switch for a write plan). A destructive plan still asks.
+   */
+  skipConfirmWhenAutoApply?: boolean;
 }
 
 export interface GuardedTools {
@@ -511,7 +518,15 @@ export function useGuardedTools(): GuardedTools {
       }
       // The click is the confirmation for an ordinary write; anything else asks first.
       let flags: ToolConfirm = { confirm: true };
-      if (planned.risk !== 'write' || options.alwaysConfirm || options.confirmLine) {
+      const autoApplied =
+        options.skipConfirmWhenAutoApply === true &&
+        planned.risk === 'write' &&
+        planned.autoApply === true &&
+        !options.alwaysConfirm;
+      if (
+        !autoApplied &&
+        (planned.risk !== 'write' || options.alwaysConfirm || options.confirmLine)
+      ) {
         const asked = await confirmPlan(planned, planned.planId, startedFrom, options.confirmLine);
         if ('outcome' in asked) return asked.outcome;
         flags = asked.flags;

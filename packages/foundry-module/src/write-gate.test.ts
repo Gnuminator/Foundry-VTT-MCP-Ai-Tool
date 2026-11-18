@@ -142,6 +142,7 @@ const PINNED_READS = [
   'getJournalPageContent',
   'getLevelUpOptions',
   'getLibraryDocuments',
+  'getScenePages',
   'getLibraryIndex',
   'getModuleErrors',
   'getModuleManifest',

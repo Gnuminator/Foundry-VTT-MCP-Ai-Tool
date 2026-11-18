@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  LOOKUP_UNAVAILABLE,
   NOTHING_REVEALED,
+  lookupAllowed,
+  lookupReply,
   createPlayerStateReader,
   handoutsAnswer,
   htmlToText,
@@ -86,6 +89,59 @@ describe('lookups', () => {
       handouts: [{ id: 'x', title: 'Recap', html: `<p>${'a'.repeat(5000)}</p>`, revealedAt: null }],
     };
     expect(recapAnswer(long).length).toBeLessThanOrEqual(2000);
+  });
+
+  it('recap also finds Danish titles', () => {
+    const da = {
+      handouts: [{ id: 'a', title: 'Resumé af session 2', html: '<p>Hej</p>', revealedAt: null }],
+    };
+    expect(recapAnswer(da)).toContain('Hej');
+    expect(
+      recapAnswer({ handouts: [{ id: 'b', title: 'Recapitulate', html: 'x', revealedAt: null }] })
+    ).toBe(NOTHING_REVEALED);
+  });
+
+  it('runs only in the game server, never in a DM', () => {
+    expect(lookupAllowed(null, undefined)).toBe(false);
+    expect(lookupAllowed('g1', undefined)).toBe(true);
+    expect(lookupAllowed('g1', 'g1')).toBe(true);
+    expect(lookupAllowed('g2', 'g1')).toBe(false);
+  });
+
+  it('a failed read is "could not look that up", not "nothing revealed"', () => {
+    expect(lookupReply('recap', '', null)).toBe(LOOKUP_UNAVAILABLE);
+    expect(lookupReply('npc', 'ireena', null)).toBe(LOOKUP_UNAVAILABLE);
+    expect(lookupReply('handouts', '', state)).toContain('Ireena Kolyana');
+    expect(lookupReply('npc', 'ireena', state)).toContain('Daughter');
+  });
+
+  it('clips by characters and says so', () => {
+    const long = {
+      handouts: [
+        { id: 'x', title: 'Recap', html: `<p>${'😀'.repeat(3000)}</p>`, revealedAt: null },
+      ],
+    };
+    const out = recapAnswer(long);
+    expect(Array.from(out).length).toBeLessThanOrEqual(1860);
+    expect(out).toContain('More on the player page');
+  });
+
+  it('reader gives up after its time limit and on a bad answer', async () => {
+    const hung = createPlayerStateReader({
+      dashboardUrl: 'http://x',
+      fetch: ((_u: string, init: { signal: AbortSignal }): Promise<never> =>
+        new Promise((_res, rej) => {
+          init.signal.addEventListener('abort', () => rej(new Error('aborted')));
+        })) as never,
+    });
+    const started = Date.now();
+    expect(await hung()).toBeNull();
+    expect(Date.now() - started).toBeLessThan(2500);
+    const notOk = createPlayerStateReader({
+      dashboardUrl: 'http://x',
+      fetch: ((): Promise<unknown> => Promise.resolve({ ok: false })) as never,
+    });
+    expect(await notOk()).toBeNull();
   });
 
   it('reader sends the token and returns null on failure', async () => {

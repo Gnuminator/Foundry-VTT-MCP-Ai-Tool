@@ -38,13 +38,7 @@ import {
   restartAfterCrashMessage,
 } from './run-marker.js';
 import { recoverMessage, recoverOrphans } from './rec/recover.js';
-import {
-  LOOKUP_UNAVAILABLE,
-  createPlayerStateReader,
-  handoutsAnswer,
-  npcAnswer,
-  recapAnswer,
-} from './lookup.js';
+import { LOOKUP_NOT_HERE, createPlayerStateReader, lookupAllowed, lookupReply } from './lookup.js';
 import {
   SPACE_CHECK_INTERVAL_MS,
   LogThrottle,
@@ -476,17 +470,18 @@ export class RecorderBot {
       token: this.config.playerToken,
       log: log.info,
     });
-    const state = await this.readPlayerState();
-    let text = LOOKUP_UNAVAILABLE;
-    if (state !== null) {
-      text =
-        i.commandName === 'recap'
-          ? recapAnswer(state)
-          : i.commandName === 'npc'
-            ? npcAnswer(state, i.options.getString('name', true))
-            : handoutsAnswer(state);
-    }
-    await i.reply({ content: text, flags: MessageFlags.Ephemeral });
+    const text = !lookupAllowed(i.guildId, this.config.guildId)
+      ? LOOKUP_NOT_HERE
+      : lookupReply(
+          i.commandName,
+          i.commandName === 'npc' ? i.options.getString('name', true) : '',
+          await this.readPlayerState()
+        );
+    await i.reply({
+      content: text,
+      flags: MessageFlags.Ephemeral,
+      allowedMentions: { parse: [] },
+    });
   }
 
   private async onRecord(i: ChatInputCommandInteraction): Promise<void> {

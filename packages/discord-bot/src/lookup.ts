@@ -22,10 +22,33 @@ export const LOOKUP_UNAVAILABLE = bi(
   'Could not look that up right now. Try again in a moment.'
 );
 
-/** Discord allows 2000 characters in a message; stay below it with room for the title. */
+export const LOOKUP_NOT_HERE = bi(
+  'Det her virker kun i spillets server.',
+  'This only works in the game server.'
+);
+const CLIPPED = bi('(Mere på spillersiden.)', '(More on the player page.)');
+
+/** Discord allows 2000 characters in a message; the clip note fits inside this. */
 const MAX_ANSWER = 1800;
 const MAX_LIST = 25;
-const RECAP_TITLE = /\brecap\b/i;
+const RECAP_TITLE = /(^|[^\p{L}])(recap|resum[eé]|referat)($|[^\p{L}])/iu;
+
+/** Lookups run in a server, and in the configured one when the bot has one (never in a DM). */
+export function lookupAllowed(
+  interactionGuildId: string | null,
+  configuredGuildId: string | undefined
+): boolean {
+  if (!interactionGuildId) return false;
+  return !configuredGuildId || interactionGuildId === configuredGuildId;
+}
+
+/** The reply for one command; a failed read (null) is "could not look that up", never a guess. */
+export function lookupReply(command: string, name: string, state: unknown): string {
+  if (state === null) return LOOKUP_UNAVAILABLE;
+  if (command === 'recap') return recapAnswer(state);
+  if (command === 'npc') return npcAnswer(state, name);
+  return handoutsAnswer(state);
+}
 
 /** The handouts every player may see: revealed, with no list of chosen players. */
 export function publicHandouts(state: unknown): LookupHandout[] {
@@ -74,7 +97,13 @@ function norm(s: string): string {
 }
 
 function clip(text: string): string {
-  return text.length <= MAX_ANSWER ? text : `${text.slice(0, MAX_ANSWER - 1).trimEnd()}…`;
+  const chars = Array.from(text);
+  return chars.length <= MAX_ANSWER
+    ? text
+    : `${chars
+        .slice(0, MAX_ANSWER - 60)
+        .join('')
+        .trimEnd()}…\n${CLIPPED}`;
 }
 
 function answer(h: LookupHandout): string {

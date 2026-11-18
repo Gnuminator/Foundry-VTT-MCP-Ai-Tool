@@ -65,7 +65,7 @@ test('the skill itself carries no term from the player deny list', () => {
   }
 });
 
-test('a sample backstory for a test character passes the deny check and a leak does not', () => {
+test('the deny-term helper accepts a clean sample and flags a leak', () => {
   const terms = baseDenyTerms();
   const sample =
     'Ebbe grew up mending nets in a harbour town. A debt to a ferryman (idea) still weighs on her.';

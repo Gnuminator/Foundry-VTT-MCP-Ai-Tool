@@ -1,6 +1,6 @@
 ---
 source: player/dnd-helper.md
-sourceHash: 427be65c5043
+sourceHash: 1b3b9f54fbf4
 title: D&D-hjælperen til spillere
 description: Installer Claude Desktop og din Foundry-spillerconnector, og lav, level op og tjek så din egen karakter og slå regler op, trin for trin.
 ---
@@ -218,8 +218,9 @@ ikke siden.
 
 ## Valgfrit: baggrundshistorie- og rollespilshjælperen
 
-En lille ekstra skill, `foundry-backstory-buddy`, installeres ved siden af hjælperen (Indstillinger,
-Plugins, Skills, tilføj en skill, upload zip-filen uden at pakke den ud). Den bruger den samme
+En lille ekstra skill, `foundry-backstory-buddy`, installeres ved siden af hjælperen. Den, der
+driver værktøjet, sender dig zip-filen; gå så til Indstillinger, Plugins, Skills, tilføj en skill, og
+upload zip-filen uden at pakke den ud. Den bruger den samme
 spillerconnector. Spørg den "hjælp mig med en baggrundshistorie til min karakter" eller "hvordan ville
 min karakter tale?". Den læser dit karakterark og de handouts, spilleder har afsløret for dig, stiller
 to-tre spørgsmål og slutter med én note, du kan kopiere ind i karakterens noter eller sende til

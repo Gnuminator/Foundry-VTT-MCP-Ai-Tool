@@ -19,6 +19,16 @@ describe('RecorderHealth speaking time', () => {
       { name: 'Brenna', ms: 20 },
     ]);
   });
+
+  it('keeps the time of someone who leaves and rejoins', () => {
+    const h = new RecorderHealth();
+    h.join('u1', 'Mara', false, T);
+    h.packet('u1', 'Mara', T);
+    h.leave('u1');
+    h.join('u1', 'Mara', false, T + MIN);
+    h.packet('u1', 'Mara', T + MIN);
+    expect(h.speaking()).toEqual([{ name: 'Mara', ms: 40 }]);
+  });
 });
 
 describe('RecorderHealth silence', () => {

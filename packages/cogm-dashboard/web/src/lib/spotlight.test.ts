@@ -30,6 +30,18 @@ describe('buildSpotlight', () => {
     expect(rows.every(r => r.speakingMs === null)).toBe(true);
   });
 
+  it('puts a log name and a roster name that differ on one row', () => {
+    const rows = buildSpotlight(
+      { players: [{ name: 'Ebbe', actions: 4 }] },
+      ['Ebbe Stonefist', 'Mira'],
+      []
+    );
+    expect(rows.map(r => [r.name, r.actions])).toEqual([
+      ['Ebbe Stonefist', 4],
+      ['Mira', 0],
+    ]);
+  });
+
   it('matches speakers by name or first word and leaves the GM out', () => {
     const rows = buildSpotlight(
       { players: [{ name: 'Ebbe Stonefist', actions: 2 }] },
@@ -70,6 +82,7 @@ describe('helpers', () => {
     );
     expect(readHintAfter(null)).toBe(DEFAULT_HINT_AFTER);
     expect(readHintAfter('abc')).toBe(DEFAULT_HINT_AFTER);
+    expect(readHintAfter('')).toBe(DEFAULT_HINT_AFTER);
     expect(readHintAfter('0')).toBe(0);
     expect(readHintAfter('12')).toBe(12);
   });

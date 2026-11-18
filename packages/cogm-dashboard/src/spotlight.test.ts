@@ -56,7 +56,8 @@ describe('speakingOf', () => {
       problems: [],
       speaking: [{ name: 'Ebbe', ms: 1234.4 }, { name: 5, ms: 1 }, null, { name: 'x', ms: 0 }],
     };
-    expect(speakingOf(answer)).toEqual([{ name: 'Ebbe', ms: 1234 }]);
+    // Whole seconds, so the page is not redrawn for every 20 ms of speech.
+    expect(speakingOf(answer)).toEqual([{ name: 'Ebbe', ms: 1000 }]);
     expect(speakingOf({ ...answer, recording: false })).toEqual([]);
     expect(speakingOf(null)).toEqual([]);
   });

@@ -25,8 +25,6 @@ interface Member {
   lastPacket: number | null;
   /** The current silence was reported; cleared by the next packet. */
   silenceReported: boolean;
-  /** Estimated time spoken since the recording started (ms), from the gaps between packets. */
-  speakingMs: number;
 }
 
 /** One packet is about this much audio. */
@@ -54,6 +52,8 @@ export interface RecorderProblem {
 export class RecorderHealth {
   private readonly members = new Map<string, Member>();
   private readonly lastAlertAt = new Map<string, number>();
+  /** Estimated speaking time per user since the recording started (spotlight balance). */
+  private readonly spoken = new Map<string, { name: string; ms: number }>();
   /** Who left the channel and has not joined again (their late packets are ignored). */
   private readonly left = new Set<string>();
   /** Speakers whose audio stream failed and who have not sent a packet since. */
@@ -78,7 +78,6 @@ export class RecorderHealth {
       joinedAt: now,
       lastPacket: null,
       silenceReported: false,
-      speakingMs: 0,
     });
   }
 
@@ -100,9 +99,9 @@ export class RecorderHealth {
 
   /** Estimated speaking time per person in the channel, longest first (spotlight balance). */
   speaking(): { name: string; ms: number }[] {
-    return [...this.members.values()]
-      .filter(m => m.speakingMs > 0)
-      .map(m => ({ name: m.name, ms: Math.round(m.speakingMs) }))
+    return [...this.spoken.values()]
+      .filter(s => s.ms > 0)
+      .map(s => ({ name: s.name, ms: Math.round(s.ms) }))
       .sort((a, b) => b.ms - a.ms);
   }
 
@@ -118,13 +117,16 @@ export class RecorderHealth {
         joinedAt: now,
         lastPacket: null,
         silenceReported: false,
-        speakingMs: 0,
       };
       this.members.set(userId, m);
     }
-    // Packets come about every 20 ms while someone speaks: a short gap is speech, a long one a pause.
-    m.speakingMs +=
+    // Packets come about every 20 ms while someone speaks: a short gap is speech, a long one a
+    // pause. Kept per user, so leaving and rejoining the channel does not wipe the time.
+    const spoken = this.spoken.get(userId) ?? { name, ms: 0 };
+    spoken.name = name;
+    spoken.ms +=
       m.lastPacket === null ? PACKET_MS : Math.min(Math.max(now - m.lastPacket, 0), SPEECH_GAP_MS);
+    this.spoken.set(userId, spoken);
     m.lastPacket = now;
     m.silenceReported = false;
     this.streamErrors.delete(userId);

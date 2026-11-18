@@ -54,6 +54,16 @@ function speakerFor(name: string, speakers: readonly SpeakerTime[]): SpeakerTime
   );
 }
 
+/** The roster name a log name stands for: equal, else the same first word when only one fits. */
+function rosterName(name: string, roster: readonly string[]): string {
+  const full = norm(name);
+  const exact = roster.find(r => norm(r) === full);
+  if (exact) return exact;
+  const first = full.split(/\s+/)[0];
+  const same = roster.filter(r => norm(r).split(/\s+/)[0] === first);
+  return same.length === 1 ? same[0] : name;
+}
+
 /** One row per character: the party roster plus anyone the log counted; busiest first. */
 export function buildSpotlight(
   snapshot: SpotlightSnapshot,
@@ -62,7 +72,11 @@ export function buildSpotlight(
 ): SpotlightRow[] {
   const actions = new Map<string, number>();
   for (const name of roster) actions.set(name, 0);
-  for (const p of snapshot.players) actions.set(p.name, (actions.get(p.name) ?? 0) + p.actions);
+  for (const p of snapshot.players) {
+    // The log names the chat speaker ("Ebbe"), the roster the actor ("Ebbe Stonefist"): one row.
+    const name = rosterName(p.name, roster);
+    actions.set(name, (actions.get(name) ?? 0) + p.actions);
+  }
   const used = new Set<SpeakerTime>();
   const base = [...actions.entries()].map(([name, n]) => {
     const s = speakerFor(
@@ -117,6 +131,6 @@ export function speakingText(ms: number): string {
 
 /** The GM's threshold from the text of its setting; a bad value is the default. */
 export function readHintAfter(raw: string | null): number {
-  const n = raw === null ? NaN : Number(raw);
+  const n = raw === null || raw.trim() === '' ? NaN : Number(raw);
   return Number.isInteger(n) && n >= 0 && n <= 999 ? n : DEFAULT_HINT_AFTER;
 }

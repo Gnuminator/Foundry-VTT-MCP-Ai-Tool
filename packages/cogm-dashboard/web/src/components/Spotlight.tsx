@@ -31,8 +31,8 @@ function useRoster(): string[] {
     staleTime: 60_000,
     retry: false,
   });
-  const group = party.data?.groups?.[0];
-  return (group?.members ?? []).flatMap(m => (typeof m.name === 'string' ? [m.name] : []));
+  const members = (party.data?.groups ?? []).flatMap(g => g.members ?? []);
+  return [...new Set(members.flatMap(m => (typeof m.name === 'string' ? [m.name] : [])))];
 }
 
 export function Spotlight(): JSX.Element {
@@ -86,7 +86,7 @@ export function Spotlight(): JSX.Element {
                 <span
                   className={styles.bar}
                   role="img"
-                  aria-label={`${r.actions} actions`}
+                  aria-label={`${r.name}: ${r.actions} actions`}
                   style={{ width: `${Math.max(r.actionsBar * 100, r.actions > 0 ? 4 : 0)}%` }}
                 />
                 {hasSpeaking && (
@@ -94,7 +94,9 @@ export function Spotlight(): JSX.Element {
                     className={`${styles.bar} ${styles.speak}`}
                     role="img"
                     aria-label={
-                      r.speakingMs === null ? 'no speaking time' : speakingText(r.speakingMs)
+                      r.speakingMs === null
+                        ? `${r.name}: no speaking time`
+                        : `${r.name}: ${speakingText(r.speakingMs)} speaking`
                     }
                     style={{ width: `${Math.max(r.speakingBar * 100, r.speakingMs ? 4 : 0)}%` }}
                   />
@@ -108,11 +110,9 @@ export function Spotlight(): JSX.Element {
           ))}
         </ul>
       )}
-      {hint && (
-        <p className={styles.hint} role="status">
-          {hint}
-        </p>
-      )}
+      <p className={styles.hint} role="status">
+        {hint}
+      </p>
       <label className={styles.setting}>
         Hint after
         <input

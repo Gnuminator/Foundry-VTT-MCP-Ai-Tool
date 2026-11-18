@@ -21,6 +21,8 @@ import {
   PI_CONTAINER_MATRIX,
   groupChecks,
   runGroup,
+  piGroupApplies,
+  PI_GROUP_PATHS,
 } from './checks.mjs';
 import {
   STEPS,
@@ -210,6 +212,61 @@ test('parity: the matrix of the Pi container job comes from checks.mjs', () => {
 test('parity: step names are unique', () => {
   const names = STEPS.map(s => s.name);
   assert.equal(new Set(names).size, names.length);
+});
+
+test('piGroupApplies: only a pull request without a Pi input skips the pi group', () => {
+  const files = list => () => list;
+  assert.equal(piGroupApplies('pull_request', files(['packages/mcp-server/src/a.ts'])), false);
+  assert.equal(piGroupApplies('pull_request', files([])), false);
+  for (const f of [
+    'scripts/pi/remote/5-tool.sh',
+    'scripts/plan-b/start.ps1',
+    'deploy/pi/compose.yml',
+    'scripts/checks.mjs',
+    'scripts/gamenight-watch-pi.mjs',
+    'shared/src/index.ts',
+    'packages/discord-bot/src/cli.ts',
+    'package-lock.json',
+    '.github/workflows/ci.yml',
+  ])
+    assert.equal(piGroupApplies('pull_request', files(['docs/a.md', f])), true, f);
+  // Anything that is not a pull request always runs it, and so does a diff that cannot be read.
+  for (const ev of ['push', 'merge_group', 'workflow_dispatch', '']) {
+    assert.equal(piGroupApplies(ev, files(['packages/mcp-server/src/a.ts'])), true, ev);
+  }
+  assert.equal(
+    piGroupApplies('pull_request', () => {
+      throw new Error('no parent');
+    }),
+    true
+  );
+});
+
+test('PI_GROUP_PATHS covers every file a pi-group test names outside scripts/pi', () => {
+  // The group's tests read these (scripts/pi/*.test.mjs, deploy/pi/*.test.mjs).
+  for (const f of ['scripts/checks.mjs', 'scripts/plan-b/start.ps1', 'scripts/gamenight-watch.mjs'])
+    assert.ok(PI_GROUP_PATHS.test(f), f);
+  for (const f of ['scripts/backlog.mjs', 'packages/mcp-server/src/index.ts', 'docs/index.md'])
+    assert.ok(!PI_GROUP_PATHS.test(f), f);
+  // The container filter in ci.yml is a subset: whatever runs the containers also runs this group.
+  const m = /grep -qE '([^']+)'/.exec(
+    ciDoc.jobs['pi-changes'].steps.find(s => s.id === 'filter').run
+  );
+  const container = new RegExp(m[1]);
+  for (const f of [
+    'scripts/pi/remote/lib.sh',
+    'scripts/plan-b/start.ps1',
+    'deploy/pi/compose.yml',
+    'scripts/gamenight-watch.mjs',
+    'scripts/checks.mjs',
+    'package-lock.json',
+    '.github/workflows/ci.yml',
+  ])
+    assert.ok(container.test(f) && PI_GROUP_PATHS.test(f), f);
+});
+
+test('the build-test checkout is deep enough for the pi group diff', () => {
+  assert.equal(ciDoc.jobs['build-test'].steps[0].with['fetch-depth'], 2);
 });
 
 test('runGroup: runs every check after a red one, names failures, writes the summary table', () => {

@@ -584,6 +584,40 @@ export function runGroup(name, io = {}) {
   return failed.length ? 1 : 0;
 }
 
+/**
+ * What the `pi` group's tests read: the Pi scripts and container tests, Plan B, the game-night
+ * watch, this file (the group list), deploy/, the packages the stage tests import (shared,
+ * discord-bot), the Pi setup doc, and the manifests and workflow. Pinned by scripts/pi/ci-pi-filter.test.mjs.
+ */
+export const PI_GROUP_PATHS =
+  /^(scripts\/pi\/|scripts\/plan-b\/|scripts\/gamenight-watch|scripts\/checks\.mjs$|deploy\/|shared\/|packages\/discord-bot\/|docs\/dev\/PI-SETUP\.md$|package\.json$|package-lock\.json$|\.github\/workflows\/ci\.yml$)/;
+
+/**
+ * Whether the `pi` group has to run. Only a pull request that changed no Pi input skips it; every
+ * other event (push to main, merge_group, dispatch, a local run) and a diff that cannot be read run it.
+ * @param {string} event GITHUB_EVENT_NAME
+ * @param {() => string[]} changedFiles the files the pull request changes against its base
+ */
+export function piGroupApplies(event, changedFiles) {
+  if (event !== 'pull_request') return true;
+  try {
+    return changedFiles().some(f => PI_GROUP_PATHS.test(f));
+  } catch {
+    return true;
+  }
+}
+
+/** The files the merge commit changes against its first parent (the PR base in CI). */
+function changedAgainstBase() {
+  const r = spawnSync(
+    'git',
+    ['-c', 'core.quotePath=false', 'diff', '--name-only', '--no-renames', 'HEAD^1', 'HEAD'],
+    { encoding: 'utf8' }
+  );
+  if (r.status !== 0) throw new Error('git diff failed');
+  return r.stdout.split('\n').filter(Boolean);
+}
+
 /** Runs one check with its output on this process's own stdout. @param {Check} c */
 function execCheck(c) {
   const r = spawnSync(c.cmd, c.args, {
@@ -665,6 +699,15 @@ if (entry === 'mismatch') {
     if (!name || !RUN_GROUPS.includes(name)) {
       console.error(`checks: --run needs a group: ${RUN_GROUPS.join(', ')}`);
       process.exitCode = 2;
+    } else if (
+      name === 'pi' &&
+      !piGroupApplies(process.env.GITHUB_EVENT_NAME ?? '', changedAgainstBase)
+    ) {
+      const line =
+        '### pi: skipped (this pull request changes no Pi input; main, merge_group and drift:check still run it)';
+      console.log(line);
+      if (process.env.GITHUB_STEP_SUMMARY)
+        fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${line}\n`);
     } else {
       process.exitCode = runGroup(name, { summaryFile: process.env.GITHUB_STEP_SUMMARY });
     }

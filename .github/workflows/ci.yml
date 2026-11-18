@@ -46,6 +46,8 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 2 # `--run pi` diffs the merge commit against its first parent (PIGROUP_PATHS)
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
@@ -65,6 +67,9 @@ jobs:
       - name: Scripts, hooks and the merge gate
         run: node scripts/checks.mjs --run scripts
 
+      # On a pull request that touches no Pi input this step skips itself with a summary line and
+      # exits 0 (piGroupApplies in checks.mjs), so build-test and ci-all-green stay green. Push to
+      # main, merge_group and dispatch runs always run it; `npm run drift:check` keeps the Pi guards.
       - name: Pi scripts
         run: node scripts/checks.mjs --run pi
 

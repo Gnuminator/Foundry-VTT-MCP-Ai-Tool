@@ -23,13 +23,14 @@ interface PartyNames {
   groups?: { members?: { name?: string }[] | null }[] | null;
 }
 
-/** The party's character names, so a character who has done nothing still has a row. */
-function useRoster(): string[] {
+/** The party's character names, so a character who has done nothing still has a row. Fetched only once the card has something to show, so an idle dashboard makes no extra get-party call. */
+function useRoster(active: boolean): string[] {
   const party = useQuery({
     queryKey: [...GAME_STATE_KEY, 'spotlight-roster'],
     queryFn: () => callTool<PartyNames | null>('get-party', {}),
     staleTime: 60_000,
     retry: false,
+    enabled: active,
   });
   const members = (party.data?.groups ?? []).flatMap(g => g.members ?? []);
   return [...new Set(members.flatMap(m => (typeof m.name === 'string' ? [m.name] : [])))];
@@ -38,7 +39,7 @@ function useRoster(): string[] {
 export function Spotlight(): JSX.Element {
   const snapshot = useSpotlight();
   const speaking = useRecordingHealth()?.speaking ?? [];
-  const roster = useRoster();
+  const roster = useRoster(snapshot.players.length > 0 || speaking.length > 0);
   const [hidden, setHidden] = useState(() => readText(REMEMBER.spotlightHidden, '') === '1');
   const [hintAfter, setHintAfter] = useState(() =>
     readHintAfter(readText(REMEMBER.spotlightHintAfter, String(DEFAULT_HINT_AFTER)))

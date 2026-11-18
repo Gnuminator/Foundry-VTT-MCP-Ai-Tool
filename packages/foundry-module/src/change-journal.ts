@@ -418,6 +418,21 @@ export class ChangeJournal {
   }
 
   /**
+   * The group of an effect dnd5e 6 created as a rider (Prone with Unconscious at 0 HP) of an AI
+   * change. dnd5e creates riders in a batch (`modifyBatch`) whose operation has no pre-hook, so it
+   * has no stash and would be a solo record that the undo of the AI change leaves behind. This
+   * browser made it (`userId` is its own) and the guarded group is still waiting for follow-ups:
+   * it joins that group. A person's own effect after the guarded gap, or from another browser,
+   * stays a solo record. Returns null when it does not apply.
+   */
+  private batchFollowUpActionId(op: ChangeOp, doc: DocLike, userId: unknown): string | null {
+    if (op !== 'create' || doc.documentName !== 'ActiveEffect') return null;
+    if (!this.isMine(userId) || this.actionId === null || !this.groupGuarded) return null;
+    if (Date.now() - this.lastGuardedAt > CHANGE_JOURNAL_GUARDED_GAP_MS) return null;
+    return this.actionId;
+  }
+
+  /**
    * The journal stash of this operation, made if needed. It sits under the
    * module id next to the guarded-write marker, which is left alone. A stash
    * that already has an actionId (an earlier document of the same operation)
@@ -533,7 +548,8 @@ export class ChangeJournal {
     // which every browser reads from the same updated source): two updates to one document in the
     // same server millisecond stay two records, and the backend still dedupes across browsers.
     record.key = `${op}:${uuid}:${t}${op === 'update' ? `:${afterHash(record)}` : ''}`;
-    record.actionId = str(stash?.actionId) ?? `solo:${record.key}`;
+    record.actionId =
+      str(stash?.actionId) ?? this.batchFollowUpActionId(op, d, userId) ?? `solo:${record.key}`;
 
     Object.assign(record, markerOf(options));
     this.push(this.capSize(record));

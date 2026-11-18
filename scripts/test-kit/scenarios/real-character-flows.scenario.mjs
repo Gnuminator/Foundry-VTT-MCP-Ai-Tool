@@ -539,33 +539,17 @@ export default {
         'dnd5e added a rider (Unconscious or Dead) at 0 HP',
         downAfter.statuses
       );
+      t.check(downAfter.statuses.includes('prone'), 'dnd5e added the Prone rider at 0 HP', downAfter.statuses);
       await t.guarded.undo(/** @type {string} */ (open.pop()));
-      // dnd5e's bloodied and unconscious riders follow the HP a moment after the write.
-      // Prone is left out: dnd5e 6.0.6 creates it as a rider in a batch the change journal does not
-      // record, so the undo leaves it and a person stands the hero up (backlog item
-      // undo-leaves-prone). The same Prone is not counted as "before" either.
-      const sansProne = (/** @type {string[]} */ list) => list.filter(s => s !== 'prone');
+      // dnd5e's bloodied, unconscious and prone riders follow the HP a moment after the write; the
+      // undo takes all of them off (Prone is a batch rider the journal ties to the AI change).
       let up = await page.evaluate(READ_ACTOR, { actorId: cleric.actorId });
-      for (
-        let i = 0;
-        i < 20 && sansProne(up.statuses).join() !== sansProne(hpBefore.statuses).join();
-        i++
-      ) {
+      for (let i = 0; i < 20 && up.statuses.join() !== hpBefore.statuses.join(); i++) {
         await sleep(500);
         up = await page.evaluate(READ_ACTOR, { actorId: cleric.actorId });
       }
       t.equal(up.hp, hpBefore.hp, 'HP after the undo');
-      t.equal(
-        sansProne(up.statuses),
-        sansProne(hpBefore.statuses),
-        'statuses after the undo (the riders came off with the HP; Prone may stay)'
-      );
-      // Stand the hero up again so the next run starts clean.
-      await page.evaluate(async ({ actorId }) => {
-        const actor = game.actors.get(actorId);
-        const stale = actor.effects.filter(e => e.statuses.has('prone')).map(e => e.id);
-        if (stale.length) await actor.deleteEmbeddedDocuments('ActiveEffect', stale);
-      }, { actorId: cleric.actorId });
+      t.equal(up.statuses, hpBefore.statuses, 'statuses after the undo (the riders came off with the HP)');
     });
 
     await t.step(

@@ -29,7 +29,14 @@ export const ROOM_SETUP_FEATURE_ID = 'room-setup';
 /** Module query name (prefixed with the module id on the wire). GM client only, read-only. */
 export const ROOM_SETUP_QUERY = 'planRoomSetup';
 
-export const ROOM_SETUP_ACTIONS = ['teleport', 'spawn', 'levels', 'stairs', 'hazard'] as const;
+export const ROOM_SETUP_ACTIONS = [
+  'teleport',
+  'spawn',
+  'levels',
+  'stairs',
+  'hazard',
+  'whisper',
+] as const;
 export type RoomSetupAction = (typeof ROOM_SETUP_ACTIONS)[number];
 
 /** Where teleported tokens land inside the destination (Foundry's own choices). */
@@ -126,12 +133,32 @@ export interface RoomHazardRequest {
   effectUuid?: string;
 }
 
+/**
+ * A room card whispered to the GMs only when a token enters the area (I-168): a Region with
+ * Foundry's `executeScript` behavior that posts one whispered chat message from the active GM's
+ * client. Foundry loads a behavior's source on every client, so the card text is NOT in it: it
+ * lives on a GM-only journal entry (ownership none) made in the same plan; the script only names
+ * its uuid. Players are shown nothing (live check on 14.370: Foundry itself still delivers
+ * whispers and no-access entries to every client, as it does for any whisper, so a player's
+ * browser console can read them). The Region name and the entry name: use a neutral name.
+ */
+export interface RoomWhisperRequest {
+  action: 'whisper';
+  name: string;
+  area: RoomArea;
+  /** The card text the GM reads (plain text, at most 2000 characters). */
+  text: string;
+  /** Whisper only the first time a token enters (the behavior turns itself off). Default false. */
+  once?: boolean;
+}
+
 export type RoomSetupRequest =
   | RoomTeleportRequest
   | RoomSpawnRequest
   | RoomLevelsRequest
   | RoomStairsRequest
-  | RoomHazardRequest;
+  | RoomHazardRequest
+  | RoomWhisperRequest;
 
 /** A Region the plan creates, for the dashboard and Claude's answer. */
 export interface RoomRegionSummary {
@@ -139,7 +166,7 @@ export interface RoomRegionSummary {
   sceneName: string;
   /** Grid squares: x, y, width, height. */
   squares: [number, number, number, number];
-  role: 'entry' | 'arrival' | 'room' | 'stairs' | 'hazard';
+  role: 'entry' | 'arrival' | 'room' | 'stairs' | 'hazard' | 'whisper';
 }
 
 /** The module's answer: the ops of one plan plus what the planner worked out. */

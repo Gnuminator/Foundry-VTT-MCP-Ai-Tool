@@ -397,6 +397,7 @@ test('LIGHT_FIRST: only known light commands, so a heavy step missing from HEAVY
     const ok =
       /^node --test /.test(line) ||
       line === 'node tools/gm-coach/build.mjs' ||
+      line === 'node tools/prep-ritual/build.mjs' ||
       line === 'node scripts/test-coverage-check.mjs' ||
       line === 'npm test --prefix tools/livekit/recorder' ||
       line === 'npm ci --prefix tools/livekit/recorder' ||

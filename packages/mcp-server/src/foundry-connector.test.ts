@@ -11,6 +11,7 @@ import {
 } from '@gnuminator/shared';
 
 import { FoundryConnector, LINK_DOWN_WARN_MS } from './foundry-connector.js';
+import { makeLogger } from './test-support/stub-tool-deps.js';
 
 class FakeSocket extends EventEmitter {
   readyState: number = WebSocket.OPEN;
@@ -76,8 +77,7 @@ function connect(): FakeSocket {
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-09-30T10:00:00.000Z'));
-  logger = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
-  logger.child = (): unknown => logger;
+  logger = makeLogger();
   connector = makeConnector();
 });
 

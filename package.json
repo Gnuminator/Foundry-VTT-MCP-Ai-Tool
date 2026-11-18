@@ -52,6 +52,7 @@
     "docs:kit:check": "node scripts/docs-kit.mjs --check",
     "gm-coach": "node tools/gm-coach/build.mjs",
     "dnd-helper": "node tools/dnd-helper/build.mjs",
+    "backstory-buddy": "node tools/backstory-buddy/build.mjs",
     "player-connector": "node tools/player-connector/build.mjs",
     "player-preset": "node scripts/player-preset.mjs",
     "wiki:stage": "node scripts/wiki/stage.mjs",

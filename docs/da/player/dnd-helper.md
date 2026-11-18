@@ -1,6 +1,6 @@
 ---
 source: player/dnd-helper.md
-sourceHash: 174e68c1b495
+sourceHash: 39cd09e0675d
 title: D&D-hjælperen til spillere
 description: Installer Claude Desktop og din Foundry-spillerconnector, og lav, level op og tjek så din egen karakter og slå regler op, trin for trin.
 ---
@@ -215,6 +215,17 @@ Den peger måske også på Dungeon Mister 2024-guiderne, <https://dungeonmister.
 én holdningspræget kilde fra fællesskabet. Det er én skribents syn, ikke reglerne og ikke bordets.
 Claude linker kun til den (og åbner den måske, hvis websøgning er slået til i din chat), den kopierer
 ikke siden.
+
+## Valgfrit: baggrundshistorie- og rollespilshjælperen
+
+En lille ekstra skill, baggrundshistorie-hjælperen, installeres ved siden af hjælperen. Den, der
+driver værktøjet, sender dig zip-filen; gå så til Indstillinger, Plugins, Skills, tilføj en skill, og
+upload zip-filen uden at pakke den ud. Den bruger den samme
+spillerconnector. Spørg den "hjælp mig med en baggrundshistorie til min karakter" eller "hvordan ville
+min karakter tale?". Den læser dit karakterark og de handouts, spilleder har afsløret for dig, stiller
+to-tre spørgsmål og slutter med én note, du kan kopiere ind i karakterens noter eller sende til
+spilleder. Alt, den selv finder på, er markeret "idea", og den bruger aldrig navne fra eventyret, som
+spilleder ikke har vist dig.
 
 ## Hvad hjælperen ikke kan se
 

@@ -3,7 +3,7 @@
   "files": {
     ".claude/hooks/guard-remote-commands.mjs": 1020,
     "packages/foundry-module/src/data-access/actor-builder.ts": 1418,
-    "packages/foundry-module/src/data-access/guarded-write.ts": 1094,
+    "packages/foundry-module/src/data-access/guarded-write.ts": 1100,
     "packages/foundry-module/src/data-access/player-rolls.ts": 1252,
     "packages/foundry-module/src/export-index.ts": 1425,
     "packages/foundry-module/src/npc-turn.ts": 1158,
@@ -56,6 +56,12 @@
       "lines": 1812,
       "reason": "one more read-only query registration (getRenownState); the file is the registration table",
       "pr": "1126"
+    },
+    {
+      "file": "packages/foundry-module/src/data-access/guarded-write.ts",
+      "lines": 1100,
+      "reason": "Three dispatch lines that route a Macro create and update to the Macro forge guards (macro-forge.ts, shared macro-source.ts); the file is split later",
+      "pr": "1165"
     }
   ]
 }

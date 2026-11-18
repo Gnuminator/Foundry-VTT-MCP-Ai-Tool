@@ -14,7 +14,7 @@ import {
 import type { GuardedWriteService, PlanView } from '../guarded-write/service.js';
 import { Logger } from '../logger.js';
 
-export interface MacroForgeToolsOptions {
+interface MacroForgeToolsOptions {
   guardedWrites: Pick<GuardedWriteService, 'createPlan'>;
   logger: Logger;
 }

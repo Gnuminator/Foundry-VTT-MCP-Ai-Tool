@@ -375,11 +375,29 @@ export async function closeWindow(page, windowId) {
 }
 
 /**
+ * Closes Foundry's own "Difference in client settings detected" dialog, which pops up at random
+ * on a fresh browser profile and sat on top of the Changes undo dialog in the 2026-11-18 rerun.
+ * It is not ours, so a row must never read it as its dialog.
+ * @param {import('playwright-core').Page} page
+ */
+async function closeStrayCoreDialogs(page) {
+  await page.evaluate(async () => {
+    for (const app of [...foundry.applications.instances.values()]) {
+      const title = String(
+        app.title ?? app.element?.querySelector('.window-title')?.textContent ?? ''
+      );
+      if (/difference in client settings/i.test(title)) await app.close({ animate: false });
+    }
+  });
+}
+
+/**
  * The DialogV2 that is open now: its title, button actions and text. Waits for one to appear.
  * @param {import('playwright-core').Page} page
  * @returns {Promise<{title: string, buttons: Array<{action: string, label: string}>, actions: string[], labels: string[], text: string}>}
  */
 export async function readDialog(page) {
+  await closeStrayCoreDialogs(page);
   const dialog = page.locator('.application.dialog').last();
   await dialog.waitFor({ state: 'visible', timeout: WAIT_MS });
   return dialog.evaluate(el => ({

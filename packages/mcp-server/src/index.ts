@@ -45,6 +45,11 @@ import {
 
 import type { ControlRequest, ControlResponse } from '@gnuminator/shared';
 
+import {
+  RESOURCES_CAPABILITY,
+  registerChangeCardHandlers,
+  withChangeCardMeta,
+} from './change-card.js';
 import { TOOL_VERSION, sleep, stripToolRefs } from '@gnuminator/shared';
 
 import { spawn, ChildProcess } from 'child_process';
@@ -403,7 +408,7 @@ async function startWrapper(): Promise<void> {
   const mcp = new Server(
     { name: config.server.name, version: config.server.version },
     {
-      capabilities: { tools: {}, ...PROMPTS_CAPABILITY },
+      capabilities: { tools: {}, ...PROMPTS_CAPABILITY, ...RESOURCES_CAPABILITY },
       instructions: toolSetInstructions(TOOL_SET_SELECTION),
     }
   );
@@ -420,6 +425,8 @@ async function startWrapper(): Promise<void> {
 
   // The ready-made "/" prompts (prompts/list, prompts/get). Static, answered right here.
   registerPromptHandlers(mcp, TOOL_SET_SELECTION.all ? undefined : TOOL_SET_SELECTION.sets);
+  // The diff card for plan-* tools (MCP Apps hosts; others ignore it).
+  registerChangeCardHandlers(mcp);
 
   // Setup cleanup handlers - cross-platform approach
 
@@ -470,7 +477,7 @@ async function startWrapper(): Promise<void> {
         (res.tools ?? []) as Parameters<typeof stripToolRefs>[0],
         TOOL_SET_SELECTION
       );
-      const served = stripToolRefs(listed);
+      const served = stripToolRefs(listed).map(withChangeCardMeta);
       for (const tool of served as ToolDefinitionLike[]) listedTools.set(tool.name, tool);
       return { tools: served };
     } catch (e) {

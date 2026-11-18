@@ -316,6 +316,13 @@ export function rewriteLinks(text, repoPath, images, opts = {}) {
             `${repoPath}: the link ${target} points to ${resolved}, which does not exist`
           );
         }
+        // docs/da/foundry is staged only as the player copy, so a Danish GM page linking it would
+        // become a GitHub link without a word: link the English page (../../foundry/) instead.
+        if (resolved.startsWith('docs/da/foundry/')) {
+          throw new Error(
+            `${repoPath}: the link ${target} points into docs/da/foundry, which is not staged; link ../../foundry/ instead`
+          );
+        }
         const isDir =
           existsSync(path.join(repo, resolved)) &&
           statSync(path.join(repo, resolved)).isDirectory();

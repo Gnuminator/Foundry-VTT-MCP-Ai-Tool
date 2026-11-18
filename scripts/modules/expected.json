@@ -51,7 +51,7 @@
       "module": "*",
       "match": "setting 'hidden'",
       "max": 10,
-      "why": "A test kit artifact, not a bug: a chat card is deleted within 100 ms of its pop-up (TEST-KIT.md, 'The notification error'). The kit's GM page keeps it quiet; if it shows, the page hook broke. Not seen in a 14.369 smoke run (2026-10-28), cap kept at 10."
+      "why": "A test kit artifact, not a bug: a chat card is deleted within 100 ms of its pop-up (docs/dev/test-kit/writing-and-safety.md, 'The notification error'). The kit's GM page keeps it quiet; if it shows, the page hook broke. Not seen in a 14.369 smoke run (2026-10-28), cap kept at 10."
     },
     {
       "id": "dae-turn-start-source",

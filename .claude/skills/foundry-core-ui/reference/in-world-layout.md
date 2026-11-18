@@ -220,7 +220,7 @@ Sources: `C:/FoundryTest/app/client/applications/ui/notifications.mjs`.
 - **Game Paused banner** (`<figure id="pause">`) is a horizontal band fixed vertically at
   screen-center (not a full-screen dim/overlay), with a pulsing spin icon and the caption
   **GAME PAUSED**, shown to every connected client the instant `game.paused` becomes true.
-  **`pointer-events: none`**, so it never blocks clicks on the canvas or UI underneath it, so
+  **`pointer-events: none`**, so it never blocks clicks on the canvas or UI underneath it, and
   automation does not need to dismiss it before continuing to interact. [unverified]
 - **Toggling pause**: Spacebar (keybinding `core.pause`, **restricted to GM/Assistant GM**;
   the keybinding does nothing for a plain player) or a module/macro calling

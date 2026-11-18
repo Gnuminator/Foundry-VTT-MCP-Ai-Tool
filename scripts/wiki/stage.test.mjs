@@ -36,6 +36,13 @@ test('the home page links into the sections from the site root', () => {
   assert.equal(out, '[GM guides](gm/README.md)');
 });
 
+test('a Danish GM page linking into docs/da/foundry is an error, not a GitHub link', () => {
+  assert.throws(
+    () => rewriteLinks('[x](../foundry/combat.md)', 'docs/da/gm/first-hour.md', new Set()),
+    /docs\/da\/foundry/
+  );
+});
+
 test('links to the rest of the repo become GitHub links', () => {
   const out = rewriteLinks(
     '[install](../../README.md#installation) and [Pi](../dev/PI-SETUP.md) and [scripts](../../scripts)',

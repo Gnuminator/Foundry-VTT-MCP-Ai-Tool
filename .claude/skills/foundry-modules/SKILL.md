@@ -14,7 +14,7 @@ server. Foundry's own UI is `foundry-core-ui`; the test servers are `foundry-tes
 
 The Strahd list is `scripts/modules/strahd-modules.json` (37 entries with our two own; `tarokka-reading` left it on 2026-10-29, D-130; the final list of 2026-11-04 is Danni's 35 picks plus our four decisions: Monk's Player Settings dropped, Item Piles added with its companion `itempilesdnd5e`, FXMaster and Monk's TokenBar kept, Health Estimate and Racooze Map Library dropped; it carries the same verdict
 word as this table, and a test keeps the all-modules kit profile in step with its ids). Version =
-the version on test server A (the pinned set) when the page was written or refreshed on 2026-10-28. It is not the Pi's
+the version on test server A (the pinned set) when the page was written or refreshed on 2026-10-28. Six rows moved on 2026-11-18 (`3ds-atlas` 1.6.2, `autoanimations` 8.0.7, `calendaria` 1.4.10, `combat-tracker-dock` 5.0.5, `dice-calculator` 4.0.7, `travel-pace` 5.4.1). On server A `live:roundtrip` and `live:sweep` passed and the modules-all kit smoke passed once (25 of 25). The other four kit runs that day failed on a Tarokka window page error and dropped bridge links, not on these modules, and the user accepted that. The six are pinned in the PC archive. Their pages still describe the version named in their own first line. The table is not the Pi's
 version: the Pi gets the pinned set from stage 25 (`scripts/pi/remote/25-modules.sh`), so read what the Pi runs with
 `get-modules` before quoting a version for it.
 
@@ -35,23 +35,23 @@ version: the Pi gets the pinned set from stage 25 (`scripts/pi/remote/25-modules
 | `dae`                      | 14.0.19          | `references/dae.md`                      | optional |
 | `monks-combat-details`     | 14.03            | `references/monks-combat-details.md`     | keep     |
 | `monks-tokenbar`           | 14.01            | `references/monks-tokenbar.md`           | keep     |
-| `3ds-atlas`                | 1.5.3            | `references/3ds-atlas.md`                | keep     |
+| `3ds-atlas`                | 1.6.2            | `references/3ds-atlas.md`                | keep     |
 | `JB2A_DnD5e`               | 0.9.4            | `references/JB2A_DnD5e.md`               | optional |
-| `autoanimations`           | 8.0.1            | `references/autoanimations.md`           | optional |
-| `calendaria`               | 1.4.6            | `references/calendaria.md`               | keep     |
+| `autoanimations`           | 8.0.7            | `references/autoanimations.md`           | optional |
+| `calendaria`               | 1.4.10           | `references/calendaria.md`               | keep     |
 | `lib-wrapper`              | 1.13.5.1         | `references/lib-wrapper.md`              | keep     |
 | `racooze-map-library`      | 1.2.42           | `references/racooze-map-library.md`      | drop     |
 | `racoozes-free-battlemaps` | 1.2.0            | `references/racoozes-free-battlemaps.md` | optional |
 | `sequencer`                | 4.3.0            | `references/sequencer.md`                | keep     |
 | `share-media`              | 3.14.3           | `references/share-media.md`              | keep     |
 | `socketlib`                | 1.1.4            | `references/socketlib.md`                | keep     |
-| `travel-pace`              | 5.3.1            | `references/travel-pace.md`              | keep     |
-| `combat-tracker-dock`      | 5.0.2            | `references/combat-tracker-dock.md`      | keep     |
+| `travel-pace`              | 5.4.1            | `references/travel-pace.md`              | keep     |
+| `combat-tracker-dock`      | 5.0.5            | `references/combat-tracker-dock.md`      | keep     |
 | `dnd5e-item-resources`     | 1.3.00           | `references/dnd5e-item-resources.md`     | optional |
 | `monks-common-display`     | 14.01            | `references/monks-common-display.md`     | optional |
 | `monks-little-details`     | 14.01            | `references/monks-little-details.md`     | keep     |
 | `dd-import`                | 6.1.1            | `references/dd-import.md`                | keep     |
-| `dice-calculator`          | 4.0.6            | `references/dice-calculator.md`          | keep     |
+| `dice-calculator`          | 4.0.7            | `references/dice-calculator.md`          | keep     |
 | `gm-vision`                | 2.0.5            | `references/gm-vision.md`                | keep     |
 | `healthEstimate`           | 36.1.1           | `references/healthEstimate.md`           | drop     |
 | `nice-more-dice`           | 1.4.2            | `references/nice-more-dice.md`           | keep     |

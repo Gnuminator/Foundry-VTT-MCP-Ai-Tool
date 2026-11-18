@@ -9,6 +9,7 @@
  * round trip), like the prompts.
  */
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { toolSetOf } from './tool-sets.js';
 import {
   ErrorCode,
   ListResourcesRequestSchema,
@@ -22,9 +23,15 @@ export const RESOURCES_CAPABILITY = { resources: {} } as const;
 export const CHANGE_CARD_URI = 'ui://foundry-ai-tool/change-card';
 export const CHANGE_CARD_MIME = 'text/html;profile=mcp-app';
 
-/** The card shows a plan, so it hangs on the tools that make one. */
+/**
+ * The card shows a plan, so it hangs on the tools that make one. The prep and player sets have
+ * no room left in their size budgets (tool-budgets.ts, the user's call), so their plan tools
+ * stay text only.
+ */
 export function hasChangeCard(toolName: string): boolean {
-  return toolName.startsWith('plan-');
+  if (!toolName.startsWith('plan-')) return false;
+  const set = toolSetOf(toolName);
+  return set !== 'prep' && set !== 'player';
 }
 
 /** Adds the card pointer to a plan tool's definition; every other tool passes through unchanged. */
@@ -37,8 +44,6 @@ export function withChangeCardMeta<T extends { name: string; _meta?: unknown }>(
     _meta: {
       ...meta,
       ui: { resourceUri: CHANGE_CARD_URI },
-      // Older MCP Apps hosts read the flat key.
-      'ui/resourceUri': CHANGE_CARD_URI,
     },
   };
 }
@@ -131,17 +136,35 @@ export const CHANGE_CARD_HTML = `<!doctype html>
       }
       root.appendChild(row);
     });
-    root.appendChild(el('div', 'foot', 'Nothing is changed yet. Ask Claude to apply it, or to leave it.'));
+    root.appendChild(el('div', 'foot', plan.autoApply === true
+      ? 'Claude applies this at once (apply without confirming is on).'
+      : 'Nothing is changed yet. Ask Claude to apply it, or to leave it.'));
   }
   function send(msg) { window.parent.postMessage(msg, '*'); }
+  var initId = nextId++;
+  var lastHeight = 0;
+  function reportSize() {
+    var h = Math.ceil(document.documentElement.getBoundingClientRect().height);
+    if (h === lastHeight) return;
+    lastHeight = h;
+    send({ jsonrpc: '2.0', method: 'ui/notifications/size-changed', params: { height: h } });
+  }
   window.addEventListener('message', function (event) {
+    if (event.source !== window.parent) return;
     var m = event.data;
     if (!m || m.jsonrpc !== '2.0') return;
-    if (m.method === 'ui/notifications/tool-result') render(m.params);
+    if (m.id === initId && !m.method) {
+      send({ jsonrpc: '2.0', method: 'ui/notifications/initialized', params: {} });
+      return;
+    }
+    if (m.method === 'ui/notifications/tool-result') { render(m.params); reportSize(); return; }
+    // Any host request (teardown, ping) gets an empty answer so the host never waits.
+    if (m.method && m.id !== undefined) send({ jsonrpc: '2.0', id: m.id, result: {} });
   });
+  if (typeof ResizeObserver === 'function') new ResizeObserver(reportSize).observe(document.body);
   send({
     jsonrpc: '2.0',
-    id: nextId++,
+    id: initId,
     method: 'ui/initialize',
     params: {
       appInfo: { name: 'foundry-ai-tool-change-card', version: '1.0.0' },
@@ -149,7 +172,6 @@ export const CHANGE_CARD_HTML = `<!doctype html>
       protocolVersion: '2026-01-26'
     }
   });
-  send({ jsonrpc: '2.0', method: 'ui/notifications/initialized', params: {} });
 })();
 </script>
 </body>

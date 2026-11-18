@@ -13,6 +13,8 @@ describe('change card', () => {
     expect(hasChangeCard('plan-token-change')).toBe(true);
     expect(hasChangeCard('apply-planned-change')).toBe(false);
     expect(hasChangeCard('get-character')).toBe(false);
+    // Prep has no size-budget room left, so its plan tools stay text only.
+    expect(hasChangeCard('plan-tarokka-reveal')).toBe(false);
   });
 
   it('adds the ui pointer and keeps other meta', () => {
@@ -20,7 +22,6 @@ describe('change card', () => {
     expect(t._meta).toMatchObject({
       keep: 1,
       ui: { resourceUri: CHANGE_CARD_URI },
-      'ui/resourceUri': CHANGE_CARD_URI,
     });
   });
 

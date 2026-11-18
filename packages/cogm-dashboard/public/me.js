@@ -4,8 +4,10 @@
 
 import { applyTheme } from './theme.js';
 import { esc, signed, renderPaper2014, renderPaper2024, renderPaperNight } from './me-paper.js';
+import { turnOptions } from './player-me.js';
 
 const KEY = 'cogm_me_key';
+const TURN_CARD = 'cogm_me_turn_card'; // "off" hides the turn card on this device
 const VIEW = 'cogm_me_view';
 const CHAR = 'cogm_me_char';
 const REFRESH_MS = 8000;
@@ -61,8 +63,24 @@ function classLine(s) {
   return [s.species, classes || `Level ${s.level}`].filter(Boolean).join(' · ');
 }
 
+function turnCardHtml(s) {
+  const groups = turnOptions(s);
+  return `<section class="card wide turn-card" id="me-turn-card">
+      <h2>On my turn</h2>
+      ${groups
+        .map(
+          g =>
+            `<h3>${esc(g.label)}</h3><ul>${g.options
+              .map(o => `<li><b>${esc(o.name)}</b><span>${esc(o.note)}</span></li>`)
+              .join('')}</ul>`
+        )
+        .join('')}
+    </section>`;
+}
+
 function renderFancy(s) {
   const hp = s.hp;
+  const showTurnCard = store.get(TURN_CARD) !== 'off';
   const conditions = [
     ...s.conditions.map(c => `<span class="chip warn">${esc(c)}</span>`),
     s.concentration ? `<span class="chip">Concentrating: ${esc(s.concentration)}</span>` : '',
@@ -118,6 +136,7 @@ function renderFancy(s) {
       <div class="chips">${conditions}</div>
       ${down ? `<p>Death saves: ${pips(s.deathSaves.success, 3)} saved, ${pips(s.deathSaves.failure, 3)} failed</p>` : ''}
     </section>
+    ${showTurnCard ? turnCardHtml(s) : ''}
     ${privateRolls}
     ${
       caster
@@ -151,6 +170,7 @@ function renderFancy(s) {
       <h2>Inventory</h2>${rows(s.inventory.map(i => [`${i.name}${i.equipped ? ' (equipped)' : ''}${i.attuned ? ' (attuned)' : ''}`, `×${i.quantity}`]))}
       ${coins ? `<p class="muted">Coins: ${esc(coins)}</p>` : ''}
     </section>
+    <label class="me-prefs no-print"><input type="checkbox" id="me-pref-turn"${showTurnCard ? ' checked' : ''} /> Show the "On my turn" card</label>
   </div>`;
 }
 
@@ -180,6 +200,8 @@ function render() {
   $('me-name').textContent = s.name;
   $('me-sub').textContent = classLine(s);
   document.title = `${s.name}: my character`;
+  // A rebuild (the 8 s refresh, a toggle) must not drop keyboard focus from the card switch.
+  const hadFocus = document.activeElement?.id === 'me-pref-turn';
   main.innerHTML =
     view === 'paper2024'
       ? renderPaper2024(s)
@@ -191,6 +213,7 @@ function render() {
               new Date().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
             )
           : renderFancy(s);
+  if (hadFocus) $('me-pref-turn')?.focus({ preventScroll: true });
 }
 
 /** The outdated-helper notice (Danish, then English): server text goes in as textContent only. */
@@ -385,6 +408,12 @@ document.addEventListener('click', e => {
   if (c) {
     charId = c.dataset.char;
     store.set(CHAR, charId);
+    render();
+  }
+});
+document.addEventListener('change', e => {
+  if (e.target && e.target.id === 'me-pref-turn') {
+    store.set(TURN_CARD, e.target.checked ? 'on' : 'off');
     render();
   }
 });

@@ -183,7 +183,7 @@ No parameters.
 
 ## get-token-positions
 
-Use this to see where all tokens are on a scene (default: active): name, actor ID, token ID, x/y and grid cell, elevation, category (pc/npc/enemy), hidden or visible, HP, conditions. For full data on one token use get-token-details.
+Use this to see where all tokens are on a scene (default: active): name, actor ID, token ID, x/y and grid cell, elevation, level (the floor, on a scene with more than one Scene Level), category (pc/npc/enemy), hidden or visible, HP, conditions. For full data on one token use get-token-details.
 
 Kind: read-only. Title: Get token positions.
 

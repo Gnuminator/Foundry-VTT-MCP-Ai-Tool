@@ -1,8 +1,16 @@
 import { errorMessage } from '@gnuminator/shared/browser';
 import { ERROR_MESSAGES } from '../constants.js';
 import * as shared from './shared.js';
-import { sceneBackgroundSrc } from '../systems/core.js';
-import { rec } from '../doc-read.js';
+import { sceneBackgroundSrc, sceneHasLevels } from '../systems/core.js';
+import { rec, num, str, dig, contentsOf } from '../doc-read.js';
+
+/**
+ * A scene with more than one Scene Level (a castle with floors). Every Foundry 14 scene has at
+ * least one level, so a single-level scene counts as flat and keeps the map-only answers.
+ */
+function hasFloors(scene: Scene): boolean {
+  return sceneHasLevels(scene) && contentsOf(scene.levels).length > 1;
+}
 import { viewedScene } from '../viewed-scene.js';
 
 /** How long `switchScene` waits for the GM client's view to follow an activation. */
@@ -68,6 +76,8 @@ interface TokenPosition {
   gridX: number;
   gridY: number;
   elevation: number;
+  /** The Scene Level the token is on; left out on a scene without levels. */
+  level?: LevelRef | null;
   category: 'pc' | 'enemy' | 'npc';
   hidden: boolean;
   hp: HpSnapshot | null;
@@ -86,7 +96,13 @@ interface TokenPositions {
   tokens: TokenPosition[];
 }
 
-/** The `measureDistance` result. */
+/** A Foundry 14 Scene Level as the tools name it. */
+interface LevelRef {
+  id: string;
+  name: string;
+}
+
+/** The `measureDistance` result. The level fields are only there on a scene with Scene Levels. */
 interface DistanceResult {
   success: true;
   from: string;
@@ -94,6 +110,40 @@ interface DistanceResult {
   distance: number | null;
   units: string;
   approximate?: true;
+  fromLevel?: LevelRef | null;
+  toLevel?: LevelRef | null;
+  fromElevation?: number;
+  toElevation?: number;
+  /** The gap in elevation between the two tokens, in `units`. */
+  verticalDistance?: number;
+  /** The distance on the map alone, ignoring height, in `units`. */
+  horizontalDistance?: number | null;
+  /** `distance` counts height (a scene with Scene Levels). */
+  threeD?: true;
+}
+
+/** Level facts the tools read for one token. */
+interface TokenLevelInfo {
+  level: LevelRef | null;
+  elevation: number;
+}
+
+/**
+ * Which Scene Level a token sits on and how high it is. Elevation is the token's own, lifted to the
+ * level's floor when it lies below it (a token placed on an upper level keeps elevation 0 until
+ * someone sets it). Null level when the token names none or the level is gone.
+ */
+function tokenLevelInfo(scene: Scene, token: Record<string, unknown>): TokenLevelInfo {
+  const source = rec(token._source);
+  const rawElevation = num(source?.elevation) ?? num(token.elevation) ?? 0;
+  const levelId = str(source?.level) ?? str(token.level);
+  const level = levelId ? contentsOf(scene.levels).find(l => l.id === levelId) : undefined;
+  if (!level || !levelId) return { level: null, elevation: rawElevation };
+  const bottom = num(dig(level, 'elevation', 'bottom'));
+  return {
+    level: { id: levelId, name: str(level.name) ?? levelId },
+    elevation: bottom !== null && rawElevation < bottom ? bottom : rawElevation,
+  };
 }
 
 /** One token in the `getTargets` result. */
@@ -129,7 +179,7 @@ interface MeasuringCanvas {
   scene?: { id?: string } | null;
   grid?: {
     measurePath?: (
-      waypoints: Array<{ x: number; y: number }>
+      waypoints: Array<{ x: number; y: number; elevation?: number }>
     ) => { distance?: number | null } | null | undefined;
   };
 }
@@ -391,8 +441,12 @@ export class ScenesTokensDataAccess {
     const grid: Partial<Scene['grid']> = scene.grid || {};
     const gridSize = grid.size || 100;
 
+    const levels = hasFloors(scene);
     const tokens = scene.tokens.map((t): TokenPosition => {
       const actor = t.actor;
+      const levelInfo = levels
+        ? tokenLevelInfo(scene, t as unknown as Record<string, unknown>)
+        : null;
       const isPC = !!actor?.hasPlayerOwner && actor?.type === 'character';
       // The stored position: on Foundry 14 `t.x`/`t.y` lag behind while a move animates (and
       // stay behind in a browser tab that is not drawing), the source is where the token is.
@@ -410,7 +464,11 @@ export class ScenesTokensDataAccess {
         y,
         gridX: Math.floor(x / gridSize),
         gridY: Math.floor(y / gridSize),
-        elevation: (typeof sourceElevation === 'number' ? sourceElevation : t.elevation) ?? 0,
+        elevation:
+          levelInfo?.elevation ??
+          (typeof sourceElevation === 'number' ? sourceElevation : t.elevation) ??
+          0,
+        ...(levelInfo ? { level: levelInfo.level } : {}),
         category: isPC ? 'pc' : t.disposition === -1 ? 'enemy' : 'npc',
         hidden: t.hidden ?? false,
         hp: this.hpSnapshot(actor?.system?.attributes?.hp),
@@ -476,7 +534,17 @@ export class ScenesTokensDataAccess {
     const fromCenter = center(from);
     const toCenter = center(to);
 
+    // Scene Levels (Foundry 14): height counts. A flat scene measures on the map only, as before.
+    const fromInfo = hasFloors(scene)
+      ? tokenLevelInfo(scene, from as unknown as Record<string, unknown>)
+      : null;
+    const toInfo = hasFloors(scene)
+      ? tokenLevelInfo(scene, to as unknown as Record<string, unknown>)
+      : null;
+    const vertical = fromInfo && toInfo ? Math.abs(toInfo.elevation - fromInfo.elevation) : 0;
+
     let distance: number | null = null;
+    let horizontal: number | null = null;
     let approximate = false;
 
     // Prefer Foundry's grid measurement when this scene is the one on the canvas.
@@ -487,8 +555,17 @@ export class ScenesTokensDataAccess {
         canvasAny.scene?.id === scene.id &&
         typeof canvasAny.grid?.measurePath === 'function'
       ) {
-        const result = canvasAny.grid.measurePath([fromCenter, toCenter]);
-        distance = result?.distance ?? null;
+        const flat = canvasAny.grid.measurePath([fromCenter, toCenter]);
+        horizontal = flat?.distance ?? null;
+        if (fromInfo && toInfo && vertical > 0) {
+          const result = canvasAny.grid.measurePath([
+            { ...fromCenter, elevation: fromInfo.elevation },
+            { ...toCenter, elevation: toInfo.elevation },
+          ]);
+          distance = result?.distance ?? null;
+        } else {
+          distance = horizontal;
+        }
       }
     } catch {
       // fall through to manual calculation
@@ -507,6 +584,14 @@ export class ScenesTokensDataAccess {
         approximate = true;
       }
       distance = Math.round(distance);
+      horizontal = distance;
+      // 5e counts every square as one step, so height is one more axis of the same step count.
+      if (vertical > 0) {
+        distance =
+          grid.type === 1 || grid.type === 0 || grid.type == null
+            ? Math.max(distance, Math.round(vertical))
+            : Math.round(Math.hypot(distance, vertical));
+      }
     }
 
     return {
@@ -516,6 +601,17 @@ export class ScenesTokensDataAccess {
       distance,
       units,
       ...(approximate ? { approximate: true } : {}),
+      ...(fromInfo && toInfo
+        ? {
+            fromLevel: fromInfo.level,
+            toLevel: toInfo.level,
+            fromElevation: fromInfo.elevation,
+            toElevation: toInfo.elevation,
+            verticalDistance: vertical,
+            horizontalDistance: horizontal,
+            threeD: true as const,
+          }
+        : {}),
     };
   }
 

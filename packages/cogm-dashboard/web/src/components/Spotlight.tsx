@@ -3,7 +3,7 @@
 // recorder runs, and a quiet hint only once the party has taken as many actions as the GM set.
 // GM only (the data is on the GM stream alone, never on /player); the GM can hide the card.
 import { useQuery } from '@tanstack/react-query';
-import { useState, type JSX } from 'react';
+import { useMemo, useState, type JSX } from 'react';
 
 import { callTool } from '../lib/api';
 import { GAME_STATE_KEY } from '../lib/guarded';
@@ -12,6 +12,7 @@ import {
   DEFAULT_HINT_AFTER,
   buildSpotlight,
   readHintAfter,
+  readSpotlight,
   spotlightHint,
   speakingText,
 } from '../lib/spotlight';
@@ -37,7 +38,8 @@ function useRoster(active: boolean): string[] {
 }
 
 export function Spotlight(): JSX.Element {
-  const snapshot = useSpotlight();
+  const raw = useSpotlight();
+  const snapshot = useMemo(() => readSpotlight(raw), [raw]);
   const speaking = useRecordingHealth()?.speaking ?? [];
   const roster = useRoster(snapshot.players.length > 0 || speaking.length > 0);
   const [hidden, setHidden] = useState(() => readText(REMEMBER.spotlightHidden, '') === '1');

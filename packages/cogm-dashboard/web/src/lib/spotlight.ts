@@ -3,7 +3,7 @@
 // card is components/Spotlight.tsx. GM only: the server sends it on the GM stream alone.
 
 /** What the server tallied from the log (src/spotlight.ts). */
-export interface SpotlightSnapshot {
+interface SpotlightSnapshot {
   players: { name: string; actions: number }[];
 }
 
@@ -23,7 +23,7 @@ export interface SpotlightRow {
   speakingBar: number;
 }
 
-export const EMPTY_SPOTLIGHT: SpotlightSnapshot = { players: [] };
+const EMPTY_SPOTLIGHT: SpotlightSnapshot = { players: [] };
 
 /** Reads the stream's payload; anything unexpected is an empty tally. */
 export function readSpotlight(raw: unknown): SpotlightSnapshot {

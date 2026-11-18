@@ -9,8 +9,8 @@
     "packages/foundry-module/src/npc-turn.ts": 1158,
     "packages/foundry-module/src/play-recorder.ts": 2127,
     "packages/foundry-module/src/session-events.ts": 1301,
-    "packages/mcp-server/src/change-history.ts": 1443,
-    "packages/mcp-server/src/guarded-write/service.ts": 1543,
+    "packages/mcp-server/src/change-history.ts": 1446,
+    "packages/mcp-server/src/guarded-write/service.ts": 1547,
     "packages/mcp-server/src/handouts/service.ts": 1210,
     "packages/mcp-server/src/obsidian/library-sync.ts": 1240,
     "packages/mcp-server/src/obsidian/mirror-pump.ts": 2146,
@@ -74,6 +74,18 @@
       "lines": 1261,
       "reason": "one row per dashboard control: the table grows with every new control (read-aloud I-167)",
       "pr": "1158"
+    },
+    {
+      "file": "packages/mcp-server/src/change-history.ts",
+      "lines": 1446,
+      "reason": "PR undo-leaves-prone: +3 lines to file the Prone rider as a follow-up; the logic is in guarded-write/rider-undo.ts",
+      "pr": ""
+    },
+    {
+      "file": "packages/mcp-server/src/guarded-write/service.ts",
+      "lines": 1547,
+      "reason": "PR undo-leaves-prone: +4 lines to call guarded-write/rider-undo.ts from undoChange",
+      "pr": ""
     }
   ]
 }

@@ -56,6 +56,7 @@ import {
 } from './change-journal-pump.js';
 import { localDateKey } from './event-pump.js';
 import { pathLabel, type RecentChange } from './guarded-write/service.js';
+import { isBatchRider } from './guarded-write/rider-undo.js';
 import type { UndoState } from './guarded-write/undo-state.js';
 import { actionKey } from './guarded-write/undo-state.js';
 import { formatValue } from './guarded-write/values.js';
@@ -755,7 +756,9 @@ export function buildActions(records: ChangeRecord[], users?: UserNames): Change
     segments.forEach((segment, i) => {
       const { aiRoots, link } = links[i];
       const mine = new Set(filed.get(i) ?? []);
-      const followUps = [...mine].filter(r => isCascade(r) || isDependentDelete(r, link));
+      const followUps = [...mine].filter(
+        r => isCascade(r) || isDependentDelete(r, link) || isBatchRider(r, aiRoots)
+      );
       const theirs = new Set(
         [...mine].filter(r => !aiRoots.has(r.rootUuid) && !followUps.includes(r))
       );

@@ -57,6 +57,7 @@ import { ClientsFile, handleWhoUsesWhat } from './who-uses-what.js';
 import { TarokkaService } from './tarokka/service.js';
 import { HandoutsService, handleRecordHandoutSeen } from './handouts/service.js';
 import { SecretTermsService } from './secret-terms.js';
+import { isBatchRider } from './guarded-write/rider-undo.js';
 import { GuardedWriteService } from './guarded-write/service.js';
 import { UndoPlanner } from './guarded-write/undo-planner.js';
 import { AuditLog, VaultStore, WorldIdResolver, resolveDataDir } from './vault/index.js';
@@ -339,6 +340,13 @@ async function startBackend(): Promise<void> {
       ? journalLinks((): ChangeJournalPump | null => changeJournalPump)
       : {}),
   });
+  if (FOUNDRY_LINK_ENABLED && changeJournalConfig.enabled) {
+    // humanActions fetches the newest records first: the rider arrives a moment after the write.
+    guardedWrites.batchRiders = async changeId => {
+      await changeHistory.humanActions();
+      return (await changeHistory.aiFollowUps(changeId)).filter(r => isBatchRider(r));
+    };
+  }
   if (obsidianVaultDir && changeJournalConfig.enabled) {
     everyoneNotes = new EveryoneNotes({ changeHistory, vaultDir: obsidianVaultDir, logger });
   }

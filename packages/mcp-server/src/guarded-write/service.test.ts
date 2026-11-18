@@ -508,7 +508,7 @@ describe('undo takes off the Prone dnd5e added with the change', () => {
     const applied = await service.applyPlan((await plan([HP_UPDATE])).planId, { confirm: true });
     foundry.add(PRONE, 'ActiveEffect', { name: 'Prone', statuses: ['prone'] });
     const asked: string[] = [];
-    service.batchRiders = changeId => {
+    service.batchRiders = (changeId): Promise<Array<{ uuid: string }>> => {
       asked.push(changeId);
       return Promise.resolve([
         { uuid: PRONE },
@@ -525,7 +525,7 @@ describe('undo takes off the Prone dnd5e added with the change', () => {
   it('still undoes the change when the source fails', async () => {
     const applied = await service.applyPlan((await plan([HP_UPDATE])).planId, { confirm: true });
     foundry.add(PRONE, 'ActiveEffect', { name: 'Prone', statuses: ['prone'] });
-    service.batchRiders = () => Promise.reject(new Error('journal down'));
+    service.batchRiders = (): Promise<never> => Promise.reject(new Error('journal down'));
     await service.undo(applied.changeId, { confirm: true });
     expect(foundry.docs.get('Actor.ilvara')!.source.system.hp).toBe(10);
     expect(foundry.docs.has(PRONE)).toBe(true);

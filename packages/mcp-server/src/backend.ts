@@ -342,7 +342,7 @@ async function startBackend(): Promise<void> {
   });
   if (FOUNDRY_LINK_ENABLED && changeJournalConfig.enabled) {
     // humanActions fetches the newest records first: the rider arrives a moment after the write.
-    guardedWrites.batchRiders = async changeId => {
+    guardedWrites.batchRiders = async (changeId): Promise<Array<{ uuid: string }>> => {
       await changeHistory.humanActions();
       return (await changeHistory.aiFollowUps(changeId)).filter(r => isBatchRider(r));
     };

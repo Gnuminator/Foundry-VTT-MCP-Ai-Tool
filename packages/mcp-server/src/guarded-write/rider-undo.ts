@@ -51,10 +51,10 @@ export async function riderUndoOps(
       .filter(r => !known.has(r.uuid))
       .map(r => ({ kind: 'delete', uuid: r.uuid }));
     if (ops.length === 0) return none;
-    const snapshots = unwrapBridgeReply(
+    const snapshots = unwrapBridgeReply<OpSnapshot[]>(
       await foundry.query('foundry-mcp-bridge.snapshotGuardedOps', { ops }),
       'Snapshot refused'
-    ) as OpSnapshot[];
+    );
     if (!Array.isArray(snapshots) || snapshots.length !== ops.length) return none;
     const live = ops.flatMap((op, i) => (snapshots[i]?.exists ? [{ op, snap: snapshots[i] }] : []));
     return { ops: live.map(l => l.op), expected: live.map(l => l.snap) };

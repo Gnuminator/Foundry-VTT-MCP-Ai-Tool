@@ -96,6 +96,7 @@ function itemOf(item: SheetActorItem): SheetItem {
     attack: unidentified ? null : labelText(labels.toHit),
     damage: unidentified ? null : labelText(labels.damages ?? labels.damage),
     description: unidentified ? plainText(hidden.description) : plainText(rec(s.description).value),
+    identified: !unidentified,
   };
 }
 

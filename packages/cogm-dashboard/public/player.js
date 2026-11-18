@@ -26,6 +26,7 @@ import {
   visibleHandouts,
   whoLine,
 } from './player-session.js';
+import { mountPartyStash } from './party-stash.js';
 import { applyTheme, currentMist, loadTheme, setMist } from './theme.js';
 
 // Optional player token (only if the deployment sets PLAYER_DASHBOARD_TOKEN).
@@ -165,6 +166,9 @@ const meKey = (() => {
     return '';
   }
 })();
+
+// The party stash card (I-175, party-stash.js): only for a player with a link.
+mountPartyStash(elMine, meKey);
 
 // One read at a time; a second caller waits for the one in flight instead of skipping it.
 function loadMe() {

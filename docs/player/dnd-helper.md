@@ -213,6 +213,15 @@ It may also point you to the Dungeon Mister 2024 guides,
 writer's view, not the rules, and not the table's. Claude only links it (and may open it if web
 search is on in your chat); it does not copy the site.
 
+## Optional: the backstory and roleplay buddy
+
+A second small skill, `foundry-backstory-buddy`, installs next to the helper (Settings, Plugins,
+Skills, add a skill, upload the zip without unpacking it). It uses the same player connector. Ask
+it "help me write a backstory for my character" or "how would my character talk?". It reads your
+sheet and the handouts the GM has revealed to you, asks two or three questions, and ends with one
+note you can copy into your character's notes or send to the GM. Anything it invents is marked
+"idea", and it never uses names from the adventure that the GM has not shown you.
+
 ## What the helper cannot see
 
 This is by design, and it also protects the story.

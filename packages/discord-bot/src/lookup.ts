@@ -79,12 +79,43 @@ const ENTITIES: Record<string, string> = {
   '&nbsp;': ' ',
 };
 
+const BLOCK_ENDS = new Set(['br', 'p', 'div', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'tr']);
+
+/**
+ * Drops every tag by scanning for `<` to the next `>` (an unclosed `<` drops the rest), with the
+ * text of script and style elements; a block element's end becomes a line break. The output is
+ * plain text for Discord, never HTML.
+ */
+function stripTags(html: string): string {
+  let out = '';
+  let i = 0;
+  while (i < html.length) {
+    const open = html.indexOf('<', i);
+    if (open === -1) {
+      out += html.slice(i);
+      break;
+    }
+    out += html.slice(i, open);
+    const close = html.indexOf('>', open);
+    if (close === -1) break;
+    const tag = html.slice(open + 1, close).trim();
+    const closing = tag.startsWith('/');
+    const name = (/^\/?\s*([a-z][a-z0-9]*)/i.exec(tag)?.[1] ?? '').toLowerCase();
+    i = close + 1;
+    if (!closing && (name === 'script' || name === 'style')) {
+      const end = html.toLowerCase().indexOf(`</${name}`, i);
+      const endClose = end === -1 ? -1 : html.indexOf('>', end);
+      i = endClose === -1 ? html.length : endClose + 1;
+    } else if ((closing || name === 'br') && BLOCK_ENDS.has(name)) {
+      out += '\n';
+    }
+  }
+  return out;
+}
+
 /** The visible text of sanitized handout HTML: tags dropped, block ends kept as line breaks. */
 export function htmlToText(html: string): string {
-  return html
-    .replace(/<(script|style)[\s\S]*?<\/\1>/gi, '')
-    .replace(/<\s*(br|\/p|\/div|\/li|\/h[1-6]|\/tr)\b[^>]*>/gi, '\n')
-    .replace(/<[^>]*>/g, '')
+  return stripTags(html)
     .replace(/&(amp|lt|gt|quot|#39|nbsp);/g, m => ENTITIES[m] ?? m)
     .replace(/[ \t]+/g, ' ')
     .replace(/ ?\n ?/g, '\n')

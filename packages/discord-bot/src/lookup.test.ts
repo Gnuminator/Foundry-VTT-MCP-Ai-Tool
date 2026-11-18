@@ -85,6 +85,9 @@ describe('lookups', () => {
 
   it('turns html into text and clips long answers', () => {
     expect(htmlToText('<h1>A &amp; B</h1><script>x()</script><p>c</p>')).toBe('A & B\nc');
+    expect(htmlToText('a<br>b<STYLE>x{}</STYLE>c')).toBe('a\nbc');
+    expect(htmlToText('before <script>never')).toBe('before');
+    expect(htmlToText('half <b')).toBe('half');
     const long = {
       handouts: [{ id: 'x', title: 'Recap', html: `<p>${'a'.repeat(5000)}</p>`, revealedAt: null }],
     };

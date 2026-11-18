@@ -12,8 +12,7 @@ without your yes.
 
 ## Add it
 
-The skill is not in a release download yet: whoever runs the tool for you builds the file
-`foundry-prep-ritual.zip` and sends it. Then add it like the [GM coach](setup-gm-coach.md): Claude
+The skill is the file `foundry-prep-ritual.zip`, attached to each release download. Add it like the [GM coach](setup-gm-coach.md): Claude
 Desktop, Settings, Plugins, and add the file. Then start a new chat and switch on the Foundry connectors
 **foundry-mcp** and **foundry-mcp-prep** in the Search and tools menu.
 

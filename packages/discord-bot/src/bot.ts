@@ -38,6 +38,7 @@ import {
   restartAfterCrashMessage,
 } from './run-marker.js';
 import { recoverMessage, recoverOrphans } from './rec/recover.js';
+import { LOOKUP_NOT_HERE, createPlayerStateReader, lookupAllowed, lookupReply } from './lookup.js';
 import {
   SPACE_CHECK_INTERVAL_MS,
   LogThrottle,
@@ -77,6 +78,32 @@ export const RECORD_COMMAND = new SlashCommandBuilder()
       .setDescription('Show what is being recorded')
       .setDescriptionLocalizations(da('Vis, hvad der bliver optaget'))
   );
+
+/** I-186: lookups for players, answered from revealed handouts only (lookup.ts). */
+const LOOKUP_COMMANDS = [
+  new SlashCommandBuilder()
+    .setName('recap')
+    .setDescription('The latest recap the GM has shared')
+    .setDescriptionLocalizations(da('Det seneste resumé, GM har delt')),
+  new SlashCommandBuilder()
+    .setName('npc')
+    .setDescription('What the party knows about a person')
+    .setDescriptionLocalizations(da('Hvad gruppen ved om en person'))
+    .addStringOption(o =>
+      o
+        .setName('name')
+        .setDescription('The name to look up')
+        .setDescriptionLocalizations(da('Navnet, der skal slås op'))
+        .setRequired(true)
+        .setMaxLength(100)
+    ),
+  new SlashCommandBuilder()
+    .setName('handouts')
+    .setDescription('The handouts the GM has shared')
+    .setDescriptionLocalizations(da('De handouts, GM har delt')),
+];
+
+const LOOKUP_NAMES = new Set(LOOKUP_COMMANDS.map(c => c.name));
 
 const NOTICE = bi(
   'Optagelsen er startet: denne voice channel bliver optaget, ét spor pr. person, til session notes. ' +
@@ -139,6 +166,7 @@ export class RecorderBot {
 
   private readonly alertFailureLog = new LogThrottle();
   private crashNotice: string | null = null;
+  private readPlayerState: (() => Promise<unknown>) | undefined;
 
   constructor(private readonly config: BotConfig) {}
 
@@ -198,7 +226,7 @@ export class RecorderBot {
         log.info(text);
         void this.alertGm(text);
       }
-      const body = [RECORD_COMMAND.toJSON()];
+      const body = [RECORD_COMMAND.toJSON(), ...LOOKUP_COMMANDS.map(c => c.toJSON())];
       const guildId = this.config.guildId;
       const registered = guildId
         ? c.application.commands.set(body, guildId).then(() => `in server ${guildId}`)
@@ -215,6 +243,8 @@ export class RecorderBot {
     this.client.on('interactionCreate', i => {
       if (i.isChatInputCommand() && i.commandName === 'record') {
         this.onRecord(i).catch((err: unknown) => log.error('record command failed', err));
+      } else if (i.isChatInputCommand() && LOOKUP_NAMES.has(i.commandName)) {
+        this.onLookup(i).catch((err: unknown) => log.error('lookup command failed', err));
       }
     });
     this.client.on('voiceStateUpdate', (before, after) => {
@@ -336,7 +366,7 @@ export class RecorderBot {
   private startSessionPost(c: Client<true>): void {
     const channelId = this.config.sessionPostChannelId;
     if (!channelId) return;
-    const dashboardUrl = this.config.dashboardUrl ?? 'http://127.0.0.1:3100';
+    const dashboardUrl = this.dashboardUrl();
     const pageUrl = this.config.playerPageUrl;
     if (!pageUrl) {
       log.info(
@@ -431,6 +461,32 @@ export class RecorderBot {
         displayName: member?.displayName ?? user?.globalName ?? user?.username ?? userId,
       };
     };
+  }
+
+  /** `/recap`, `/npc` and `/handouts`: one read of the player state, answered only to the asker. */
+  /** Where the bot reads the player state: the setting, else the local dashboard. */
+  private dashboardUrl(): string {
+    return this.config.dashboardUrl ?? 'http://127.0.0.1:3100';
+  }
+
+  private async onLookup(i: ChatInputCommandInteraction): Promise<void> {
+    this.readPlayerState ??= createPlayerStateReader({
+      dashboardUrl: this.dashboardUrl(),
+      token: this.config.playerToken,
+      log: log.info,
+    });
+    const text = !lookupAllowed(i.guildId, this.config.guildId)
+      ? LOOKUP_NOT_HERE
+      : lookupReply(
+          i.commandName,
+          i.commandName === 'npc' ? i.options.getString('name', true) : '',
+          await this.readPlayerState()
+        );
+    await i.reply({
+      content: text,
+      flags: MessageFlags.Ephemeral,
+      allowedMentions: { parse: [] },
+    });
   }
 
   private async onRecord(i: ChatInputCommandInteraction): Promise<void> {

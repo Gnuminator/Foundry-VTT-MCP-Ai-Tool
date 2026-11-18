@@ -6,6 +6,7 @@
 // changes) and has no undo, so there is no confirm window (GM Actions still has to be on).
 import {
   useCallback,
+  useEffect,
   useRef,
   useState,
   useSyncExternalStore,
@@ -29,7 +30,16 @@ import {
   type Advantage,
   type RollPick,
 } from '../lib/quick-roll';
-import { latestRound, roundHeadline, rowLine, useRollRows } from '../lib/roll-status';
+import {
+  latestRound,
+  nudgeLine,
+  nudgeTargets,
+  resultsLine,
+  roundHeadline,
+  rowLine,
+  useRollRows,
+} from '../lib/roll-status';
+import { Button } from '../ui';
 import { usage } from '../lib/usage';
 import { useToast } from './Toasts';
 import styles from './QuickRoll.module.css';
@@ -72,6 +82,24 @@ function changePick(change: Partial<RollPick>): void {
   current = cleanPick({ ...getPick(), ...change });
   writePick(current);
   listeners.forEach(l => l());
+}
+
+// What was posted to chat, for every bar on the page and across a remount (one post per key).
+let postedKeys: ReadonlySet<string> = new Set();
+const getPosted = (): ReadonlySet<string> => postedKeys;
+function markPosted(key: string): void {
+  postedKeys = new Set(postedKeys).add(key);
+  listeners.forEach(l => l());
+}
+
+/** The clock, re-read every `everyMs`, so "no answer after 5 minutes" shows without a click. */
+function useNow(everyMs: number): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), everyMs);
+    return (): void => clearInterval(t);
+  }, [everyMs]);
+  return now;
 }
 
 export interface QuickRoll {
@@ -157,7 +185,25 @@ export function QuickRollBar({
   children: ReactNode;
 }): JSX.Element {
   const { pick, setPick } = roll;
-  const round = latestRound(useRollRows(), Date.now());
+  const rows = useRollRows();
+  const now = useNow(30_000);
+  const round = latestRound(rows, now);
+  const guarded = useGuardedTools();
+  const posted = useSyncExternalStore(subscribe, getPosted);
+  const [sending, setSending] = useState(false);
+  const nudges = round ? nudgeTargets(round, now) : [];
+  const resultsKey = `${round?.id}:results`;
+  const nudgeKey = `${round?.id}:nudge:${nudges.map(r => r.id).join(',')}`;
+  const post = (text: string, key: string): void => {
+    if (sending) return;
+    setSending(true);
+    void guarded
+      .call('send-chat-message', { message: text, messageType: 'ooc' }, { confirm: true })
+      .then(out => {
+        if (out.status === 'done') markPosted(key);
+      })
+      .finally(() => setSending(false));
+  };
   return (
     <div className={styles['bar']} role="group" aria-label="Ask for a roll">
       <select
@@ -215,15 +261,54 @@ export function QuickRollBar({
       </select>
       {children}
       {round && (
-        <p
-          className={`${styles['status']} ${round.waiting.length === 0 ? styles['statusDone'] : ''}`}
-          role="status"
-          data-testid="roll-status"
-        >
-          <strong>{roundHeadline(round)}</strong>
-          {'. '}
-          {round.rows.map(rowLine).join(', ')}
-        </p>
+        <>
+          <p
+            className={`${styles['status']} ${round.waiting.length === 0 ? styles['statusDone'] : ''}`}
+            role="status"
+            data-testid="roll-status"
+          >
+            <strong>{roundHeadline(round)}</strong>
+            {'. '}
+            {round.rows.map(rowLine).join(', ')}
+          </p>
+          {(round.waiting.length === 0 || nudges.length > 0) && (
+            <div className={styles['statusActions']}>
+              {round.waiting.length === 0 && (
+                <Button
+                  type="button"
+                  size="sm"
+                  data-track="dash.quickroll.post-results"
+                  title={round.rows[0]?.isPublic ? undefined : 'Posts the totals to public chat'}
+                  disabled={sending || posted.has(resultsKey)}
+                  onClick={() => post(resultsLine(round), resultsKey)}
+                >
+                  {posted.has(resultsKey) ? 'Posted to chat' : 'Post results to chat'}
+                </Button>
+              )}
+              {nudges.length > 0 && (
+                <Button
+                  type="button"
+                  size="sm"
+                  data-track="dash.quickroll.nudge"
+                  title={nudges.map(r => r.targetName).join(', ')}
+                  aria-label={
+                    posted.has(nudgeKey)
+                      ? 'Nudge sent'
+                      : `Nudge ${nudges.map(r => r.targetName).join(', ')} in chat`
+                  }
+                  disabled={sending || posted.has(nudgeKey)}
+                  onClick={() => post(nudgeLine(round, nudges), nudgeKey)}
+                >
+                  {posted.has(nudgeKey)
+                    ? 'Nudge sent'
+                    : nudges.length === 1
+                      ? `Nudge ${nudges[0]?.targetName}`
+                      : `Nudge ${nudges.length} players`}
+                </Button>
+              )}
+            </div>
+          )}
+        </>
       )}
     </div>
   );

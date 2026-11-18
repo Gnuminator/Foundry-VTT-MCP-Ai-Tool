@@ -1,0 +1,52 @@
+/* "Read-aloud shelf": boxed texts as a list of blocks. Tokens only. */
+.page {
+  margin-bottom: var(--space-4);
+}
+
+.pageTitle {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.pin {
+  color: var(--text-dim);
+  font-weight: normal;
+}
+
+.blocks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.block {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-2);
+  padding: var(--space-2) var(--space-3);
+}
+
+.clamp,
+.full {
+  margin: 0 0 var(--space-2);
+  white-space: pre-line;
+}
+
+.clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.full {
+  font-size: var(--text-md);
+  line-height: 1.5;
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-2);
+}

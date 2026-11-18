@@ -49,5 +49,15 @@
     "kind": "STUDIO",
     "why": "Actor Studio asks for an asset under a doubled path (404)",
     "fixedIn": "2.10.5-aitool.1"
+  },
+  {
+    "id": "console:pageerror:array-find",
+    "kind": "SYSTEM",
+    "why": "Automated Animations 8.0.7 getTokenFromItemID reads .id of a null token when a monster uses an activity with no token on the canvas (monsters-odd); a third-party module bug, no effect on the checks"
+  },
+  {
+    "id": "console:main.js",
+    "kind": "SYSTEM",
+    "why": "spells-deep: the bridge's undo or cleanup deletes an effect (the concentration dependents) that dnd5e already removed, so Foundry answers 'ActiveEffect does not exist'; harmless, the same race the profile list knows for dnd5eparalyzed00"
   }
 ]

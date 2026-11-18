@@ -12,7 +12,7 @@
 # This PC is not on all night, so the default trigger is the logon, with `--daily`: a run that
 # already finished today makes the task do nothing, so it runs at most once a day. It uses test
 # server B's lock and waits up to 2 hours for it; when a lane still holds B it records a skipped
-# run (last-run.json says so) and the next logon tries again. With -At the task runs at that time
+# run (last-run.json says so) and the next logon or the 12:00 start tries again. With -At the task runs at that time
 # and a PC that is off then skips the day (no catch-up, it could stop a server you are using).
 [CmdletBinding(SupportsShouldProcess)]
 param(

@@ -24,7 +24,7 @@
     "scripts/green.mjs": 1210,
     "scripts/live-write-sweep.mjs": 1690,
     "scripts/merge-runner.mjs": 1064,
-    "scripts/test-kit/lib/dashboard-controls.mjs": 1252,
+    "scripts/test-kit/lib/dashboard-controls.mjs": 1261,
     "scripts/test-kit/lib/fake/origins.mjs": 1051,
     "scripts/test-kit/lib/features.mjs": 1387,
     "scripts/test-kit/lib/gm-actions.mjs": 1975,
@@ -56,6 +56,24 @@
       "lines": 1812,
       "reason": "one more read-only query registration (getRenownState); the file is the registration table",
       "pr": "1126"
+    },
+    {
+      "file": "scripts/test-kit/lib/dashboard-controls.mjs",
+      "lines": 1254,
+      "reason": "two catalogue lines for the roll tracker buttons (I-166)",
+      "pr": "1156"
+    },
+    {
+      "file": "scripts/test-kit/lib/dashboard-controls.mjs",
+      "lines": 1255,
+      "reason": "one catalogue row for the monster action buttons (I-165); the file is a flat list of control rows",
+      "pr": "1167"
+    },
+    {
+      "file": "scripts/test-kit/lib/dashboard-controls.mjs",
+      "lines": 1261,
+      "reason": "one row per dashboard control: the table grows with every new control (read-aloud I-167)",
+      "pr": "1158"
     }
   ]
 }

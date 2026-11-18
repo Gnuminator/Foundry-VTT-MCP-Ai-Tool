@@ -179,6 +179,7 @@ export const CHECKS = [
   ),
   { name: 'dev-scripts', group: 'scripts', cmd: 'npm', args: ['run', 'dev:test'], env: CI },
   nodeTest('who-uses-what', 'scripts', 'scripts/who-uses-what.test.mjs'),
+  nodeTest('game-day-brief', 'scripts', 'scripts/game-day-brief.test.mjs'),
   nodeTest('gamenight-watch', 'scripts', 'scripts/gamenight-watch.test.mjs'),
   nodeTest('gamenight-watch-pi', 'scripts', 'scripts/gamenight-watch-pi.test.mjs'),
   nodeTest('pi-player-connector-stage', 'pi', 'scripts/pi/player-connector-stage.test.mjs'),
@@ -207,11 +208,13 @@ export const CHECKS = [
   ),
   nodeTest('pi-player-creation', 'pi', 'scripts/pi/player-creation.test.mjs'),
   nodeTest('pi-check-studio-pin', 'pi', 'scripts/pi/check-studio-pin.test.mjs'),
-  nodeTest('pi-world-switches', 'pi', 'scripts/pi/world-switches.test.mjs'),
+  // Not in the `pi` group: world-switches, runtime-imports and the Obsidian guides read module and
+  // package sources and the docs (packages/*, docs/), so a pull request outside the Pi paths can break them.
+  nodeTest('pi-world-switches', 'scripts', 'scripts/pi/world-switches.test.mjs'),
   nodeTest('pi-kit-session', 'pi', 'scripts/pi/kit-session.test.mjs'),
   nodeTest('pi-fetch-kit-login', 'pi', 'scripts/pi/fetch-kit-login.test.mjs'),
   nodeTest('pi-health-kit-line', 'pi', 'scripts/pi/health-kit-line.test.mjs'),
-  nodeTest('pi-runtime-imports', 'pi', 'scripts/pi/runtime-imports.test.mjs'),
+  nodeTest('pi-runtime-imports', 'scripts', 'scripts/pi/runtime-imports.test.mjs'),
   nodeTest('pi-runuser-helper', 'pi', 'scripts/pi/runuser-helper.test.mjs'),
   nodeTest('pi-stage5-load-check', 'pi', 'scripts/pi/stage5-load-check.test.mjs'),
   nodeTest('pi-bridge-logging', 'pi', 'scripts/pi/bridge-logging.test.mjs'),
@@ -228,7 +231,7 @@ export const CHECKS = [
   nodeTest('pi-gm-vault-peers', 'pi', 'scripts/pi/gm-vault-peers.test.mjs'),
   nodeTest(
     'pi-obsidian-plugin-stage',
-    'pi',
+    'scripts',
     'scripts/pi/obsidian-plugin-stage.test.mjs',
     'scripts/pi/obsidian-plugin-guides.test.mjs'
   ),
@@ -254,6 +257,7 @@ export const CHECKS = [
   nodeTest('tv-table-viewer', 'scripts', 'scripts/tv/start-table-viewer.test.mjs'),
   { name: 'wiki-scripts', group: 'scripts', cmd: 'npm', args: ['run', 'wiki:test'], env: CI },
   nodeTest('dnd-helper-test', 'tools', 'tools/dnd-helper/build.test.mjs'),
+  nodeTest('backstory-buddy-test', 'tools', 'tools/backstory-buddy/build.test.mjs'),
   nodeTest('skill-stubs-test', 'tools', 'tools/dnd-helper/stub.test.mjs'),
   nodeTest('sync-skill-plugins-test', 'scripts', 'scripts/sync-skill-plugins.test.mjs'),
   nodeTest('player-connector-test', 'tools', 'tools/player-connector/build.test.mjs'),
@@ -276,6 +280,8 @@ export const CHECKS = [
   }),
   nodeTest('gm-coach-test', 'tools', 'tools/gm-coach/build.test.mjs'),
   { name: 'gm-coach-build', group: 'tools', cmd: 'node', args: ['tools/gm-coach/build.mjs'] },
+  nodeTest('prep-ritual-test', 'tools', 'tools/prep-ritual/build.test.mjs'),
+  { name: 'prep-ritual-build', group: 'tools', cmd: 'node', args: ['tools/prep-ritual/build.mjs'] },
   { name: 'build', group: 'build', cmd: 'npm', args: ['run', 'build'] },
   {
     // CI runs this on Node 24 only; green is run on Node 24.
@@ -584,6 +590,40 @@ export function runGroup(name, io = {}) {
   return failed.length ? 1 : 0;
 }
 
+/**
+ * What the `pi` group's tests read: the Pi scripts and container tests, Plan B, the game-night
+ * watch, this file (the group list), deploy/, the packages the stage tests import (shared,
+ * discord-bot), the Pi setup doc, and the manifests and workflow. Pinned by scripts/pi/ci-pi-filter.test.mjs.
+ */
+export const PI_GROUP_PATHS =
+  /^(scripts\/pi\/|scripts\/plan-b\/|scripts\/gamenight-watch|scripts\/checks\.mjs$|deploy\/|shared\/|packages\/discord-bot(\/|$)|docs\/dev\/PI-SETUP\.md$|package\.json$|package-lock\.json$|\.github\/workflows\/)/;
+
+/**
+ * Whether the `pi` group has to run. Only a pull request that changed no Pi input skips it; every
+ * other event (push to main, merge_group, dispatch, a local run) and a diff that cannot be read run it.
+ * @param {string} event GITHUB_EVENT_NAME
+ * @param {() => string[]} changedFiles the files the pull request changes against its base
+ */
+export function piGroupApplies(event, changedFiles) {
+  if (event !== 'pull_request') return true;
+  try {
+    return changedFiles().some(f => PI_GROUP_PATHS.test(f));
+  } catch {
+    return true;
+  }
+}
+
+/** The files the merge commit changes against its first parent (the PR base in CI). */
+function changedAgainstBase() {
+  const r = spawnSync(
+    'git',
+    ['-c', 'core.quotePath=false', 'diff', '--name-only', '--no-renames', 'HEAD^1', 'HEAD'],
+    { encoding: 'utf8' }
+  );
+  if (r.status !== 0) throw new Error('git diff failed');
+  return r.stdout.split('\n').filter(Boolean);
+}
+
 /** Runs one check with its output on this process's own stdout. @param {Check} c */
 function execCheck(c) {
   const r = spawnSync(c.cmd, c.args, {
@@ -665,6 +705,15 @@ if (entry === 'mismatch') {
     if (!name || !RUN_GROUPS.includes(name)) {
       console.error(`checks: --run needs a group: ${RUN_GROUPS.join(', ')}`);
       process.exitCode = 2;
+    } else if (
+      name === 'pi' &&
+      !piGroupApplies(process.env.GITHUB_EVENT_NAME ?? '', changedAgainstBase)
+    ) {
+      const line =
+        '### pi: skipped (this pull request changes no Pi input; push to main and merge_group still run it)';
+      console.log(line);
+      if (process.env.GITHUB_STEP_SUMMARY)
+        fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${line}\n`);
     } else {
       process.exitCode = runGroup(name, { summaryFile: process.env.GITHUB_STEP_SUMMARY });
     }

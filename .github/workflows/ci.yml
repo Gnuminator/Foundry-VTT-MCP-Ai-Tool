@@ -88,6 +88,7 @@ jobs:
         with:
           name: foundry-prep-ritual
           path: tools/prep-ritual/dist/foundry-prep-ritual.zip
+          if-no-files-found: error
           retention-days: 30
 
       - name: Build and dashboard bundle budget

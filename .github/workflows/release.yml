@@ -12,7 +12,7 @@ name: Release
 #   - foundry-dnd-helper.zip          the GM edition of the D&D helper skill (thin stub)
 #   - foundry-gm-coach.zip            the GM coach skill (thin stub)
 #   - foundry-prep-ritual.zip         the prep ritual skill (the GM's five-step prep walk)
-#   - SHA256SUMS.txt                 the SHA-256 of every file above
+#   - SHA256SUMS.txt                  the SHA-256 of every file above
 # The publish job waits for an Approve in the "release" environment. workflow_dispatch runs the same build as a dry run (artifacts only, no release is created).
 #
 # Nothing is posted to foundryvtt.com: the package id `foundry-mcp-bridge` belongs to the upstream

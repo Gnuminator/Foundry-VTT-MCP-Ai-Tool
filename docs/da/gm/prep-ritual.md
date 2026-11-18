@@ -1,6 +1,6 @@
 ---
 source: gm/prep-ritual.md
-sourceHash: c3383b18568b
+sourceHash: d18b9d19c795
 title: Lad os forberede, forberedelsen på 30 minutter
 description: Én sætning, der fører dig gennem forberedelsen af næste session i fem trin og slutter med pre-flight-tjekket.
 ---
@@ -13,8 +13,7 @@ kun dit spil og kommer med forslag. Du bestemmer historien, og intet ændres i F
 
 ## Læg den ind
 
-Skillen ligger ikke i en release-download endnu: den, der kører værktøjet for dig, bygger filen
-`foundry-prep-ritual.zip` og sender den. Tilføj den derefter som [GM-coachen](setup-gm-coach.md):
+Skillen er filen `foundry-prep-ritual.zip`, der ligger ved hver release-download. Tilføj den som [GM-coachen](setup-gm-coach.md):
 Claude Desktop, Settings, Plugins, og tilføj filen. Start derefter en ny chat og slå Foundry-connectorerne **foundry-mcp** og
 **foundry-mcp-prep** til i menuen Search and tools.
 

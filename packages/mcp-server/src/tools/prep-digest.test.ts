@@ -163,6 +163,8 @@ interface Setup {
   tarokka?: unknown;
   /** The active scene answer; default "Scene not found". */
   scene?: unknown;
+  /** The `list-scenes` answer for the loose ends; default no scenes. */
+  scenes?: unknown;
   /** Give the tool the temp Obsidian vault. */
   vault?: boolean;
   /** The prep notes deadline; default PREP_TEST_TIMEOUT_MS. Only the hang test wants it short. */
@@ -184,7 +186,9 @@ function makeTools(setup: Setup = {}): PrepDigestTools {
       query: vi.fn((name: string) =>
         name.endsWith('.getActiveScene')
           ? settle(setup.scene ?? NO_SCENE)
-          : settle(setup.scan ?? SCAN)
+          : name.endsWith('.list-scenes')
+            ? settle(setup.scenes ?? [])
+            : settle(setup.scan ?? SCAN)
       ) as any,
     },
     worldIds: { current: (): Promise<string> => Promise.resolve(WORLD) },
@@ -510,6 +514,17 @@ describe('get-prep-digest', () => {
         word
       ).toBe(true);
     }
+  });
+
+  it('looseEnds: counts the sessions and warns when the scene list fails', async () => {
+    await seedSessions();
+    const ok = await makeTools({ scenes: [{ id: 'sX', name: 'Tower' }] }).handleGetPrepDigest({});
+    expect(ok.looseEnds?.sessions).toBe(2);
+    expect(ok.looseEnds?.neverVisitedScenes).toBe(1);
+    expect(ok.warnings).toEqual([]);
+    const bad = await makeTools({ scenes: new Error('scenes boom') }).handleGetPrepDigest({});
+    expect(bad.looseEnds?.unavailable).toEqual(['scenes']);
+    expect(bad.warnings.some(w => w.includes('scenes boom'))).toBe(true);
   });
 
   it('a vault that cannot be read is a warning, not an error', async () => {

@@ -475,6 +475,12 @@ round trip and listing or getting one never depends on Foundry being connected. 
 (unknown prompt or argument, missing required argument) is a JSON-RPC invalid-params error with a
 message the GM can read.
 
+The wrapper also answers `resources/list` and `resources/read` itself for one static MCP Apps page,
+the change card (`change-card.ts`, `ui://foundry-ai-tool/change-card`). `withChangeCardMeta` adds
+`_meta.ui.resourceUri` to the `plan-*` tools in `tools/list` (not prep or player, whose size budgets
+have no room); a host with MCP Apps shows a read-only diff card next to the text plan, other hosts
+ignore it. Apply still goes through `apply-planned-change`.
+
 Everything else in the folder is pure (no SDK, no network) and unit-tested: `types.ts`,
 `arguments.ts` (validation: unknown arguments refused, blank counts as missing, length limits,
 `oneOf`, defaults; typed text is cleaned and backticks become apostrophes), `text.ts` (message

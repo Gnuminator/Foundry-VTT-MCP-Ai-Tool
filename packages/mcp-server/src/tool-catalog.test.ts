@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url';
 import { TOOL_REF_KEY, checkToolRefs, stripToolRefs } from '@gnuminator/shared';
 import { describe, expect, it } from 'vitest';
 
+import { withChangeCardMeta } from './change-card.js';
 import { RENAMED_TOOLS } from './param-aliases.js';
 import { stubToolRouterDeps } from './test-support/stub-tool-deps.js';
 import { TOOL_SET_BUDGETS } from './tool-budgets.js';
@@ -101,7 +102,7 @@ describe('tool catalog', () => {
   it('keeps each tool set within its size budget (characters of JSON Claude Desktop receives)', () => {
     // Budgets are in tool-budgets.ts (user-owned: a raise needs the user's OK).
     for (const set of ALL_TOOL_SET_NAMES) {
-      const served = stripToolRefs(inSet(set));
+      const served = stripToolRefs(inSet(set)).map(withChangeCardMeta);
       const size = JSON.stringify(served).length;
       // Read by scripts/drift-check.mjs, which prints these lines and warns under 500 characters.
       // Written before the assertion, so an over-budget set still shows its (negative) room.

@@ -179,7 +179,7 @@ Foundry. So:
 - Ask Claude to tell you what it will do before it does it: "Tell me the plan, then wait for my
   OK."
 - Claude Desktop can ask for your OK before Claude uses a tool. We suggest **Always allow** for
-  both groups on each Foundry connector (**Customize**, **Connectors**, the connector, **Tool
+  both groups on each Foundry connector (**Settings**, **Plugins**, **Connectors**, the connector, **Tool
   permissions**: **Read-only tools** and **Write/delete tools**), because changes made through
   `apply-planned-change` already show you the plan and wait for your confirm, and you can undo
   them. The direct actions below do not, so with **Always allow** on writes Claude Desktop will

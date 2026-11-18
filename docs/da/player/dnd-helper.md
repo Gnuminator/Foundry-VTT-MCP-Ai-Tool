@@ -1,6 +1,6 @@
 ---
 source: player/dnd-helper.md
-sourceHash: 9779e9970e4e
+sourceHash: 39cd09e0675d
 title: D&D-hjælperen til spillere
 description: Installer Claude Desktop og din Foundry-spillerconnector, og lav, level op og tjek så din egen karakter og slå regler op, trin for trin.
 ---
@@ -216,6 +216,17 @@ Den peger måske også på Dungeon Mister 2024-guiderne, <https://dungeonmister.
 Claude linker kun til den (og åbner den måske, hvis websøgning er slået til i din chat), den kopierer
 ikke siden.
 
+## Valgfrit: baggrundshistorie- og rollespilshjælperen
+
+En lille ekstra skill, baggrundshistorie-hjælperen, installeres ved siden af hjælperen. Den, der
+driver værktøjet, sender dig zip-filen; gå så til Indstillinger, Plugins, Skills, tilføj en skill, og
+upload zip-filen uden at pakke den ud. Den bruger den samme
+spillerconnector. Spørg den "hjælp mig med en baggrundshistorie til min karakter" eller "hvordan ville
+min karakter tale?". Den læser dit karakterark og de handouts, spilleder har afsløret for dig, stiller
+to-tre spørgsmål og slutter med én note, du kan kopiere ind i karakterens noter eller sende til
+spilleder. Alt, den selv finder på, er markeret "idea", og den bruger aldrig navne fra eventyret, som
+spilleder ikke har vist dig.
+
 ## Hvad hjælperen ikke kan se
 
 Det er med vilje, og det beskytter også historien.
@@ -271,12 +282,13 @@ hjælper igen fra din **My character**-side og installer den oven på den gamle.
 
 **Kan jeg også tilføje hjælperen som plugin? (Pro og Max)**
 Det behøver du ikke: extensionen har allerede hjælperens instruktioner med. Vil du have skill-formen
-alligevel, så åbn Settings, Customize, tilføj marketplace `Gnuminator/foundry-ai-tool-plugins` og
-installer **foundry-player-helper**. Den henter sin guide fra bordet, så den holder sig opdateret.
+alligevel, så åbn Settings, Plugins, tilføj marketplace `Gnuminator/foundry-ai-tool-plugins` (menuen **Add**) og
+installer **Foundry player helper** under **Discover**. Den henter sin guide fra bordet, så den holder sig opdateret.
 
 **Jeg installerede den gamle skill-zip tidligere.**
-Den virker stadig, men du har ikke brug for den mere. Du kan fjerne den i Settings, Customize,
-Skills.
+Den virker stadig, men du har ikke brug for den mere. Du kan fjerne den i Settings, Plugins,
+Skills (den står som **By you**). Har du installeret pluginet, så fjern zip-kopien, så hjælperen ikke
+er der to gange.
 
 **Den påstår, at den har ændret min karakter.**
 Det kan den ikke, og det skal den aldrig sige. Tjek dit ark i Foundry, og sig det så til den, der

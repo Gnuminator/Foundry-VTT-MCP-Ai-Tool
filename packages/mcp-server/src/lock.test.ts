@@ -176,8 +176,9 @@ describe('getProcessName', () => {
     try {
       await new Promise(resolve => child.once('spawn', resolve));
       const name = getProcessName(child.pid!);
-      // node/node.exe/nodejs
-      expect(name).toMatch(/^node/i);
+      // node/node.exe/nodejs; ARM CI runners were seen to report the thread name "mainthread"
+      // for a plain child too.
+      expect(name).toMatch(/^(node|mainthread)/i);
     } finally {
       child.kill();
     }

@@ -1,6 +1,6 @@
 ---
 source: gm/asking-claude.md
-sourceHash: c13678802601
+sourceHash: 127ea20c0f95
 title: Spørg Claude
 description: Sådan bruger du Claude Desktop med værktøjet, gode forespørgsler, de færdige prompts, hvordan Claudes ændringer godkendes, og hvad Claude ikke kan.
 ---
@@ -179,7 +179,7 @@ retter du i hånden i Foundry. Så:
 - Bed Claude fortælle dig, hvad den vil gøre, før den gør det: "Fortæl mig planen, og vent så på
   mit OK."
 - Claude Desktop kan bede om dit OK, før Claude bruger et værktøj. Vi foreslår **Always allow** for
-  begge grupper på hver Foundry-connector (**Customize**, **Connectors**, connectoren, **Tool
+  begge grupper på hver Foundry-connector (**Settings**, **Plugins**, **Connectors**, connectoren, **Tool
   permissions**: **Read-only tools** og **Write/delete tools**), fordi ændringer gennem
   `apply-planned-change` allerede viser dig planen og venter på din confirm, og du kan undo'e dem. De
   direkte handlinger nedenfor gør ikke, så med **Always allow** på writes stopper Claude Desktop heller

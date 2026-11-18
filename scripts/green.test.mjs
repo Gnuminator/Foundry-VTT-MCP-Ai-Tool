@@ -21,6 +21,8 @@ import {
   PI_CONTAINER_MATRIX,
   groupChecks,
   runGroup,
+  piGroupApplies,
+  PI_GROUP_PATHS,
 } from './checks.mjs';
 import {
   STEPS,
@@ -212,6 +214,94 @@ test('parity: step names are unique', () => {
   assert.equal(new Set(names).size, names.length);
 });
 
+test('piGroupApplies: only a pull request without a Pi input skips the pi group', () => {
+  const files = list => () => list;
+  assert.equal(piGroupApplies('pull_request', files(['packages/mcp-server/src/a.ts'])), false);
+  assert.equal(piGroupApplies('pull_request', files([])), false);
+  for (const f of [
+    'scripts/pi/remote/5-tool.sh',
+    'scripts/plan-b/start.ps1',
+    'deploy/pi/compose.yml',
+    'scripts/checks.mjs',
+    'scripts/gamenight-watch-pi.mjs',
+    'shared/src/index.ts',
+    'packages/discord-bot/src/cli.ts',
+    'package-lock.json',
+    '.github/workflows/ci.yml',
+    '.github/workflows/pi-images.yml', // container-lib.test.mjs reads it
+  ])
+    assert.equal(piGroupApplies('pull_request', files(['docs/a.md', f])), true, f);
+  // Anything that is not a pull request always runs it, and so does a diff that cannot be read.
+  for (const ev of ['push', 'merge_group', 'workflow_dispatch', '']) {
+    assert.equal(piGroupApplies(ev, files(['packages/mcp-server/src/a.ts'])), true, ev);
+  }
+  assert.equal(
+    piGroupApplies('pull_request', () => {
+      throw new Error('no parent');
+    }),
+    true
+  );
+});
+
+test('PI_GROUP_PATHS covers every file a pi-group test names outside scripts/pi', () => {
+  // The group's tests read these (scripts/pi/*.test.mjs, deploy/pi/*.test.mjs).
+  for (const f of ['scripts/checks.mjs', 'scripts/plan-b/start.ps1', 'scripts/gamenight-watch.mjs'])
+    assert.ok(PI_GROUP_PATHS.test(f), f);
+  for (const f of ['scripts/backlog.mjs', 'packages/mcp-server/src/index.ts', 'docs/index.md'])
+    assert.ok(!PI_GROUP_PATHS.test(f), f);
+  // The container filter in ci.yml is a subset: whatever runs the containers also runs this group.
+  const m = /grep -qE '([^']+)'/.exec(
+    ciDoc.jobs['pi-changes'].steps.find(s => s.id === 'filter').run
+  );
+  const container = new RegExp(m[1]);
+  for (const f of [
+    'scripts/pi/remote/lib.sh',
+    'scripts/plan-b/start.ps1',
+    'deploy/pi/compose.yml',
+    'scripts/gamenight-watch.mjs',
+    'scripts/checks.mjs',
+    'package-lock.json',
+    '.github/workflows/ci.yml',
+  ])
+    assert.ok(container.test(f) && PI_GROUP_PATHS.test(f), f);
+});
+
+test('every repo path a pi-group test file names in a string literal is inside PI_GROUP_PATHS', () => {
+  const root = path.resolve(import.meta.dirname, '..');
+  const files = [...new Set(groupChecks('pi').flatMap(c => c.args.filter(a => /\.mjs$/.test(a))))];
+  assert.ok(files.length > 10);
+  const missed = [];
+  for (const f of files) {
+    if (f === 'scripts/pi/ci-pi-filter.test.mjs') continue; // names paths as examples of what must skip
+    const text = fs.readFileSync(path.join(root, f), 'utf8');
+    // a workflow file read through any join: `'.github', 'workflows', 'x.yml'` or `.github/workflows/x.yml`
+    for (const m of text.matchAll(/\.github['"`,/\s]+workflows['"`,/\s]+([\w-]+\.ya?ml)/g)) {
+      if (!PI_GROUP_PATHS.test(`.github/workflows/${m[1]}`)) missed.push(`${f}: ${m[1]}`);
+    }
+    for (const m of text.matchAll(
+      /['"`]((?:packages|docs|shared|tools|\.claude|\.github)\/[\w./-]+)/g
+    )) {
+      // build output and a bare directory name are not inputs a source change can break
+      if (/\/dist(\/|$)/.test(m[1])) continue;
+      if (!PI_GROUP_PATHS.test(m[1])) missed.push(`${f}: ${m[1]}`);
+    }
+    for (const m of text.matchAll(/(?:join|resolve)\(\s*repo\s*,((?:\s*'[^']+',?)+)\s*\)/g)) {
+      const p = [...m[1].matchAll(/'([^']+)'/g)].map(x => x[1]).join('/');
+      if (
+        /^(packages|docs|shared|tools)\//.test(p) &&
+        !/\/dist(\/|$)/.test(p) &&
+        !PI_GROUP_PATHS.test(p)
+      )
+        missed.push(`${f}: ${p}`);
+    }
+  }
+  assert.deepEqual(missed, [], 'move that test to another group or widen PI_GROUP_PATHS');
+});
+
+test('the build-test checkout is deep enough for the pi group diff', () => {
+  assert.equal(ciDoc.jobs['build-test'].steps[0].with['fetch-depth'], 2);
+});
+
 test('runGroup: runs every check after a red one, names failures, writes the summary table', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rungroup-'));
   try {
@@ -397,6 +487,7 @@ test('LIGHT_FIRST: only known light commands, so a heavy step missing from HEAVY
     const ok =
       /^node --test /.test(line) ||
       line === 'node tools/gm-coach/build.mjs' ||
+      line === 'node tools/prep-ritual/build.mjs' ||
       line === 'node scripts/test-coverage-check.mjs' ||
       line === 'npm test --prefix tools/livekit/recorder' ||
       line === 'npm ci --prefix tools/livekit/recorder' ||

@@ -1,6 +1,6 @@
 ---
 source: gm/connect-claude-desktop.md
-sourceHash: 6ead948d6245
+sourceHash: 653e656cbfd8
 title: Forbind Claude Desktop til serveren
 description: Installer den lille Windows-klient, så Claude Desktop på din PC når det Foundry AI Tool, der kører på hjemmeserveren, med en nøgle som kun du har.
 ---
@@ -91,7 +91,7 @@ Uden det her trin spørger Claude Desktop "Allow?" ved næsten hvert Foundry-væ
 chat. Claude Desktop gemmer det valg på din konto, ikke i en fil, så installationsprogrammet kan
 ikke sætte det for dig. Du gør det én gang pr. connector.
 
-1. Åbn **Customize** i Claude Desktop, og derefter **Connectors**.
+1. Åbn **Settings** i Claude Desktop, derefter **Plugins**, og vælg filteret **Connectors**.
 2. Klik på en af Foundry-connectorerne (`foundry-mcp`, `foundry-mcp-play`, `foundry-mcp-prep`,
    `foundry-mcp-build`, `foundry-mcp-admin`).
 3. Under **Tool permissions**: klik på drop-downmenuen til højre for linjen **Read-only tools**

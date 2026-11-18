@@ -84,4 +84,20 @@ describe('plan-room-setup', () => {
     const { t } = tools({ enabled: true, planReply: { success: false, error: 'Only a GM' } });
     await expect(t.handleToolCall('plan-room-setup', teleport)).rejects.toThrow(/Only a GM/);
   });
+
+  it('plans a whisper card (I-168) and refuses empty text', async () => {
+    const whisper = {
+      action: 'whisper',
+      name: 'Vault',
+      area: { x: 0, y: 0, width: 2, height: 2 },
+      text: 'Cold air.',
+    };
+    const { t, query } = tools({
+      enabled: true,
+      planReply: { summary: 'Add a card', ops: [], regions: [], warnings: [] },
+    });
+    await t.handleToolCall('plan-room-setup', whisper);
+    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.planRoomSetup', whisper);
+    await expect(t.handleToolCall('plan-room-setup', { ...whisper, text: '' })).rejects.toThrow();
+  });
 });

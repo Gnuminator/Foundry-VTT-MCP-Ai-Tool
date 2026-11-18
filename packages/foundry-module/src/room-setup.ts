@@ -25,6 +25,7 @@ import type {
   RoomSpawnRequest,
   RoomStairsRequest,
   RoomTeleportRequest,
+  RoomWhisperRequest,
 } from '@gnuminator/shared';
 
 import { MODULE_ID } from './constants.js';
@@ -737,6 +738,86 @@ async function planHazard(request: RoomHazardRequest): Promise<RoomSetupPlan> {
   };
 }
 
+const MAX_WHISPER_TEXT = 2000;
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/**
+ * The `executeScript` source of a room card. It runs on every client when a token enters, so only
+ * the active GM's client posts, and the message is a whisper to the GM users: no player gets
+ * the card. The card text is escaped now and embedded as a JSON string (no template parts).
+ */
+function whisperScript(name: string, text: string, once: boolean): string {
+  const heading = JSON.stringify(escapeHtml(name));
+  const body = JSON.stringify(
+    escapeHtml(text)
+      .split(/\n{2,}/)
+      .map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`)
+      .join('')
+  );
+  return [
+    'if (!game.user.isActiveGM) return;',
+    'const who = String(event.data?.token?.name ?? "A token").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",\'"\':"&quot;"})[c]);',
+    `await ChatMessage.create({`,
+    `  whisper: ChatMessage.getWhisperRecipients("GM").map(u => u.id),`,
+    `  speaker: { alias: "Room card" },`,
+    `  content: "<h3>" + ${heading} + "</h3><p><em>" + who + " entered.</em></p>" + ${body}`,
+    `});`,
+    ...(once ? ['await behavior.update({ disabled: true });'] : []),
+  ].join('\n');
+}
+
+function planWhisper(request: RoomWhisperRequest): RoomSetupPlan {
+  const name = (request.name ?? '').trim();
+  if (!name) throw new Error('A room whisper needs a name');
+  const text = (request.text ?? '').trim();
+  if (!text) throw new Error('A room whisper needs the card text');
+  if (text.length > MAX_WHISPER_TEXT) {
+    throw new Error(`The card text is ${text.length} characters: ${MAX_WHISPER_TEXT} at most`);
+  }
+  const area = checkArea(request.area, 'area');
+  const scene = resolveScene(area.scene);
+  const warnings: string[] = [];
+  const rect = areaRect(scene, area, 'area', warnings);
+  const once = request.once === true;
+  const behavior: Rec = {
+    _id: newId(),
+    type: 'executeScript',
+    name: `${name} (whisper to GM)`,
+    system: { events: ['tokenMoveIn'], source: whisperScript(name, text, once) },
+  };
+  warnings.push(
+    'Only GMs receive the card (a whisper from the active GM client); it does not post while no GM is logged in'
+  );
+  return {
+    summary: `Add the room card ${quoted(name)} (whispered to the GM when a token enters${once ? ', first time only' : ''}) on ${quoted(scene.name)}`,
+    ops: [
+      {
+        kind: 'create',
+        documentName: 'Region',
+        parentUuid: String(scene.uuid),
+        data: regionData(scene, newId(), name, rect, '#44aadd', [behavior], area.level),
+        keepId: true,
+      },
+    ],
+    regions: [
+      {
+        name,
+        sceneName: String(scene.name),
+        squares: [area.x, area.y, area.width, area.height],
+        role: 'whisper',
+      },
+    ],
+    warnings,
+  };
+}
+
 /** Build the plan for one request. Throws when nothing would change. */
 export async function planRoomSetup(data: unknown): Promise<RoomSetupPlan> {
   requireGm();
@@ -752,6 +833,8 @@ export async function planRoomSetup(data: unknown): Promise<RoomSetupPlan> {
       return planStairs(request);
     case 'hazard':
       return await planHazard(request);
+    case 'whisper':
+      return planWhisper(request);
     default:
       throw new Error(`Unknown action "${String(rec(data)?.action)}"`);
   }

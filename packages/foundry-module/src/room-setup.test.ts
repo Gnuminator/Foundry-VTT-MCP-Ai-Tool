@@ -548,3 +548,75 @@ it('refuses a non-GM and an unknown action', async () => {
   (globalThis as any).game.user.isGM = false;
   await expect(planRoomSetup({ action: 'dance' })).rejects.toThrow(/Only a GM/);
 });
+
+describe('whisper (I-168)', () => {
+  const area = { x: 1, y: 1, width: 3, height: 2 };
+
+  it('makes one GM-visible Region with a tokenMoveIn script and nothing else', async () => {
+    world.setActiveScene(scene('a', 'Hall').id);
+    const plan = await planRoomSetup({
+      action: 'whisper',
+      name: 'Hidden vault',
+      area,
+      text: 'Cold air.\n\nA <b>lever</b> hides behind the altar.',
+    });
+    expect(plan.ops).toHaveLength(1);
+    const op = plan.ops[0] as any;
+    expect(op).toMatchObject({ kind: 'create', documentName: 'Region', parentUuid: 'Scene.a' });
+    expect(op.data.shapes[0]).toMatchObject({ x: 100, y: 100, width: 300, height: 200 });
+    expect(op.data.visibility).toBe(1);
+    const b = op.data.behaviors[0];
+    expect(b.type).toBe('executeScript');
+    expect(b.system.events).toEqual(['tokenMoveIn']);
+    expect(plan.regions[0].role).toBe('whisper');
+  });
+
+  it('the script whispers to GMs only, escaped, once when asked', async () => {
+    world.setActiveScene(scene('a', 'Hall').id);
+    const plan = await planRoomSetup({
+      action: 'whisper',
+      name: 'Vault',
+      area,
+      text: 'A <b>lever</b>',
+      once: true,
+    });
+    const source = (plan.ops[0] as any).data.behaviors[0].system.source as string;
+    const create = vi.fn();
+    const update = vi.fn();
+    // Foundry builds the behavior script the same way (an AsyncFunction over the source).
+    const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor as new (
+      ...args: string[]
+    ) => (...a: unknown[]) => Promise<void>;
+    const run = (isActiveGM: boolean): Promise<void> =>
+      new AsyncFunction('game', 'ChatMessage', 'event', 'behavior', `{${source}\n}`)(
+        { user: { isActiveGM } },
+        {
+          create,
+          getWhisperRecipients: (n: string) => (n === 'GM' ? [{ id: 'gm1' }, { id: 'gm2' }] : []),
+        },
+        { data: { token: { name: '<Gob>' } } },
+        { update }
+      );
+    await run(false);
+    expect(create).not.toHaveBeenCalled();
+    await run(true);
+    const msg = create.mock.calls[0][0];
+    expect(msg.whisper).toEqual(['gm1', 'gm2']);
+    expect(msg.content).toContain('&lt;Gob&gt; entered.');
+    expect(msg.content).toContain('A &lt;b&gt;lever&lt;/b&gt;');
+    expect(update).toHaveBeenCalledWith({ disabled: true });
+  });
+
+  it('refuses empty or oversized text and a missing name', async () => {
+    world.setActiveScene(scene('a', 'Hall').id);
+    await expect(planRoomSetup({ action: 'whisper', name: 'V', area, text: ' ' })).rejects.toThrow(
+      /card text/
+    );
+    await expect(
+      planRoomSetup({ action: 'whisper', name: 'V', area, text: 'x'.repeat(2001) })
+    ).rejects.toThrow(/2000 at most/);
+    await expect(planRoomSetup({ action: 'whisper', name: '', area, text: 'x' })).rejects.toThrow(
+      /needs a name/
+    );
+  });
+});

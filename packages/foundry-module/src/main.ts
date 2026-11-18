@@ -219,6 +219,11 @@ class FoundryMCPBridge {
         defaultEnabled: true,
       });
       registerGuardedFeature({
+        id: 'macro-forge',
+        name: 'AI Tool: Macro forge (writes)',
+        hint: 'Lets the AI create a script macro that only you can see and run, after you confirm. Its full source is shown in the plan; it may not use the network, browser storage or dynamic code.',
+      });
+      registerGuardedFeature({
         id: SCENE_RESTORE_FEATURE_ID,
         name: 'AI Tool: Scene restore (writes)',
         hint: "Lets the AI put a scene's walls, lights, tiles and tokens back from a world backup, after you confirm.",

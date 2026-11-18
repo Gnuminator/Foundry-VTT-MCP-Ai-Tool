@@ -46,6 +46,7 @@ export * from './pc-creation.js';
 export * from './room-setup.js';
 export * from './rules-check.js';
 export * from './table-viewer.js';
+export * from './macro-source.js';
 export * from './space-status.js';
 export * from './change-journal.js';
 export * from './character-entity.js';

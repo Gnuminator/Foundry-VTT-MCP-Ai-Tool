@@ -257,6 +257,7 @@ export const CHECKS = [
   nodeTest('tv-table-viewer', 'scripts', 'scripts/tv/start-table-viewer.test.mjs'),
   { name: 'wiki-scripts', group: 'scripts', cmd: 'npm', args: ['run', 'wiki:test'], env: CI },
   nodeTest('dnd-helper-test', 'tools', 'tools/dnd-helper/build.test.mjs'),
+  nodeTest('backstory-buddy-test', 'tools', 'tools/backstory-buddy/build.test.mjs'),
   nodeTest('skill-stubs-test', 'tools', 'tools/dnd-helper/stub.test.mjs'),
   nodeTest('sync-skill-plugins-test', 'scripts', 'scripts/sync-skill-plugins.test.mjs'),
   nodeTest('player-connector-test', 'tools', 'tools/player-connector/build.test.mjs'),
@@ -279,6 +280,8 @@ export const CHECKS = [
   }),
   nodeTest('gm-coach-test', 'tools', 'tools/gm-coach/build.test.mjs'),
   { name: 'gm-coach-build', group: 'tools', cmd: 'node', args: ['tools/gm-coach/build.mjs'] },
+  nodeTest('prep-ritual-test', 'tools', 'tools/prep-ritual/build.test.mjs'),
+  { name: 'prep-ritual-build', group: 'tools', cmd: 'node', args: ['tools/prep-ritual/build.mjs'] },
   { name: 'build', group: 'build', cmd: 'npm', args: ['run', 'build'] },
   {
     // CI runs this on Node 24 only; green is run on Node 24.

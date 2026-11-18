@@ -8,7 +8,11 @@ import { describe, expect, it } from 'vitest';
 
 import { sanitizeHandoutHtml } from './player/sanitize.js';
 import {
+  groupQuests,
   handoutTitle,
+  lastTimeLine,
+  questStatus,
+  revealDate,
   sessionPhase,
   splitHandouts,
   visibleHandouts,
@@ -174,5 +178,58 @@ describe('player page markup', () => {
     }
     expect(html).toContain('href="/me"');
     expect(html).not.toMatch(/<input[^>]*type="checkbox"/);
+  });
+});
+
+describe('quest log', () => {
+  const quest = (
+    status: string,
+    title = 'Quest Details'
+  ): { id: string; title: string; html: string; revealedAt: string } => ({
+    id: status,
+    title,
+    html: `<h1>${title}</h1><ul><li><strong>Status:</strong> ${status}</li></ul>`,
+    revealedAt: '2026-11-12T12:00:00.000Z',
+  });
+
+  it('reads the status line', () => {
+    expect(questStatus(quest('Active'))).toBe('active');
+    expect(questStatus(quest('Completed'))).toBe('done');
+    expect(questStatus(quest('Failed'))).toBe('failed');
+    expect(questStatus({ html: '<p>status: done</p>' })).toBe('done');
+    expect(questStatus({ html: '<p>No status here</p>' })).toBe('active');
+    expect(questStatus(null)).toBe('active');
+    expect(questStatus({ html: "<p>Ireena's status: failed to appear</p>" })).toBe('active');
+    expect(questStatus(quest('Abandoned'))).toBe('failed');
+    expect(questStatus(quest('Not started'))).toBe('active');
+  });
+
+  it('puts done and failed quests in the closed group', () => {
+    const { active, closed } = groupQuests([quest('Active'), quest('Completed'), quest('Failed')]);
+    expect(active).toHaveLength(1);
+    expect(closed.map(q => q.id)).toEqual(['Completed', 'Failed']);
+    expect(groupQuests(undefined)).toEqual({ active: [], closed: [] });
+  });
+
+  it('formats the reveal day and tolerates a missing one', () => {
+    expect(revealDate(quest('Active'))).toBe('12 Nov');
+    expect(revealDate({ revealedAt: null })).toBe('');
+  });
+
+  it('gives a one-line last time from the first sentence of the recap', () => {
+    const html = '<p>The party fled Vallaki at dawn. Then more happened here.</p>';
+    expect(lastTimeLine({ html })).toBe('The party fled Vallaki at dawn.');
+    expect(
+      lastTimeLine({ html: '<h1>Session 3 Recap</h1><p>The party fled Vallaki at dawn.</p>' })
+    ).toBe('The party fled Vallaki at dawn.');
+    expect(lastTimeLine({ html: '<p></p>' })).toBe('');
+    expect(lastTimeLine(null)).toBe('');
+    expect(lastTimeLine({ html: `<p>${'word '.repeat(80)}</p>` }).length).toBeLessThanOrEqual(160);
+  });
+
+  it('only ever sees what the server projected: an unrevealed quest is not in the input', () => {
+    // The projection allowlist builds the handout list; the page cannot add to it.
+    const shown = splitHandouts([quest('Active', 'Quest: Revealed')]).quests;
+    expect(shown.map(q => q.title)).toEqual(['Quest: Revealed']);
   });
 });

@@ -20,6 +20,13 @@ const GRACE_MS = 600;
 /** @typedef {'gm' | 'player'} Who */
 /** @typedef {{name: string, who: Who, status: 'pass' | 'fail' | 'skip', ms: number, note: string}} FoundryResult */
 
+/**
+ * Page errors of third-party modules that are not ours and that no row can cause: Monks TokenBar 14.01
+ * sets `.buttons` of a null element on the player's page while it loads (seen in the modules-all
+ * profile, 2026-11-18). Foundry names the module in the message, so only that module's error is excused.
+ */
+const THIRD_PARTY_KNOWN = [/setting 'buttons'\)[\s\S]*Detected 1 package: monks-tokenbar/];
+
 /** A row that cannot run in this world: the message is the reason. */
 export class Skip extends Error {}
 
@@ -35,6 +42,7 @@ export function watchErrors(page) {
   const times = [];
   /** @param {string} text */
   const add = text => {
+    if (THIRD_PARTY_KNOWN.some(re => re.test(text))) return;
     errors.push(text);
     times.push(Date.now());
   };

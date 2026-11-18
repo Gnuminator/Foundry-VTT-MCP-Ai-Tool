@@ -49,6 +49,6 @@ describe('prep ritual skill', () => {
   });
 
   it('has no em dashes', () => {
-    expect(SKILL).not.toContain('—');
+    expect(SKILL).not.toContain(String.fromCharCode(0x2014));
   });
 });

@@ -45,7 +45,8 @@
  *       refused only for being behind main (not mergeable, or the drift check's moved lockfile): the
  *         runner merges aitool/main into the lane branch, pushes it (lease on the old head) and
  *         writes a ready line for the new head with the same review (merge-runner/refresh.mjs);
- *         a real conflict, a fork or draft PR, or a head that is already a refresh commit refuse.
+ *         generated tool pages in conflict or stale are regenerated into the merge commit; any other
+ *         real conflict, a fork or draft PR, or a head that is already a refresh commit refuse.
  *       any other refusal: `backlog.mjs progress <id> "PR #<n> refused by the merge gate: <why>"
  *         --if-ready <PR>@<sha>` (that replaces the ready line, so it is not tried again until a
  *         lane writes a new one; a newer ready line is never overwritten) and one #pr-log line.

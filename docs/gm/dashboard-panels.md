@@ -78,6 +78,12 @@ turns it on), click combatant rows to select them (click again to unselect). Wit
   request goes to each player's chat and the play log at once, with no confirm window and no
   Undo (it only posts a roll card).
 
+  The status line under the roll bar is a **roll tracker**. Each ask gets its own line, for example
+  "Perception Skill Check". It turns green when everyone has rolled, and **Post results to chat**
+  then writes the answers into Foundry's chat ("Perception Skill Check: Brenna 17, Tom 9."). If a
+  player has not answered after 5 minutes, a **Nudge** button appears; it posts "Still waiting for
+  Tom: Perception Skill Check." to chat. It works for the whole party and for one character.
+
 After a Damage / Heal or Condition change, a message lists each target's result ("Wolf 2: HP 11 to
 5") with **Undo** for a few seconds; one click puts it back. Later, use **Undo** in Recent
 Changes.

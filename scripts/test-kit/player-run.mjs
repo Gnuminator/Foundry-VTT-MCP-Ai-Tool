@@ -132,8 +132,51 @@ export function refusals(who) {
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const log = message => console.log(`[player-run] ${message}`);
 
+/**
+ * Which entry of the ability method list to click: null when Standard Array already shows, -1 when the list does
+ * not offer it (a refusal), else the index.
+ * @param {string[]} labels the drop-down's option labels in order
+ * @param {string | null} current the label shown as selected, if any
+ * @returns {number | null}
+ */
+export function standardArrayChoice(labels, current) {
+  if (/standard array/i.test(current ?? '')) return null;
+  return labels.findIndex(label => /standard array/i.test(label));
+}
+
+/**
+ * With more than one method on (standard array and point buy) the Abilities tab offers a drop-down; older forks
+ * left it empty until a method was picked, newer ones start on Standard Array. Either way, make sure Standard Array is
+ * the one showing. With one method on there is no drop-down and nothing to do.
+ */
+async function chooseStandardArrayMethod(page, studio) {
+  const select = studio.rootOf(page).locator('#ability-generation-method-select');
+  if ((await select.count()) === 0) return 'single method';
+  const current = await select
+    .locator('.selected-option')
+    .innerText()
+    .catch(() => '');
+  // The drop-down is only opened when another method shows (Escape would close the whole Actor Studio window).
+  if (standardArrayChoice([], current.trim()) === null) return 'already Standard Array';
+  await select.locator('.selected-option').click();
+  await sleep(400);
+  const labels = (await select.locator('.option .option-label').allInnerTexts()).map(l => l.trim());
+  const index = standardArrayChoice(labels, current.trim());
+  if (index === null || index < 0) {
+    await select.locator('.selected-option').click();
+    if (index === null) return 'already Standard Array';
+  }
+  if (index < 0) {
+    throw new Error(`Standard Array is not offered on the Abilities tab (methods: ${labels.join(', ')})`);
+  }
+  await select.locator('.option').nth(index).click();
+  await sleep(600);
+  return 'picked Standard Array';
+}
+
 async function arrangeStandardArray(page, studio, target) {
   await studio.clickTab(page, 'Abilities');
+  log(`ability method: ${await chooseStandardArrayMethod(page, studio)}`);
   const rows = studio.rootOf(page).locator('table tbody tr');
   const read = async () => {
     const out = [];

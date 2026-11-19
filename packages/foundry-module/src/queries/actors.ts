@@ -9,6 +9,7 @@ import { MODULE_ID } from '../constants.js';
 import { CHARACTER_SHEET_QUERY, PLAYER_ROLL_QUERY, characterSheets } from '../character-sheet.js';
 import { PLAYER_READ_QUERY, playerRead } from '../player-read.js';
 import { UPLOAD_ACTOR_IMAGE_QUERY, uploadActorImage } from '../actor-image.js';
+import { UPLOAD_HANDOUT_IMAGE_QUERY, uploadHandoutImage } from '../handout-image.js';
 import { UPLOAD_PLAYER_PORTRAIT_QUERY, uploadPlayerPortrait } from '../player-portrait.js';
 import { withCtx, type DataArg, type QueryContext } from './context.js';
 
@@ -88,6 +89,13 @@ export function registerActorHandlers(ctx: QueryContext, table: BridgeHandlerTab
   // (write-gate.ts); the actor change itself is a guarded plan. GM client only.
   table.on(`${MODULE_ID}.${UPLOAD_ACTOR_IMAGE_QUERY}`, 'recordless-write', (data: unknown) =>
     ctx.withGmGate('Actor image upload failed', () => uploadActorImage(data))
+  );
+
+  // plan-handout-press: store a handout picture the backend rendered, in assets/ai-art/handouts/
+  // (handout-image.ts checks the bytes). A write (write-gate.ts); the page itself is a guarded
+  // plan. GM client only.
+  table.on(`${MODULE_ID}.${UPLOAD_HANDOUT_IMAGE_QUERY}`, 'recordless-write', (data: unknown) =>
+    ctx.withGmGate('Handout image upload failed', () => uploadHandoutImage(data))
   );
 }
 

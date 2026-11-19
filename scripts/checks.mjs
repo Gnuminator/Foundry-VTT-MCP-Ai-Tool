@@ -161,6 +161,7 @@ export const CHECKS = [
     'scripts/changelog-fold.test.mjs',
     'scripts/review-note.test.mjs',
     'scripts/lane-ready.test.mjs',
+    'scripts/build-lane-plugin.test.mjs',
     'scripts/heavy-lock.test.mjs',
     'scripts/test-coverage-check.test.mjs',
     'scripts/planner-wake.test.mjs',
@@ -237,6 +238,7 @@ export const CHECKS = [
     'scripts/pi/obsidian-plugin-stage.test.mjs',
     'scripts/pi/obsidian-plugin-guides.test.mjs'
   ),
+  nodeTest('pi-map-upscale-stage', 'pi', 'scripts/pi/map-upscale-stage.test.mjs'),
   nodeTest('pi-player-vault', 'pi', 'scripts/pi/player-vault.test.mjs'),
   nodeTest(
     'pi-seven-books',
@@ -512,6 +514,7 @@ export const PI_CONTAINER_MATRIX = [
   { name: 'stage 30', env: 'PI_STAGE30_CONTAINER', test: 'player-connector-stage.test.mjs' },
   { name: 'stage 31', env: 'PI_STAGE31_CONTAINER', test: 'gm-vault-peers.test.mjs' },
   { name: 'stage 33', env: 'PI_STAGE33_CONTAINER', test: 'obsidian-plugin-stage.test.mjs' },
+  { name: 'stage 34', env: 'PI_STAGE34_CONTAINER', test: 'map-upscale-stage.test.mjs' },
   { name: 'stage 16', env: 'PI_STAGE16_CONTAINER', test: 'board-status.test.mjs' },
   { name: 'stage 17', env: 'PI_STAGE17_CONTAINER', test: 'gh-runner.test.mjs' },
   {

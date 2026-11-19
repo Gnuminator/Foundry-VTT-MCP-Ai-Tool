@@ -34,6 +34,7 @@ export * from './ownership.js';
 export * from './foundry-setup.js';
 export * from './character-sheet.js';
 export * from './actor-image.js';
+export * from './handout-press.js';
 export * from './player-portrait.js';
 export * from './combat-change.js';
 export * from './scene-change.js';

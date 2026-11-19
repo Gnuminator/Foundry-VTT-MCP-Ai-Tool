@@ -5,6 +5,7 @@
 import { applyTheme } from './theme.js';
 import { esc, signed, renderPaper2014, renderPaper2024, renderPaperNight } from './me-paper.js';
 import { turnOptions } from './player-me.js';
+import { mountDowntime } from './me-downtime.js';
 
 const KEY = 'cogm_me_key';
 const TURN_CARD = 'cogm_me_turn_card'; // "off" hides the turn card on this device
@@ -430,3 +431,4 @@ setInterval(() => {
 render();
 void load();
 void loadConnector();
+mountDowntime($('me-downtime'), key);

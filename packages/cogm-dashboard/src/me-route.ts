@@ -239,6 +239,10 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
           }
         }
         res.json(buildPartyStash(answers));
+      })
+      .catch(() => {
+        if (!res.headersSent)
+          res.status(503).json({ error: 'The party stash could not be read. Try again soon.' });
       });
   });
 

@@ -354,3 +354,25 @@ the undo are in [MODULE-REHEARSAL.md](../MODULE-REHEARSAL.md) ("Pi: install from
 - Old and replaced folders stay in `/var/lib/foundry-import/prev-<time>-modules` and `failed-<time>-modules` until the user removes them.
 - Tests: `scripts/pi/modules-stage.test.mjs` (the stage as text; with `PI_STAGE25_CONTAINER=1` the scenarios in a Debian 13 ARM64
   container, run by the ARM job in CI).
+
+## Sharper adventure maps (stage 34)
+
+`scripts/pi/remote/34-map-upscale.sh` (backlog `map-upscale-pi`, I-092) brings the scene scale fixes and the 2x maps made on the
+PC (4x-UltraSharp, shrunk to 2x, JPEG q92; about 230 MB for 32 maps) to the real world. The scene names, map names and numbers are
+licensed material and stay on the PC: `node scripts/pi/map-upscale/prepare.mjs --maps <2x folder> --switch <switch.json> --scale
+<scale.json> --out <dir>` builds `data.js` (the `DATA` constant for `map-upscale-scenes.js`) and `manifest.sha256` from them.
+
+- **Copy to the Pi** (no change to Foundry): the maps to `/root/map-upscale/maps`, and `data.js`, `manifest.sha256` and
+  `scripts/pi/remote/map-upscale-scenes.js` to `/root/map-upscale/`.
+- **Modes** (`MODE=...` in front of `bash -s`; the header of the stage has the exact commands): `check` (read-only: the staged and
+  installed files against the manifest, free space), `files` (snapshot first; copies into `Data/assets/strahd-maps-2x/` as the foundry
+  user, each file checked before and after, nothing deleted; `ddb-images/` is never written), `scale`, `scale-revert`, `switch` and
+  `revert` (GM script through `gm-script.sh`: a dry run, then `APPLY=1` after a snapshot and the user's OK), `scenes-check` (a GM dry run that
+  reports fixed, still-as-imported and odd scenes). The sitting order is check, files, scale dry run, scale, switch dry run, switch,
+  Player view, `scenes-check`.
+- **Safe to repeat:** the scale step changes a scene only while it has the imported values, leaves a fixed one alone and fails the
+  run on any other value; the switch step changes a background only while it is the original path and only when Foundry serves the
+  2x file. `revert` points the backgrounds back; the originals stay on disk until after G1.
+- Tests: `scripts/pi/map-upscale-stage.test.mjs` (the stage as text, the GM script against a fake world, `prepare.mjs`; with
+  `PI_STAGE34_CONTAINER=1` the scenarios in a Debian 13 ARM64 container). The GM script was also run for real on test server B's
+  `strahd-kit`: scale, switch, repeat, revert, a 2x texture loads.

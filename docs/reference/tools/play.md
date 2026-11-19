@@ -175,6 +175,19 @@ Parameters:
   - `uuid` (string)
   - `quantity` (integer, required): Range: at least 0.
 
+## plan-handout-press
+
+Render text as a handout picture (letter, notice or card) and plan a hidden page for it in Handouts; queue and reveal it with plan-page-reveal. Refuses secret terms. Limits: body letter 1200, notice 700, card 400 characters; title letter 120, notice 60, card 30.
+
+Kind: changes something. Title: Plan a handout picture.
+
+Parameters:
+
+- `template` (string, required): One of: `letter`, `notice`, `card`.
+- `title` (string, required)
+- `body` (string, required): Blank line = new paragraph.
+- `footer` (string): Signature or caption.
+
 ## plan-scene-mood
 
 Plan the viewed scene's mood and music: set darkness/light/weather/playlist, save or apply a named preset ("save" with fromCurrent copies the scene as it is), remove-preset, or music (play, stop or switch a playlist). Apply with apply-planned-change, revert with undo-change (music undo is refused once a sequential or shuffle playlist has moved on to its next track by itself: undo soon after, or stop the music with a new plan). Off until the module switch "Scene mood and music" is on.

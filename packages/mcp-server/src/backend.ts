@@ -55,6 +55,7 @@ import {
 import type { ToolResultLike } from './tool-router.js';
 import { ClientsFile, handleWhoUsesWhat } from './who-uses-what.js';
 import { TarokkaService } from './tarokka/service.js';
+import { handleDowntime } from './downtime/store.js';
 import { HandoutsService, handleRecordHandoutSeen } from './handouts/service.js';
 import { SecretTermsService } from './secret-terms.js';
 import { isBatchRider } from './guarded-write/rider-undo.js';
@@ -787,7 +788,22 @@ async function startBackend(): Promise<void> {
             continue;
           }
 
-          // Live write sweep helper (I-016): the dashboard's test route passes a scene snapshot,
+          // The players' downtime inbox (I-180): the dashboard passes the user id it mapped from the
+          // player's link key; not a tool, never listed to Claude, never forwarded by the wrapper.
+          if (msg.method === 'downtime') {
+            try {
+              const worldId = await worldIds.current();
+              const result: unknown = await handleDowntime(vaultStore, worldId, msg.params);
+              socket.write(`${JSON.stringify({ id: msg.id, result })}\n`);
+            } catch (e: unknown) {
+              const message = e instanceof Error ? e.message : 'Bad request';
+              socket.write(`${JSON.stringify({ id: msg.id, error: { message } })}\n`);
+            }
+
+            continue;
+          }
+
+          // Live write sweep helper (I-016):the dashboard's test route passes a scene snapshot,
           // combat, concentration, switches, fixture, playlist-state or clean-up request for
           // scripts/live-write-sweep.mjs to the module, which refuses outside the test worlds. Not a tool, never listed to Claude, and the stdio
           // wrapper never forwards it.

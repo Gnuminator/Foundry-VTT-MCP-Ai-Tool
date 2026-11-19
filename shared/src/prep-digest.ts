@@ -323,6 +323,12 @@ export interface PrepLooseEnds {
 }
 
 /** What `get-prep-digest` returns. */
+/** The players' downtime inbox (I-180): their own words, marked as theirs. */
+export interface PrepDowntime {
+  note: string;
+  entries: Array<{ player: string; text: string; updatedAt: string; source: 'player' }>;
+}
+
 export interface PrepDigest {
   schema: 1;
   action: 'summary' | 'last-session';
@@ -359,6 +365,8 @@ export interface PrepDigest {
    * (FOUNDRY_AI_OBSIDIAN_DIR); null when the vault could not be read (see `warnings`).
    */
   prep?: PrepNotesPart | null;
+  /** What the players wrote for the time between sessions; undefined on older bridges. */
+  downtime?: PrepDowntime;
   /** Plain sentences for the GM, e.g. "Foundry is not connected: quests, campaign parts, the Next session journal and bosses are missing." */
   warnings: string[];
 }

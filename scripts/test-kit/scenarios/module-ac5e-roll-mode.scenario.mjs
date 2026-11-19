@@ -104,11 +104,7 @@ export function modeOfFormula(formula) {
 
 /** The roll mode of one chat roll: dnd5e's advantage mode, else what the formula shows. */
 const rollMode = roll =>
-  roll?.advantageMode === -1
-    ? 'disadvantage'
-    : roll?.advantageMode === 1
-      ? 'advantage'
-      : modeOfFormula(roll?.formula ?? '');
+  roll?.advantageMode === -1 ? 'disadvantage' : roll?.advantageMode === 1 ? 'advantage' : modeOfFormula(roll?.formula ?? '');
 
 /** @type {import('../lib/contract.mjs').Scenario} */
 export default {
@@ -129,11 +125,7 @@ export default {
       return s;
     });
     if (!state.active) t.skip('Automated Conditions 5e is not active in this kit world');
-    t.check(
-      state.automate !== null,
-      `the setting ${MODULE}.${SETTING} is gone; the module renamed it`,
-      state
-    );
+    t.check(state.automate !== null, `the setting ${MODULE}.${SETTING} is gone; the module renamed it`, state);
 
     // The two request tools refuse a player who is not logged in, so the kit player joins.
     if (!t.joinFoundry) t.skip('needs a second Foundry page for the kit player');
@@ -150,11 +142,7 @@ export default {
     t.cleanup(async () => {
       await poison(hero.tokenId, false);
       await poison(monster.tokenId, false);
-      await page.evaluate(SETTING_SCRIPT, {
-        module: MODULE,
-        setting: SETTING,
-        value: state.automate,
-      });
+      await page.evaluate(SETTING_SCRIPT, { module: MODULE, setting: SETTING, value: state.automate });
       await page.evaluate(DELETE_MESSAGES_SCRIPT, { known });
     });
 
@@ -162,36 +150,21 @@ export default {
     const setPoisoned = async active => {
       for (const token of [hero.tokenId, monster.tokenId]) {
         const r = await poison(token, active);
-        t.check(
-          !r.error && r.poisoned === active,
-          `poisoned status ${active} on token ${token}: ${r.error ?? ''}`,
-          r
-        );
+        t.check(!r.error && r.poisoned === active, `poisoned status ${active} on token ${token}: ${r.error ?? ''}`, r);
       }
     };
 
     /** Calls the three tools once and returns the mode each roll showed. */
     const modes = async () => {
       const before = await page.evaluate(MESSAGE_IDS_SCRIPT);
-      await t.tool(
-        'request-ability-check',
-        { targetPlayer: hero.name, ability: 'str', isPublic: true },
-        { confirm: true }
-      );
-      await t.tool(
-        'request-attack-roll',
-        { targetPlayer: hero.name, weaponOrSpellName: 'Kit Sword', isPublic: true },
-        { confirm: true }
-      );
+      await t.tool('request-ability-check', { targetPlayer: hero.name, ability: 'str', isPublic: true }, { confirm: true });
+      await t.tool('request-attack-roll', { targetPlayer: hero.name, weaponOrSpellName: 'Kit Sword', isPublic: true }, { confirm: true });
       const requests = await page.evaluate(NEW_ROLLS_SCRIPT, { known: before });
       const buttonMode = async label => {
         const b = requests.buttons.find(x => x.label.toLowerCase().includes(label.toLowerCase()));
         t.check(b, `a roll button "${label}" was posted`, requests.buttons);
         const beforeClick = await page.evaluate(MESSAGE_IDS_SCRIPT);
-        t.check(
-          await page.evaluate(CLICK_BUTTON_SCRIPT, { buttonId: b?.id }),
-          `the "${label}" button is in the chat log`
-        );
+        t.check(await page.evaluate(CLICK_BUTTON_SCRIPT, { buttonId: b?.id }), `the "${label}" button is in the chat log`);
         let roll;
         for (let i = 0; i < 30 && !roll; i++) {
           await new Promise(r => setTimeout(r, 500));
@@ -205,12 +178,7 @@ export default {
         };
       };
       const beforeSave = await page.evaluate(MESSAGE_IDS_SCRIPT);
-      await t.tool('roll-saving-throws', {
-        targets: [monster.name],
-        rollType: 'check',
-        ability: 'str',
-        isPublic: true,
-      });
+      await t.tool('roll-saving-throws', { targets: [monster.name], rollType: 'check', ability: 'str', isPublic: true });
       const saves = await page.evaluate(NEW_ROLLS_SCRIPT, { known: beforeSave });
       const roll = saves.rolls[0];
       t.check(roll, 'roll-saving-throws made a roll in the chat', saves);
@@ -242,14 +210,8 @@ export default {
         await page.evaluate(SETTING_SCRIPT, { module: MODULE, setting: SETTING, value: rules });
         const got = await modes();
         result[label] = got;
-        t.log(
-          Object.entries(got)
-            .map(([k, v]) => `${k}: ${v.mode} (${v.formula}${v.flags ? ` [${v.flags}]` : ''})`)
-            .join('; ')
-        );
-        return Object.entries(got)
-          .map(([k, v]) => `${k} ${v.mode}`)
-          .join(', ');
+        t.log(Object.entries(got).map(([k, v]) => `${k}: ${v.mode} (${v.formula}${v.flags ? ` [${v.flags}]` : ''})`).join('; '));
+        return Object.entries(got).map(([k, v]) => `${k} ${v.mode}`).join(', ');
       });
     }
     t.attach('ac5e-roll-modes', result);
@@ -259,11 +221,7 @@ export default {
       t.equal(result.poisoned['roll-saving-throws'].mode, 'disadvantage', 'poisoned monster check');
       for (const tool of ['request-ability-check', 'request-attack-roll']) {
         t.equal(result.baseline[tool].mode, 'normal', `${tool}: the unpoisoned hero's button roll`);
-        t.equal(
-          result.poisoned[tool].mode,
-          'disadvantage',
-          `${tool}: the poisoned hero's button roll`
-        );
+        t.equal(result.poisoned[tool].mode, 'disadvantage', `${tool}: the poisoned hero's button roll`);
       }
     });
   },

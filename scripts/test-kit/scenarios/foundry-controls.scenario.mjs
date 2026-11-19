@@ -29,13 +29,7 @@ import {
   playerQueryRows,
 } from '../lib/foundry-sweep-play.mjs';
 import { settingsRows } from '../lib/foundry-sweep-settings.mjs';
-import {
-  Sweep,
-  closeWindows,
-  expandSidebar,
-  hideModuleOverlays,
-  resetControls,
-} from '../lib/foundry-sweep.mjs';
+import { Sweep, closeWindows, expandSidebar, hideModuleOverlays, resetControls } from '../lib/foundry-sweep.mjs';
 
 /** @type {import('../lib/contract.mjs').Scenario} */
 export default {
@@ -62,7 +56,9 @@ export default {
   // - the 401: rows module.join-page.veil and module.join-page.default only (Foundry answers a saved
   //   world change on /setup with 401 and the data, join-page.ts). It stays here because the runner
   //   blames a module console error on the scenario; it is not needed by any other row.
-  knownConsoleErrors: ['status of 401 \\(Unauthorized\\)'],
+  knownConsoleErrors: [
+    'status of 401 \\(Unauthorized\\)',
+  ],
   timeoutMs: 15 * 60 * 1000,
 
   async run(t) {

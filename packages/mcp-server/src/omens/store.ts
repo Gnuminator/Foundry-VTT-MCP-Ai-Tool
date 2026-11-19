@@ -19,8 +19,8 @@ import { newDocumentId } from '../tarokka/service.js';
 import type { VaultStore } from '../vault/store.js';
 import type { WorldIdResolver } from '../vault/world-id.js';
 
-export const OMENS_FILE = 'omens.json';
-export const OMEN_PLAYERS_FILE = 'omens-players.json';
+const OMENS_FILE = 'omens.json';
+const OMEN_PLAYERS_FILE = 'omens-players.json';
 /** A Foundry user id. */
 const USER_ID = /^[A-Za-z0-9]{16}$/;
 /** A Discord user id (a snowflake). */
@@ -29,10 +29,10 @@ const DISCORD_ID = /^\d{15,25}$/;
 export const MAX_OMEN_TEXT = 1500;
 const MAX_OMENS = 60;
 
-export type OmenStatus = 'draft' | 'approved' | 'rejected' | 'sending' | 'sent' | 'failed';
+type OmenStatus = 'draft' | 'approved' | 'rejected' | 'sending' | 'sent' | 'failed';
 
 /** After this many failed sends an omen stops retrying and shows the error to the GM. */
-export const MAX_SEND_ATTEMPTS = 3;
+const MAX_SEND_ATTEMPTS = 3;
 
 interface Omen {
   userId: string;

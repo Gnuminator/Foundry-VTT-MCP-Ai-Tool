@@ -1556,3 +1556,47 @@ test('Backlog line PR merged: done, as before', () => {
   round(f.deps, new Set());
   assert.deepEqual(f.calls.backlog, [['done', 'one', '5', '--by', 'merge-runner']]);
 });
+
+test('a refresh whose ready-line write fails posts the postFailed text, not the success text', () => {
+  const f = fakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: open() },
+    gates: {
+      5: {
+        status: 1,
+        stdout:
+          'lane:merge: NOT merged #5\nlane:merge: refused because pr: mergeable is CONFLICTING; merge main into the branch',
+      },
+    },
+  });
+  f.deps.refresh = () => ({ head: 'c'.repeat(40) });
+  f.deps.backlog = args => {
+    f.calls.backlog.push(args);
+    return { status: 1, stdout: '', stderr: 'write refused' };
+  };
+  round(f.deps, new Set());
+  assert.equal(f.calls.post.length, 1);
+  assert.match(f.calls.post[0], /could not write the ready line/);
+});
+
+test('the train tick runs before the ready line is read again (a long roundtrip cannot leave a stale line)', () => {
+  const f = fakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: { ...open(), body: 'Backlog: one' } },
+    gates: { 5: merged(5) },
+  });
+  const order = [];
+  const read = f.deps.readBacklog;
+  let reads = 0;
+  f.deps.readBacklog = () => {
+    order.push(`read${++reads}`);
+    return read();
+  };
+  roundWith(f.deps, new Set(), new Map(), () => {
+    order.push('tick');
+    return {};
+  });
+  const tick = order.indexOf('tick');
+  assert.ok(tick > 0, 'the round reads the backlog before the first tick');
+  assert.equal(order[tick + 1], 'read2', 'the next thing after the tick is the fresh read');
+});

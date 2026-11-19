@@ -806,6 +806,23 @@ test('set: the CLI needs a value argument, keeps CRLF, quotes two-word fields; b
   assert.equal(v.cli(['set', 'second', 'Claimed', 'x']).code, 1, 'any case');
 });
 
+test('set: the CLI checks the link format of a claimed item and retitles on the CRLF vault', () => {
+  const v = vaults();
+  const bad = v.cli(['set', 'first', 'link', 'claude://claude.ai/epitaphy/local_x']);
+  assert.equal(bad.code, 1);
+  assert.match(bad.err, /link must look like/);
+  const good = 'claude://claude.ai/epitaxy/local_bb64ca65-8689-447c-9a77-560b3c881d4a';
+  const l = v.cli(['set', 'first', 'link', good]);
+  assert.equal(l.code, 0, l.err);
+  assert.match(v.remoteFile(BACKLOG), new RegExp(`- link: ${good}\\r\\n`));
+  const t = v.cli(['set', 'second', 'title', 'Second, retitled']);
+  assert.equal(t.code, 0, t.err);
+  assert.match(v.remoteFile(BACKLOG), /^## S Second, retitled\r$/m);
+  assert.equal(v.cli(['set', 'second', 'title', '']).code, 1, 'an empty title is refused');
+  assert.equal(v.cli(['set', 'first', 'link', '']).code, 0, 'an empty link removes it');
+  assert.doesNotMatch(v.remoteFile(BACKLOG), /- link: claude:/);
+});
+
 test('git: a second writer on the same vault is refused while the first holds the lock', () => {
   const v = vaults();
   /** @type {{ code: number, err: string } | undefined} */

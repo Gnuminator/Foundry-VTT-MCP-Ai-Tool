@@ -791,14 +791,12 @@ async function startBackend(): Promise<void> {
             continue;
           }
 
-          // Omens by post (I-181): the dashboard approves and sends; not a tool, never listed to Claude.
           if (msg.method === 'omens') {
             socket.write(`${JSON.stringify(await omensControlReply(omens, msg.id, msg.params))}\n`);
             continue;
           }
 
-          // The players' downtime inbox (I-180): the dashboard passes the user id it mapped from the
-          // player's link key; not a tool, never listed to Claude, never forwarded by the wrapper.
+          // Downtime inbox (I-180): the dashboard passes the mapped user id; not a tool, never forwarded.
           if (msg.method === 'downtime') {
             try {
               // Vault only, so it also works between sessions with no GM client joined.

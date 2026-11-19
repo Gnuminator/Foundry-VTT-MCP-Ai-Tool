@@ -16,7 +16,7 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -142,6 +142,19 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
+/** Removes render folders whose text is no longer the current recap, so they do not pile up. */
+async function pruneOldRenders(recap: ApprovedRecap): Promise<void> {
+  const root = join(recap.dir, '.previously-on');
+  const keep = new Set(Object.values(recap.text).map(hashOf));
+  try {
+    for (const name of await readdir(root)) {
+      if (!keep.has(name)) await rm(join(root, name), { recursive: true, force: true });
+    }
+  } catch {
+    // nothing to prune yet
+  }
+}
+
 /** The recap as chat HTML: one paragraph per block, text escaped. */
 function chatHtml(text: string): string {
   const esc = (s: string): string =>
@@ -164,7 +177,15 @@ function defaultNarrate(scriptPath: string, outDir: string): Promise<void> {
       { windowsHide: true, ...SILENT }
     );
     const timer = setTimeout(() => {
-      child.kill();
+      // On Windows kill() only ends pwsh, not the python it started: end the whole tree.
+      if (process.platform === 'win32' && child.pid) {
+        spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], {
+          windowsHide: true,
+          ...SILENT,
+        }).on('error', () => child.kill());
+      } else {
+        child.kill();
+      }
       fail(new Error('narrate timed out'));
     }, RENDER_TIMEOUT_MS);
     child.on('error', error => {
@@ -238,13 +259,15 @@ export function mountPreviouslyOnRoute(app: Express, options: PreviouslyOnOption
           audio[lang] = (await audioFor(recap, lang)) !== null;
         }
       }
+      // A failed voice stops showing once that language has a voice (key is `session:lang`).
+      const stillFailed = [...failed].filter(key => !audio[key.slice(key.lastIndexOf(':') + 1)]);
       res.json({
         enabled: true,
         session: recap?.session ?? null,
         languages: recap ? Object.keys(recap.text) : [],
         audio,
         rendering: [...rendering],
-        failed: [...failed],
+        failed: stillFailed,
       });
     })().catch(() => res.status(500).json({ error: { message: 'Could not read the recap.' } }));
   });
@@ -310,6 +333,7 @@ export function mountPreviouslyOnRoute(app: Express, options: PreviouslyOnOption
       failed.delete(key);
       const out = renderDir(recap, text);
       try {
+        await pruneOldRenders(recap);
         await mkdir(out, { recursive: true });
         const script = join(out, `previously-on.${lang}.md`);
         await writeFile(script, `${text}\n`, 'utf-8');

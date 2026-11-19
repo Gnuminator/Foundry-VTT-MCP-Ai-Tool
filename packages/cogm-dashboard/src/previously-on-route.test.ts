@@ -1,5 +1,5 @@
 /** "Previously on" (item previously-on): off by default, GM only, text to chat, voice on request. */
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import type { Server } from 'http';
 import type { AddressInfo } from 'net';
 import { tmpdir } from 'node:os';
@@ -39,7 +39,7 @@ interface Harness {
 }
 
 async function start(
-  opts: { enabled?: boolean; gmActions?: boolean; fail?: boolean } = {}
+  opts: { enabled?: boolean; gmActions?: boolean; fail?: boolean; failNarrate?: boolean } = {}
 ): Promise<Harness> {
   dir = mkdtempSync(join(tmpdir(), 'prevon-'));
   const posts: Array<Record<string, unknown>> = [];
@@ -59,7 +59,7 @@ async function start(
     sessionsDir: dir,
     narrate: s => {
       narrated.push(s);
-      return Promise.resolve();
+      return opts.failNarrate ? Promise.reject(new Error('no voice')) : Promise.resolve();
     },
   });
   server = app.listen(0, '127.0.0.1');
@@ -145,6 +145,35 @@ describe('/api/previously-on', () => {
     // The recap changes: the old voice no longer matches, so there is none until it is made again.
     session('2026-11-01_b', true, 'Dansk tekst.', 'New text.');
     expect((await fetch(`${base}/api/previously-on/audio/en`)).status).toBe(404);
+  });
+
+  it('removes render folders of an old text when a new voice starts', async () => {
+    const { base, post, narrated } = await start();
+    session('2026-11-01_b', true);
+    await post('/api/previously-on/audio', { lang: 'en' });
+    const oldDir = dirname(narrated[0]);
+    expect(existsSync(oldDir)).toBe(true);
+    session('2026-11-01_b', true, 'Dansk tekst.', 'New text.');
+    await post('/api/previously-on/audio', { lang: 'en' });
+    expect(existsSync(oldDir)).toBe(false);
+    expect(narrated).toHaveLength(2);
+    expect((await fetch(`${base}/api/previously-on`)).status).toBe(200);
+  });
+
+  it('stops listing a failed voice once that language has its voice', async () => {
+    const { base, post, narrated } = await start({ failNarrate: true });
+    session('2026-11-01_b', true);
+    await post('/api/previously-on/audio', { lang: 'da' });
+    await new Promise(r => setTimeout(r, 20));
+    const before = (await (await fetch(`${base}/api/previously-on`)).json()) as {
+      failed: string[];
+    };
+    expect(before.failed).toEqual(['2026-11-01_b:da']);
+    const wavDir = join(dirname(narrated[0]), 'previously-on.da');
+    mkdirSync(wavDir, { recursive: true });
+    writeFileSync(join(wavDir, 'previously-on.da.wav'), 'RIFF');
+    const after = (await (await fetch(`${base}/api/previously-on`)).json()) as { failed: string[] };
+    expect(after.failed).toEqual([]);
   });
 
   it('starts only one voice run for two requests at once', async () => {

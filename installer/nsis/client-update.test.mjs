@@ -40,7 +40,7 @@ describe('client-update.ps1 source', () => {
     assert.match(src, /\$claudeCodePath = .*\.local.*\.claude.*node_modules/);
   });
   test('the logon task logs a failed updater launch', () => {
-    assert.match(tunnelSrc, /Win32_Process[\s\S]*ReturnValue -ne 0[\s\S]*Add-Content -LiteralPath \$logPath/);
+    assert.match(tunnelSrc, /Win32_Process[\s\S]*ReturnValue -ne 0[\s\S]*Add-Content -LiteralPath \(Join-Path \$StateDir 'update\.log'\)/);
   });
   test('the logon task script starts it only when the flag exists', () => {
     assert.match(tunnelSrc, /autoupdate\.on[\s\S]*client-update\.ps1/);

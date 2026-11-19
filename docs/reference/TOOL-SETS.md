@@ -23,7 +23,7 @@ what the conversation needs. The switches are remembered for new chats.
 | **admin**  | `foundry-mcp-admin`       | 11    | about 11,000      | Set up and troubleshoot: installed modules and their errors, Foundry settings, modules on or off, user roles, who can open a compendium pack, a journal or a scene, who owns which actor, round token rings for all actors, and the Obsidian mirror settings. |
 | **player** | none (`/mcp/player` only) | 8     | about 3,050       | A player's own read-only view: their character sheet, what their next level grants, short passages from the books their Foundry user can see, their revealed handouts, recap and quests, and their play stats. Served only on /mcp/player, never on stdio.    |
 
-A prep chat with core and prep on carries about 41,300 characters instead of 128,400. Core alone is
+A prep chat with core and prep on carries about 41,400 characters instead of 128,400. Core alone is
 about 15% of everything.
 
 The dashboard is not affected: it reads the bridge directly and always has every tool.

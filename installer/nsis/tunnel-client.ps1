@@ -393,7 +393,8 @@ switch ($Action) {
           $cmd = "`"$psExe`" -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$updater`" -Action Check -StateDir `"$StateDir`""
           $launch = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = $cmd }
           if ($launch -and $launch.ReturnValue -ne 0) {
-            Add-Content -LiteralPath $logPath -Value ('{0} auto-update check did not start (Win32_Process.Create returned {1})' -f (Get-Date -Format 's'), $launch.ReturnValue)
+            # update.log, not tunnel.log: cloudflared's error output replaces tunnel.log a moment later.
+            Add-Content -LiteralPath (Join-Path $StateDir 'update.log') -Value ('{0} auto-update check did not start (Win32_Process.Create returned {1})' -f (Get-Date -Format 's'), $launch.ReturnValue)
           }
         } catch { }
       }

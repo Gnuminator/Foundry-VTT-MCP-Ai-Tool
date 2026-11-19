@@ -114,6 +114,7 @@ function Get-InstalledVersion {
 
 # Claude Code's claude.exe has the same process name as Claude Desktop but lives under the user's
 # .local\bin or .claude folder (or node_modules); it does not lock the install, so it is not counted.
+# Only those three folders are skipped: the Claude Code that Claude Desktop bundles still counts.
 # A process whose path cannot be read counts as Claude Desktop, the safe side.
 $claudeCodePath = '[\\/](\.local[\\/]bin|\.claude|node_modules)[\\/]'
 function Test-ClaudeRunning {

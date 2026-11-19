@@ -1,6 +1,6 @@
 ### Installer
 
-- **Claude Code no longer blocks the client auto-update:** the updater only counts Claude Desktop as running, not Claude Code's `claude.exe` (under `.local\bin`, `.claude` or `node_modules`). A failed launch of the updater at sign-in is now written to `tunnel.log`, and the updater header says the checksum is an integrity check only.
+- **Claude Code no longer blocks the client auto-update:** the updater only counts Claude Desktop as running, not Claude Code's `claude.exe` (under `.local\bin`, `.claude` or `node_modules`). A failed launch of the updater at sign-in is now written to `update.log`, and the updater header says the checksum is an integrity check only.
 
 ### Docs
 

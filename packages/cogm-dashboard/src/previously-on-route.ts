@@ -260,7 +260,12 @@ export function mountPreviouslyOnRoute(app: Express, options: PreviouslyOnOption
         }
       }
       // A failed voice stops showing once that language has a voice (key is `session:lang`).
-      const stillFailed = [...failed].filter(key => !audio[key.slice(key.lastIndexOf(':') + 1)]);
+      const stillFailed = [...failed].filter(
+        key =>
+          recap !== null &&
+          key.startsWith(`${recap.session}:`) &&
+          !audio[key.slice(key.lastIndexOf(':') + 1)]
+      );
       res.json({
         enabled: true,
         session: recap?.session ?? null,

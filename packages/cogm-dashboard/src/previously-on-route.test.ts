@@ -164,7 +164,11 @@ describe('/api/previously-on', () => {
     const { base, post, narrated } = await start({ failNarrate: true });
     session('2026-11-01_b', true);
     await post('/api/previously-on/audio', { lang: 'da' });
-    await new Promise(r => setTimeout(r, 20));
+    for (let i = 0; i < 50; i++) {
+      const s = (await (await fetch(`${base}/api/previously-on`)).json()) as { failed: string[] };
+      if (s.failed.length > 0) break;
+      await new Promise(r => setTimeout(r, 20));
+    }
     const before = (await (await fetch(`${base}/api/previously-on`)).json()) as {
       failed: string[];
     };

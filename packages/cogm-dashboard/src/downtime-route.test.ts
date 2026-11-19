@@ -90,8 +90,9 @@ describe('downtime route', () => {
     mountDowntimeRoute(app, {
       client: { downtime: () => Promise.resolve({ entries: [] }) },
       links: {
-        userFor: (w: string, k?: string) => (w === 'w' && k === 'good' ? 'anna' : null),
-        worldFor: (k?: string) => (k === 'good' ? 'w' : null),
+        userFor: (w: string, k?: string) =>
+          (w === 'w' && k === 'good') || (w === 'old' && k === 'stale') ? 'anna' : null,
+        worldFor: (k?: string) => (k === 'good' ? 'w' : k === 'stale' ? 'old' : null),
       } as unknown as PlayerLinkStore,
       directory: {
         refreshIfStale: () => Promise.resolve(),
@@ -101,6 +102,10 @@ describe('downtime route', () => {
     });
     await new Promise<void>(r => (server = app.listen(0, '127.0.0.1', r)));
     const base = `http://127.0.0.1:${(server!.address() as AddressInfo).port}`;
+    // A leftover link from an old world does not pin the world for everyone after it.
+    expect(
+      (await fetch(`${base}/api/me/downtime`, { headers: { 'X-CoGM-Me': 'stale' } })).status
+    ).toBe(200);
     expect(
       (await fetch(`${base}/api/me/downtime`, { headers: { 'X-CoGM-Me': 'good' } })).status
     ).toBe(200);

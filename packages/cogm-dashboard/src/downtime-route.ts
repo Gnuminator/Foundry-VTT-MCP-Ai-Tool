@@ -38,12 +38,13 @@ export function mountDowntimeRoute(app: Express, options: DowntimeRouteOptions):
     // null, so the last world seen stands in, or after a restart the world that holds the key.
     const raw = req.headers[ME_KEY_HEADER];
     const key = Array.isArray(raw) ? raw[0] : raw;
-    const world = worldId() ?? lastWorld ?? links.worldFor(key);
+    const live = worldId();
+    if (live) lastWorld = live;
+    const world = live ?? links.worldFor(key) ?? lastWorld;
     if (!world) {
       res.status(503).json({ error: 'The table is offline right now. Try again later.' });
       return null;
     }
-    lastWorld = world;
     const userId = links.userFor(world, key);
     if (!userId) {
       res

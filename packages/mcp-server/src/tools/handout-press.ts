@@ -24,7 +24,7 @@ export interface HandoutPressToolsOptions {
 
 const params = z.object({
   template: z.enum(HANDOUT_PRESS_TEMPLATES),
-  title: z.string().trim().min(1).max(PRESS_LIMITS.title),
+  title: z.string().trim().min(1).max(120),
   body: z.string().trim().min(1),
   footer: z.string().trim().max(PRESS_LIMITS.footer).optional(),
 });
@@ -52,7 +52,7 @@ export class HandoutPressTools {
       {
         name: 'plan-handout-press',
         description:
-          'Render text as a handout picture (letter, notice or card) and plan a hidden page for it in Handouts; queue and reveal it with plan-page-reveal. Refuses secret terms.',
+          'Render text as a handout picture (letter, notice or card) and plan a hidden page for it in Handouts; queue and reveal it with plan-page-reveal. Refuses secret terms. Limits: body letter 1200, notice 700, card 400 characters; title letter 120, notice 60, card 30.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -74,6 +74,12 @@ export class HandoutPressTools {
     if (p.body.length > bodyLimit) {
       throw new Error(
         `A ${p.template} holds at most ${bodyLimit} characters of text; this has ${p.body.length}. Shorten it, or use the letter for longer text.`
+      );
+    }
+    const titleLimit = PRESS_LIMITS.title[p.template];
+    if (p.title.length > titleLimit) {
+      throw new Error(
+        `A ${p.template} title holds at most ${titleLimit} characters; this has ${p.title.length}. Shorten it.`
       );
     }
     const content: PressContent = {

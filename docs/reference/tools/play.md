@@ -177,7 +177,7 @@ Parameters:
 
 ## plan-handout-press
 
-Render text as a handout picture (letter, notice or card) and plan a hidden page for it in Handouts; queue and reveal it with plan-page-reveal. Refuses secret terms.
+Render text as a handout picture (letter, notice or card) and plan a hidden page for it in Handouts; queue and reveal it with plan-page-reveal. Refuses secret terms. Limits: body letter 1200, notice 700, card 400 characters; title letter 120, notice 60, card 30.
 
 Kind: changes something. Title: Plan a handout picture.
 

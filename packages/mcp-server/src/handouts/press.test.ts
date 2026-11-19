@@ -2,9 +2,12 @@
  * Handout press (I-184): the templates, the local render, and the plan that puts the picture in
  * "Handouts" as a hidden page that the ordinary queue and reveal take over (undo removes it).
  */
+import { execFile } from 'child_process';
 import { promises as fsp } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { pathToFileURL } from 'url';
+import { promisify } from 'util';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { PageForPlayers } from '@gnuminator/shared';
@@ -17,7 +20,9 @@ import { AuditLog } from '../vault/audit.js';
 import { VaultStore } from '../vault/store.js';
 import type { SecretTermMatch } from '../secret-terms.js';
 import { HandoutsService } from './service.js';
-import { findBrowser, pressHtml, renderPress } from './press.js';
+import { findBrowser, PRESS_LIMITS, PRESS_SIZES, pressHtml, renderPress } from './press.js';
+
+const execFileAsync = promisify(execFile);
 
 const WORLD = 'curse-of-strahd';
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -68,6 +73,40 @@ describe('renderPress', () => {
       }
     },
     60_000
+  );
+
+  it.skipIf(!browser)(
+    'the longest allowed title and body fit on every template (no overflow mark)',
+    async () => {
+      for (const template of ['letter', 'notice', 'card'] as const) {
+        const html = pressHtml(template, {
+          title: 'W'.repeat(PRESS_LIMITS.title[template]),
+          body: Array.from({ length: 3 }, () =>
+            'Wordy text '.repeat(40).slice(0, Math.floor(PRESS_LIMITS.body[template] / 3) - 2)
+          ).join('\n\n'),
+          footer: 'F'.repeat(PRESS_LIMITS.footer),
+        });
+        const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'press-fit-'));
+        try {
+          const page = path.join(dir, 'page.html');
+          await fsp.writeFile(page, html, 'utf8');
+          const { size } = { size: PRESS_SIZES[template] };
+          const { stdout } = await execFileAsync(browser!, [
+            '--headless=new',
+            '--disable-gpu',
+            ...(process.getuid?.() === 0 ? ['--no-sandbox'] : []),
+            `--user-data-dir=${path.join(dir, 'profile')}`,
+            `--window-size=${size.width},${size.height}`,
+            '--dump-dom',
+            pathToFileURL(page).href,
+          ]);
+          expect(stdout, template).not.toContain('data-overflow');
+        } finally {
+          await fsp.rm(dir, { recursive: true, force: true });
+        }
+      }
+    },
+    90_000
   );
 });
 
@@ -215,6 +254,28 @@ describe('plan-handout-press', () => {
     })) as { planId: string };
     await guarded.applyPlan(b.planId, { confirm: true });
     await guarded.applyPlan(a.planId, { confirm: true });
+    const pages = [...foundry.docs.values()].filter(d => d.documentName === 'JournalEntryPage');
+    expect(pages).toHaveLength(3);
+  });
+
+  it('two presses planned on an empty world: the second conflicts once the first made the journal', async () => {
+    const a = (await tools.handleToolCall('plan-handout-press', letter)) as { planId: string };
+    const b = (await tools.handleToolCall('plan-handout-press', letter)) as { planId: string };
+    await guarded.applyPlan(a.planId, { confirm: true });
+    await expect(guarded.applyPlan(b.planId, { confirm: true })).rejects.toThrow(
+      /Conflict.*handoutsJournal/
+    );
+  });
+
+  it('refuses a title longer than the template holds', async () => {
+    await expect(
+      tools.handleToolCall('plan-handout-press', {
+        ...letter,
+        template: 'card',
+        title: 'x'.repeat(31),
+      })
+    ).rejects.toThrow(/title holds at most 30/);
+    expect(rendered).toEqual([]);
   });
 
   it('plans nothing when the upload is refused', async () => {

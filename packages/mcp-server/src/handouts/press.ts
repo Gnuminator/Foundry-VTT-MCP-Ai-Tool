@@ -1,6 +1,6 @@
 /**
  * Handout press (I-184): three HTML templates (letter, notice, card) and a local render of one to
- * a PNG with the headless Edge (or Chrome) already on the PC. No image AI, no network, no
+ * a PNG with a headless Edge, Chrome or Chromium already on the computer the backend runs on. No image AI, no network, no
  * downloaded fonts or textures: the paper is CSS gradients and system serif fonts.
  *
  * The supplied text is escaped here, so it can never add markup to the page.
@@ -28,17 +28,26 @@ export interface PressContent {
  * the lengths that still read well at the smallest size, not the lengths at full size.
  */
 export const PRESS_LIMITS = {
-  title: 120,
+  title: { letter: 120, notice: 60, card: 30 },
   footer: 120,
   body: { letter: 1200, notice: 700, card: 400 },
 } as const;
 
-/** Shrinks the text in steps until the page holds it (down to 55%); the page is our own markup. */
+/**
+ * Shrinks the heading, the text and their spacing together in steps until the page holds it (down
+ * to 55%); the page is our own markup. If it still does not fit, body.dataset.overflow is "1".
+ */
 const FIT_SCRIPT = `(function(){var s=document.querySelector('.sheet');
-var els=[].slice.call(s.querySelectorAll('p,.foot'));
-var base=els.map(function(e){return parseFloat(getComputedStyle(e).fontSize);});
-for(var k=1;s.scrollHeight>s.clientHeight+1&&k>0.55;){k-=0.05;
-els.forEach(function(e,i){e.style.fontSize=(base[i]*k)+'px';});}})();`;
+var els=[].slice.call(s.querySelectorAll('h1,p,.foot,.art'));
+var P=['fontSize','marginTop','marginBottom','height'];
+var base=els.map(function(e){var c=getComputedStyle(e);
+return P.map(function(n){return n==='height'&&!e.classList.contains('art')?0:parseFloat(c[n])||0;});});
+var k=1;
+while(s.scrollHeight>s.clientHeight+1&&k>0.55){k-=0.05;
+els.forEach(function(e,i){var b=base[i];if(b[0])e.style.fontSize=(b[0]*k)+'px';
+e.style.marginTop=(b[1]*k)+'px';e.style.marginBottom=(b[2]*k)+'px';
+if(b[3])e.style.height=(b[3]*k)+'px';});}
+if(s.scrollHeight>s.clientHeight+1)document.body.dataset.overflow='1';})();`;
 
 interface Size {
   width: number;

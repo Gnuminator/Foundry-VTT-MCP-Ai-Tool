@@ -508,6 +508,7 @@ export const PI_CONTAINER_MATRIX = [
   { name: 'stage 21', env: 'PI_STAGE21_CONTAINER', test: 'player-vault.test.mjs' },
   { name: 'stage 26', env: 'PI_STAGE26_CONTAINER', test: 'discord-game-server.test.mjs' },
   { name: 'stage 29', env: 'PI_STAGE29_CONTAINER', test: 'gamenight-watch-stage.test.mjs' },
+  { name: 'stage 34', env: 'PI_STAGE34_CONTAINER', test: 'who-uses-what-stage.test.mjs' },
   { name: 'stage 32', env: 'PI_STAGE32_CONTAINER', test: 'crash-guard-stage.test.mjs' },
   { name: 'stage 30', env: 'PI_STAGE30_CONTAINER', test: 'player-connector-stage.test.mjs' },
   { name: 'stage 31', env: 'PI_STAGE31_CONTAINER', test: 'gm-vault-peers.test.mjs' },
@@ -598,7 +599,7 @@ export function runGroup(name, io = {}) {
  * discord-bot), the Pi setup doc, and the manifests and workflow. Pinned by scripts/pi/ci-pi-filter.test.mjs.
  */
 export const PI_GROUP_PATHS =
-  /^(scripts\/pi\/|scripts\/plan-b\/|scripts\/gamenight-watch|scripts\/checks\.mjs$|deploy\/|shared\/|packages\/discord-bot(\/|$)|docs\/dev\/PI-SETUP\.md$|package\.json$|package-lock\.json$|\.github\/workflows\/)/;
+  /^(scripts\/pi\/|scripts\/plan-b\/|scripts\/gamenight-watch|scripts\/who-uses-what\.mjs$|scripts\/checks\.mjs$|deploy\/|shared\/|packages\/discord-bot(\/|$)|docs\/dev\/PI-SETUP\.md$|package\.json$|package-lock\.json$|\.github\/workflows\/)/;
 
 /**
  * Whether the `pi` group has to run. Only a pull request that changed no Pi input skips it; every

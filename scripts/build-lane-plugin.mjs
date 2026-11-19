@@ -13,10 +13,20 @@ const isTest = f => /\.test\.mjs$/.test(f);
 
 /** Hooks locate the repo from their own folder (here/../..); in a plugin the project is CLAUDE_PROJECT_DIR. */
 export function retargetHook(src) {
-  return src.replace(
-    /path\.resolve\(\s*(?:here|path\.dirname\(fileURLToPath\(import\.meta\.url\)\)),\s*'\.\.',\s*'\.\.'\s*\)/g,
-    "path.resolve(process.env.CLAUDE_PROJECT_DIR || process.cwd())"
-  );
+  const out = src
+    .replace(
+      /path\.resolve\(\s*(?:here|path\.dirname\(fileURLToPath\(import\.meta\.url\)\)),\s*'\.\.',\s*'\.\.'\s*\)/g,
+      'path.resolve(process.env.CLAUDE_PROJECT_DIR || process.cwd())'
+    )
+    // The plugin folder has no node_modules: load acorn from the project, as the repo copy does.
+    .replace(
+      /await import\('acorn'\)/g,
+      "await import(pathToFileURL((await import('node:module')).createRequire(path.join(process.env.CLAUDE_PROJECT_DIR || process.cwd(), 'x.js')).resolve('acorn')).href)"
+    );
+  if (/REPO_ROOT\s*=/.test(src) && out === src) {
+    throw new Error('retargetHook: a REPO_ROOT shape it does not know; teach build-lane-plugin.mjs');
+  }
+  return out;
 }
 
 /** hooks.json for the plugin: same events and matchers as .claude/settings.json, plugin-root paths. */

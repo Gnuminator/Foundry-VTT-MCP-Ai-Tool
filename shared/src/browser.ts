@@ -7,3 +7,4 @@
 export * from './util/errors.js';
 export * from './util/record.js';
 export * from './util/html.js';
+export * from './macro-source.js';

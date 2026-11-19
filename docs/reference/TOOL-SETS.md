@@ -4,11 +4,11 @@ description: The five tool sets Claude Desktop loads (core, play, prep, build, a
 
 # Tool sets
 
-The bridge has 113 tools. Their definitions are about 123,000 characters of JSON, about 29,300 to
+The bridge has 114 tools. Their definitions are about 123,000 characters of JSON, about 29,300 to
 38,400 tokens that Claude reads at the start of every conversation, before anyone types. Many
-tools also look alike, which makes Claude pick the wrong one more often. Eight of the 113 are the
+tools also look alike, which makes Claude pick the wrong one more often. Eight of the 114 are the
 player set (see below), which no Claude Desktop entry carries: the GM's Claude Desktop can load at
-most the other 105, about 120,600 characters.
+most the other 106, about 120,600 characters.
 
 So the tools are split into five sets. Each set is its own entry in Claude Desktop's
 configuration, so Claude Desktop shows one switch per set in the **Search and tools** menu. Turn on
@@ -19,7 +19,7 @@ what the conversation needs. The switches are remembered for new chats.
 | **core**   | `foundry-mcp`             | 25    | about 19,000      | Look things up (world, characters, scenes, journals, compendiums, combat) and review, apply or undo planned changes. Always on.                                                                                                                               |
 | **play**   | `foundry-mcp-play`        | 40    | about 42,000      | Run the table live: tokens, combat turns, rolls, damage, conditions, resources, chat, scene mood, map notes and loot.                                                                                                                                         |
 | **prep**   | `foundry-mcp-prep`        | 20    | about 22,200      | Prepare sessions and write recaps: quests and journals, encounter budgets, the Tarokka reading, handouts, the session log, play stats and the pre-flight check.                                                                                               |
-| **build**  | `foundry-mcp-build`       | 9     | about 27,600      | Make and change NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells. Set up rooms: teleports and tokens in a room.                                                                                                 |
+| **build**  | `foundry-mcp-build`       | 10    | about 27,600      | Make and change NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells. Set up rooms: teleports and tokens in a room.                                                                                                 |
 | **admin**  | `foundry-mcp-admin`       | 11    | about 10,500      | Set up and troubleshoot: installed modules and their errors, Foundry settings, modules on or off, user roles, who can open a compendium pack, a journal or a scene, who owns which actor, round token rings for all actors, and the Obsidian mirror settings. |
 | **player** | none (`/mcp/player` only) | 8     | about 3,050       | A player's own read-only view: their character sheet, what their next level grants, short passages from the books their Foundry user can see, their revealed handouts, recap and quests, and their play stats. Served only on /mcp/player, never on stdio.    |
 
@@ -71,7 +71,7 @@ Each tool's set is the `set` field of its entry in the `tools` map of its module
   `get-prep-digest`, `list-ref-choices`
 - **build:** `manage-world-items`, `list-creatures-by-criteria`, `create-actor-from-compendium`,
   `dnd5e-add-feature`, `dnd5e-create-npc`,
-  `dnd5e-add-features-from-compendium`, `plan-room-setup`, `plan-pc-creation`, `plan-actor-image`
+  `dnd5e-add-features-from-compendium`, `plan-room-setup`, `plan-pc-creation`, `plan-actor-image`, `plan-macro`
 - **admin:** `plan-ownership-change`, `list-actor-ownership`, `plan-token-rings`,
   `plan-table-viewer`, `plan-foundry-setup`, `get-modules`, `get-module-errors`,
   `clear-module-errors`, `get-module-manifest`, `get-obsidian-mirror`, `plan-obsidian-mirror`

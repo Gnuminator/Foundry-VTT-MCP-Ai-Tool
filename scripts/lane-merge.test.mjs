@@ -792,6 +792,7 @@ test('feature switch ids are pinned: they form the module setting keys, so a ren
     'ACTOR_IMAGE_FEATURE_ID=actor-image',
     'FOUNDRY_SETUP_FEATURE_ID=foundry-setup',
     'LIVE_PLAY_FEATURE_ID=live-play',
+    'MACRO_FORGE_FEATURE_ID=macro-forge',
     'NPC_TURN_FEATURE_ID=npc-turn',
     'OWNERSHIP_FEATURE_ID=ownership',
     'PAPER_SYNC_FEATURE_ID=paper-sync',

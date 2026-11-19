@@ -269,3 +269,15 @@ Parameters:
 - `actor` (string, required): Actor name or id.
 - `file` (string, required): Absolute path of the picture on this PC, inside an allowed folder.
 - `slot` (string): portrait, token or both (default). One of: `portrait`, `token`, `both`.
+
+## plan-macro
+
+Plan a script macro (JavaScript) for the GM: created GM-only in the Macro directory, with the full source and a plain-English summary shown in the plan. Apply it with apply-planned-change, revert it with undo-change. It runs in the GM's browser, so keep it small and use only Foundry's own API (game, canvas, ui, ChatMessage, Roll, actors and tokens). The source is parsed and checked against an allowlist: only the Foundry API names (game, canvas, ui, ChatMessage, Roll, Dialog, Actor, Item, fromUuid and the usual built-ins like Math, Object, JSON), no class, `this`, `with` or module loading, no member name that reaches the network, the page, storage, other macros or dynamic code, no computed member name except a number or a counting loop variable (use Object.entries for data keys), no picture, sound or file fields, no web address, path or markup with attributes in a string. This is a guard against mistakes, not a sandbox: the GM reads the full source in the plan before confirming. Needs the "AI Tool: Macro forge (writes)" switch.
+
+Kind: read-only. Title: Plan a GM-only script macro.
+
+Parameters:
+
+- `name` (string, required): The macro name shown in the Macro directory (max 60 characters).
+- `description` (string, required): What the macro does, in plain English for a GM who will not read the code (10 to 600 characters). Shown in the plan beside the source.
+- `source` (string, required): The full script text (max 20000 characters).

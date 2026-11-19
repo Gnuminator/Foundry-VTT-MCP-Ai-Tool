@@ -29,6 +29,8 @@ import {
   isKnownFeature,
   isReadOnlyFeature,
 } from '../guarded-features.js';
+import { assertMacroCreateData } from '@gnuminator/shared/browser';
+import { assertMacroUpdateAllowed } from '../macro-forge.js';
 import { assertUserCreateAllowed, assertUserDeleteAllowed } from '../table-viewer-user.js';
 import { assertUserRoleChange, assertUserUpdate } from '../user-role.js';
 import { unsetKeyUpdate } from '../systems/core.js';
@@ -613,6 +615,9 @@ async function executeUpdate(
       req.feature
     );
   }
+  if (doc.documentName === 'Macro') {
+    assertMacroUpdateAllowed(req.feature, [...Object.keys(op.changes ?? {}), ...(op.unset ?? [])]);
+  }
   const changes: Record<string, unknown> = { ...op.changes };
   if (req.mode === 'apply' && isRulesTagged(doc.documentName) && !(RULES_FLAG_PATH in changes)) {
     Object.assign(changes, rulesTagUpdateIfChanged(doc as Actor | Item, req.rulesVersion));
@@ -768,6 +773,7 @@ async function executeCreate(
 ): Promise<GuardedOpResult> {
   if (op.documentName === 'Setting') throw new Error(SETTING_DOCUMENT_REFUSAL);
   if (op.documentName === 'User') assertUserCreateAllowed(req.feature, op.data);
+  if (op.documentName === 'Macro') assertMacroCreateData(req.feature, op.data, req.mode);
   const data = foundry.utils.deepClone(op.data);
   if (req.mode === 'apply' && isRulesTagged(op.documentName)) {
     const tag = rulesTagForCreate(data, req.rulesVersion);

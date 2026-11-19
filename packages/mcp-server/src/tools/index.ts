@@ -54,6 +54,7 @@ import { sceneModule } from './modules/scene.js';
 import { sessionLogModule } from './modules/session-log.js';
 import { skillGuideModule } from './modules/skill-guide.js';
 import { tableViewerModule } from './modules/table-viewer.js';
+import { macroForgeModule } from './modules/macro-forge.js';
 import { tarokkaModule } from './modules/tarokka.js';
 import { tokenManipulationModule } from './modules/token-manipulation.js';
 import { tokenRingsModule } from './modules/token-rings.js';
@@ -88,6 +89,7 @@ export const TOOL_MODULES: readonly AnyToolModule[] = [
   sceneMoodModule,
   rulesCheckModule,
   tableViewerModule,
+  macroForgeModule,
   foundrySetupModule,
   tokenManipulationModule,
   chatLogModule,

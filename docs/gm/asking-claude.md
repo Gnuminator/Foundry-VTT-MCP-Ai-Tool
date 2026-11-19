@@ -213,7 +213,7 @@ The dashboard's **GM Actions** switch only guards the dashboard. It does not sto
   token is on, and `measure-distance` counts height as well. A flat scene works as before.
 - **Room whisper.** `plan-room-setup` has a `whisper` action: a GM-only Region that whispers a room
   card to you when a token walks in. The text sits on a GM-only journal made in the same plan. Players
-  see nothing. It is planned, confirmed and undone like the other room setups.
+  are shown nothing on screen. It is planned, confirmed and undone like the other room setups.
 - **Undo and Prone.** Undoing damage that dropped a hero to 0 hit points now also takes off the Prone
   that comes with Unconscious.
 

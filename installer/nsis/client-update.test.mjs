@@ -29,7 +29,18 @@ describe('client-update.ps1 source', () => {
     const hash = src.indexOf('Get-FileHash');
     const run = src.indexOf('Start-Process -FilePath $exe');
     assert.ok(hash > 0 && run > hash);
-    assert.equal(src.split('Test-ClaudeRunning)').length - 1, 2);
+    // one check before the download and one after the checksum, before the backup and the installer
+    const before = src.indexOf('if (Test-ClaudeRunning)');
+    const download = src.indexOf('Invoke-WebRequest');
+    const after = src.indexOf('if (Test-ClaudeRunning)', before + 1);
+    assert.ok(before > 0 && before < download, 'checked before the download');
+    assert.ok(after > hash && after < run, 'checked again after the checksum, before the installer runs');
+  });
+  test('Claude Code (claude.exe under .local\\bin, .claude or node_modules) does not count as Claude Desktop', () => {
+    assert.match(src, /\$claudeCodePath = .*\.local.*\.claude.*node_modules/);
+  });
+  test('the logon task logs a failed updater launch', () => {
+    assert.match(tunnelSrc, /Win32_Process[\s\S]*ReturnValue -ne 0[\s\S]*Add-Content -LiteralPath \$logPath/);
   });
   test('the logon task script starts it only when the flag exists', () => {
     assert.match(tunnelSrc, /autoupdate\.on[\s\S]*client-update\.ps1/);
@@ -144,6 +155,16 @@ class P { static int Main(string[] a) {
     sumsLine = goodSums();
     const r = await run(d, ['-ClaudeProcess', 'node']); // this test process is a node.exe
     assert.equal(r.code, 0);
+    assert.equal(status(d).result, 'skipped');
+    assert.ok(!existsSync(path.join(d.inst, 'args.txt')));
+  });
+
+  test('no tunnel.json and no direct.json: skipped, nothing downloaded', async () => {
+    const d = fresh('noconfig');
+    rmSync(path.join(d.state, 'tunnel.json'));
+    sumsLine = goodSums();
+    const r = await run(d, ['-ClaudeProcess', 'NoSuchProcessXyz']);
+    assert.equal(r.code, 0, r.out);
     assert.equal(status(d).result, 'skipped');
     assert.ok(!existsSync(path.join(d.inst, 'args.txt')));
   });

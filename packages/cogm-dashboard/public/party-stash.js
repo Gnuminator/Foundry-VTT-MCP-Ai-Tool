@@ -86,18 +86,27 @@ export function mountPartyStash(anchor, key) {
     '<h2>Party stash</h2><div class="body">' +
     '<p class="stash-gold">The group\'s gold: <strong id="stash-gold">...</strong></p>' +
     '<input type="search" id="stash-search" placeholder="Search by item name" aria-label="Search the stash by item name" />' +
-    '<div id="stash-list"></div></div>';
+    '<div id="stash-list" aria-live="polite"></div></div>';
   anchor.after(card);
 
   const elGold = card.querySelector('#stash-gold');
   const elList = card.querySelector('#stash-list');
   const elSearch = card.querySelector('#stash-search');
   let stash = null;
+  let lastHtml = '';
 
   function draw() {
     if (!stash) return;
     elGold.textContent = goldLine(stash.totalGold);
-    elList.innerHTML = holdersHtml(filterStash(stash, elSearch.value));
+    const html =
+      stash.holders.length === 0
+        ? '<p class="stash-empty">Nobody carries anything yet.</p>'
+        : holdersHtml(filterStash(stash, elSearch.value));
+    // Only touch the list when it changed: the live region must not re-announce each refresh.
+    if (html !== lastHtml) {
+      lastHtml = html;
+      elList.innerHTML = html;
+    }
   }
   async function load() {
     try {
@@ -107,7 +116,12 @@ export function mountPartyStash(anchor, key) {
       card.hidden = false;
       draw();
     } catch {
-      // Keep what was shown; a link that stopped working hides nothing new.
+      // Keep what was shown; with nothing shown yet, say so instead of leaving the card hidden.
+      if (!stash) {
+        card.hidden = false;
+        elGold.textContent = '...';
+        elList.innerHTML = '<p class="stash-empty">Could not load the stash right now.</p>';
+      }
     }
   }
   elSearch.addEventListener('input', draw);

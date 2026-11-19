@@ -2,10 +2,14 @@
   margin: 0 0 0.5rem;
 }
 .party-stash #stash-search {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   width: 100%;
   box-sizing: border-box;
+  min-height: 2.5rem;
   margin-bottom: 0.5rem;
-  padding: 0.4rem 0.6rem;
+  padding: 0.5rem 0.6rem;
   font: inherit;
   background: var(--panel-2);
   color: var(--text);
@@ -23,12 +27,12 @@
   padding-left: 1.2rem;
 }
 .party-stash .stash-qty {
-  opacity: 0.7;
+  color: var(--muted);
 }
 .party-stash .stash-hidden {
   font-style: italic;
-  opacity: 0.8;
+  color: var(--muted);
 }
 .party-stash .stash-empty {
-  opacity: 0.7;
+  color: var(--muted);
 }

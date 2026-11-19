@@ -93,6 +93,19 @@ the rest of the note.
 
 > **Not sure? Ask Claude.** Ask the GM coach: "How do I make a prep note for an NPC and keep Claude from reading it?"
 
+## The Campaign Atlas
+
+Next to the Tarokka spread the vault has two canvases, boards you can read like a map:
+
+- `AI Tool/Atlas/Quests.canvas`: your quest journals, with the NPCs and scenes each one links to.
+- `AI Tool/Atlas/Places.canvas`: your scenes, one group per Foundry folder, with arrows for the links
+  between them.
+
+Click a card to open its note. Cards you move, and cards and arrows you add, stay where you put them
+when the canvases are rebuilt at the next export. The Atlas also keeps card colours and arrow labels.
+The Tarokka spread rebuilds its card text and colour each time, so keep your own notes on cards of
+your own. To take a canvas over completely, delete the marker card on it.
+
 ## Can I rename things?
 
 - **In Foundry, yes, freely.** Rename scenes, journals, actors and the rest as you like, for

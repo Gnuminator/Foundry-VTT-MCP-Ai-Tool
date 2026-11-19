@@ -1,0 +1,3 @@
+### Prep
+
+- **Handout press:** the new tool `plan-handout-press` (Play set; the Prep set is full) turns supplied text into a handout picture, a letter on aged paper with a wax seal, a notice or a card, rendered on this PC with the Edge or Chrome that is already installed (no image AI, no downloads, about two seconds). Applying the plan adds a hidden image page to the "Handouts" journal; queue and reveal it the usual way, and Undo removes the page. Text that names a secret term is refused. Needs the "Handouts" switch (I-184). Wire contracts: additive only, the new bridge handler `uploadHandoutImage` (in the write gate).

@@ -71,6 +71,7 @@
     "demo:take": "node scripts/demo/demo.mjs take",
     "demo:export": "node scripts/demo/export.mjs",
     "demo:compose": "node scripts/demo/compose.mjs",
+    "demo:loops": "node scripts/demo/loops.mjs",
     "docs:foundry-images": "node scripts/demo/foundry-basics.mjs",
     "format": "prettier --write \"**/*.{ts,js,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,js,json,md}\"",

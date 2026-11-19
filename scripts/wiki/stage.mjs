@@ -475,6 +475,47 @@ export function buildSidebar(slugs, order) {
   ];
 }
 
+/** Size budget per home page loop (the page must load in under 3 s: poster first, clip on view). */
+export const SHOWCASE_BUDGET = { clipBytes: 2_500_000, posterBytes: 150_000 };
+
+/**
+ * The home page loops (docs/wiki/index*.md, `data-src` / `poster` under images/showcase/): every
+ * file the pages name must exist in docs/images/showcase and fit the budget, then the files are
+ * copied to public/images/showcase. Throws with the list of problems.
+ */
+export function stageShowcase() {
+  const prefix = `${BASE}/images/showcase/`;
+  const names = new Set();
+  for (const page of [HOME, HOME_DA]) {
+    const file = path.join(repo, page);
+    if (!existsSync(file)) continue;
+    for (const m of readFileSync(file, 'utf8').matchAll(/(?:data-src|poster)="([^"]+)"/g)) {
+      if (m[1].startsWith(prefix)) names.add(m[1].slice(prefix.length));
+    }
+  }
+  if (names.size === 0) return;
+  const srcDir = path.join(repo, 'docs', 'images', 'showcase');
+  const problems = [];
+  for (const name of names) {
+    const file = path.join(srcDir, name);
+    if (!existsSync(file)) {
+      problems.push(`${name} is missing in docs/images/showcase`);
+      continue;
+    }
+    const limit = name.endsWith('.mp4') ? SHOWCASE_BUDGET.clipBytes : SHOWCASE_BUDGET.posterBytes;
+    const size = statSync(file).size;
+    if (size > limit) problems.push(`${name} is ${size} bytes, over the budget of ${limit}`);
+  }
+  if (problems.length > 0) {
+    throw new Error(`home page loops: ${problems.join('; ')} (npm run demo:loops)`);
+  }
+  for (const name of names) {
+    const out = path.join(publicOut, 'images', 'showcase', name);
+    mkdirSync(path.dirname(out), { recursive: true });
+    copyFileSync(path.join(srcDir, name), out);
+  }
+}
+
 function stagePage(repoPath, images, playerCopy = false) {
   const text = readFileSync(path.join(repo, repoPath), 'utf8').replace(/\r\n/g, '\n');
   let staged = rewriteLinks(text, repoPath, images, { playerCopy });
@@ -541,6 +582,7 @@ function main() {
     mkdirSync(path.dirname(out), { recursive: true });
     copyFileSync(path.join(repo, img), out);
   }
+  stageShowcase();
   mkdirSync(path.join(wikiDir, 'src', 'assets'), { recursive: true });
   copyFileSync(
     path.join(repo, 'docs/images/brand/logo.svg'),

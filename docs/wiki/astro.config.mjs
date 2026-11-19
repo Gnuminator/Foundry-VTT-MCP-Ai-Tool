@@ -47,6 +47,39 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 `;
 
+// Home page loops (docs/wiki/index.md): a <video data-src> shows its poster, loads and plays when
+// it scrolls into view and pauses when it leaves. With reduced motion, or without
+// IntersectionObserver, nothing loads until the visitor presses play (the controls stay on).
+const loopScript = `
+document.addEventListener('DOMContentLoaded', function () {
+  var clips = Array.prototype.slice.call(document.querySelectorAll('video[data-src]'));
+  if (!clips.length) return;
+  function load(v) {
+    if (!v.getAttribute('src')) v.setAttribute('src', v.getAttribute('data-src'));
+  }
+  var still = !('IntersectionObserver' in window) ||
+    (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  if (still) {
+    clips.forEach(function (v) { v.addEventListener('play', function () { load(v); }, { once: true }); });
+    return;
+  }
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      var v = e.target;
+      if (e.isIntersecting) {
+        load(v);
+        v.removeAttribute('controls');
+        var p = v.play();
+        if (p && p.catch) p.catch(function () { v.setAttribute('controls', ''); });
+      } else {
+        v.pause();
+      }
+    });
+  }, { threshold: 0.4 });
+  clips.forEach(function (v) { io.observe(v); });
+});
+`;
+
 export default defineConfig({
   site: 'https://gnuminator.github.io',
   base: BASE,
@@ -81,7 +114,10 @@ export default defineConfig({
         '@fontsource/source-sans-3/600.css',
         './src/styles/field-guide.css',
       ],
-      head: [{ tag: 'script', content: questScript }],
+      head: [
+        { tag: 'script', content: questScript },
+        { tag: 'script', content: loopScript },
+      ],
       sidebar,
       // Keeps the sidebar of the visitor's side only (player or GM).
       routeMiddleware: './src/routeData.mjs',
@@ -93,7 +129,10 @@ export default defineConfig({
           // /da/foundry/ (the GM side's Foundry basics) holds Starlight's fallback pages (the
           // English page under /da/); the validator does not know them, but the build writes them.
           // The player side's /da/player/foundry/ pages are real Danish twins.
-          exclude: ['/Foundry-VTT-MCP-Ai-Tool/storybook/**', '/Foundry-VTT-MCP-Ai-Tool/da/foundry/**'],
+          exclude: [
+            '/Foundry-VTT-MCP-Ai-Tool/storybook/**',
+            '/Foundry-VTT-MCP-Ai-Tool/da/foundry/**',
+          ],
         }),
       ],
     }),

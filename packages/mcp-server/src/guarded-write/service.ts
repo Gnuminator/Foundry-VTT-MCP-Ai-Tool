@@ -1130,6 +1130,13 @@ export class GuardedWriteService {
       );
     }
 
+    // The rider lines come after the run: one per rider delete that really removed something (the
+    // rider results follow the change's own, in order). Without a Foundry run no rider ran.
+    const riderResults = foundry?.results.slice(results.length) ?? [];
+    const riderLines = riders.lines.filter(
+      (_, i) => riderResults[i] !== undefined && !isNoOpResult(riderResults[i])
+    );
+
     const undoEntry: AuditEntry = {
       changeId: undoId,
       planId: null,
@@ -1146,7 +1153,7 @@ export class GuardedWriteService {
           )
           .map(line => `undone: ${line}`),
         ...leftAlone,
-        ...riders.lines,
+        ...riderLines,
       ],
       undoOf: entry.changeId,
       ...(requestedBy ? { requestedBy } : {}),

@@ -610,10 +610,19 @@ async function startBackend(): Promise<void> {
           // none). get-preflight reads the registry in-process; `wrapper_status` serves the same view.
           if (msg.method === 'hello') {
             wrapperRegistry.hello(connectionId, msg.params);
-            const hp = (msg.params ?? {}) as { version?: unknown; client?: unknown };
+            const hp = (msg.params ?? {}) as {
+              version?: unknown;
+              client?: unknown;
+              install?: unknown;
+            };
             if (hp.client === 'dashboard') dashboardConnection = true;
             else {
-              void clientsFile.record({ piece: 'connectors', who: 'gm', version: hp.version });
+              void clientsFile.record({
+                piece: 'connectors',
+                who: 'gm',
+                install: hp.install,
+                version: hp.version,
+              });
             }
             socket.write(`${JSON.stringify({ id: msg.id, result: { ok: true } })}\n`);
 

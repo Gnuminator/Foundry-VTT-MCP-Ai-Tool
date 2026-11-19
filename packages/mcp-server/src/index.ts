@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+import { createHash } from 'crypto';
+
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
@@ -25,6 +27,7 @@ import {
 
 import { PROMPTS_CAPABILITY, registerPromptHandlers } from './prompts/register.js';
 
+import { RENAMED_TOOLS } from './param-aliases.js';
 import { type ToolDefinitionLike, type ToolResultLike, capToolResult } from './tool-router.js';
 
 import { BUILD_ID } from './build-id.js';
@@ -63,6 +66,9 @@ import * as os from 'os';
 import * as fs from 'fs';
 
 import * as path from 'path';
+
+/** A short id for this PC, so two PCs running Claude against one bridge are two rows, not one. */
+const INSTALL_ID = createHash('sha256').update(os.hostname()).digest('hex').slice(0, 8);
 
 // PB-01: MCP_CONTROL_HOST / MCP_CONTROL_PORT point the wrapper at a bridge elsewhere (the Orange
 // Pi); MCP_NO_SPAWN=1 or a non-loopback host means it never starts a backend itself.
@@ -138,6 +144,7 @@ class BackendClient {
           params: {
             version: TOOL_VERSION,
             build: BUILD_ID,
+            install: INSTALL_ID,
             sets: TOOL_SET_SELECTION.all ? 'all' : TOOL_SET_SELECTION.sets.join(','),
           },
         };
@@ -419,7 +426,13 @@ async function startWrapper(): Promise<void> {
     const info = mcp.getClientVersion();
     if (!info) return;
     void backend
-      .send('record_client', { piece: 'claude', who: 'gm', name: info.name, version: info.version })
+      .send('record_client', {
+        piece: 'claude',
+        who: 'gm',
+        install: INSTALL_ID,
+        name: info.name,
+        version: info.version,
+      })
       .catch(() => undefined);
   };
 
@@ -504,7 +517,9 @@ async function startWrapper(): Promise<void> {
       })) as ToolResultLike;
 
       // One size cap for every tool result Claude gets (D-109); the dashboard reads them in full.
-      return capToolResult(res, toolName, listedTools.get(toolName)) as unknown as CallToolResult;
+      // A renamed tool's old name is not listed: the cut note names the tool it became.
+      const listed = listedTools.get(RENAMED_TOOLS[toolName]?.to ?? toolName);
+      return capToolResult(res, toolName, listed) as unknown as CallToolResult;
     } catch (e: unknown) {
       return {
         content: [

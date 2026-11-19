@@ -738,6 +738,11 @@ export function buildActions(records: ChangeRecord[], users?: UserNames): Change
         const linked = latestOwner(r, i => links[i].link.linked.has(r.uuid));
         if (linked >= 0) return linked;
       }
+      if (isBatchRider(r)) {
+        // dnd5e's Prone follows the change that dropped the hero, however late it arrives.
+        const dropper = latestOwner(r, i => isBatchRider(r, segments[i].ai));
+        if (dropper >= 0) return dropper;
+      }
       const token = combatantTokenUuid(r);
       if (token) {
         const deleter = latestOwner(r, i =>

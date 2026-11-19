@@ -26,9 +26,13 @@ export type BatchRiderSource = (changeId: string) => Promise<Array<{ uuid: strin
  * by hand a moment after some other AI write is not the change's.
  */
 export function isBatchRider(r: ChangeRecord, ai?: readonly ChangeRecord[]): boolean {
+  // A real drop: the hit points were above 0 before (a second change that leaves a hero at 0 did
+  // not make dnd5e add Prone, so it does not claim the first change's Prone).
+  const hp = 'system.attributes.hp.value';
   const dropped = (a: ChangeRecord): boolean =>
     a.rootUuid === r.rootUuid &&
-    (a.after ?? []).some(v => v.path === 'system.attributes.hp.value' && v.value === 0);
+    (a.after ?? []).some(v => v.path === hp && v.value === 0) &&
+    !(a.before ?? []).some(v => v.path === hp && v.value === 0);
   return (
     (!ai || ai.some(dropped)) &&
     r.op === 'create' &&

@@ -4,6 +4,7 @@
 .party-stash #stash-search {
   position: sticky;
   top: 0;
+  z-index: 1;
   width: 100%;
   box-sizing: border-box;
   min-height: 2.5rem;

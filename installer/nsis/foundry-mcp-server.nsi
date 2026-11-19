@@ -112,6 +112,7 @@ Var TunnelCtl
 Var UseTunnel
 Var TunnelHost
 Var TunnelTokenFile
+Var NoAutoUpdate
 
 ;--------------------------------
 ; Initialization: defaults, the previous answer, then the command line
@@ -121,6 +122,7 @@ Function .onInit
   StrCpy $UseTunnel "0"
   StrCpy $TunnelHost ""
   StrCpy $TunnelTokenFile ""
+  StrCpy $NoAutoUpdate "0"
 
   ; Remember the previous answer so a reinstall or upgrade only needs Next
   ReadRegStr $0 HKCU "Software\FoundryMCPServer" "BridgeHost"
@@ -162,6 +164,12 @@ Function .onInit
     ${IfNot} ${Errors}
       StrCpy $UseTunnel "0"
     ${EndIf}
+  ${EndIf}
+  ClearErrors
+  ; /NOAUTOUPDATE (direct installs): leave the client auto-update off
+  ${GetOptions} $R0 "/NOAUTOUPDATE" $0
+  ${IfNot} ${Errors}
+    StrCpy $NoAutoUpdate "1"
   ${EndIf}
   ClearErrors
   ${GetOptions} $R0 "/TUNNELTOKENFILE=" $0
@@ -448,11 +456,32 @@ Function SetupTunnel
       Pop $1
       DetailPrint "$1"
       Delete "$INSTDIR\tunnel-client.ps1"
-      Delete "$INSTDIR\client-update.ps1"
       Delete "$INSTDIR\cloudflared.exe"
     tunnel_none:
+    ; Direct install: the updater gets its own sign-in task and reads the table version from the
+    ; configured host and port (read-only). On by default for a first install; an upgrade keeps the
+    ; earlier on/off choice; /NOAUTOUPDATE switches it off.
+    DetailPrint "Setting up the client auto-update ($BridgeHost:$BridgePort)..."
+    StrCpy $2 ""
+    ${If} $NoAutoUpdate == "1"
+      StrCpy $2 "-NoEnable"
+    ${EndIf}
+    nsExec::ExecToStack 'powershell.exe -inputformat none -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\client-update.ps1" -Action Install -StateDir "$INSTDIR\update" -ControlHost "$BridgeHost" -ControlPort "$BridgePort" $2'
+    Pop $0
+    Pop $1
+    DetailPrint "$1"
+    ${If} $0 != 0
+      DetailPrint "The auto-update could not be set up (exit code $0); update by hand with update-client-now.cmd."
+    ${EndIf}
     Return
   ${EndIf}
+
+  ; The tunnel replaces a direct updater task from an earlier run
+  IfFileExists "$INSTDIR\update\direct.json" 0 no_direct_update
+    nsExec::ExecToStack 'powershell.exe -inputformat none -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\client-update.ps1" -Action Uninstall -StateDir "$INSTDIR\update"'
+    Pop $0
+    Pop $1
+  no_direct_update:
 
   DetailPrint "Setting up the Cloudflare tunnel ($TunnelHost -> 127.0.0.1:$BridgePort)..."
   ; An upgrade: stop the running tunnel so cloudflared.exe can be replaced
@@ -542,6 +571,8 @@ Section "Foundry AI Tool Client" SecMain
   File "LICENSE.txt"
   File "icon.ico"
   File "configure-claude.ps1"
+  File "client-update.ps1"
+  File "update-client-now.cmd"
 
   ; Remember the address for the next run. With the tunnel the bridge host is always 127.0.0.1, so
   ; the one typed earlier is kept for when the tunnel is switched off again.
@@ -558,6 +589,7 @@ Section "Foundry AI Tool Client" SecMain
 
   CreateDirectory "$SMPROGRAMS\Foundry AI Tool Client"
   CreateShortcut "$SMPROGRAMS\Foundry AI Tool Client\Uninstall.lnk" "$INSTDIR\Uninstall.exe"
+  CreateShortcut "$SMPROGRAMS\Foundry AI Tool Client\Update the client now.lnk" "$INSTDIR\update-client-now.cmd"
 
   ; Add to Windows Programs list
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\FoundryMCPServer" "DisplayName" "Foundry AI Tool Client"
@@ -613,6 +645,14 @@ Section "Uninstall"
     Call un.RemoveClaudeConfig
   skip_config:
 
+  ; The direct-install updater's sign-in task and state
+  IfFileExists "$INSTDIR\client-update.ps1" 0 skip_direct_update
+    nsExec::ExecToStack 'powershell.exe -inputformat none -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\client-update.ps1" -Action Uninstall -StateDir "$INSTDIR\update"'
+    Pop $0
+    Pop $1
+  skip_direct_update:
+  RMDir /r "$INSTDIR\update"
+
   ; The Cloudflare tunnel client (if it was set up): stops it, removes its logon task and the stored token
   IfFileExists "$INSTDIR\tunnel-client.ps1" 0 skip_tunnel
     DetailPrint "Removing the Cloudflare tunnel client..."
@@ -626,6 +666,7 @@ Section "Uninstall"
   Delete "$INSTDIR\cloudflared.exe"
   Delete "$INSTDIR\tunnel-client.ps1"
   Delete "$INSTDIR\client-update.ps1"
+  Delete "$INSTDIR\update-client-now.cmd"
   Delete "$INSTDIR\node.exe"
   Delete "$INSTDIR\node-LICENSE.txt"
   RMDir /r "$INSTDIR\foundry-mcp-client"

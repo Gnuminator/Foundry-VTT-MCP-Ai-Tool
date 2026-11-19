@@ -1,6 +1,6 @@
 ---
 source: gm/connect-claude-desktop.md
-sourceHash: 653e656cbfd8
+sourceHash: 9b891ec8c19c
 title: Forbind Claude Desktop til serveren
 description: Installer den lille Windows-klient, så Claude Desktop på din PC når det Foundry AI Tool, der kører på hjemmeserveren, med en nøgle som kun du har.
 ---
@@ -73,6 +73,22 @@ Slå det til eller fra med (PowerShell):
 & "$env:LOCALAPPDATA\FoundryMCPServer\client-update.ps1" -Action Disable
 & "$env:LOCALAPPDATA\FoundryMCPServer\client-update.ps1" -Action Status
 ```
+
+**Uden tunnelen** (direkte forbindelse over Tailscale) sætter installationsprogrammet det samme op
+af sig selv og slår det **til** første gang. Det læser bordets version fra den adresse, du gav
+installationsprogrammet, og login-opgaven hedder "Foundry AI Tool client update". Filerne ligger i
+`%LOCALAPPDATA%\FoundryMCPServer\update`. Starter Claude Desktop med Windows, er det som regel
+allerede åbent ved login, så den dags tjek springes over; næste login med Desktop lukket opdaterer.
+Vil du opdatere med det samme, så luk Claude Desktop fra bakken og åbn "Update the client now" i
+Start-menuen (mappen "Foundry AI Tool Client"); den virker også, selv om automatiske opdateringer er
+slået fra. Slå automatiske opdateringer til eller fra med:
+
+```powershell
+& "$env:LOCALAPPDATA\FoundryMCPServer\client-update.ps1" -Action Disable -StateDir "$env:LOCALAPPDATA\FoundryMCPServer\update"
+& "$env:LOCALAPPDATA\FoundryMCPServer\client-update.ps1" -Action Enable -StateDir "$env:LOCALAPPDATA\FoundryMCPServer\update"
+```
+
+En lydløs installation med `/NOAUTOUPDATE` lader det være slået fra.
 
 Dette rører ikke Obsidian-pluginet. Serveren lægger det nyeste plugin i GM-vaulten, og Syncthing
 bringer det til din pc (se [Obsidian-synkroniseringsguiden](setup-obsidian-sync.md)); genstart

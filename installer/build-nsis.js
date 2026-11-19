@@ -80,6 +80,7 @@ const installerFiles = [
   'configure-claude.ps1',
   'tunnel-client.ps1',
   'client-update.ps1',
+  'update-client-now.cmd',
 ];
 
 // Helper functions

@@ -4,7 +4,7 @@
  * Frozen wire-contract identifiers and well-known configuration defaults
  * for the Foundry AI Tool.
  *
- * IMPORTANT — values in this file are load-bearing contracts between three
+ * IMPORTANT: values in this file are load-bearing contracts between three
  * independent processes (the Foundry module, the MCP server backend, and the
  * co-GM dashboard). Do NOT change any value here without a coordinated,
  * migration-gated rename across all three consumers.
@@ -29,7 +29,7 @@ export const MODULE_ID = 'foundry-mcp-bridge';
 
 /**
  * Human-readable product name displayed in Foundry's module manager.
- * Not a wire identifier — safe to update for branding purposes.
+ * Not a wire identifier; safe to update for branding purposes.
  */
 export const MODULE_TITLE = 'Foundry MCP Bridge';
 
@@ -70,13 +70,13 @@ export const MCP_METHODS = {
 // ---------------------------------------------------------------------------
 // Default configuration (§4c)
 // These are the fallback values used when no environment-variable override
-// is present. MCP_PORT (31415) is a load-bearing port number — it is the
+// is present. MCP_PORT (31415) is a load-bearing port number. It is the
 // WebSocket port the Foundry module dials to reach the backend.
 // ---------------------------------------------------------------------------
 
 export const DEFAULT_CONFIG = {
   MCP_HOST: 'localhost',
-  /** WebSocket port the Foundry module connects to. Wire contract — do not change. */
+  /** WebSocket port the Foundry module connects to. Wire contract, do not change. */
   MCP_PORT: 31415,
   CONNECTION_TIMEOUT: 10,
   RECONNECT_ATTEMPTS: 5,

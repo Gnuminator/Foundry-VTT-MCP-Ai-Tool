@@ -4,13 +4,13 @@
  * Domain types for the Foundry AI Tool wire protocol.
  *
  * Organised around the four domains described in ARCHITECTURE.md:
- *   1. Wire-protocol  — MCP query / response envelopes
- *   2. Actor / Character — actors, their items, and active effects
- *   3. Compendium — search results and pack descriptors
- *   4. Scene / Token — scene layout, tokens, notes, and mutation requests
- *   5. Config — module-side and server-side configuration shapes
- *   6. World / Status — world metadata, users, and bridge health
- *   7. Campaign — multipart campaign structure and progress tracking
+ *   1. Wire-protocol: MCP query / response envelopes
+ *   2. Actor / Character: actors, their items, and active effects
+ *   3. Compendium: search results and pack descriptors
+ *   4. Scene / Token: scene layout, tokens, notes, and mutation requests
+ *   5. Config: module-side and server-side configuration shapes
+ *   6. World / Status: world metadata, users, and bridge health
+ *   7. Campaign: multipart campaign structure and progress tracking
  *
  * TYPE CONTRACT: every interface here is part of the public surface of
  * @gnuminator/shared. Field names, optionality, literal types, and `extends`
@@ -419,7 +419,7 @@ export interface CampaignStructure {
  * A blueprint used to pre-populate a new campaign with a standard part
  * layout. `parts[].dependencies` use array indices as placeholder ids,
  * resolved when the real campaign is created.
- * `metadata` is partial — callers fill in the remainder.
+ * `metadata` is partial; callers fill in the remainder.
  */
 export interface CampaignTemplate {
   id: string;

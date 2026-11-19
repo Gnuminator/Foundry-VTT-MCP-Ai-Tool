@@ -288,6 +288,13 @@ describe('defaultImageRoots', () => {
     ).toEqual([art]);
   });
 
+  it('falls back to an absolute Foundry Art folder when FVTT_DATA_DIR is unset', () => {
+    const roots = defaultImageRoots({});
+    expect(roots).toHaveLength(1);
+    expect(path.isAbsolute(roots[0])).toBe(true);
+    expect(path.basename(roots[0])).toBe('Foundry Art');
+  });
+
   it('turns a relative FVTT_DATA_DIR into an absolute root', () => {
     const roots = defaultImageRoots({ FVTT_DATA_DIR: 'rel-data' });
     expect(roots.every(r => path.isAbsolute(r))).toBe(true);

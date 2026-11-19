@@ -43,7 +43,6 @@ beforeEach(async () => {
   dataDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'usage-log-'));
   store = new VaultStore({ dataDir });
   logger = makeLogger();
-  logger.child = (): unknown => logger;
   world = 'w1';
 });
 

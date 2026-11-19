@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Player/GM split integration smoke test (DETACH-PLAN Phase 6 — B).
+ * Player/GM split integration smoke test (DETACH-PLAN Phase 6, part B).
  *
  * Proves the server-side filtering end-to-end over real HTTP, against a mock
  * JSON-lines bridge (never the live 31414/31415):
@@ -208,7 +208,7 @@ function request(method, url, headers = {}, bodyObj) {
         port: u.port,
         path: u.pathname + u.search,
         method,
-        agent: false, // Connection: close — nothing survives into process teardown
+        agent: false, // Connection: close. Nothing survives into process teardown
         headers: {
           ...(payload !== undefined ? { 'Content-Type': 'application/json' } : {}),
           ...headers,

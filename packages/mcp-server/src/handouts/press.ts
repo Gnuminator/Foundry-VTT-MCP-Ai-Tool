@@ -161,6 +161,9 @@ export function findBrowser(env: NodeJS.ProcessEnv = process.env): string | null
 
 const RENDER_TIMEOUT_MS = 30_000;
 
+/** Set once the browser has said it has no usable sandbox here. */
+let noSandboxNeeded = false;
+
 /** Render one handout to PNG bytes. Throws a plain sentence when no browser is found. */
 export async function renderPress(
   template: HandoutPressTemplate,
@@ -202,10 +205,13 @@ export async function renderPress(
     // A browser run as root (a container), or on a Linux that blocks unprivileged sandboxes
     // (Ubuntu 23.10+), refuses to start with its sandbox. The page is our own escaped markup,
     // so a second try without the sandbox is safe.
+    const first = noSandboxNeeded || process.getuid?.() === 0;
     try {
-      await run(process.getuid?.() === 0);
+      await run(first);
     } catch (error) {
-      if (!/No usable sandbox|--no-sandbox/i.test(String(error))) throw error;
+      if (first || !/No usable sandbox/i.test(String(error))) throw error;
+      // Remembered, so only the first render of the process pays for the failed start.
+      noSandboxNeeded = true;
       await run(true);
     }
     return new Uint8Array(await readFile(out));

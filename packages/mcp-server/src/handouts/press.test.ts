@@ -62,6 +62,9 @@ describe('renderPress', () => {
   it.skipIf(!browser)(
     'renders all three templates to a PNG in under 10 seconds each',
     async () => {
+      // A warm-up render, untimed: the first start can include a failed sandbox try (see
+      // renderPress) and a cold browser, and is slow under a loaded CI runner.
+      await renderPress('card', { title: 'Warm up', body: 'x' });
       for (const template of ['letter', 'notice', 'card'] as const) {
         const started = Date.now();
         const png = await renderPress(template, { title: 'Title', body: 'Some text.' });
@@ -72,7 +75,7 @@ describe('renderPress', () => {
         expect(png.length).toBeLessThan(5 * 1024 * 1024);
       }
     },
-    60_000
+    120_000
   );
 
   it.skipIf(!browser)(

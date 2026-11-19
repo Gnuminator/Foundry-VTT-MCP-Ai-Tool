@@ -711,6 +711,7 @@ const NOT_CONTRACT = [
   'combat-change',
   'export-index',
   'foundry-setup',
+  'handout-press',
   'index',
   'library-index',
   'live-play',

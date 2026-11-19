@@ -72,9 +72,7 @@ export PATH="/tmp/fakebin:$PATH"
 
 fresh() {
   rm -rf "$dest" "$state" "$service_file" "$timer_file" /tmp/fake-git-refuse
-  printf '+ /mnt/dietpi-backup
-- /mnt/*
-' >"$filter"
+  printf '+ /mnt/dietpi-backup\n- /mnt/*\n' >"$filter"
   mkdir -p "$src"
   echo "// who-uses-what v1" >"$src/who-uses-what.mjs"
   printf '#!/usr/bin/env bash\necho job v1\n' >"$src/who-uses-what-push.sh"
@@ -166,8 +164,7 @@ if [ "$rc" -eq 0 ] && grep -q 'v2' "$dest/who-uses-what.mjs" && [ "$key_sum" = "
   pass "a changed script is installed again, the key stays"; else fail "changed script: rc=$rc $OUT"; fi
 
 # 3c. The dietpi-backup exclude file: the snapshots are pulled to the PC, so the key folder must stay out of them.
-if [ "$(grep -cxF -- "- $state/" "$filter")" = 1 ] && [ "$(head -n 2 "$filter" | tr '
-' '|')" = '+ /mnt/dietpi-backup|- /mnt/*|' ]; then
+if [ "$(grep -cxF -- "- $state/" "$filter")" = 1 ] && [ "$(head -n 2 "$filter" | tr '\n' '|')" = '+ /mnt/dietpi-backup|- /mnt/*|' ]; then
   pass "dietpi-backup's filter excludes the state folder once, after the existing lines (a rerun added no second line)"; else fail "filter: $(cat "$filter")"; fi
 printf '+ /mnt/dietpi-backup' >"$filter"
 run
@@ -177,9 +174,7 @@ rm -f "$filter"
 run
 rc=$?
 if [ "$rc" -eq 0 ] && [ ! -e "$filter" ] && echo "$OUT" | grep -q 'would carry the deploy key'; then pass "a missing filter only warns"; else fail "missing filter: rc=$rc $OUT"; fi
-printf '+ /mnt/dietpi-backup
-- /mnt/*
-' >"$filter"
+printf '+ /mnt/dietpi-backup\n- /mnt/*\n' >"$filter"
 
 # 5.
 run CHECK=1
@@ -208,6 +203,23 @@ run
 rc=$?
 if [ "$rc" -eq 0 ] && [ "$(stat -c %U /tmp/victim 2>/dev/null)" != "root" ]; then pass "a link planted at known_hosts is written as $FOUNDRY_USER, not root"; else fail "planted link: rc=$rc owner=$(stat -c %U /tmp/victim 2>&1) $OUT"; fi
 rm -f /tmp/victim
+fresh
+
+# 3d. The plan shows the write to the filter, and a dry run does not make it.
+fresh
+run DRY_RUN=1
+rc=$?
+if [ "$rc" -eq 0 ] && echo "$OUT" | grep -q "dietpi-backup exclude: add '- $state/'" && ! grep -qF "$state" "$filter"; then
+  pass "DRY_RUN names the exclude line and leaves the filter alone"; else fail "dry run filter: rc=$rc $OUT"; fi
+# The line goes in before the key is made: a run that dies after the key exists has already protected it.
+fresh
+install -d -m 0700 -o "$FOUNDRY_USER" -g "$FOUNDRY_USER" "$state"
+runuser -u "$FOUNDRY_USER" -- ssh-keygen -q -t ed25519 -N '' -f "$state/id_ed25519"
+rm -f "$state/id_ed25519.pub"
+mkdir "$state/id_ed25519.pub"
+run
+rc=$?
+if [ "$rc" -ne 0 ] && grep -qxF -- "- $state/" "$filter"; then pass "a run that dies after the key exists has already excluded it"; else fail "order: rc=$rc $(cat "$filter") $OUT"; fi
 fresh
 
 # 6.

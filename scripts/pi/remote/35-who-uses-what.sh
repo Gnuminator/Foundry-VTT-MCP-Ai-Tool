@@ -149,7 +149,10 @@ plan_key="generate the deploy key"
 [ -f "$key" ] && plan_key="kept as it is"
 plan_units="write the service and the timer"
 [ -f "$service_file" ] && [ "$(cat "$service_file")" = "$want_service" ] && [ -f "$timer_file" ] && [ "$(cat "$timer_file")" = "$want_timer" ] && plan_units="nothing to do"
-say "plan: files: $plan_files; deploy key: $plan_key; units: $plan_units; then one reading pushed to the vault repo, and the timer enabled when it worked"
+plan_filter="add '$exclude_line' to $dietpi_filter"
+if [ ! -f "$dietpi_filter" ]; then plan_filter="$dietpi_filter is missing: only a warning"
+elif grep -qxF -- "$exclude_line" "$dietpi_filter"; then plan_filter="nothing to do"; fi
+say "plan: files: $plan_files; deploy key: $plan_key; dietpi-backup exclude: $plan_filter; units: $plan_units; then one reading pushed to the vault repo, and the timer enabled when it worked"
 if [ "$dry" = 1 ]; then
   say "DRY_RUN=1: nothing changed"
   exit 0
@@ -175,6 +178,18 @@ say "the state folder, the deploy key and the host key"
 [ -d "$state" ] || install -d -m 0700 -o "$FOUNDRY_USER" -g "$FOUNDRY_USER" "$state"
 [ "$(stat -c %U "$state")" = "$FOUNDRY_USER" ] || die "$state is not owned by $FOUNDRY_USER"
 as_foundry() { runuser -u "$FOUNDRY_USER" -- "$@"; }
+# The dietpi-backup exclude line goes in BEFORE the key exists, so a run that dies later cannot leave a key that the snapshot
+# taken for the rerun would carry. Same filter and rule as stage 8 (the recordings): top to bottom, first match wins, one more
+# line at the end is enough.
+if [ ! -f "$dietpi_filter" ]; then
+  warn "no $dietpi_filter (not DietPi, or dietpi-backup never ran): its snapshots would carry the deploy key; run this stage again after the first snapshot"
+elif grep -qxF -- "$exclude_line" "$dietpi_filter"; then
+  ok "dietpi-backup already leaves $state out"
+else
+  if [ -n "$(tail -c 1 "$dietpi_filter")" ]; then printf '\n' >>"$dietpi_filter"; fi
+  printf '%s\n' "$exclude_line" >>"$dietpi_filter"
+  ok "dietpi-backup now leaves $state out ($dietpi_filter)"
+fi
 if [ -f "$key" ]; then
   ok "the deploy key is already there (kept as it is)"
 else
@@ -185,20 +200,6 @@ as_foundry sh -c 'umask 022; [ -f "$1.pub" ] || ssh-keygen -y -f "$1" >"$1.pub"'
 as_foundry sh -c 'umask 022; printf "%s\n" "$1" >"$2.tmp" && mv -f "$2.tmp" "$2"' sh "$github_hostkey" "$state/known_hosts" || die "could not write known_hosts"
 as_foundry chmod 0600 "$key" || die "chmod of the key failed"
 as_foundry chmod 0644 "$key.pub" "$state/known_hosts" || die "chmod failed"
-
-say "dietpi-backup: keep the key out of the snapshots"
-# Same filter and rule as stage 8 (the recordings): top to bottom, first match wins, one more line at the end is enough.
-if [ ! -f "$dietpi_filter" ]; then
-  warn "no $dietpi_filter (not DietPi, or dietpi-backup never ran): its snapshots would carry the deploy key; run this stage again after the first snapshot"
-elif grep -qxF -- "$exclude_line" "$dietpi_filter"; then
-  ok "dietpi-backup already leaves $state out"
-else
-  if [ -n "$(tail -c 1 "$dietpi_filter")" ]; then printf '
-' >>"$dietpi_filter"; fi
-  printf '%s
-' "$exclude_line" >>"$dietpi_filter"
-  ok "dietpi-backup now leaves $state out ($dietpi_filter)"
-fi
 
 say "the units"
 write_file "$service_file" 0644 "$want_service" || true

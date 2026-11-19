@@ -250,7 +250,7 @@ export function patchIdAt(run, sha, mainRef = MAIN) {
     '--',
     '.',
     ':(exclude)docs/reference/tools.md',
-    ':(exclude)docs/reference/tools/',
+    ':(glob,exclude)docs/reference/tools/*.md',
   ]);
   if (diff.status !== 0) return { error: `git diff for ${s} failed (${why(diff)})` };
   if (diff.stdout.trim() === '') return { error: `the patch at ${s} is empty` };

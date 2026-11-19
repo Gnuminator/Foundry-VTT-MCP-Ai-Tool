@@ -329,14 +329,34 @@ test('a failing docs:tools still refuses and pushes nothing', () => {
   const s = setup();
   try {
     moveMain(s, 'main.txt', 'main\n');
-    const bad = (cmd, args, o) =>
-      /docs:tools/.test([cmd, ...args].join(' '))
-        ? { status: 1, stdout: '', stderr: 'boom' }
-        : opts(s).run(cmd, args, o);
+    // the generator dies after writing a new page: the untracked page must not stay in the checkout
+    const bad = (cmd, args, o) => {
+      if (!/docs:tools/.test([cmd, ...args].join(' '))) return opts(s).run(cmd, args, o);
+      fs.mkdirSync(path.join(s.checkout, 'docs', 'reference', 'tools'), { recursive: true });
+      fs.writeFileSync(path.join(s.checkout, 'docs', 'reference', 'tools', 'x.md'), 'half\n');
+      return { status: 1, stdout: '', stderr: 'boom' };
+    };
     const r = refreshBranch(opts(s, { reason: TOOL_DRIFT, run: bad }));
     assert.match(r?.why ?? '', /docs:tools failed/);
     assert.equal(s.run(s.remote, 'rev-parse', 'refs/heads/lane'), s.head);
     assert.equal(s.run(s.checkout, 'status', '--porcelain'), '');
+    assert.equal(s.run(s.checkout, 'rev-parse', 'HEAD'), s.head);
+  } finally {
+    s.cleanup();
+  }
+});
+
+test('tool-reference drift that regeneration does not change is refused, nothing pushed', () => {
+  const s = setup();
+  try {
+    moveMain(s, 'main.txt', 'main\n');
+    const noop = (cmd, args, o) =>
+      /docs:tools/.test([cmd, ...args].join(' '))
+        ? { status: 0, stdout: '', stderr: '' }
+        : opts(s).run(cmd, args, o);
+    const r = refreshBranch(opts(s, { reason: TOOL_DRIFT, run: noop }));
+    assert.match(r?.why ?? '', /changed nothing/);
+    assert.equal(s.run(s.remote, 'rev-parse', 'refs/heads/lane'), s.head);
     assert.equal(s.run(s.checkout, 'rev-parse', 'HEAD'), s.head);
   } finally {
     s.cleanup();
@@ -352,6 +372,7 @@ test('REFRESHABLE and reviewOf', () => {
     assert.match(t, REFRESHABLE);
   assert.match(TOOL_DRIFT, REFRESHABLE);
   for (const t of [
+    'drift: drift-check failed (guards: mcp-server tests (some other test)) (log x); last lines below',
     'drift: drift-check failed (guards: mcp-server tests (tool counts, tool reference, tool sets), lint baseline) (log x); last lines below',
     'drift: drift-check failed (guards: mcp-server tests (tool counts, tool reference, tool sets)) [infrastructure, not the PR: vitest could not start a worker, also on a retry] (log x)',
     'drift: drift-check failed (guards: em-dash baseline) (log x); last lines below',

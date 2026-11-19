@@ -3970,7 +3970,7 @@ test('carry: patchIdAt leaves the generated tool pages out of the patch', () => 
   patchIdAt(run, 'c'.repeat(40));
   const diff = seen.find(a => a[0] === 'diff') ?? [];
   assert.ok(diff.includes(':(exclude)docs/reference/tools.md'));
-  assert.ok(diff.includes(':(exclude)docs/reference/tools/'));
+  assert.ok(diff.includes(':(glob,exclude)docs/reference/tools/*.md'));
 });
 
 test('carry: an entry for another patch listed after the carried one in a note refuses the carry', () => {

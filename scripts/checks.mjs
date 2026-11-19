@@ -161,6 +161,7 @@ export const CHECKS = [
     'scripts/changelog-fold.test.mjs',
     'scripts/review-note.test.mjs',
     'scripts/lane-ready.test.mjs',
+    'scripts/build-lane-plugin.test.mjs',
     'scripts/heavy-lock.test.mjs',
     'scripts/test-coverage-check.test.mjs',
     'scripts/planner-wake.test.mjs',

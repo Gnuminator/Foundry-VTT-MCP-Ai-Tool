@@ -11,7 +11,7 @@
 #   WUW_DIR        state folder (key, known_hosts, the sparse clone); default /var/lib/foundry-ai-tool-who-uses-what
 #   WUW_NODE       the node binary; default /opt/node24/bin/node
 #   WUW_SCRIPT     who-uses-what.mjs; default /opt/foundry-ai-tool/who-uses-what/who-uses-what.mjs
-#   WUW_DASHBOARD  the dashboard address; default http://127.0.0.1:3000
+#   WUW_DASHBOARD  the dashboard address; default is the Pi dashboard on loopback (stage 5)
 #   WUW_REMOTE     the vault repo; default git@github.com:Gnuminator/obsidian-vault.git
 #   WUW_BRANCH     default main
 #   WUW_DAYS       the window in days; default 7

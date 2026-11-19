@@ -184,6 +184,7 @@ export const CHECKS = [
   nodeTest('game-day-brief', 'scripts', 'scripts/game-day-brief.test.mjs'),
   nodeTest('gamenight-watch', 'scripts', 'scripts/gamenight-watch.test.mjs'),
   nodeTest('gamenight-watch-pi', 'scripts', 'scripts/gamenight-watch-pi.test.mjs'),
+  nodeTest('pi-who-uses-what-stage', 'pi', 'scripts/pi/who-uses-what-stage.test.mjs'),
   nodeTest('pi-player-connector-stage', 'pi', 'scripts/pi/player-connector-stage.test.mjs'),
   nodeTest(
     'pi-player-connector-cloudflare',

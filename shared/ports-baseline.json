@@ -94,6 +94,7 @@
   "scripts/pi/remote/set-dashboard-access.sh": 5,
   "scripts/pi/remote/switch-world.sh": 5,
   "scripts/pi/remote/world-switches.mjs": 2,
+  "scripts/pi/who-uses-what-push.sh": 1,
   "scripts/plan-b/check.ps1": 1,
   "scripts/plan-b/connectors-lib.ps1": 1,
   "scripts/plan-b/connectors.ps1": 4,

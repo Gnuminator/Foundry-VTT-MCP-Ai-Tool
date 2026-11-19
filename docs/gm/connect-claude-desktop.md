@@ -71,6 +71,22 @@ Switch it on or off with (PowerShell):
 & "$env:LOCALAPPDATA\FoundryMCPServer\client-update.ps1" -Action Status
 ```
 
+**Without the tunnel** (a direct connection over Tailscale) the installer sets the same thing up on
+its own and switches it **on** the first time. It reads the table's version from the address you
+gave the installer, and its sign-in task is called "Foundry AI Tool client update". Its files are in
+`%LOCALAPPDATA%\FoundryMCPServer\update`. If Claude Desktop starts with Windows it is usually
+already open at sign-in, so that day's check is skipped; the next sign-in with Desktop closed
+updates. To update at once, quit Claude Desktop from the tray and open "Update the client now"
+from the Start menu (folder "Foundry AI Tool Client"); it runs even if automatic updates are off.
+Switch automatic updates on or off with:
+
+```powershell
+& "$env:LOCALAPPDATA\FoundryMCPServer\client-update.ps1" -Action Disable -StateDir "$env:LOCALAPPDATA\FoundryMCPServer\update"
+& "$env:LOCALAPPDATA\FoundryMCPServer\client-update.ps1" -Action Enable -StateDir "$env:LOCALAPPDATA\FoundryMCPServer\update"
+```
+
+A silent install with `/NOAUTOUPDATE` leaves it off.
+
 This does not touch the Obsidian plugin. The server writes the newest plugin into the GM vault and
 Syncthing brings it to your PC (see the [Obsidian sync guide](setup-obsidian-sync.md)); restart
 Obsidian to load it.

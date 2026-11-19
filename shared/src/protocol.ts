@@ -8,15 +8,15 @@
  *
  * See ARCHITECTURE.md §3 ("The two wire contracts") for the prose rationale.
  *
- *   §3a  Control channel — newline-delimited JSON over a TCP socket on
+ *   §3a  Control channel: newline-delimited JSON over a TCP socket on
  *        127.0.0.1:31414. Spoken between the MCP stdio wrapper / co-GM dashboard
  *        (clients) and the backend (server). Request/response correlated by `id`.
  *
- *   §3b  Foundry link — JSON frames over a WebSocket (:31415). Spoken between
+ *   §3b  Foundry link: JSON frames over a WebSocket (:31415). Spoken between
  *        the backend (server) and the in-Foundry module (client, dials out). Frames are discriminated
  *        by a `type` field; queries are correlated by `id`.
  *
- * IMPORTANT — every shape in this file is a FROZEN wire contract. Changing a
+ * IMPORTANT: every shape in this file is a FROZEN wire contract. Changing a
  * field, a `type`/`method` string, or an envelope shape breaks compatibility
  * between independently-deployed processes (an old Foundry module talking to a
  * new backend, etc.). Treat changes here as migration-gated. The string
@@ -29,7 +29,7 @@ import { SOCKET_EVENTS } from './constants.js';
 import type { MCPQuery, MCPResponse } from './types.js';
 
 // ===========================================================================
-// §3a — Control channel (JSON-lines TCP, 127.0.0.1:31414)
+// §3a: Control channel (JSON-lines TCP, 127.0.0.1:31414)
 // ===========================================================================
 
 /**
@@ -54,7 +54,7 @@ export type ControlMethod = (typeof CONTROL_METHODS)[number];
 /**
  * A request frame. One JSON object per line. `id` is caller-generated and echoed
  * back on the matching response. `method` is typed loosely as `string` because
- * the wire tolerates unknown methods — the backend answers an unknown method
+ * the wire tolerates unknown methods; the backend answers an unknown method
  * with an error response rather than dropping the connection.
  */
 export interface ControlRequest {
@@ -94,7 +94,7 @@ export const MAX_REQUESTER_LENGTH = 80;
 /**
  * The payload a successful `call_tool` resolves to: the MCP tool-content
  * envelope. A tool-level failure is reported IN-BAND here as `isError: true`
- * with the message in the text block — NOT as a transport-level `error` on the
+ * with the message in the text block, NOT as a transport-level `error` on the
  * ControlResponse (that is reserved for malformed requests / unknown methods).
  */
 export interface ToolResultPayload {
@@ -113,7 +113,7 @@ export interface PingResult {
 }
 
 // ===========================================================================
-// §3b — Foundry link (WebSocket :31415)
+// §3b: Foundry link (WebSocket :31415)
 // ===========================================================================
 
 /**

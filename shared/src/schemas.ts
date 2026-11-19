@@ -381,7 +381,7 @@ export const CampaignStructureSchema = z.object({
 
 /**
  * Blueprint for pre-populating a new campaign with a standard part layout.
- * `metadata` is `.partial()` — callers supply only the fields they know.
+ * `metadata` is `.partial()`; callers supply only the fields they know.
  * The inline part schema deliberately omits fields that are filled in at
  * campaign-creation time (id, status, gmNotes, etc.).
  */

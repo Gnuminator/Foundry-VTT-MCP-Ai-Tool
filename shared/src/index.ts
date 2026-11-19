@@ -1,5 +1,5 @@
 /**
- * @gnuminator/shared — public surface
+ * @gnuminator/shared: public surface
  *
  * Re-exports the complete shared vocabulary for the Foundry AI Tool:
  *   - Domain types and interfaces   (types.ts)

@@ -111,7 +111,10 @@ export function speakingOf(answer: BotAnswer | null): SpeakerTime[] {
     if (s === null || typeof s !== 'object') continue;
     const o = s as Record<string, unknown>;
     if (typeof o['name'] !== 'string' || typeof o['ms'] !== 'number' || !(o['ms'] > 0)) continue;
-    out.push({ name: o['name'].slice(0, 64), ms: Math.round(o['ms'] / 1000) * 1000 });
+    out.push({
+      name: o['name'].slice(0, 64),
+      ms: Math.max(1000, Math.round(o['ms'] / 1000) * 1000),
+    });
   }
   return out;
 }

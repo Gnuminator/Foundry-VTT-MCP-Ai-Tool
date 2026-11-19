@@ -16,6 +16,7 @@ describe('buildPartyStash', () => {
               { name: 'Vorpal Sword', type: 'weapon', quantity: 1, identified: false },
               { name: 'Real Name', type: 'loot', quantity: 1, secret: true },
               { name: 'Rope', type: 'loot', quantity: 3 },
+              { name: 'Rings', type: 'loot', quantity: 5, identified: false },
             ],
           },
         ],
@@ -23,6 +24,7 @@ describe('buildPartyStash', () => {
     ]);
     expect(s.holders[0].items).toEqual([
       { name: 'Rope', quantity: 3, type: 'loot', unidentified: false },
+      { name: 'Unidentified item', quantity: 1, type: 'unknown', unidentified: true },
       { name: 'Unidentified item', quantity: 1, type: 'unknown', unidentified: true },
       { name: 'Unidentified item', quantity: 1, type: 'unknown', unidentified: true },
     ]);

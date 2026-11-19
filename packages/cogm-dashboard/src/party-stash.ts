@@ -43,7 +43,7 @@ function itemOf(raw: unknown): StashItem | null {
   const q = typeof raw.quantity === 'number' && Number.isFinite(raw.quantity) ? raw.quantity : 1;
   return {
     name: hidden ? UNIDENTIFIED_NAME : raw.name.slice(0, 120),
-    quantity: Math.max(0, Math.min(Math.floor(q), 1_000_000)),
+    quantity: hidden ? 1 : Math.max(0, Math.min(Math.floor(q), 1_000_000)),
     type: hidden ? 'unknown' : typeof raw.type === 'string' ? raw.type.slice(0, 40) : 'loot',
     unidentified: hidden,
   };

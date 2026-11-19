@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import type { Server } from 'http';
 import type { AddressInfo } from 'net';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import express from 'express';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -106,7 +106,7 @@ describe('/api/previously-on', () => {
     expect(info.session).toBe('2026-11-01_b');
     expect(info.languages).toEqual(['da', 'en']);
     expect((await post('/api/previously-on', { lang: 'da' })).status).toBe(200);
-    expect(posts).toEqual([{ message: 'Sidste nat.', messageType: 'ooc' }]);
+    expect(posts).toEqual([{ message: '<p>Sidste nat.</p>', messageType: 'ooc' }]);
     expect((await post('/api/previously-on', { lang: 'sv' })).status).toBe(400);
   });
 
@@ -133,11 +133,34 @@ describe('/api/previously-on', () => {
     expect((await post('/api/previously-on/audio', { lang: 'en' })).status).toBe(202);
     expect(narrated).toHaveLength(1);
     expect((await fetch(`${base}/api/previously-on/audio/en`)).status).toBe(404);
-    const wavDir = join(dir, '2026-11-01_b', 'notes', '.previously-on', 'previously-on.en');
+    // A half-written file does not count; only the finished one does.
+    const wavDir = join(dirname(narrated[0]), 'previously-on.en');
     mkdirSync(wavDir, { recursive: true });
+    writeFileSync(join(wavDir, 'previously-on.en.part.wav'), 'x');
+    expect((await fetch(`${base}/api/previously-on/audio/en`)).status).toBe(404);
     writeFileSync(join(wavDir, 'previously-on.en.wav'), 'RIFF');
     const res = await fetch(`${base}/api/previously-on/audio/en`);
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toContain('audio/wav');
+    // The recap changes: the old voice no longer matches, so there is none until it is made again.
+    session('2026-11-01_b', true, 'Dansk tekst.', 'New text.');
+    expect((await fetch(`${base}/api/previously-on/audio/en`)).status).toBe(404);
+  });
+
+  it('starts only one voice run for two requests at once', async () => {
+    const { post, narrated } = await start();
+    session('2026-11-01_b', true);
+    await Promise.all([
+      post('/api/previously-on/audio', { lang: 'da' }),
+      post('/api/previously-on/audio', { lang: 'da' }),
+    ]);
+    expect(narrated).toHaveLength(1);
+  });
+
+  it('refuses a recap too long for one chat post', async () => {
+    const { post, posts } = await start();
+    session('2026-11-01_b', true, 'x'.repeat(4001));
+    expect((await post('/api/previously-on', { lang: 'da' })).status).toBe(413);
+    expect(posts).toEqual([]);
   });
 });

@@ -14,8 +14,11 @@
  * - `GET  /api/previously-on/audio/:lang`  -> the WAV (GM)
  */
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { sessionsDirFrom } from '@gnuminator/shared';
 import express, { type Express, type Request, type Response } from 'express';
@@ -102,25 +105,77 @@ const CHAT_MAX = 4000;
 /** The narration tool's own output goes nowhere (its WAV is what counts). */
 const SILENT = { stdio: 'ignore' } as const;
 
-async function findWav(dir: string): Promise<string | null> {
+const RENDER_TIMEOUT_MS = 10 * 60 * 1000;
+
+/** The narration script, found from this file (src/ or dist/), not from the working directory. */
+const NARRATE_TOOL = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  '..',
+  '..',
+  '..',
+  'tools',
+  'narration',
+  'narrate.ps1'
+);
+
+/** Short fingerprint of the recap text: a new text gets its own folder, so a voice is never stale. */
+function hashOf(text: string): string {
+  return createHash('sha256').update(text).digest('hex').slice(0, 8);
+}
+
+/** One folder per text and language: `<notes>/.previously-on/<hash>`. */
+function renderDir(recap: ApprovedRecap, text: string): string {
+  return join(recap.dir, '.previously-on', hashOf(text));
+}
+
+/** Where narrate puts the finished file: `<out>/<script name>/<script name>.wav`. */
+function wavPath(out: string, lang: PreviouslyOnLang): string {
+  return join(out, `previously-on.${lang}`, `previously-on.${lang}.wav`);
+}
+
+async function exists(path: string): Promise<boolean> {
   try {
-    const hit = (await readdir(dir)).find(f => f.toLowerCase().endsWith('.wav'));
-    return hit ? join(dir, hit) : null;
+    await stat(path);
+    return true;
   } catch {
-    return null;
+    return false;
   }
 }
 
+/** The recap as chat HTML: one paragraph per block, text escaped. */
+function chatHtml(text: string): string {
+  const esc = (s: string): string =>
+    s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return text
+    .split(/\n{2,}/)
+    .map(p => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`)
+    .join('');
+}
+
 function defaultNarrate(scriptPath: string, outDir: string): Promise<void> {
-  const tool = resolve(process.cwd(), 'tools', 'narration', 'narrate.ps1');
   return new Promise((done, fail) => {
+    if (!existsSync(NARRATE_TOOL)) {
+      fail(new Error(`narrate.ps1 not found at ${NARRATE_TOOL}`));
+      return;
+    }
     const child = spawn(
       'pwsh',
-      ['-NoProfile', '-File', tool, 'make', scriptPath, '--out', outDir],
+      ['-NoProfile', '-File', NARRATE_TOOL, 'make', scriptPath, '--out', outDir],
       { windowsHide: true, ...SILENT }
     );
-    child.on('error', fail);
-    child.on('exit', code => (code === 0 ? done() : fail(new Error(`narrate exited ${code}`))));
+    const timer = setTimeout(() => {
+      child.kill();
+      fail(new Error('narrate timed out'));
+    }, RENDER_TIMEOUT_MS);
+    child.on('error', error => {
+      clearTimeout(timer);
+      fail(error);
+    });
+    child.on('exit', code => {
+      clearTimeout(timer);
+      if (code === 0) done();
+      else fail(new Error(`narrate exited ${code}`));
+    });
   });
 }
 
@@ -130,6 +185,8 @@ export function mountPreviouslyOnRoute(app: Express, options: PreviouslyOnOption
   const narrate = options.narrate ?? defaultNarrate;
   const parseBody = express.json({ limit: 1024 });
   const rendering = new Set<string>();
+  /** Voices that failed since the dashboard started (cleared when tried again). */
+  const failed = new Set<string>();
 
   const langOf = (value: unknown): PreviouslyOnLang | null =>
     PREVIOUSLY_ON_LANGS.find(l => l === value) ?? null;
@@ -153,12 +210,24 @@ export function mountPreviouslyOnRoute(app: Express, options: PreviouslyOnOption
     next();
   }
 
-  const audioDir = (recap: ApprovedRecap, lang: PreviouslyOnLang): string =>
-    join(recap.dir, '.previously-on', `previously-on.${lang}`);
+  /** The finished voice for the recap's current text, or null. */
+  async function audioFor(recap: ApprovedRecap, lang: PreviouslyOnLang): Promise<string | null> {
+    const text = recap.text[lang];
+    if (!text) return null;
+    const wav = wavPath(renderDir(recap, text), lang);
+    return (await exists(wav)) ? wav : null;
+  }
 
   app.get('/api/previously-on', requireGm, (_req, res) => {
     if (!enabled()) {
-      res.json({ enabled: false, session: null, languages: [], audio: {}, rendering: [] });
+      res.json({
+        enabled: false,
+        session: null,
+        languages: [],
+        audio: {},
+        rendering: [],
+        failed: [],
+      });
       return;
     }
     void (async (): Promise<void> => {
@@ -166,7 +235,7 @@ export function mountPreviouslyOnRoute(app: Express, options: PreviouslyOnOption
       const audio: Record<string, boolean> = {};
       if (recap) {
         for (const lang of PREVIOUSLY_ON_LANGS) {
-          audio[lang] = (await findWav(audioDir(recap, lang))) !== null;
+          audio[lang] = (await audioFor(recap, lang)) !== null;
         }
       }
       res.json({
@@ -175,6 +244,7 @@ export function mountPreviouslyOnRoute(app: Express, options: PreviouslyOnOption
         languages: recap ? Object.keys(recap.text) : [],
         audio,
         rendering: [...rendering],
+        failed: [...failed],
       });
     })().catch(() => res.status(500).json({ error: { message: 'Could not read the recap.' } }));
   });
@@ -194,8 +264,14 @@ export function mountPreviouslyOnRoute(app: Express, options: PreviouslyOnOption
         });
         return;
       }
+      if (text.length > CHAT_MAX) {
+        res.status(413).json({
+          error: { message: 'The recap is too long for one chat post.', code: 'too-long' },
+        });
+        return;
+      }
       await client.callTool('send-chat-message', {
-        message: text.slice(0, CHAT_MAX),
+        message: chatHtml(text),
         messageType: 'ooc',
       });
       res.json({ ok: true, session: recap.session, lang });
@@ -229,18 +305,26 @@ export function mountPreviouslyOnRoute(app: Express, options: PreviouslyOnOption
         res.status(202).json({ ok: true, rendering: true });
         return;
       }
-      const out = join(recap.dir, '.previously-on');
-      await mkdir(out, { recursive: true });
-      const script = join(out, `previously-on.${lang}.md`);
-      await writeFile(script, `${text}\n`, 'utf-8');
+      // Marked before any await, so a second request in the same moment does not start a second run.
       rendering.add(key);
-      narrate(script, out)
-        .catch((error: unknown) =>
-          options.logger?.warn('Previously on narration failed', {
-            error: error instanceof Error ? error.message : String(error),
+      failed.delete(key);
+      const out = renderDir(recap, text);
+      try {
+        await mkdir(out, { recursive: true });
+        const script = join(out, `previously-on.${lang}.md`);
+        await writeFile(script, `${text}\n`, 'utf-8');
+        narrate(script, out)
+          .catch((error: unknown) => {
+            failed.add(key);
+            options.logger?.warn('Previously on narration failed', {
+              error: error instanceof Error ? error.message : String(error),
+            });
           })
-        )
-        .finally(() => rendering.delete(key));
+          .finally(() => rendering.delete(key));
+      } catch (error) {
+        rendering.delete(key);
+        throw error;
+      }
       res.status(202).json({ ok: true, rendering: true });
     })().catch(() => res.status(500).json({ error: { message: 'Could not start the voice.' } }));
   });
@@ -253,7 +337,7 @@ export function mountPreviouslyOnRoute(app: Express, options: PreviouslyOnOption
     }
     void (async (): Promise<void> => {
       const recap = await readApprovedRecap(dirOf());
-      const wav = recap ? await findWav(audioDir(recap, lang)) : null;
+      const wav = recap ? await audioFor(recap, lang) : null;
       if (!wav) {
         res.status(404).json({ error: { message: 'No audio yet.' } });
         return;

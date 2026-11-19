@@ -21,6 +21,7 @@ interface PreviouslyOnState {
   languages: Lang[];
   audio: Partial<Record<Lang, boolean>>;
   rendering: string[];
+  failed: string[];
 }
 
 export default function PreviouslyOnCard({ active }: { active: boolean }): JSX.Element | null {
@@ -86,6 +87,12 @@ export default function PreviouslyOnCard({ active }: { active: boolean }): JSX.E
       </div>
       <p className="notes-line">
         {`Last night's approved recap (${state.session}). Post the text to chat, or play it spoken here on this PC.`}
+      </p>
+      <p className="notes-line" aria-live="polite">
+        {state.rendering.length > 0 ? 'Making the voice...' : ''}
+        {state.failed.length > 0 && state.rendering.length === 0
+          ? 'The voice could not be made. Check that the narration tool is set up on this PC, then try again.'
+          : ''}
       </p>
       {state.languages.map(lang => (
         <div className="ready-actions" key={lang}>

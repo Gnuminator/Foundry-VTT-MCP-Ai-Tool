@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Standalone-bridge smoke test (DETACH-PLAN Phase 6 — A).
+ * Standalone-bridge smoke test (DETACH-PLAN Phase 6, part A).
  *
  * Black-box check that the standalone entrypoint actually serves the control
  * channel as a self-supervised process, WITHOUT binding any live bridge port:

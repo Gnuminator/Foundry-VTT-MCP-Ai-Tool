@@ -61,6 +61,13 @@ describe('downtime inbox (I-180)', () => {
     expect(gone.entries).toEqual([]);
   });
 
+  it('refuses a malformed edit id instead of adding a new entry', async () => {
+    await expect(
+      handleDowntime(store, W, { action: 'save', userId: 'a', id: 'nope', text: 'x' })
+    ).rejects.toThrow('gone');
+    expect(await listDowntime(store, W)).toEqual([]);
+  });
+
   it('refuses empty, long and too many entries', async () => {
     await expect(
       handleDowntime(store, W, { action: 'save', userId: 'a', text: '  ' })

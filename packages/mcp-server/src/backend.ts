@@ -792,7 +792,8 @@ async function startBackend(): Promise<void> {
           // player's link key; not a tool, never listed to Claude, never forwarded by the wrapper.
           if (msg.method === 'downtime') {
             try {
-              const worldId = await worldIds.current();
+              // Vault only, so it also works between sessions with no GM client joined.
+              const worldId = await worldIds.currentOrLastKnown();
               const result: unknown = await handleDowntime(vaultStore, worldId, msg.params);
               socket.write(`${JSON.stringify({ id: msg.id, result })}\n`);
             } catch (e: unknown) {
@@ -803,7 +804,7 @@ async function startBackend(): Promise<void> {
             continue;
           }
 
-          // Live write sweep helper (I-016):the dashboard's test route passes a scene snapshot,
+          // Live write sweep helper (I-016): the dashboard's test route passes a scene snapshot,
           // combat, concentration, switches, fixture, playlist-state or clean-up request for
           // scripts/live-write-sweep.mjs to the module, which refuses outside the test worlds. Not a tool, never listed to Claude, and the stdio
           // wrapper never forwards it.

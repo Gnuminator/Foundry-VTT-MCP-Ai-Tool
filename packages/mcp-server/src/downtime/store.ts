@@ -13,7 +13,7 @@ export const DOWNTIME_FILE = 'downtime.json';
 export const DOWNTIME_MAX_TEXT = 1000;
 export const DOWNTIME_MAX_PER_PLAYER = 10;
 
-export interface DowntimeEntry {
+interface DowntimeEntry {
   id: string;
   userId: string;
   name: string;
@@ -23,7 +23,7 @@ export interface DowntimeEntry {
   updatedAt: string;
 }
 
-export type DowntimeStoreLike = Pick<VaultStore, 'read' | 'update'>;
+type DowntimeStoreLike = Pick<VaultStore, 'read' | 'update'>;
 
 const ID_RE = /^[a-f0-9]{16}$/;
 
@@ -73,7 +73,10 @@ export async function handleDowntime(
       throw new Error(`Keep it under ${DOWNTIME_MAX_TEXT} characters.`);
     }
     const name = typeof p.name === 'string' ? p.name.slice(0, 80) : '';
-    const id = typeof p.id === 'string' && ID_RE.test(p.id) ? p.id : null;
+    if (p.id !== undefined && !(typeof p.id === 'string' && ID_RE.test(p.id))) {
+      throw new Error('That entry is gone.');
+    }
+    const id = typeof p.id === 'string' ? p.id : null;
     const stamp = now().toISOString();
     const envelope = await store.update<DowntimeEntry[]>(
       worldId,

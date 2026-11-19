@@ -322,13 +322,13 @@ export interface PrepLooseEnds {
   unavailable: Array<'quests' | 'scenes'>;
 }
 
-/** What `get-prep-digest` returns. */
 /** The players' downtime inbox (I-180): their own words, marked as theirs. */
 export interface PrepDowntime {
   note: string;
   entries: Array<{ player: string; text: string; updatedAt: string; source: 'player' }>;
 }
 
+/** What `get-prep-digest` returns. */
 export interface PrepDigest {
   schema: 1;
   action: 'summary' | 'last-session';

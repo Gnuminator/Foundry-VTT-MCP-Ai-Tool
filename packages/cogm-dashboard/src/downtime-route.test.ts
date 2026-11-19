@@ -57,6 +57,45 @@ describe('downtime route', () => {
     expect(calls[1]).toEqual({ action: 'delete', userId: 'anna', id: 'aaaaaaaaaaaaaaaa' });
   });
 
+  it('keeps working on the last world when no GM client is joined, and says offline when none is known', async () => {
+    let world: string | null = null;
+    const app = express();
+    app.use(express.json());
+    mountDowntimeRoute(app, {
+      client: { downtime: () => Promise.resolve({ entries: [] }) },
+      links: {
+        userFor: (_w: string, k?: string) => (k === 'good' ? 'anna' : null),
+      } as unknown as PlayerLinkStore,
+      directory: {
+        refreshIfStale: () => Promise.resolve(),
+        get: () => undefined,
+      } as unknown as PlayerDirectory,
+      worldId: () => world,
+    });
+    await new Promise<void>(r => (server = app.listen(0, '127.0.0.1', r)));
+    const base = `http://127.0.0.1:${(server!.address() as AddressInfo).port}`;
+    const h = { 'X-CoGM-Me': 'good' };
+    expect((await fetch(`${base}/api/me/downtime`, { headers: h })).status).toBe(503);
+    world = 'w';
+    expect((await fetch(`${base}/api/me/downtime`, { headers: h })).status).toBe(200);
+    world = null; // the GM client left: the last world stands in, the link stays valid
+    expect((await fetch(`${base}/api/me/downtime`, { headers: h })).status).toBe(200);
+  });
+
+  it('answers 501 for an old backend and 400 for a malformed edit id', async () => {
+    const base = await start({
+      downtime: () => Promise.reject(new Error('Unknown method')),
+    });
+    const h = { 'X-CoGM-Me': 'good', 'Content-Type': 'application/json' };
+    expect((await fetch(`${base}/api/me/downtime`, { headers: h })).status).toBe(501);
+    const bad = await fetch(`${base}/api/me/downtime`, {
+      method: 'POST',
+      headers: h,
+      body: JSON.stringify({ text: 'x', id: 'nope' }),
+    });
+    expect(bad.status).toBe(400);
+  });
+
   it('refuses a bad key, a bad id and a missing backend method', async () => {
     const base = await start({ downtime: () => Promise.resolve({ entries: [] }) });
     expect(

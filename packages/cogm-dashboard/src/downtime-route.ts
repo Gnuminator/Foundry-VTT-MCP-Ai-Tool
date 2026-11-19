@@ -18,7 +18,7 @@ export interface DowntimeClient {
   downtime?(params: Record<string, unknown>): Promise<unknown>;
 }
 
-export interface DowntimeRouteOptions {
+interface DowntimeRouteOptions {
   client: DowntimeClient;
   links: PlayerLinkStore;
   directory: PlayerDirectory;
@@ -30,13 +30,21 @@ const ENTRY_ID = /^[a-f0-9]{16}$/;
 
 export function mountDowntimeRoute(app: Express, options: DowntimeRouteOptions): void {
   const { client, links, directory, worldId } = options;
+  let lastWorld: string | null = null;
 
   function who(req: Request, res: Response): string | null {
     res.set('Cache-Control', 'no-store');
-    const world = worldId();
+    // The inbox is for the time between sessions: with no GM client joined the live world is
+    // null, so the last world seen stands in (the links and the entries are per world).
+    const world = worldId() ?? lastWorld;
+    if (!world) {
+      res.status(503).json({ error: 'The table is offline right now. Try again later.' });
+      return null;
+    }
+    lastWorld = world;
     const raw = req.headers[ME_KEY_HEADER];
     const key = Array.isArray(raw) ? raw[0] : raw;
-    const userId = world ? links.userFor(world, key) : null;
+    const userId = links.userFor(world, key);
     if (!userId) {
       res
         .status(401)
@@ -60,6 +68,10 @@ export function mountDowntimeRoute(app: Express, options: DowntimeRouteOptions):
       .catch((error: unknown) => {
         // The bridge's own sentences ("Write something first.") are table words; show them.
         const message = error instanceof Error ? error.message : '';
+        if (/Unknown method/i.test(message)) {
+          res.status(501).json({ error: 'The downtime inbox is not available here. Ask your GM.' });
+          return;
+        }
         const known = /^(Write something first|Keep it under|You can keep|That entry is gone)/.test(
           message
         );
@@ -82,7 +94,11 @@ export function mountDowntimeRoute(app: Express, options: DowntimeRouteOptions):
       res.status(400).json({ error: 'Write something first.' });
       return;
     }
-    const id = typeof body.id === 'string' && ENTRY_ID.test(body.id) ? body.id : undefined;
+    if (body.id !== undefined && !(typeof body.id === 'string' && ENTRY_ID.test(body.id))) {
+      res.status(400).json({ error: 'That entry is gone.' });
+      return;
+    }
+    const id = typeof body.id === 'string' ? body.id : undefined;
     void directory
       .refreshIfStale()
       .catch(() => undefined)

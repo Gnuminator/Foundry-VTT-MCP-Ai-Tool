@@ -296,7 +296,8 @@ class P { static int Main(string[] a) {
     const flag = path.join(state, 'autoupdate.on');
     assert.equal(ps(['-ControlHost', '100.64.0.7', '-ControlPort', '31414']).status, 0);
     assert.ok(existsSync(flag), 'first install is on');
-    assert.deepEqual(JSON.parse(readFileSync(path.join(state, 'direct.json'), 'utf8').replace(/^﻿/, '')), { host: '100.64.0.7', port: 31414 });
+    const direct = readFileSync(path.join(state, 'direct.json'), 'utf8');
+    assert.deepEqual(JSON.parse(direct.slice(direct.indexOf('{'))), { host: '100.64.0.7', port: 31414 });
     rmSync(flag); // the user switched it off
     assert.equal(ps(['-ControlHost', 'pi.tail1234.ts.net', '-ControlPort', '31414']).status, 0);
     assert.ok(!existsSync(flag), 'an upgrade keeps the off choice');

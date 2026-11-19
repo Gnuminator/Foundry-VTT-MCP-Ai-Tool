@@ -16,6 +16,7 @@ import { playerConnectorFromEnv, type PlayerConnectorOptions } from '../player-c
 import type { PlayerLinkStore } from '../player-links.js';
 import { mountPlayerRoute } from '../player-route.js';
 import { gmOnly } from '../redact.js';
+import { mountPreviouslyOnRoute } from '../previously-on-route.js';
 import { mountSessionNotesRoute } from '../session-notes-route.js';
 import { mountSpaceRoute } from '../space-route.js';
 import { mountUsageRoute, type PlayerDirectory } from '../usage-route.js';
@@ -209,6 +210,16 @@ export function mountHelpAndNotesRoutes(
     client,
     requireGm,
     gmActionsEnabled: () => settings.gmActionsEnabled,
+    logger,
+  });
+
+  // "Previously on" (item previously-on): last night's approved recap to chat, optionally spoken.
+  // Off unless FOUNDRY_AI_PREVIOUSLY_ON=1.
+  mountPreviouslyOnRoute(app, {
+    client,
+    requireGm,
+    gmActionsEnabled: () => settings.gmActionsEnabled,
+    enabled: () => process.env.FOUNDRY_AI_PREVIOUSLY_ON === '1',
     logger,
   });
 }

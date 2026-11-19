@@ -5,6 +5,7 @@
 
 import {
   errorMessage,
+  isNoOpResult,
   unwrapBridgeReply,
   type ChangeRecord,
   type GuardedOp,
@@ -39,6 +40,18 @@ export function isBatchRider(r: ChangeRecord, ai?: readonly ChangeRecord[]): boo
     r.documentName === 'ActiveEffect' &&
     /\.ActiveEffect\.dnd5eprone0{6}$/.test(r.uuid)
   );
+}
+
+/**
+ * The "Also removed" lines, written after the run: one per rider delete that really removed
+ * something. `results` are the rider ops' results, which follow the change's own in order;
+ * without a Foundry run (undefined) no rider ran.
+ */
+export function removedRiderLines(
+  lines: readonly string[],
+  results: readonly GuardedOpResult[] | undefined
+): string[] {
+  return lines.filter((_, i) => results?.[i] !== undefined && !isNoOpResult(results[i]));
 }
 
 /**

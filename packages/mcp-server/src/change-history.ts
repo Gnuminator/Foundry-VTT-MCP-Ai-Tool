@@ -729,19 +729,14 @@ export function buildActions(records: ChangeRecord[], users?: UserNames): Change
     });
     // Only a change that started at or before a record arrived can own it; of those, the latest
     // whose data ties it (a change that deleted the same thing again later owns its own cascade).
-    const latestOwner = (r: ChangeRecord, owns: (i: number) => boolean): number => {
+    const latestOwner = (r: ChangeRecord, owns: (i: number) => boolean, none = -1): number => {
       for (let i = at(r); i >= 0; i -= 1) if (owns(i)) return i;
-      return -1;
+      return none;
     };
     const segmentOf = (r: ChangeRecord): number => {
       if (r.op === 'delete' && DEPENDENT_DELETE_KINDS.has(r.documentName)) {
         const linked = latestOwner(r, i => links[i].link.linked.has(r.uuid));
         if (linked >= 0) return linked;
-      }
-      if (isBatchRider(r)) {
-        // dnd5e's Prone follows the change that dropped the hero, however late it arrives.
-        const dropper = latestOwner(r, i => isBatchRider(r, segments[i].ai));
-        if (dropper >= 0) return dropper;
       }
       const token = combatantTokenUuid(r);
       if (token) {
@@ -750,7 +745,7 @@ export function buildActions(records: ChangeRecord[], users?: UserNames): Change
         );
         if (deleter >= 0) return deleter;
       }
-      return at(r);
+      return latestOwner(r, i => isBatchRider(r, segments[i].ai), at(r));
     };
     const filed = new Map<number, ChangeRecord[]>();
     for (const r of others) {

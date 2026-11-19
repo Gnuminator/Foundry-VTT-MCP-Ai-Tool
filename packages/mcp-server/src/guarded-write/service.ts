@@ -56,7 +56,7 @@ const DOCUMENT_LOOKUP_TOOLS = 'list-characters, list-scenes or list-journals';
 
 import type { FoundryClient } from '../foundry-client.js';
 import type { Logger } from '../logger.js';
-import { riderUndoOps, type BatchRiderSource } from './rider-undo.js';
+import { removedRiderLines, riderUndoOps, type BatchRiderSource } from './rider-undo.js';
 import { mergeChangeHistory } from '../obsidian/audit-merge.js';
 import { changeNoteNames, changeNoteParts } from '../obsidian/change-note-parts.js';
 import type { AuditEntry, AuditLog, VaultOpRecord } from '../vault/audit.js';
@@ -1130,13 +1130,6 @@ export class GuardedWriteService {
       );
     }
 
-    // The rider lines come after the run: one per rider delete that really removed something (the
-    // rider results follow the change's own, in order). Without a Foundry run no rider ran.
-    const riderResults = foundry?.results.slice(results.length) ?? [];
-    const riderLines = riders.lines.filter(
-      (_, i) => riderResults[i] !== undefined && !isNoOpResult(riderResults[i])
-    );
-
     const undoEntry: AuditEntry = {
       changeId: undoId,
       planId: null,
@@ -1153,7 +1146,7 @@ export class GuardedWriteService {
           )
           .map(line => `undone: ${line}`),
         ...leftAlone,
-        ...riderLines,
+        ...removedRiderLines(riders.lines, foundry?.results.slice(results.length)),
       ],
       undoOf: entry.changeId,
       ...(requestedBy ? { requestedBy } : {}),

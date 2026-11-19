@@ -41,6 +41,7 @@ export function mountApiOmensRoutes(app: Express, ctx: RouteContext): void {
       id: readStr(body.id, ''),
       decision: readStr(body.decision, ''),
       confirmFlagged: body.confirmFlagged === true,
+      confirmUnsure: body.confirmUnsure === true,
     });
   });
 
@@ -60,6 +61,10 @@ export function mountApiOmensRoutes(app: Express, ctx: RouteContext): void {
 
   app.post('/api/omens/finish', requireGm, (req: Request, res: Response) => {
     const body = asRecord(req.body);
-    run(res, 'finish', { id: readStr(body.id, ''), ok: body.ok === true });
+    run(res, 'finish', {
+      id: readStr(body.id, ''),
+      ok: body.ok === true,
+      error: readStr(body.error, ''),
+    });
   });
 }

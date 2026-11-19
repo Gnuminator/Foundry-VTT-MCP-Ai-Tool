@@ -9,7 +9,7 @@ import { useToast } from '../components/Toasts';
 import { api, errorText } from '../lib/api';
 import { Button, QueryState } from '../ui';
 
-type OmenStatus = 'draft' | 'approved' | 'rejected' | 'sending' | 'sent';
+type OmenStatus = 'draft' | 'approved' | 'rejected' | 'sending' | 'sent' | 'failed';
 
 interface Omen {
   id: string;
@@ -17,6 +17,7 @@ interface Omen {
   text: string;
   status: OmenStatus;
   secretTerms?: string[];
+  lastError?: string;
 }
 
 interface OmensData {
@@ -37,8 +38,9 @@ const STATUS_TEXT: Record<OmenStatus, string> = {
   draft: 'waiting for you',
   approved: 'approved, goes out within a few minutes',
   rejected: 'rejected',
-  sending: 'sending now (back to draft if this stays)',
+  sending: 'sending now, or sent without being recorded: check their Discord before reopening',
   sent: 'sent',
+  failed: 'could not be sent',
 };
 
 async function load(): Promise<OmensData> {
@@ -81,10 +83,17 @@ export function OmensSection({ open }: { open: boolean }): JSX.Element {
       );
       if (!ok) return;
     }
+    if (decision === 'reopen' && omen.status === 'sending') {
+      const ok = window.confirm(
+        'This omen may already have reached the player. Check their Discord first. Reopen it anyway?'
+      );
+      if (!ok) return;
+    }
     void run(omen.id, '/api/omens/decide', {
       id: omen.id,
       decision,
       confirmFlagged: omen.secretTerms !== undefined,
+      confirmUnsure: omen.status === 'sending',
     });
   }
 
@@ -114,13 +123,20 @@ export function OmensSection({ open }: { open: boolean }): JSX.Element {
                   </span>
                   <br />
                   {omen.text}
+                  {omen.lastError && (
+                    <span className="pf-detail">
+                      <br />✗ {omen.lastError}
+                    </span>
+                  )}
                   {omen.secretTerms && (
                     <span className="pf-detail">
                       <br />⚠ Names {omen.secretTerms.join(', ')}.
                     </span>
                   )}
                 </span>
-                {(omen.status === 'draft' || omen.status === 'rejected') && (
+                {(omen.status === 'draft' ||
+                  omen.status === 'rejected' ||
+                  omen.status === 'failed') && (
                   <Button
                     type="button"
                     size="sm"
@@ -145,6 +161,7 @@ export function OmensSection({ open }: { open: boolean }): JSX.Element {
                 )}
                 {(omen.status === 'approved' ||
                   omen.status === 'sending' ||
+                  omen.status === 'failed' ||
                   omen.status === 'rejected') && (
                   <Button
                     type="button"
@@ -165,7 +182,23 @@ export function OmensSection({ open }: { open: boolean }): JSX.Element {
               <div key={p.userId}>
                 {p.name}{' '}
                 {data.players[p.userId] ? (
-                  <span>linked</span>
+                  <>
+                    <span>linked to Discord id {data.players[p.userId]}</span>{' '}
+                    <Button
+                      type="button"
+                      size="sm"
+                      data-track="dash.omens.unlink"
+                      disabled={busy !== null}
+                      onClick={() =>
+                        void run(p.userId, '/api/omens/player', {
+                          userId: p.userId,
+                          discordId: null,
+                        })
+                      }
+                    >
+                      Unlink
+                    </Button>
+                  </>
                 ) : (
                   <>
                     <input

@@ -62,13 +62,25 @@ export function createOmensPoster(options: OmensPostOptions): () => Promise<numb
         const omen = claim.item;
         if (!omen) continue;
         let ok = false;
+        let error = 'Discord did not take the message';
         try {
           ok = await options.send(omen.discordId, omenMessage(omen.text));
         } catch (err) {
-          options.log?.(`Omens: could not send omen ${omen.id} (${(err as Error).message})`);
+          error = (err as Error).message;
+          options.log?.(`Omens: could not send omen ${omen.id} (${error})`);
         }
-        await call('/api/omens/finish', { id: omen.id, ok });
         if (ok) sent += 1;
+        // A failed record must not stop the other omens or hide a message that did go out.
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          try {
+            await call('/api/omens/finish', { id: omen.id, ok, error });
+            break;
+          } catch (err) {
+            if (attempt === 1) {
+              options.log?.(`Omens: could not record omen ${omen.id} (${(err as Error).message})`);
+            }
+          }
+        }
       }
     } catch (err) {
       // Once per outage: a dashboard that is down would log all day.

@@ -32,7 +32,9 @@ describe('omens poster', () => {
     expect(await check()).toBe(1);
     // The outbox's own discordId is ignored; the claim decides the recipient.
     expect(send).toHaveBeenCalledWith('111111111111111111', omenMessage('Hello'));
-    expect(calls[calls.length - 1]).toBe('POST /api/omens/finish {"id":"o1","ok":true}');
+    expect(calls[calls.length - 1]).toBe(
+      'POST /api/omens/finish {"id":"o1","ok":true,"error":"Discord did not take the message"}'
+    );
   });
 
   it('reports a failed send as not ok and sends nothing when the claim is empty', async () => {
@@ -60,7 +62,9 @@ describe('omens poster', () => {
     });
     expect(await check()).toBe(0);
     expect(send).toHaveBeenCalledTimes(1);
-    expect(calls).toContain('/api/omens/finish {"id":"o1","ok":false}');
+    expect(calls).toContain(
+      '/api/omens/finish {"id":"o1","ok":false,"error":"Cannot send messages to this user"}'
+    );
     expect(log).toHaveBeenCalled();
   });
 

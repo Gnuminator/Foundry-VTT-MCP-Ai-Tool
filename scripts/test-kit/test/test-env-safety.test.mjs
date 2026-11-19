@@ -115,7 +115,6 @@ test('shared/ports.json matches servers.json and forbids every test and live por
   for (const live of [31414, 31415, 31416]) assert.ok(forbidden.has(live), `live ${live}`);
 });
 
-
 /** Get-RootProblems from config.ps1 for one server over a name-to-path table. */
 function rootProblems(name, roots) {
   const config = path.join(root, 'scripts', 'test-env', 'config.ps1').replace(/'/g, "''");

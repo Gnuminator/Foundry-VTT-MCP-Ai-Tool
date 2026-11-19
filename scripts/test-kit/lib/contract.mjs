@@ -45,7 +45,12 @@ export const TOOLS_ONLY_TAG = 'tools-only';
  * `strahd-kit` is a throwaway copy of the campaign world for the licensed Curse of Strahd scenarios,
  * made again from the campaign world whenever it is needed (as on the Pi); never the campaign itself.
  */
-export const KIT_WORLDS = ['ai-tool-kit-srd', 'ai-tool-kit-licensed', 'strahd-kit', 'ai-tool-kit-modules'];
+export const KIT_WORLDS = [
+  'ai-tool-kit-srd',
+  'ai-tool-kit-licensed',
+  'strahd-kit',
+  'ai-tool-kit-modules',
+];
 
 /** The kit's own world. */
 export const DEFAULT_KIT_WORLD = 'ai-tool-kit-srd';

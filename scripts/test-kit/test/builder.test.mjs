@@ -311,9 +311,30 @@ test('heroAbilities: no primary ability falls back to the spellcasting ability, 
 
 test('selectMonsters: a matrix with rules skips the other version of the same monster', async () => {
   const creatures = [
-    { id: 'a2014', name: 'Aboleth', pack: { id: 'c.m' }, challengeRating: 10, creatureType: 'aberration', size: 'lg' },
-    { id: 'b2024', name: 'Aboleth', pack: { id: 'c.m' }, challengeRating: 10, creatureType: 'aberration', size: 'lg' },
-    { id: 'x', name: 'Aboleth', pack: { id: 'other.pack' }, challengeRating: 10, creatureType: 'aberration', size: 'lg' },
+    {
+      id: 'a2014',
+      name: 'Aboleth',
+      pack: { id: 'c.m' },
+      challengeRating: 10,
+      creatureType: 'aberration',
+      size: 'lg',
+    },
+    {
+      id: 'b2024',
+      name: 'Aboleth',
+      pack: { id: 'c.m' },
+      challengeRating: 10,
+      creatureType: 'aberration',
+      size: 'lg',
+    },
+    {
+      id: 'x',
+      name: 'Aboleth',
+      pack: { id: 'other.pack' },
+      challengeRating: 10,
+      creatureType: 'aberration',
+      size: 'lg',
+    },
   ];
   const rules = { a2014: '2014', b2024: '2024', x: '2024' };
   const asked = [];
@@ -325,7 +346,12 @@ test('selectMonsters: a matrix with rules skips the other version of the same mo
     },
   };
   const cells = [{ cell: 'legendary', criteria: { hasLegendaryActions: true } }];
-  const picked = await selectMonsters(dashboard, { pack: 'c.m', excludeIdPattern: '(?!)', rules: '2024', cells });
+  const picked = await selectMonsters(dashboard, {
+    pack: 'c.m',
+    excludeIdPattern: '(?!)',
+    rules: '2024',
+    cells,
+  });
   assert.deepEqual(
     picked.map(p => [p.cell, p.packId, p.itemId, p.name]),
     [['legendary', 'c.m', 'b2024', 'Aboleth']]

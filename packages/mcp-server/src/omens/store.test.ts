@@ -79,6 +79,34 @@ describe('omens by post', () => {
     expect((await omens.outbox()).length).toBe(1);
   });
 
+  it('reopening a sending omen needs a confirmation, and a late finish still records the send', async () => {
+    const a = await omens.add(ANNA, 'For Anna.');
+    await omens.setPlayer(ANNA, DISCORD_ANNA);
+    await omens.decide(a.id, 'approve');
+    await omens.claim(a.id);
+    await expect(omens.decide(a.id, 'reopen')).rejects.toThrow(/may already have reached/);
+    await omens.decide(a.id, 'reopen', false, true);
+    expect((await omens.list()).omens[0].status).toBe('draft');
+    await omens.finish(a.id, true);
+    expect((await omens.list()).omens[0].status).toBe('sent');
+  });
+
+  it('a send that keeps failing stops after three tries and shows why', async () => {
+    const a = await omens.add(ANNA, 'For Anna.');
+    await omens.setPlayer(ANNA, DISCORD_ANNA);
+    await omens.decide(a.id, 'approve');
+    for (let i = 0; i < 3; i += 1) {
+      expect((await omens.claim(a.id))?.id).toBe(a.id);
+      await omens.finish(a.id, false, 'Cannot send messages to this user');
+    }
+    const failed = (await omens.list()).omens[0];
+    expect(failed.status).toBe('failed');
+    expect(failed.lastError).toMatch(/Cannot send/);
+    expect(await omens.outbox()).toEqual([]);
+    await omens.decide(a.id, 'approve');
+    expect((await omens.outbox()).length).toBe(1);
+  });
+
   it('editing an approved omen puts it back to draft', async () => {
     const a = await omens.add(ANNA, 'One.');
     await omens.setPlayer(ANNA, DISCORD_ANNA);

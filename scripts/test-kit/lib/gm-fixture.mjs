@@ -19,7 +19,10 @@ async function createFixtureActors(args) {
     }
     const data = { name, type: i === 0 ? 'character' : 'npc' };
     if (args.folderId) data.folder = args.folderId;
-    foundry.utils.setProperty(data, `flags.${flagScope}.${flagKey}`, { built: true, fixture: true });
+    foundry.utils.setProperty(data, `flags.${flagScope}.${flagKey}`, {
+      built: true,
+      fixture: true,
+    });
     const actor = await Actor.implementation.create(data);
     actorIds.push(actor.id);
   }

@@ -526,24 +526,26 @@ const ACTIONS = {
   },
 
   createFixtureActors: (w, args) => {
-    const actorIds = (args.names ?? []).map((/** @type {string} */ name, /** @type {number} */ i) => {
-      const found = [...w.actors.values()].find(a => a.name === name && a.fixture);
-      if (found) return found.id;
-      const id = newId(w, 'fix');
-      w.actors.set(id, {
-        id,
-        name,
-        type: i === 0 ? 'character' : 'npc',
-        fixture: true,
-        hp: { value: 10, max: 10, temp: 0 },
-        items: [],
-        cr: 0,
-        creatureType: 'humanoid',
-        size: 'med',
-        level: 0,
-      });
-      return id;
-    });
+    const actorIds = (args.names ?? []).map(
+      (/** @type {string} */ name, /** @type {number} */ i) => {
+        const found = [...w.actors.values()].find(a => a.name === name && a.fixture);
+        if (found) return found.id;
+        const id = newId(w, 'fix');
+        w.actors.set(id, {
+          id,
+          name,
+          type: i === 0 ? 'character' : 'npc',
+          fixture: true,
+          hp: { value: 10, max: 10, temp: 0 },
+          items: [],
+          cr: 0,
+          creatureType: 'humanoid',
+          size: 'med',
+          level: 0,
+        });
+        return id;
+      }
+    );
     return { actorIds };
   },
 

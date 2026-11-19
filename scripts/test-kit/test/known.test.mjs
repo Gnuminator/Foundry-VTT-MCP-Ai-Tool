@@ -4,7 +4,14 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { NOT_BUILT, classifyBuildError } from '../lib/advancement.mjs';
-import { knownAlsoOf, knownAttachment, knownFile, loadKnown, splitKnown, validateKnown } from '../lib/known.mjs';
+import {
+  knownAlsoOf,
+  knownAttachment,
+  knownFile,
+  loadKnown,
+  splitKnown,
+  validateKnown,
+} from '../lib/known.mjs';
 import { pickCoverage, pickSummary } from '../lib/picks.mjs';
 import { knownMarkdown, picksMarkdown } from '../lib/report.mjs';
 
@@ -245,7 +252,10 @@ test('known: a profile also uses the lists it names in knownAlso, its own entrie
   );
   // The same id in two lists is an error, so an entry is never counted twice.
   put('base.known.json', [{ ...ENTRY, id: 'mine-own' }]);
-  assert.throws(() => loadKnown('mine', { home }), /"mine-own" is in the lists of both "mine" and "base"/);
+  assert.throws(
+    () => loadKnown('mine', { home }),
+    /"mine-own" is in the lists of both "mine" and "base"/
+  );
   // With a file given, only that file is read.
   assert.deepEqual(
     loadKnown('mine', { home, file: path.join(dir, 'base.known.json') }).map(e => e.id),

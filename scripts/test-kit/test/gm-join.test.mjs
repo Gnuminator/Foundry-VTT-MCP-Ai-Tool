@@ -57,7 +57,9 @@ test('a passwordless join leaves the password field alone', async () => {
 test('a name list (Foundry 14.369) is chosen from, not typed into', async () => {
   const page = stubPage({ nameIsSelect: true });
   await joinGame(/** @type {any} */ (page), { foundryUrl: 'http://x:30000', user: 'Kit GM' });
-  assert.ok(page.calls.some(c => c[0] === 'select' && c[1] === '#join-username' && c[2] === 'Kit GM'));
+  assert.ok(
+    page.calls.some(c => c[0] === 'select' && c[1] === '#join-username' && c[2] === 'Kit GM')
+  );
   assert.equal(page.calls.filter(c => c[0] === 'fill').length, 0);
 });
 

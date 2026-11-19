@@ -29,7 +29,10 @@ const DISCORD_ID = /^\d{15,25}$/;
 export const MAX_OMEN_TEXT = 1500;
 const MAX_OMENS = 60;
 
-export type OmenStatus = 'draft' | 'approved' | 'rejected' | 'sending' | 'sent';
+export type OmenStatus = 'draft' | 'approved' | 'rejected' | 'sending' | 'sent' | 'failed';
+
+/** After this many failed sends an omen stops retrying and shows the error to the GM. */
+export const MAX_SEND_ATTEMPTS = 3;
 
 interface Omen {
   userId: string;
@@ -38,6 +41,9 @@ interface Omen {
   createdAt: string;
   decidedAt?: string;
   sentAt?: string;
+  /** Failed send attempts so far, and why the last one failed. */
+  attempts?: number;
+  lastError?: string;
   /** Secret terms found in the text when it was drafted or edited (Tarokka cards and so on). */
   secretTerms?: string[];
 }
@@ -176,7 +182,12 @@ export class OmensStore {
     const worldId = await this.worldIds.current();
     const secretTerms = await this.terms(worldId, clean);
     return this.change(worldId, id, omen => {
-      if (omen.status !== 'draft' && omen.status !== 'rejected' && omen.status !== 'approved') {
+      if (
+        omen.status !== 'draft' &&
+        omen.status !== 'rejected' &&
+        omen.status !== 'approved' &&
+        omen.status !== 'failed'
+      ) {
         throw new Error(`Omen ${id} is ${omen.status} and cannot be edited`);
       }
       const next: Omen = {
@@ -209,13 +220,20 @@ export class OmensStore {
   async decide(
     id: string,
     decision: 'approve' | 'reject' | 'reopen',
-    confirmFlagged = false
+    confirmFlagged = false,
+    confirmUnsure = false
   ): Promise<Omen> {
     const worldId = await this.worldIds.current();
     return this.change(worldId, id, omen => {
       if (decision === 'reopen') {
         if (omen.status === 'sent') throw new Error('A sent omen cannot be reopened');
-        return { ...omen, status: 'draft' };
+        if (omen.status === 'sending' && !confirmUnsure) {
+          throw new Error(
+            `Omen ${id} may already have reached the player; check their Discord before reopening it`
+          );
+        }
+        const { attempts: _a, lastError: _e, ...rest } = omen;
+        return { ...rest, status: 'draft' };
       }
       if (omen.status === 'sent' || omen.status === 'sending') {
         throw new Error(`Omen ${id} is already ${omen.status}`);
@@ -228,7 +246,8 @@ export class OmensStore {
           `Omen ${id} names ${omen.secretTerms.join(', ')}; read it again and confirm to approve`
         );
       }
-      return { ...omen, status: 'approved', decidedAt: this.stamp() };
+      const { attempts: _a, lastError: _e, ...rest } = omen;
+      return { ...rest, status: 'approved', decidedAt: this.stamp() };
     });
   }
 
@@ -266,14 +285,28 @@ export class OmensStore {
     return claimed;
   }
 
-  /** The bot's result: sent, or failed (back to approved so the next round tries again). */
-  async finish(id: string, ok: boolean): Promise<Omen> {
+  /**
+   * The bot's result. Sent: the omen is sent, whatever the GM did meanwhile (the message went out).
+   * Failed: back to approved for the next round, and after MAX_SEND_ATTEMPTS to failed with the
+   * reason, so the GM sees it and the bot stops retrying.
+   */
+  async finish(id: string, ok: boolean, error?: string): Promise<Omen> {
     const worldId = await this.worldIds.current();
     return this.change(worldId, id, omen => {
-      if (omen.status !== 'sending') throw new Error(`Omen ${id} was not being sent`);
-      return ok
-        ? { ...omen, status: 'sent', sentAt: this.stamp() }
-        : { ...omen, status: 'approved' };
+      if (ok) {
+        if (omen.status === 'sent') return omen;
+        const { attempts: _a, lastError: _e, ...rest } = omen;
+        return { ...rest, status: 'sent', sentAt: this.stamp() };
+      }
+      if (omen.status !== 'sending') return omen;
+      const attempts = (omen.attempts ?? 0) + 1;
+      const lastError = (error ?? 'the message could not be sent').slice(0, 200);
+      return {
+        ...omen,
+        status: attempts >= MAX_SEND_ATTEMPTS ? 'failed' : 'approved',
+        attempts,
+        lastError,
+      };
     });
   }
 
@@ -306,13 +339,26 @@ export async function handleOmensControl(store: OmensStore, params: unknown): Pr
       if (p.decision !== 'approve' && p.decision !== 'reject' && p.decision !== 'reopen') {
         throw new Error('decision must be approve, reject or reopen');
       }
-      return { omen: await store.decide(id, p.decision, p.confirmFlagged === true) };
+      return {
+        omen: await store.decide(
+          id,
+          p.decision,
+          p.confirmFlagged === true,
+          p.confirmUnsure === true
+        ),
+      };
     case 'outbox':
       return { items: await store.outbox() };
     case 'claim':
       return { item: await store.claim(id) };
     case 'finish':
-      return { omen: await store.finish(id, p.ok === true) };
+      return {
+        omen: await store.finish(
+          id,
+          p.ok === true,
+          typeof p.error === 'string' ? p.error : undefined
+        ),
+      };
     case 'set-player':
       await store.setPlayer(p.userId, p.discordId ?? null);
       return { ok: true };

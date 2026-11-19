@@ -16,7 +16,7 @@ interface OmenToSend {
 }
 
 interface OmensPostOptions {
-  /** The dashboard's address, for example `http://127.0.0.1:3100`. */
+  /** The dashboard's address, as a full http URL. */
   dashboardUrl: string;
   /** The dashboard's GM token. */
   gmToken: string;

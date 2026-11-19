@@ -75,7 +75,7 @@ describe('34-map-upscale.sh as text', () => {
 describe('map-upscale-scenes.js', () => {
   test('refuses to run without the mode and data, and never writes in check', () => {
     assert.match(gm, /typeof MAP_MODE === 'undefined' \|\| typeof DATA === 'undefined'/);
-    assert.match(gm, /MAP_MODE === 'check' && !args\.dryRun\) throw/);
+    assert.match(gm, /MAP_MODE === 'check' && !args\.dryRun\)\s+throw/);
     assert.match(gm, /const write = !args\.dryRun && MAP_MODE !== 'check'/);
   });
 

@@ -37,9 +37,12 @@ export function writeMarketplace(root) {
 }
 
 function claude(profile, args) {
-  const r = spawnSync('claude', args, {
+  // claude is a .cmd shim on Windows, so it needs a shell; quote args that hold a space.
+  const win = process.platform === 'win32';
+  const r = spawnSync('claude', win ? args.map(a => (/\s/.test(a) ? `"${a}"` : a)) : args, {
     encoding: 'utf8',
-    shell: process.platform === 'win32',
+    shell: win,
+    timeout: 120000,
     env: { ...process.env, CLAUDE_CONFIG_DIR: profile },
   });
   if (r.status !== 0) throw new Error(`claude ${args.join(' ')} failed: ${r.stderr || r.stdout}`);
@@ -52,9 +55,11 @@ function runHook(installPath, name, command) {
   const r = spawnSync(process.execPath, [path.join(installPath, 'hooks', name)], {
     input: JSON.stringify({ tool_name: 'Bash', tool_input: { command } }),
     encoding: 'utf8',
+    cwd: REPO,
     env: { ...process.env, CLAUDE_PROJECT_DIR: REPO },
   });
-  return { status: r.status, out: r.stdout };
+  // A crashed hook prints nothing, so a clean exit and empty stderr count as part of every result.
+  return { clean: r.status === 0 && r.stderr === '', out: r.stdout };
 }
 
 export function main() {
@@ -69,9 +74,13 @@ export function main() {
   mkdirSync(profile, { recursive: true });
   try {
     writeMarketplace(mp);
+    if (installed(profile)) throw new Error('profile is not clean before install; aborting');
     claude(profile, ['plugin', 'marketplace', 'add', mp]);
     claude(profile, ['plugin', 'install', ID]);
     const first = installed(profile);
+    if (!first || !path.resolve(first.installPath).startsWith(path.resolve(profile))) {
+      throw new Error(`install landed outside the throwaway profile: ${first?.installPath}`);
+    }
     check(Boolean(first?.enabled), 'installed and enabled in a clean profile');
     const root = first?.installPath ?? '';
 
@@ -84,12 +93,13 @@ export function main() {
     const refs = referencedHooks(hooks);
     check(refs.length > 0 && refs.every(r => existsSync(path.join(root, r))), `all ${refs.length} hook scripts resolve in the install`);
 
-    const py = runHook(root, 'guard-python-stdin.mjs', 'python3 -c 1');
-    check(py.out.includes('"permissionDecision":"deny"'), 'installed guard-python-stdin denies python3');
-    check(runHook(root, 'guard-python-stdin.mjs', 'ls').out === '', 'installed guard-python-stdin allows ls');
-    const sh = runHook(root, 'guard-shell-edits.mjs', "sed -i 's/a/b/' package.json");
-    check(sh.out.includes('"permissionDecision":"deny"'), 'installed guard-shell-edits (acorn from project) denies sed -i');
-    check(runHook(root, 'guard-shell-edits.mjs', 'git status').out === '', 'installed guard-shell-edits allows git status');
+    const denies = r => r.clean && r.out.includes('"permissionDecision":"deny"');
+    const allows = r => r.clean && r.out === '';
+    check(denies(runHook(root, 'guard-python-stdin.mjs', 'python3 -c 1')), 'installed guard-python-stdin denies python3');
+    check(allows(runHook(root, 'guard-python-stdin.mjs', 'ls')), 'installed guard-python-stdin allows ls');
+    const sed = `sed -i 's/a/b/' ${path.join(REPO, 'package.json')}`;
+    check(denies(runHook(root, 'guard-shell-edits.mjs', sed)), 'installed guard-shell-edits (acorn from project) denies sed -i');
+    check(allows(runHook(root, 'guard-shell-edits.mjs', 'git status')), 'installed guard-shell-edits allows git status');
 
     // A version bump in the marketplace must reach the profile.
     const manifest = path.join(mp, 'plugin', NAME, '.claude-plugin', 'plugin.json');
@@ -104,8 +114,13 @@ export function main() {
   } catch (err) {
     check(false, String(err.message ?? err));
   } finally {
-    if (!process.argv.includes('--keep')) rmSync(tmp, { recursive: true, force: true });
-    else console.log(`kept ${tmp}`);
+    if (!process.argv.includes('--keep')) {
+      try {
+        rmSync(tmp, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+      } catch (e) {
+        console.log(`could not remove ${tmp}: ${e.message}`);
+      }
+    } else console.log(`kept ${tmp}`);
   }
   if (failures.length) {
     console.error(`lane plugin install check: ${failures.length} failed`);

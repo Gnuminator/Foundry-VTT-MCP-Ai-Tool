@@ -7,9 +7,10 @@
 # What it changes, nothing else:
 #   1. installs scripts/who-uses-what.mjs and scripts/pi/who-uses-what-push.sh into $TOOL_DIR/who-uses-what (copy both to /root
 #      first, see below; Node's built-ins only, so no npm install and no dependency on the release build);
-#   2. makes the state folder /var/lib/foundry-ai-tool-who-uses-what (foundry, 0700; outside $TOOL_DATA, so the nightly restic
-#      backup does not carry the key; a restore needs a new key) and in it a deploy key pair (ssh-keygen as foundry, the
-#      private key never leaves the Pi and is never printed) and a known_hosts file with GitHub's published ed25519 key;
+#   2. makes the state folder /var/lib/foundry-ai-tool-who-uses-what (foundry, 0700; outside $TOOL_DATA, so the nightly
+#      restic backup does not carry the key) and in it a deploy key pair (ssh-keygen as foundry, never printed), a known_hosts
+#      file with GitHub's published ed25519 key, and one line in dietpi-backup's exclude file so its snapshots (pulled to the PC)
+#      leave the folder out too. Without that line the snapshots would carry the private key;
 #   3. writes the unit foundry-ai-tool-who-uses-what.service (oneshot, User=foundry, reads dashboard-access.env for the GM token)
 #      and the timer, then takes ONE reading now. The timer is enabled only when that reading was pushed. The job keeps a sparse
 #      depth-1 blobless clone of the vault repo in the state folder: the file list of the vault and the one note, never the other
@@ -22,13 +23,13 @@
 # Modes (environment, before bash):
 #   DRY_RUN=1  print what a real run would do; changes nothing, needs no snapshot
 #   CHECK=1    read the report and list the vault repo with the key, as the foundry user (no write, no push); exit 1 when one fails
-#   UNDO=1     stop and remove the timer, the service and the installed files; the state folder (key, clone) is kept
+#   UNDO=1     stop and remove the timer, the service and the installed files; the state folder (key, clone) and the dietpi-backup exclude line are kept
 # A real run (and UNDO) needs a dietpi-backup snapshot from today and the user's OK. These lines are bash:
 #   scp scripts/who-uses-what.mjs scripts/pi/who-uses-what-push.sh foundry-pi:/root/   (from a clean checkout of main at the merge commit)
 #   cat scripts/pi/remote/lib.sh scripts/pi/remote/35-who-uses-what.sh | ssh foundry-pi 'DRY_RUN=1 bash -s'
 #   cat scripts/pi/remote/lib.sh scripts/pi/remote/35-who-uses-what.sh | ssh foundry-pi 'bash -s'
 #   cat scripts/pi/remote/lib.sh scripts/pi/remote/35-who-uses-what.sh | ssh foundry-pi 'CHECK=1 bash -s'
-# Tests only: SRC_DIR, UNIT_DIR (TOOL_ETC, TOOL_DIR, TOOL_DATA and NODE_DIR are set by lib.sh, so they are not overrides).
+# Tests only: SRC_DIR, UNIT_DIR, DIETPI_FILTER (TOOL_ETC, TOOL_DIR, TOOL_DATA and NODE_DIR are set by lib.sh, so they are not overrides).
 
 dry="${DRY_RUN:-0}"
 check="${CHECK:-0}"
@@ -43,6 +44,8 @@ state=/var/lib/foundry-ai-tool-who-uses-what
 access_env="$TOOL_ETC/dashboard-access.env"
 files="who-uses-what.mjs who-uses-what-push.sh"
 key="$state/id_ed25519"
+dietpi_filter="${DIETPI_FILTER:-/boot/dietpi/.dietpi-backup_inc_exc}"
+exclude_line="- $state/"
 # GitHub's published SSH host key (docs.github.com, "GitHub's SSH key fingerprints"; also `gh api meta`, ssh_keys). The job
 # pins it with StrictHostKeyChecking=yes, so a changed key stops the job instead of being trusted.
 github_hostkey='github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl'
@@ -183,6 +186,20 @@ as_foundry sh -c 'umask 022; printf "%s\n" "$1" >"$2.tmp" && mv -f "$2.tmp" "$2"
 as_foundry chmod 0600 "$key" || die "chmod of the key failed"
 as_foundry chmod 0644 "$key.pub" "$state/known_hosts" || die "chmod failed"
 
+say "dietpi-backup: keep the key out of the snapshots"
+# Same filter and rule as stage 8 (the recordings): top to bottom, first match wins, one more line at the end is enough.
+if [ ! -f "$dietpi_filter" ]; then
+  warn "no $dietpi_filter (not DietPi, or dietpi-backup never ran): its snapshots would carry the deploy key; run this stage again after the first snapshot"
+elif grep -qxF -- "$exclude_line" "$dietpi_filter"; then
+  ok "dietpi-backup already leaves $state out"
+else
+  if [ -n "$(tail -c 1 "$dietpi_filter")" ]; then printf '
+' >>"$dietpi_filter"; fi
+  printf '%s
+' "$exclude_line" >>"$dietpi_filter"
+  ok "dietpi-backup now leaves $state out ($dietpi_filter)"
+fi
+
 say "the units"
 write_file "$service_file" 0644 "$want_service" || true
 write_file "$timer_file" 0644 "$want_timer" || true
@@ -198,7 +215,7 @@ say "one reading now (it is pushed to the vault repo)"
 if ! systemctl start "$unit_name.service"; then
   journalctl -u "$unit_name.service" -n 8 --no-pager -o cat 2>/dev/null | sed 's/^/    /' || true
   say "the public deploy key (safe to show), for GitHub: repo Gnuminator/obsidian-vault, Settings, Deploy keys, Add, tick Allow write access:"
-  sed 's/^/    /' "$key.pub" || true
+  as_foundry cat "$key.pub" | sed 's/^/    /' || true
   die "the reading failed (most likely the deploy key is not accepted yet); the timer is NOT enabled. Add the key, then run this stage again"
 fi
 ok "the reading was pushed"

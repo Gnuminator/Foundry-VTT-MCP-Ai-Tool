@@ -243,8 +243,9 @@ A timer on the Pi writes the usage note for the PM board's Who tab, so the readi
 board reads it from the vault.
 
 - **Credential:** a GitHub deploy key made on the Pi by the stage (`/var/lib/foundry-ai-tool-who-uses-what/id_ed25519`, foundry, 0600;
-  the private half is never printed and never leaves the Pi: the folder sits outside `/var/lib/foundry-ai-tool`, so the nightly
-  restic backup does not carry it, and a restore needs a new key added on GitHub). It is a write key for the whole vault repo, which is the price of
+  the private half is never printed: the folder sits outside `/var/lib/foundry-ai-tool`, so the nightly
+  restic backup does not carry it, and the stage adds it to dietpi-backup's exclude file, so the snapshots pulled to the PC leave it out too;
+  a restore therefore needs a new key added on GitHub). It is a write key for the whole vault repo, which is the price of
   pushing from the Pi; remove it on GitHub to stop the job. GitHub's host key is pinned in `known_hosts`.
 - **What the Pi holds of the vault:** a depth-1 blobless sparse clone: the vault's file list and the one note, never the
   other notes' content. The key is a write key for the vault repo and runs as the foundry user (like Foundry and the dashboard).

@@ -10,6 +10,7 @@
 #   5 CHECK exits 0 when the report and the vault repo answer and 1 when the repo refuses; it prints no secret; writes nothing
 #   6 the snapshot rule: a stale snapshot refuses before anything is written; DRY_RUN and CHECK need none
 #   7 UNDO removes the units and the files and keeps the state folder with the key
+#   3c dietpi-backup's exclude file gets the state folder once (idempotent, a missing last newline handled, a missing file only warns)
 #   8 with a fake systemctl and journalctl: a failed first reading prints the PUBLIC key, dies and does not enable the timer;
 #     a good reading enables the timer after the start; a rerun with the key accepted works
 # The last line is ALL SCENARIOS OK when every one passed:
@@ -38,6 +39,7 @@ access_env="$TOOL_ETC/dashboard-access.env"
 dest="$TOOL_DIR/who-uses-what"
 state=/var/lib/foundry-ai-tool-who-uses-what
 src=/root/src
+filter=/tmp/dietpi-inc-exc
 unit_dir=/tmp/units
 service_file="$unit_dir/foundry-ai-tool-who-uses-what.service"
 timer_file="$unit_dir/foundry-ai-tool-who-uses-what.timer"
@@ -70,6 +72,9 @@ export PATH="/tmp/fakebin:$PATH"
 
 fresh() {
   rm -rf "$dest" "$state" "$service_file" "$timer_file" /tmp/fake-git-refuse
+  printf '+ /mnt/dietpi-backup
+- /mnt/*
+' >"$filter"
   mkdir -p "$src"
   echo "// who-uses-what v1" >"$src/who-uses-what.mjs"
   printf '#!/usr/bin/env bash\necho job v1\n' >"$src/who-uses-what-push.sh"
@@ -86,7 +91,7 @@ EOF2
 # run [VAR=value ...]: the stage as the user runs it (lib.sh and the stage on one stdin); output in OUT, its exit code returned.
 run() {
   local code
-  OUT="$(cat "$LIB" "$STAGE" | env SRC_DIR="$src" UNIT_DIR="$unit_dir" "$@" bash -s 2>&1)"
+  OUT="$(cat "$LIB" "$STAGE" | env SRC_DIR="$src" UNIT_DIR="$unit_dir" DIETPI_FILTER="$filter" "$@" bash -s 2>&1)"
   code=$?
   return "$code"
 }
@@ -160,6 +165,22 @@ rc=$?
 if [ "$rc" -eq 0 ] && grep -q 'v2' "$dest/who-uses-what.mjs" && [ "$key_sum" = "$(sha256sum "$state/id_ed25519" | cut -d' ' -f1)" ]; then
   pass "a changed script is installed again, the key stays"; else fail "changed script: rc=$rc $OUT"; fi
 
+# 3c. The dietpi-backup exclude file: the snapshots are pulled to the PC, so the key folder must stay out of them.
+if [ "$(grep -cxF -- "- $state/" "$filter")" = 1 ] && [ "$(head -n 2 "$filter" | tr '
+' '|')" = '+ /mnt/dietpi-backup|- /mnt/*|' ]; then
+  pass "dietpi-backup's filter excludes the state folder once, after the existing lines (a rerun added no second line)"; else fail "filter: $(cat "$filter")"; fi
+printf '+ /mnt/dietpi-backup' >"$filter"
+run
+rc=$?
+if [ "$rc" -eq 0 ] && [ "$(tail -n 1 "$filter")" = "- $state/" ] && [ "$(wc -l <"$filter")" = 2 ]; then pass "a filter without a last newline is not glued together"; else fail "no newline: rc=$rc $(cat "$filter")"; fi
+rm -f "$filter"
+run
+rc=$?
+if [ "$rc" -eq 0 ] && [ ! -e "$filter" ] && echo "$OUT" | grep -q 'would carry the deploy key'; then pass "a missing filter only warns"; else fail "missing filter: rc=$rc $OUT"; fi
+printf '+ /mnt/dietpi-backup
+- /mnt/*
+' >"$filter"
+
 # 5.
 run CHECK=1
 rc=$?
@@ -220,7 +241,10 @@ cat >/tmp/fakebin/systemctl <<'EOF'
 #!/usr/bin/env bash
 echo "$*" >>/tmp/systemctl.log
 case "$1" in
-  start) [ -f /tmp/fake-key-ok ] ;;
+  start)
+    # A foundry-controlled .pub linked to a root-only file, planted while the service runs (before the stage prints the key).
+    if [ -f /tmp/fake-plant ]; then rm -f /var/lib/foundry-ai-tool-who-uses-what/id_ed25519.pub; ln -s /tmp/rootsecret /var/lib/foundry-ai-tool-who-uses-what/id_ed25519.pub; fi
+    [ -f /tmp/fake-key-ok ] ;;
   *) exit 0 ;;
 esac
 EOF
@@ -229,13 +253,24 @@ cat >/tmp/fakebin/journalctl <<'EOF'
 if [ -f /tmp/fake-key-ok ]; then echo "who-uses-what: pushed the note (900 bytes)"; else echo "who-uses-what: git push was refused twice"; fi
 EOF
 chmod 0755 /tmp/fakebin/systemctl /tmp/fakebin/journalctl
-rm -f /tmp/systemctl.log /tmp/fake-key-ok
+rm -f /tmp/systemctl.log /tmp/fake-key-ok /tmp/fake-plant
 fresh
 run
 rc=$?
 if [ "$rc" -ne 0 ] && echo "$OUT" | grep -q 'Allow write access' && echo "$OUT" | grep -q "$(cut -d' ' -f2 "$state/id_ed25519.pub")" &&
   ! grep -q 'enable' /tmp/systemctl.log && ! echo "$OUT" | grep -q 'BEGIN OPENSSH'; then
   pass "a refused first reading prints the public key, dies and leaves the timer off"; else fail "no key yet: rc=$rc log=$(cat /tmp/systemctl.log) $OUT"; fi
+# 8b. The stage runs as root: the public key must be printed as $FOUNDRY_USER, so a link to a root-only file shows nothing of it.
+fresh
+printf 'ROOTONLYSECRET
+' >/tmp/rootsecret
+chmod 0600 /tmp/rootsecret
+touch /tmp/fake-plant
+run
+rc=$?
+rm -f /tmp/fake-plant /tmp/rootsecret
+if [ "$rc" -ne 0 ] && ! echo "$OUT" | grep -q 'ROOTONLYSECRET'; then pass "a .pub linked to a root-only file is not printed (read as $FOUNDRY_USER)"; else fail "root read through the link: rc=$rc $OUT"; fi
+rm -f "$state/id_ed25519.pub"
 : >/tmp/systemctl.log
 touch /tmp/fake-key-ok
 run

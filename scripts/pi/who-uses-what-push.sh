@@ -8,7 +8,7 @@
 # Nothing it prints holds a token, a key or an address with a query string.
 #
 # Environment (the unit sets the first three from the stage; the rest are for tests):
-#   WUW_DIR        state folder (key, known_hosts, the sparse clone); default /var/lib/foundry-ai-tool/who-uses-what
+#   WUW_DIR        state folder (key, known_hosts, the sparse clone); default /var/lib/foundry-ai-tool-who-uses-what
 #   WUW_NODE       the node binary; default /opt/node24/bin/node
 #   WUW_SCRIPT     who-uses-what.mjs; default /opt/foundry-ai-tool/who-uses-what/who-uses-what.mjs
 #   WUW_DASHBOARD  the dashboard address; default http://127.0.0.1:3000
@@ -21,7 +21,7 @@
 set -euo pipefail
 umask 077
 
-dir="${WUW_DIR:-/var/lib/foundry-ai-tool/who-uses-what}"
+dir="${WUW_DIR:-/var/lib/foundry-ai-tool-who-uses-what}"
 node_bin="${WUW_NODE:-/opt/node24/bin/node}"
 script="${WUW_SCRIPT:-/opt/foundry-ai-tool/who-uses-what/who-uses-what.mjs}"
 dash="${WUW_DASHBOARD:-http://127.0.0.1:3000}"

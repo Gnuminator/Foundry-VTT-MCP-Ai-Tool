@@ -1132,16 +1132,22 @@ export class HandoutsService {
         `New handout page "${args.name}" in ${HANDOUTS_JOURNAL_NAME}, hidden from players until ` +
         'it is revealed',
       ops: [op],
-      // The undo anchor, as for a copy: undoing an earlier plan that created the journal
-      // conflicts while this page is in it.
-      vaultOps: [
-        {
-          kind: 'vault-set',
-          file: REVEALS_FILE,
-          path: 'handoutsJournal',
-          value: { uuid: journalUuid, lastCopy: pageId },
-        },
-      ],
+      // The undo anchor, set only when this plan creates the journal (as a copy does): undoing
+      // it, which deletes the journal, then conflicts with a later copy. A page added to an
+      // existing journal leaves it alone, so several pressed pages can be planned together and
+      // applied in any order; undoing the plan that created the journal removes them with it.
+      ...(journalCreated
+        ? {
+            vaultOps: [
+              {
+                kind: 'vault-set' as const,
+                file: REVEALS_FILE,
+                path: 'handoutsJournal',
+                value: { uuid: journalUuid, lastCopy: pageId },
+              },
+            ],
+          }
+        : {}),
       bookkeepingDeletes: true,
     });
     return { ...plan, pageUuid, journalCreated };

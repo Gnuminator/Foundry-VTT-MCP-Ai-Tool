@@ -10,6 +10,7 @@ import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import type { HandoutPressTemplate } from '@gnuminator/shared';
 
@@ -22,7 +23,22 @@ export interface PressContent {
   footer?: string;
 }
 
-export const PRESS_LIMITS = { title: 120, body: 1600, footer: 120 } as const;
+/**
+ * What fits on each page. The page also shrinks its text to fit (see FIT_SCRIPT), so these are
+ * the lengths that still read well at the smallest size, not the lengths at full size.
+ */
+export const PRESS_LIMITS = {
+  title: 120,
+  footer: 120,
+  body: { letter: 1200, notice: 700, card: 400 },
+} as const;
+
+/** Shrinks the text in steps until the page holds it (down to 55%); the page is our own markup. */
+const FIT_SCRIPT = `(function(){var s=document.querySelector('.sheet');
+var els=[].slice.call(s.querySelectorAll('p,.foot'));
+var base=els.map(function(e){return parseFloat(getComputedStyle(e).fontSize);});
+for(var k=1;s.scrollHeight>s.clientHeight+1&&k>0.55;){k-=0.05;
+els.forEach(function(e,i){e.style.fontSize=(base[i]*k)+'px';});}})();`;
 
 interface Size {
   width: number;
@@ -57,14 +73,13 @@ const SERIF = "Georgia, 'Palatino Linotype', 'Book Antiqua', 'Times New Roman', 
 
 const LETTER_CSS = `
   body { background: radial-gradient(ellipse at center, #3a2d22 0%, #1d1611 100%); }
-  .sheet { position: absolute; inset: 36px; padding: 70px 76px; color: #3b2a1a;
+  .sheet { position: absolute; inset: 36px; padding: 70px 76px 150px; color: #3b2a1a;
     background: radial-gradient(ellipse at 30% 20%, #f3e4bf 0%, #e6d09f 55%, #d2b87f 100%);
     box-shadow: 0 8px 30px rgba(0,0,0,.6), inset 0 0 90px rgba(120,80,30,.45);
     border-radius: 3px; overflow: hidden; }
   h1 { font-size: 34px; font-style: italic; font-weight: normal; margin: 0 0 30px; }
   p { font-size: 25px; line-height: 1.5; margin: 0 0 18px; }
-  .foot { position: absolute; right: 90px; bottom: 150px; font-size: 30px; font-style: italic;
-    text-align: right; }
+  .foot { margin-top: 24px; font-size: 30px; font-style: italic; text-align: right; }
   .seal { position: absolute; right: 70px; bottom: 50px; width: 74px; height: 74px;
     border-radius: 50%; background: radial-gradient(circle at 35% 30%, #b3262b, #6c1015 70%);
     box-shadow: 0 2px 5px rgba(0,0,0,.5), inset 0 0 8px rgba(0,0,0,.5); }
@@ -82,8 +97,7 @@ const NOTICE_CSS = `
     line-height: 1.05; }
   hr { border: 0; border-top: 3px solid #5b3d20; width: 60%; margin: 0 auto 30px; }
   p { font-size: 27px; line-height: 1.45; margin: 0 0 20px; }
-  .foot { position: absolute; left: 0; right: 0; bottom: 70px; font-size: 28px;
-    font-weight: bold; letter-spacing: 2px; text-transform: uppercase; }
+  .foot { margin-top: 28px; font-size: 28px; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; }
 `;
 
 const CARD_CSS = `
@@ -98,8 +112,7 @@ const CARD_CSS = `
     background: radial-gradient(circle at 50% 40%, rgba(230,200,119,.35), rgba(230,200,119,0) 65%),
       linear-gradient(160deg, #2a2038, #0f0b15); }
   p { font-size: 23px; line-height: 1.4; margin: 0 0 14px; }
-  .foot { position: absolute; left: 0; right: 0; bottom: 32px; font-size: 22px;
-    font-style: italic; color: #b89a5b; }
+  .foot { margin-top: 18px; font-size: 22px; font-style: italic; color: #b89a5b; }
 `;
 
 /** The finished HTML page for one template. */
@@ -116,7 +129,7 @@ export function pressHtml(template: HandoutPressTemplate, content: PressContent)
     '<!doctype html><html><head><meta charset="utf-8"><style>' +
     `html,body{margin:0;width:${width}px;height:${height}px;overflow:hidden}` +
     `body{font-family:${SERIF};position:relative}${css}` +
-    `</style></head><body><div class="sheet">${inner}</div></body></html>`
+    `</style></head><body><div class="sheet">${inner}</div><script>${FIT_SCRIPT}</script></body></html>`
   );
 }
 
@@ -125,6 +138,9 @@ const BROWSERS = [
   'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
   'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
   'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+  '/usr/bin/chromium',
+  '/usr/bin/chromium-browser',
+  '/usr/bin/google-chrome',
 ];
 
 /** The browser to render with: FOUNDRY_AI_TOOL_PRESS_BROWSER, else Edge or Chrome. */
@@ -144,7 +160,7 @@ export async function renderPress(
 ): Promise<Uint8Array> {
   if (!browser) {
     throw new Error(
-      'The handout press needs Microsoft Edge or Google Chrome on this PC, and found neither.'
+      'The handout press needs Microsoft Edge, Google Chrome or Chromium on the computer the backend runs on, and found none (set FOUNDRY_AI_TOOL_PRESS_BROWSER to a browser program).'
     );
   }
   const { width, height } = PRESS_SIZES[template];
@@ -161,11 +177,13 @@ export async function renderPress(
           '--disable-gpu',
           '--hide-scrollbars',
           '--no-first-run',
+          // A browser run as root (a container) refuses to start with its sandbox.
+          ...(process.getuid?.() === 0 ? ['--no-sandbox'] : []),
           `--user-data-dir=${path.join(dir, 'profile')}`,
           '--force-device-scale-factor=2',
           `--window-size=${width},${height}`,
           `--screenshot=${out}`,
-          `file:///${page.replace(/\\/g, '/')}`,
+          pathToFileURL(page).href,
         ],
         { timeout: RENDER_TIMEOUT_MS, windowsHide: true },
         error =>

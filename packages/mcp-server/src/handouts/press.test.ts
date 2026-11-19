@@ -29,7 +29,9 @@ describe('pressHtml', () => {
       body: 'a & b\n\n<img src=x onerror=1>',
       footer: '"quoted"',
     });
-    expect(html).not.toContain('<script>');
+    // The page's own fit script is the only script.
+    expect(html.match(/<script>/g)).toHaveLength(1);
+    expect(html).not.toContain('alert(1)</script>');
     expect(html).not.toContain('<img');
     expect(html).toContain('&lt;script&gt;');
     expect(html).toContain('a &amp; b');
@@ -47,7 +49,7 @@ describe('pressHtml', () => {
 describe('renderPress', () => {
   it('says so in a sentence when no browser is found', async () => {
     await expect(renderPress('letter', { title: 't', body: 'b' }, null)).rejects.toThrow(
-      /Edge or Google Chrome/
+      /Edge, Google Chrome or Chromium/
     );
   });
 
@@ -199,6 +201,50 @@ describe('plan-handout-press', () => {
     await guarded.applyPlan(reveal.planId, { confirm: true });
     expect(pageForPlayers(plan.pageUuid).observable).toBe(true);
     expect(await handouts.listQueue()).toEqual([]);
+  });
+
+  it('lets several presses planned together apply once the journal exists', async () => {
+    const first = (await tools.handleToolCall('plan-handout-press', letter)) as {
+      planId: string;
+    };
+    await guarded.applyPlan(first.planId, { confirm: true });
+    const a = (await tools.handleToolCall('plan-handout-press', letter)) as { planId: string };
+    const b = (await tools.handleToolCall('plan-handout-press', {
+      ...letter,
+      template: 'card',
+    })) as { planId: string };
+    await guarded.applyPlan(b.planId, { confirm: true });
+    await guarded.applyPlan(a.planId, { confirm: true });
+  });
+
+  it('plans nothing when the upload is refused', async () => {
+    foundry.handlers['foundry-mcp-bridge.uploadHandoutImage'] = (): {
+      success: boolean;
+      error: string;
+    } => ({ success: false, error: 'Foundry did not accept the picture.' });
+    await expect(tools.handleToolCall('plan-handout-press', letter)).rejects.toThrow(
+      /did not accept/
+    );
+    expect(foundry.docs.size).toBe(0);
+  });
+
+  it('refuses before rendering while the handouts switch is off', async () => {
+    foundry.features = [{ id: 'handouts', name: 'Handouts', hint: '', enabled: false }];
+    await expect(tools.handleToolCall('plan-handout-press', letter)).rejects.toThrow(
+      /switched off/
+    );
+    expect(rendered).toEqual([]);
+  });
+
+  it('refuses text longer than the template holds', async () => {
+    await expect(
+      tools.handleToolCall('plan-handout-press', {
+        ...letter,
+        template: 'card',
+        body: 'x'.repeat(401),
+      })
+    ).rejects.toThrow(/at most 400/);
+    expect(rendered).toEqual([]);
   });
 
   it('puts a second page into the same journal', async () => {

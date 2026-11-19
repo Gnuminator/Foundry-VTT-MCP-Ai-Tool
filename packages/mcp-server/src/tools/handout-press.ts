@@ -25,9 +25,11 @@ export interface HandoutPressToolsOptions {
 const params = z.object({
   template: z.enum(HANDOUT_PRESS_TEMPLATES),
   title: z.string().trim().min(1).max(PRESS_LIMITS.title),
-  body: z.string().trim().min(1).max(PRESS_LIMITS.body),
+  body: z.string().trim().min(1),
   footer: z.string().trim().max(PRESS_LIMITS.footer).optional(),
 });
+
+const MAX_PNG_BYTES = 5 * 1024 * 1024;
 
 /**
  * `plan-handout-press`: render supplied text as a letter, notice or card picture on this PC and
@@ -68,6 +70,12 @@ export class HandoutPressTools {
   async handleToolCall(name: string, args: unknown): Promise<Record<string, unknown>> {
     if (name !== 'plan-handout-press') throw new Error(`Unknown handout press tool: ${name}`);
     const p = params.parse(args ?? {});
+    const bodyLimit = PRESS_LIMITS.body[p.template];
+    if (p.body.length > bodyLimit) {
+      throw new Error(
+        `A ${p.template} holds at most ${bodyLimit} characters of text; this has ${p.body.length}. Shorten it, or use the letter for longer text.`
+      );
+    }
     const content: PressContent = {
       title: p.title,
       body: p.body,
@@ -86,7 +94,21 @@ export class HandoutPressTools {
       );
     }
 
+    // The switch next, so a world with handouts off does not start a browser first.
+    const features = unwrapBridgeReply(
+      await this.options.foundryClient.query('foundry-mcp-bridge.listGuardedFeatures'),
+      'Feature list refused'
+    );
+    if (!features.find(f => f.id === 'handouts')?.enabled) {
+      throw new Error(
+        'Handouts are switched off. Ask the GM to turn on "AI Tool: Handouts (writes)" in Foundry.'
+      );
+    }
+
     const png = await this.render(p.template, content);
+    if (png.length > MAX_PNG_BYTES) {
+      throw new Error('The rendered picture is too big (over 5 MB). Shorten the text.');
+    }
     const reply = unwrapBridgeReply(
       await this.options.foundryClient.query(
         `foundry-mcp-bridge.${UPLOAD_HANDOUT_IMAGE_QUERY}`,

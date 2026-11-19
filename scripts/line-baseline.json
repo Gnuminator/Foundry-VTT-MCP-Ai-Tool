@@ -11,7 +11,7 @@
     "packages/foundry-module/src/session-events.ts": 1301,
     "packages/mcp-server/src/change-history.ts": 1446,
     "packages/mcp-server/src/guarded-write/service.ts": 1548,
-    "packages/mcp-server/src/handouts/service.ts": 1210,
+    "packages/mcp-server/src/handouts/service.ts": 1296,
     "packages/mcp-server/src/obsidian/library-sync.ts": 1240,
     "packages/mcp-server/src/obsidian/mirror-pump.ts": 2146,
     "packages/mcp-server/src/obsidian/mirror-render.ts": 1503,
@@ -103,6 +103,12 @@
       "file": "scripts/test-kit/lib/dashboard-controls.mjs",
       "lines": 1305,
       "reason": "one honest skip entry for dash.live.monster-action (lows sweep), 4 lines",
+      "pr": ""
+    },
+    {
+      "file": "packages/mcp-server/src/handouts/service.ts",
+      "lines": 1296,
+      "reason": "planPressedPage needs the service's private load, snapshot and plan helpers (I-184); a split is a later refactor",
       "pr": ""
     }
   ]

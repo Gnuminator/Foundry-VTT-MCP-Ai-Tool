@@ -1067,6 +1067,92 @@ export class HandoutsService {
     return { ...plan, pageUuid: sourceUuid, copy, note: copyNote(title, copy, warning) };
   }
 
+  /**
+   * A pressed handout (I-184): a new image page in the "Handouts" journal (created on first use
+   * or when it was deleted), hidden from players (ownership None) and not on the allowlist, so
+   * the ordinary queue and reveal (which raise ownership and allowlist) take it from there.
+   * Undo deletes the page (and the journal when this plan created it).
+   */
+  async planPressedPage(args: {
+    name: string;
+    src: string;
+    caption?: string;
+  }): Promise<PlanView & { pageUuid: string; journalCreated: boolean }> {
+    const worldId = await this.worldIds.current();
+    const file = await this.load(worldId);
+    const remembered = file.handoutsJournal?.uuid;
+    let journalExists = false;
+    if (remembered) {
+      const [probe] = await this.snapshot([
+        { kind: 'create', documentName: 'JournalEntryPage', parentUuid: remembered, data: {} },
+      ]);
+      journalExists = probe?.exists === true;
+    }
+    const pageId = newDocumentId();
+    const pageData: Record<string, unknown> = {
+      _id: pageId,
+      name: args.name,
+      type: 'image',
+      src: args.src,
+      ...(args.caption ? { image: { caption: args.caption } } : {}),
+      ownership: { default: NONE },
+      flags: { [MODULE_ID]: { pressed: true } },
+    };
+    let journalUuid: string;
+    let op: GuardedOp;
+    if (remembered && journalExists) {
+      journalUuid = remembered;
+      op = {
+        kind: 'create',
+        documentName: 'JournalEntryPage',
+        parentUuid: journalUuid,
+        data: pageData,
+        keepId: true,
+      };
+    } else {
+      const journalId = newDocumentId();
+      journalUuid = `JournalEntry.${journalId}`;
+      op = {
+        kind: 'create',
+        documentName: 'JournalEntry',
+        data: {
+          _id: journalId,
+          name: HANDOUTS_JOURNAL_NAME,
+          ownership: { default: OBSERVER },
+          pages: [pageData],
+        },
+        keepId: true,
+      };
+    }
+    const journalCreated = !(remembered && journalExists);
+    const pageUuid = `${journalUuid}.JournalEntryPage.${pageId}`;
+    const plan = await this.guardedWrites.createPlan({
+      feature: HANDOUTS_FEATURE,
+      summary:
+        `New handout page "${args.name}" in ${HANDOUTS_JOURNAL_NAME}, hidden from players until ` +
+        'it is revealed',
+      ops: [op],
+      // The undo anchor, set only when this plan creates the journal (as a copy does): undoing
+      // it, which deletes the journal, then conflicts with a later copy. A page added to an
+      // existing journal leaves it alone, so several pressed pages can be planned together and
+      // applied in any order; undoing the plan that created the journal removes them with it.
+      ...(journalCreated
+        ? {
+            vaultOps: [
+              {
+                kind: 'vault-set' as const,
+                file: REVEALS_FILE,
+                path: 'handoutsJournal',
+                value: { uuid: journalUuid, lastCopy: pageId },
+              },
+            ],
+          }
+        : {}),
+      bookkeepingDeletes: true,
+    });
+    return { ...plan, pageUuid, journalCreated };
+  }
+
   private async planHide(
     pageUuid: string,
     pageId: string,

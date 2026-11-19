@@ -232,6 +232,11 @@ export class McpControlClient extends EventEmitter {
     return this.send('character_sheet', { userId });
   }
 
+  /** The downtime inbox (I-180): list, save or delete the player's own entries. A control method. */
+  async downtime(params: Record<string, unknown>): Promise<unknown> {
+    return this.send('downtime', params);
+  }
+
   /** The player pressed a roll button: the module rolls for their character. A control method. */
   async playerRoll(userId: string, buttonId: string): Promise<unknown> {
     return this.send('player_roll', { userId, buttonId });

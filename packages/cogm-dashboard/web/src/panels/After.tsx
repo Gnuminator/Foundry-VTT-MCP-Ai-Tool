@@ -32,6 +32,7 @@ import {
 } from '../lib/session-notes';
 import { useObsidianFileUrl } from '../lib/stream';
 import { Button, Pill, Stat } from '../ui';
+import PreviouslyOnCard from './PreviouslyOn';
 
 const STATS_KEY = [...GAME_STATE_KEY, 'after-stats'] as const;
 const NOTES_KEY = [...GAME_STATE_KEY, 'session-notes'] as const;
@@ -450,6 +451,7 @@ export default function AfterTop({
     <>
       <AfterStats active={active} />
       <SessionNotesCard active={active} />
+      <PreviouslyOnCard active={active} />
       <PaperNightCard onOpen={onOpenPaperSync} />
     </>
   );

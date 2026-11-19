@@ -221,7 +221,11 @@ older than the backend also gets one outdated line appended to a successful `cal
 most once per connection every 6 hours. The backend also answers
 calls that are not listed here: `link_status` (whether the module's socket is connected; the Pi
 health check and the Assistant GM probe it), `character_sheet`, `player_roll`, `player_portrait`, the
-switch views `session_switches` and `feature_switches`, `session_notes`, `record_handout_seen`, `omens` (omens by post: `{ action: list|decide|outbox|claim|finish|set-player, ... }`, dashboard only, never forwarded by the stdio wrapper),
+switch views `session_switches` and `feature_switches`, `session_notes`, `record_handout_seen`,
+`omens` (omens by post: `{ action: list|decide|outbox|claim|finish|set-player, ... }`, dashboard only,
+never forwarded by the stdio wrapper),
+`downtime` (I-180; `{ action: list|save|delete, userId, name?, id?, text? }`, result `{ entries }`;
+the players' downtime inbox in the vault, one player's own entries per call),
 `live_sweep`, the player connector's `list_player_tools` and `player_tool`, `record_call` (the
 dashboard tells the bridge about a `get-my-handouts` or `get-my-play-stats` call it answered
 itself, so the call log has it: `{ tool, userId, ms, size, ok }`, result `{ ok }`), and the two "who

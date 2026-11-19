@@ -1,6 +1,6 @@
 ---
 source: gm/dashboard-drawers.md
-sourceHash: 95134c7ec45a
+sourceHash: 8fe6bca8f604
 title: 'Dashboardet: confirm-vindue, Tool Runner og skuffer'
 description: 'Confirm-vinduet, Tool Runner og skufferne Tarokka, Handouts, Prep og Party.'
 ---
@@ -71,6 +71,15 @@ på en for at udfylde feltet. Du kan stadig skrive i hånden.
   en af dem om i Foundry først, ellers kan du ramme den forkerte.
 - "More exist: type to narrow the list." betyder, at listen blev afkortet.
 - For et felt, der tager flere værdier, klik på flere poster; hver bliver afkrydset.
+
+### Pins og seneste kørsler
+
+Når du har udfyldt en tool-formular, du bruger ofte, så klik **📌 Pin** og giv den et navn. Den vises
+så som en knap i rækken **Pinned** på During-baren. En read kører med det samme, og svaret vises under
+rækken. En plan eller en write går stadig gennem GM Actions og confirm-vinduet, så en pin ændrer aldrig
+noget af sig selv. I Tool Runner kan du omdøbe og fjerne pins. Den viser også dine sidste otte kørsler
+(klik på en for at udfylde formularen igen) og de tre kald, du bruger mest, hver med en **Pin**-knap.
+Pins gemmes i denne browser, så på en ny computer pinner du igen.
 
 ### Anvend en plan, Claude lavede
 
@@ -169,6 +178,10 @@ Fakta til at forberede din næste session, ét sted og uden AI. **Refresh** geni
 - **Ready**: handout-køen pr. scene, bosserne på dine scener (legendary actions, legendary
   resistances, lair) og pre-flight-resultatet, med en knap til pre-flight-skuffen.
 - **Recent changes**: hvor mange guarded changes der blev lavet, og de seneste.
+- **Loose ends**: de åbne quests, ingen har opdateret i to sessioner, de NPC'er, der kun handlede i én
+  session, og de scener, der ikke er brugt i to sessioner, hver med "last seen session N", plus et
+  antal scener, der aldrig er brugt. Det er kun en påmindelse fra play log og session log; intet
+  ændres. Claude får den samme liste fra `get-prep-digest`.
 
 Claude læser de samme fakta med `get-prep-digest`, som prompten `prep-next-session` bruger først.
 Uden Foundry forbundet viser skuffen stadig last session og siger, hvad der mangler.
@@ -180,6 +193,15 @@ er skrevet), aldrig spillernes recap-kladde eller en transskription. Sessions-ma
 `FVTT_SESSIONS_DIR`, ellers `FoundrySessions` i datamappen (`FVTT_DATA_DIR`) eller i `Documents` i din brugermappe, på den computer,
 bridgen kører på. Hvis ingen session har et resumé endnu, eller bridgen ikke kan se mappen (den
 kører på en anden computer), siger Claude det i én linje.
+
+## Read-aloud-skuffen (📖 Read-aloud)
+
+Under **Advanced** finder du **📖 Read-aloud**. Den viser den indrammede oplæsningstekst fra de
+journal-sider, den aktuelle scene linker til (scenens eget link og dens map pins), i rækkefølge, så du
+ikke skal grave i modulet, mens spillerne venter. **Show** åbner én blok i fuld størrelse på en skærm,
+spillerne kan se; **Copy** lægger den på udklipsholderen. Teksten læses fra din world, når du åbner
+skuffen, og gemmes aldrig. En scene uden indrammet tekst siger det. Claude kan læse den samme tekst
+med `get-read-aloud`.
 
 ## Party-skuffen (🛡 Party)
 

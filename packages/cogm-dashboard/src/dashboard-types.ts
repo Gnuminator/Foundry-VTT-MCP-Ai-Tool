@@ -38,6 +38,8 @@ export interface DashboardClient {
   featureSwitches?(): Promise<unknown>;
   /** My character (I-096): one player's character sheets; absent on fakes. */
   characterSheet?(userId: string): Promise<unknown>;
+  /** The downtime inbox (I-180): the player's own entries; absent on fakes and old backends. */
+  downtime?(params: Record<string, unknown>): Promise<unknown>;
   /** The player's roll button: the module rolls for their character; absent on fakes. */
   playerRoll?(userId: string, buttonId: string): Promise<unknown>;
   /** "Upload my portrait": a player's picture for their own character; absent on fakes. */

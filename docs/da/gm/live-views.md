@@ -1,6 +1,6 @@
 ---
 source: gm/live-views.md
-sourceHash: 945e2a550077
+sourceHash: d050d5cc30df
 title: Live-visningerne
 description: De tre måder at have combat-strippen ved siden af Foundry (Live screen, GM page, Live window), hvor knappen Live views er, og hvornår du bruger hvilken.
 ---
@@ -22,6 +22,22 @@ skrivebeskyttet side med party, kampen og scenen, til en telefon. Se
 [Table at a glance](dashboard.md#table-at-a-glance).
 
 > **Usikker? Spørg Claude.** Spørg GM coach: "Hvilken live view passer til min opsætning, når jeg kører en combat?" ([sådan tilføjer du GM coach](gm-coach.md))
+
+## Monster-angreb på strimlen
+
+Vælg én creature, der ikke er en spillerkarakter, på strimlen, og op til fire af dens weapon attacks
+vises som knapper under pick-baren. Target først spillerkarakteren i Foundry (den almindelige
+targeting, tryk T eller brug target-knappen på token'en). Klik derefter på et angreb. Roll og damage
+kommer i Foundrys chat som altid, og strimlen viser én resultatlinje. Damage lægges først på målet,
+når du bekræfter, medmindre kontakten "apply without confirming" til live-spil er slået til. Uden
+target, eller med mere end ét, siger strimlen det og ruller ingenting.
+
+## På en tablet
+
+På en touch-skærm, eller en tablet op til 10 tommer i landscape, er hver knap, select og
+checkbox-etiket på Live view mindst 44 pixel høj, og siden scroller aldrig sidelæns. Hover findes
+ikke på en tablet, så hold en finger på en kontrol i et halvt sekund, så vises dens tooltip som en
+kort besked.
 
 ## Live screen
 

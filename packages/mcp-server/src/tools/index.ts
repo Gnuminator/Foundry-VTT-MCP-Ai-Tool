@@ -8,6 +8,7 @@
  */
 import { actorCreationModule } from './modules/actor-creation.js';
 import { actorImageModule } from './modules/actor-image.js';
+import { handoutPressModule } from './modules/handout-press.js';
 import { campaignManagementModule } from './modules/campaign-management.js';
 import { changeHistoryModule } from './modules/change-history.js';
 import { characterModule } from './modules/character.js';
@@ -87,6 +88,7 @@ export const TOOL_MODULES: readonly AnyToolModule[] = [
   pcCreationModule,
   tokenRingsModule,
   actorImageModule,
+  handoutPressModule,
   sceneMoodModule,
   rulesCheckModule,
   tableViewerModule,

@@ -21,6 +21,22 @@ read-only page with the party, the fight and the scene, for a phone. See
 
 > **Not sure? Ask Claude.** Ask the GM coach: "Which live view fits my setup for running a fight?" ([how to add the GM coach](gm-coach.md))
 
+## Monster attacks on the strip
+
+Pick one creature that is not a player character on the strip, and up to four of its weapon attacks
+show as buttons under the pick bar. First target the player character in Foundry (the normal
+targeting, press T or use the target button on the token). Then click an attack. The roll and its
+damage appear in Foundry's chat as always, and the strip shows one result line. The damage goes onto
+the target only after you confirm, unless the "apply without confirming" switch for live play is on.
+With no target, or more than one, the strip says so and rolls nothing.
+
+## On a tablet
+
+On a touch screen, or a tablet up to 10 inches in landscape, every button, select and checkbox
+label on the Live view is at least 44 pixels tall and the page never scrolls sideways. Hover does
+not exist on a tablet, so hold a finger on a control for half a second and its tooltip shows as a
+short message.
+
 ## Live screen
 
 Open **Live views**, then **Live screen**. Nothing else to set up.

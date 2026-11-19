@@ -23,6 +23,7 @@ import type {
 } from './character-sheet.js';
 import type { ExportIndexRequest, ExportIndexResponse } from './export-index.js';
 import type { UploadActorImageReply, UploadActorImageRequest } from './actor-image.js';
+import type { UploadHandoutImageReply, UploadHandoutImageRequest } from './handout-press.js';
 import type { UploadPlayerPortraitReply, UploadPlayerPortraitRequest } from './player-portrait.js';
 import type {
   GuardedApplyOutcome,
@@ -214,6 +215,10 @@ export interface BridgeQueryMap {
   'foundry-mcp-bridge.uploadPlayerPortrait': {
     request: UploadPlayerPortraitRequest;
     reply: UploadPlayerPortraitReply;
+  };
+  'foundry-mcp-bridge.uploadHandoutImage': {
+    request: UploadHandoutImageRequest;
+    reply: UploadHandoutImageReply;
   };
   'foundry-mcp-bridge.uploadActorImage': {
     request: UploadActorImageRequest;

@@ -238,7 +238,12 @@ describe('tool catalog', () => {
     // own writes, not direct ones.
     // plan-actor-image is hinted as a write (it stores a file when planned, the user 2026-11-11)
     // but only stages the actor change, so it is no "Direct write." either.
-    const planStory = new Set(['apply-planned-change', 'undo-change', 'plan-actor-image']);
+    const planStory = new Set([
+      'apply-planned-change',
+      'undo-change',
+      'plan-actor-image',
+      'plan-handout-press',
+    ]);
     const missing = tools
       .filter(t => TOOL_HINTS[t.name]?.kind !== 'read' && !planStory.has(t.name))
       .filter(t => !(t.description ?? '').startsWith('Direct write.'))

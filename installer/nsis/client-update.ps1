@@ -39,7 +39,7 @@ param(
   [string]$ClaudeProcess = 'Claude',
   # Direct installs (no tunnel): the bridge host and port, written by -Action Install.
   [string]$ControlHost,
-  [int]$ControlPort = 31414,
+  [int]$ControlPort,
   # Install: leave auto-update off. Check: run even when it is off (the manual run).
   [switch]$NoEnable,
   [switch]$Now,

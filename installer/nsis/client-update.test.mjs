@@ -302,7 +302,7 @@ class P { static int Main(string[] a) {
     assert.equal(ps(['-ControlHost', 'pi.tail1234.ts.net', '-ControlPort', '31414']).status, 0);
     assert.ok(!existsSync(flag), 'an upgrade keeps the off choice');
     writeFileSync(flag, 'on');
-    assert.equal(ps(['-ControlHost', '100.64.0.7', '-NoEnable']).status, 0);
+    assert.equal(ps(['-ControlHost', '100.64.0.7', '-ControlPort', '31414', '-NoEnable']).status, 0);
     assert.ok(!existsSync(flag), '-NoEnable switches off');
     assert.equal(ps(['-ControlHost', 'bad host";x']).status, 2);
   });

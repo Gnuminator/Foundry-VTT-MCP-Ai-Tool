@@ -12,7 +12,8 @@
 #   5 a symlink at the destination or in the staged maps is refused
 #   6 the GM modes: scale needs data.js; a data.js for another FOLDER is refused; switch refuses while the files are missing
 #   7 the GM file is built as MAP_MODE line + data.js + the scenes script, a dry run by default, a real run only with APPLY=1
-#     and then only with a fresh snapshot (NO_SNAPSHOT is not honoured off DietPi in the stub), nothing deleted anywhere
+#     and then only with a snapshot from today (a fake DietPi stats file: yesterday's refuses files, scale and scale-revert,
+#     dry runs and scenes-check still run), nothing deleted anywhere
 # The last line is ALL SCENARIOS OK when every one passed:
 #   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" <IMAGE> bash /repo/scripts/pi/container-test/stage34-scenarios.sh
 # (scripts/pi/map-upscale-stage.test.mjs runs it with PI_STAGE34_CONTAINER=1.) STAGE=<file> runs it against another copy.
@@ -173,7 +174,27 @@ echo "$out" | grep -q "MAP_MODE\|dry run of the check script" && grep -q "^const
 out="$(runstub scale APPLY=1)"
 rc=$?
 echo "$out" | grep -q "REAL run of the scale script" && pass "7 APPLY=1 is a real run (snapshot check skipped off DietPi)" || fail "7 apply: $rc $out"
-out="$(runstub scale APPLY=1 | grep -c .)"
+# A DietPi box whose last snapshot is from yesterday: every real step refuses, the read-only modes and dry runs do not.
+mkdir -p /tmp/fakedietpi
+yday="$(date -d yesterday +%F)"
+printf '%s_01:25:00  Backup completed\n' "$yday" >/tmp/fakedietpi/stats
+snapenv=(DIETPI_DIR=/tmp/fakedietpi DIETPI_BACKUP_STATS=/tmp/fakedietpi/stats)
+out="$(run files "${snapenv[@]}")"
+rc=$?
+{ [ "$rc" != 0 ] && echo "$out" | grep -q "no dietpi-backup snapshot completed today"; } && pass "7 files refuses without today's snapshot" || fail "7 files snapshot: $rc $out"
+out="$(runstub scale APPLY=1 "${snapenv[@]}")"
+rc=$?
+{ [ "$rc" != 0 ] && echo "$out" | grep -q "no dietpi-backup snapshot completed today"; } && pass "7 scale APPLY=1 refuses without today's snapshot" || fail "7 scale snapshot: $rc $out"
+out="$(runstub scale-revert APPLY=1 "${snapenv[@]}")"
+rc=$?
+{ [ "$rc" != 0 ] && echo "$out" | grep -q "no dietpi-backup snapshot completed today"; } && pass "7 scale-revert APPLY=1 refuses without today's snapshot" || fail "7 scale-revert snapshot: $rc $out"
+out="$(runstub scale "${snapenv[@]}")"
+echo "$out" | grep -q "dry run of the scale script" && pass "7 a dry run needs no snapshot" || fail "7 dry run with old snapshot: $out"
+out="$(runstub scenes-check "${snapenv[@]}")"
+echo "$out" | grep -q "dry run of the check script" && pass "7 scenes-check needs no snapshot" || fail "7 scenes-check with old snapshot: $out"
+printf '%s_01:25:00  Backup completed\n' "$(date +%F)" >/tmp/fakedietpi/stats
+out="$(runstub scale-revert APPLY=1 "${snapenv[@]}")"
+echo "$out" | grep -q "REAL run of the scale-revert script" && pass "7 a fresh snapshot lets the real run through" || fail "7 fresh snapshot: $out"
 [ "$(sha256sum "$data/ddb-images/adv/orig-a.jpg" | cut -d' ' -f1)" = "$orig_sum" ] && pass "7 originals still untouched" || fail "7 original changed"
 
 echo

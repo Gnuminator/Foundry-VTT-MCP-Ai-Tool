@@ -3,13 +3,14 @@
 // gm-script.sh through stage 34 (scripts/pi/remote/34-map-upscale.sh) in the running world as the Assistant GM.
 // It holds no scene names, paths or numbers of the book: stage 34 puts two things in front of it, both made on the PC by
 // scripts/pi/map-upscale/prepare.mjs from files that stay on the PC:
-//   const MAP_MODE = 'check' | 'scale' | 'switch' | 'revert';
+//   const MAP_MODE = 'check' | 'scale' | 'scale-revert' | 'switch' | 'revert';
 //   const DATA = { switch: { "<old src>": "<new src>" }, size: [{ name, from: [w, h], to: [w, h] }],
 //                  grid: [{ name, from: {...}, to: {...} }] };
 // Modes (a second run changes nothing; every mode logs counts, names and paths, never book text):
 //   check    read-only: how many scenes are fixed, still as imported, or differ from both
 //   scale    scene size and grid fixes. A scene is changed only when it still has the imported values ("from"); a scene
 //            that already has the fixed values ("to") is left alone; any other value is reported and left alone
+//   scale-revert  the same walk the other way: a scene with exactly the fixed values gets the imported values back
 //   switch   points each scene level's background at the 2x file (only when it is still the original path and the 2x file
 //            answers); the scene size, grid, walls, notes and tokens do not change
 //   revert   points the backgrounds that use a 2x file back at the original path (the originals are never deleted)
@@ -18,7 +19,7 @@ if (typeof MAP_MODE === 'undefined' || typeof DATA === 'undefined')
   throw new Error(
     'MAP_MODE and DATA are not set: run this through stage 34 (the data file comes from prepare.mjs)'
   );
-if (!['check', 'scale', 'switch', 'revert'].includes(MAP_MODE))
+if (!['check', 'scale', 'scale-revert', 'switch', 'revert'].includes(MAP_MODE))
   throw new Error(`unknown MAP_MODE ${MAP_MODE}`);
 if (MAP_MODE === 'check' && !args.dryRun)
   throw new Error('check is read-only: it never runs for real');
@@ -45,8 +46,12 @@ const matches = (cur, want) =>
   );
 const dump = o => JSON.stringify(o);
 
-if (MAP_MODE === 'scale' || MAP_MODE === 'check') {
-  for (const p of DATA.size ?? []) {
+if (MAP_MODE === 'scale' || MAP_MODE === 'scale-revert' || MAP_MODE === 'check') {
+  // scale-revert is the same walk the other way: "to" is what a scene must have now, "from" what it gets.
+  const undo = MAP_MODE === 'scale-revert';
+  const sides = p => (undo ? { from: p.to, to: p.from } : { from: p.from, to: p.to });
+  for (const p0 of DATA.size ?? []) {
+    const p = { name: p0.name, ...sides(p0) };
     const s = game.scenes.getName(p.name);
     if (!s) {
       counts.missing++;
@@ -56,7 +61,7 @@ if (MAP_MODE === 'scale' || MAP_MODE === 'check') {
     const cur = { w: s.width, h: s.height };
     if (cur.w === p.to[0] && cur.h === p.to[1]) {
       counts.already++;
-      note(`already fixed ${p.name}: size ${cur.w}x${cur.h}`);
+      note(`already ${undo ? 'as imported' : 'fixed'} ${p.name}: size ${cur.w}x${cur.h}`);
     } else if (cur.w === p.from[0] && cur.h === p.from[1]) {
       if (write) {
         await s.update({ width: p.to[0], height: p.to[1] });
@@ -73,7 +78,8 @@ if (MAP_MODE === 'scale' || MAP_MODE === 'check') {
       );
     }
   }
-  for (const p of DATA.grid ?? []) {
+  for (const p0 of DATA.grid ?? []) {
+    const p = { name: p0.name, ...sides(p0) };
     const s = game.scenes.getName(p.name);
     if (!s) {
       counts.missing++;
@@ -132,7 +138,8 @@ if (MAP_MODE === 'switch' || MAP_MODE === 'revert' || MAP_MODE === 'check') {
       if (src in forward) {
         seen.add(src);
         if (MAP_MODE === 'switch') {
-          if (write && !(await answers(forward[src]))) {
+          // A HEAD request is a read, so the dry run asks too and refuses what the real run would refuse.
+          if (!(await answers(forward[src]))) {
             counts.unreachable++;
             note(`UNREACHABLE ${label}: ${forward[src]} does not answer, left on the original`);
           } else if (write) {

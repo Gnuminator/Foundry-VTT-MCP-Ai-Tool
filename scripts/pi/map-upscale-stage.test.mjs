@@ -28,6 +28,11 @@ describe('34-map-upscale.sh as text', () => {
     assert.match(stage, /check \| scenes-check\)\n\s+\[ -z "\$\{APPLY:-\}" \] \|\| die/);
   });
 
+  test('a dropped ssh does not kill the stage: the HUP and PIPE guard comes before the first change', () => {
+    const at = stage.indexOf("trap '' HUP PIPE");
+    assert.ok(at > 0 && at < stage.indexOf('# ---- changes start here'));
+  });
+
   test('deletes nothing and writes only as the foundry user', () => {
     const code = stage
       .split('\n')
@@ -162,9 +167,23 @@ describe('map-upscale-scenes.js', () => {
     x = await run('switch', false);
     assert.match(x.err, /not clean/);
     assert.equal(world[0].levels[0].background.src, 'orig/a.jpg');
+    // the dry run refuses the same way, so the OK is given against what the real run will do
+    x = await run('switch', true);
+    assert.match(x.err, /not clean/);
     globalThis.fetch = async () => ({ ok: true });
+    // scale-revert puts the imported values back, only on a scene that has exactly the fixed ones
+    x = await run('scale-revert', false);
+    assert.equal(x.r.counts.changed, 2);
+    assert.deepEqual([world[0].width, world[0].height, world[1].grid.size], [2000, 2000, 140]);
+    x = await run('scale-revert', false);
+    assert.equal(x.r.counts.changed, 0);
+    assert.equal(x.r.counts.already, 2);
+    await run('scale', false);
     // a scene with other values is left alone and the run fails
     world[0].width = 777;
+    x = await run('scale-revert', false);
+    assert.match(x.err, /not clean/);
+    assert.equal(world[0].width, 777);
     x = await run('scale', false);
     assert.match(x.err, /not clean/);
     assert.equal(world[0].width, 777);

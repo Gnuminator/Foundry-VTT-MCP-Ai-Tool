@@ -366,8 +366,8 @@ licensed material and stay on the PC: `node scripts/pi/map-upscale/prepare.mjs -
   `scripts/pi/remote/map-upscale-scenes.js` to `/root/map-upscale/`.
 - **Modes** (`MODE=...` in front of `bash -s`; the header of the stage has the exact commands): `check` (read-only: the staged and
   installed files against the manifest, free space), `files` (snapshot first; copies into `Data/assets/strahd-maps-2x/` as the foundry
-  user, each file checked before and after, nothing deleted; `ddb-images/` is never written), `scale`, `switch` and `revert` (GM
-  script through `gm-script.sh`: a dry run, then `APPLY=1` after a snapshot and the user's OK), `scenes-check` (a GM dry run that
+  user, each file checked before and after, nothing deleted; `ddb-images/` is never written), `scale`, `scale-revert`, `switch` and
+  `revert` (GM script through `gm-script.sh`: a dry run, then `APPLY=1` after a snapshot and the user's OK), `scenes-check` (a GM dry run that
   reports fixed, still-as-imported and odd scenes). The sitting order is check, files, scale dry run, scale, switch dry run, switch,
   Player view, `scenes-check`.
 - **Safe to repeat:** the scale step changes a scene only while it has the imported values, leaves a fixed one alone and fails the

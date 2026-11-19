@@ -7,6 +7,7 @@
 #   scale    the scene scale fixes (scene size of the isometric book maps, the grid of three scenes) through gm-script.sh
 #   switch   points the scene backgrounds at the 2x files (the scene size, grid, walls, notes and tokens do not move)
 #   revert   points the backgrounds back at the originals (the way back; the 2x files stay on disk)
+#   scale-revert  puts the scene size and grid fixes back to the imported values (only a scene with exactly the fixed values)
 # Read-only, any time and no snapshot: MODE=check (the files on disk against the manifest, and the free space) and
 # MODE=scenes-check (a GM dry run that reports which scenes are fixed, still as imported or odd; it stops the Assistant GM
 # for a moment, so it refuses while players are online like the other GM runs).
@@ -26,9 +27,11 @@
 # (without it a dry run that changes nothing; any other APPLY value is refused); WORLD (curse-of-strahd, the world that must
 # be running for the GM modes); SRC (the folder on the Pi, default /root/map-upscale); FOLDER (default assets/strahd-maps-2x,
 # below the Foundry Data folder; must match the folder prepare.mjs put in data.js).
-# The scene changes are in the world database, so the snapshot is their way back besides MODE=revert. Nothing is deleted.
+# The scene changes are in the world database; their way back is MODE=revert and MODE=scale-revert (the snapshot restores
+# the whole Pi, play data included). Nothing is deleted.
 
 require_root
+trap '' HUP PIPE # a dropped ssh (HUP, closed pipe) must not kill the stage halfway through a step
 export PATH="$NODE_DIR/bin:$PATH"
 
 MODE="${MODE:-check}"
@@ -43,8 +46,8 @@ case "$MODE" in
     [ -z "${APPLY:-}" ] || die "MODE=$MODE only reads and takes no APPLY. Nothing was changed"
     ;;
   files) [ -z "${APPLY:-}" ] || die "MODE=files writes at once (it is not a dry-run mode); leave APPLY out. Nothing was changed" ;;
-  scale | switch | revert) ;;
-  *) die "MODE must be check, files, scale, switch, revert or scenes-check (got '$MODE'). Nothing was changed" ;;
+  scale | scale-revert | switch | revert) ;;
+  *) die "MODE must be check, files, scale, scale-revert, switch, revert or scenes-check (got '$MODE'). Nothing was changed" ;;
 esac
 
 manifest="$SRC/manifest.sha256"
@@ -92,6 +95,8 @@ case "$MODE" in
   check)
     manifest_files >/dev/null
     [ -d "$maps" ] && [ ! -L "$maps" ] && say "staged maps in $maps" && { verify_dir "$maps" "staged" || true; } || warn "no staged maps folder $maps"
+    avail="$(df -Pk "$FOUNDRY_DATA" | awk 'NR==2{print $4}')"
+    ok "free space on the Foundry data disk: $((avail / 1024)) MB"
     if [ -d "$dest" ]; then
       [ ! -L "$dest" ] || die "$dest is a symlink"
       say "installed maps in $dest"
@@ -100,8 +105,6 @@ case "$MODE" in
       say "$dest does not exist yet (MODE=files creates it)"
       exit 1
     fi
-    avail="$(df -Pk "$FOUNDRY_DATA" | awk 'NR==2{print $4}')"
-    ok "free space on the Foundry data disk: $((avail / 1024)) MB"
     exit 0
     ;;
   files)
@@ -143,7 +146,7 @@ case "$MODE" in
     say "done: $dest holds the 2x maps; the originals under ddb-images/ are untouched. Next: MODE=scale, then MODE=switch"
     exit 0
     ;;
-  scale | switch | revert | scenes-check)
+  scale | scale-revert | switch | revert | scenes-check)
     case "$MODE" in
       scenes-check) map_mode=check ;;
       *) map_mode="$MODE" ;;
@@ -175,7 +178,7 @@ case "$MODE" in
     } >"$GM_SCRIPT.new" && mv -f -- "$GM_SCRIPT.new" "$GM_SCRIPT" || die "could not write $GM_SCRIPT. Nothing was changed"
     if [ "$MODE" = scenes-check ] || [ -z "${APPLY:-}" ]; then
       DRY_RUN=1
-      say "dry run of the $map_mode script (APPLY=1 for the real run of scale, switch or revert)"
+      say "dry run of the $map_mode script (APPLY=1 for the real run of scale, scale-revert, switch or revert)"
     else
       DRY_RUN=""
       say "REAL run of the $map_mode script in $WORLD"

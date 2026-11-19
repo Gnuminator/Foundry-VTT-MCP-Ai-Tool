@@ -8,6 +8,7 @@ import {
   obsidianClientRecorder,
 } from '../client-versions.js';
 import type { DashboardDeps } from '../dashboard-types.js';
+import { mountDowntimeRoute } from '../downtime-route.js';
 import { mountHandoutSeenRoute } from '../handout-seen-route.js';
 import { mountHelpRoute } from '../help-route.js';
 import { mountMeRoute } from '../me-route.js';
@@ -161,6 +162,14 @@ export function mountMeSpaceVersionRoutes(
     theme: () => themes.get(ctx.world()?.id),
     publicDir: config.publicDir,
     pageHeaders: res => PLAYER_PAGE_HEADERS.apply(res),
+  });
+
+  // The downtime inbox (I-180): a player's own entries behind their private link.
+  mountDowntimeRoute(app, {
+    client,
+    links,
+    directory,
+    worldId: () => ctx.world()?.id ?? null,
   });
 
   // The storage space check (2026-10-06): GM only; nothing on /player or /me.

@@ -9,6 +9,7 @@ export const prepDigestModule = defineToolModule({
       foundryClient: services.foundryClient,
       worldIds: services.worldIds,
       store: services.store,
+      downtimeStore: services.store,
       handouts: services.handouts,
       preflight: use(preflightModule),
       guardedWrites: services.guardedWrites,

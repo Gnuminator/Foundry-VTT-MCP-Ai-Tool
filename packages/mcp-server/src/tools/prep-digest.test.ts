@@ -160,6 +160,8 @@ interface Setup {
   scene?: unknown;
   /** The `list-scenes` answer for the loose ends; default no scenes. */
   scenes?: unknown;
+  /** The downtime inbox store (I-180); default none. */
+  downtimeStore?: PrepDigestToolsOptions['downtimeStore'];
   /** Give the tool the temp Obsidian vault. */
   vault?: boolean;
   /** The prep notes deadline; default PREP_TEST_TIMEOUT_MS. Only the hang test wants it short. */
@@ -205,6 +207,7 @@ function buildTools(setup: Setup = {}): PrepDigestTools {
     tarokka: { getReading: () => settle(setup.tarokka ?? { available: false }) },
     logger: makeLogger(),
     now: () => 1234,
+    ...(setup.downtimeStore ? { downtimeStore: setup.downtimeStore } : {}),
     ...(setup.vault
       ? { vaultDir: obsidianDir, prepNotesTimeoutMs: setup.prepTimeoutMs ?? PREP_TEST_TIMEOUT_MS }
       : {}),
@@ -293,6 +296,41 @@ describe('get-prep-digest', () => {
     expect(defs[0]?.inputSchema.properties).toHaveProperty('action');
     expect(defs[0]?.description).toMatch(/GM ONLY/);
     expect(defs[0]?.description).not.toContain(EM_DASH);
+  });
+
+  it("lists the players' downtime entries marked from player, and warns when the read fails", async () => {
+    const entry = {
+      id: 'aaaaaaaaaaaaaaaa',
+      userId: 'u1',
+      name: 'Anna',
+      text: 'Visit the chapel',
+      source: 'player',
+      createdAt: '2026-11-19T10:00:00.000Z',
+      updatedAt: '2026-11-19T10:00:00.000Z',
+    };
+    const ok = await buildTools({
+      downtimeStore: {
+        read: () => Promise.resolve({ schema: 1, updatedAt: '', data: [entry] }),
+      } as any,
+    }).handleGetPrepDigest({});
+    expect(ok.downtime?.entries).toEqual([
+      {
+        player: 'Anna',
+        text: 'Visit the chapel',
+        updatedAt: entry.updatedAt,
+        source: 'player',
+      },
+    ]);
+    expect(ok.downtime?.note).toMatch(/not things that happened/);
+    const broken = await buildTools({
+      downtimeStore: { read: () => Promise.reject(new Error('disk')) },
+    }).handleGetPrepDigest({});
+    expect(broken.downtime).toBeUndefined();
+    expect(broken.warnings.join(' ')).toContain('downtime inbox could not be read');
+  });
+
+  it('describes the downtime part as wishes, not events', () => {
+    expect(buildTools().getToolDefinitions()[0]?.description).toMatch(/"downtime".*never events/);
   });
 
   it('rejects an unknown action', async () => {

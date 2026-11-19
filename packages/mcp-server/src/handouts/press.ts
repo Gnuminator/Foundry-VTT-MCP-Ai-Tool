@@ -177,28 +177,37 @@ export async function renderPress(
   try {
     const page = path.join(dir, 'page.html');
     const out = path.join(dir, 'out.png');
+    const run = (noSandbox: boolean): Promise<void> =>
+      new Promise<void>((resolve, reject) => {
+        execFile(
+          browser,
+          [
+            '--headless=new',
+            '--disable-gpu',
+            '--hide-scrollbars',
+            '--no-first-run',
+            ...(noSandbox ? ['--no-sandbox'] : []),
+            `--user-data-dir=${path.join(dir, 'profile')}`,
+            '--force-device-scale-factor=2',
+            `--window-size=${width},${height}`,
+            `--screenshot=${out}`,
+            pathToFileURL(page).href,
+          ],
+          { timeout: RENDER_TIMEOUT_MS, windowsHide: true },
+          error =>
+            error ? reject(new Error(`The browser could not render: ${error.message}`)) : resolve()
+        );
+      });
     await writeFile(page, pressHtml(template, content), 'utf8');
-    await new Promise<void>((resolve, reject) => {
-      execFile(
-        browser,
-        [
-          '--headless=new',
-          '--disable-gpu',
-          '--hide-scrollbars',
-          '--no-first-run',
-          // A browser run as root (a container) refuses to start with its sandbox.
-          ...(process.getuid?.() === 0 ? ['--no-sandbox'] : []),
-          `--user-data-dir=${path.join(dir, 'profile')}`,
-          '--force-device-scale-factor=2',
-          `--window-size=${width},${height}`,
-          `--screenshot=${out}`,
-          pathToFileURL(page).href,
-        ],
-        { timeout: RENDER_TIMEOUT_MS, windowsHide: true },
-        error =>
-          error ? reject(new Error(`The browser could not render: ${error.message}`)) : resolve()
-      );
-    });
+    // A browser run as root (a container), or on a Linux that blocks unprivileged sandboxes
+    // (Ubuntu 23.10+), refuses to start with its sandbox. The page is our own escaped markup,
+    // so a second try without the sandbox is safe.
+    try {
+      await run(process.getuid?.() === 0);
+    } catch (error) {
+      if (!/No usable sandbox|--no-sandbox/i.test(String(error))) throw error;
+      await run(true);
+    }
     return new Uint8Array(await readFile(out));
   } finally {
     await rm(dir, { recursive: true, force: true }).catch(() => undefined);

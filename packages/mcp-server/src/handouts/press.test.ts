@@ -35,7 +35,7 @@ describe('pressHtml', () => {
       footer: '"quoted"',
     });
     // The page's own fit script is the only script.
-    expect(html.match(/<script>/g)).toHaveLength(1);
+    expect(html.match(/<script/gi)).toHaveLength(1);
     expect(html).not.toContain('alert(1)</script>');
     expect(html).not.toContain('<img');
     expect(html).toContain('&lt;script&gt;');
@@ -94,7 +94,8 @@ describe('renderPress', () => {
           const { stdout } = await execFileAsync(browser!, [
             '--headless=new',
             '--disable-gpu',
-            ...(process.getuid?.() === 0 ? ['--no-sandbox'] : []),
+            // Our own test page; some CI Linux images have no usable browser sandbox.
+            '--no-sandbox',
             `--user-data-dir=${path.join(dir, 'profile')}`,
             `--window-size=${size.width},${size.height}`,
             '--dump-dom',

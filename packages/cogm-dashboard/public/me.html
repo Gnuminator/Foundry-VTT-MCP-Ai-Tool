@@ -32,6 +32,30 @@
     <main id="me-main">
       <p class="me-empty">Loading…</p>
     </main>
+    <details class="me-connector me-diary no-print" id="me-diary" hidden>
+      <summary>My diary</summary>
+      <p class="muted">
+        Entries for your character, in your own words. Only you can see them: they are not on the
+        table page and other players never see them. Ask your Claude helper to draft one, then edit
+        it here.
+      </p>
+      <form id="md-form">
+        <input id="md-char" aria-label="Character" maxlength="80" placeholder="Character" />
+        <textarea
+          id="md-text"
+          aria-label="Diary entry"
+          rows="8"
+          maxlength="4000"
+          placeholder="Paste or write an entry"
+        ></textarea>
+        <p>
+          <button type="submit" id="md-save">Save entry</button>
+          <button type="button" id="md-cancel" hidden>Cancel edit</button>
+          <span id="md-status" class="muted" role="status" aria-live="polite"></span>
+        </p>
+      </form>
+      <ul id="md-list" class="md-list"></ul>
+    </details>
     <details class="me-connector no-print" id="me-connector" hidden>
       <summary>Your Claude connector</summary>
       <p>

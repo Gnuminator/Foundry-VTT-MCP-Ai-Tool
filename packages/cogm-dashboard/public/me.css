@@ -347,7 +347,12 @@ body.paper {
   background: #fff;
   color: #111;
   --muted: #4b5563;
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
 }
 :root[data-theme='veil'] body.paper::before {
   display: none;
@@ -356,7 +361,12 @@ body.paper {
   font-family: inherit;
 }
 :root[data-theme='veil'] body.paper .paper-sheet h2 {
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
 }
 body.paper .me-head,
 body.paper .me-foot {
@@ -671,4 +681,44 @@ body.paper .me-views button[aria-pressed='true'] {
     padding: 0;
     max-width: none;
   }
+}
+
+.me-diary textarea,
+.me-diary input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0.4rem 0;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+}
+.me-diary button {
+  min-height: 2.25rem;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--text);
+  cursor: pointer;
+}
+.md-list {
+  list-style: none;
+  margin: 0.6rem 0 0;
+  padding: 0;
+}
+.md-list li {
+  border-top: 1px solid var(--line);
+  padding: 0.5rem 0;
+}
+.md-list .md-meta {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.md-list .md-text {
+  white-space: pre-wrap;
+  margin: 0.3rem 0;
 }

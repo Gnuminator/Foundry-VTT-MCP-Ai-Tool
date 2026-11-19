@@ -47,6 +47,7 @@ import {
   type ApplicationOwnerLike,
 } from './space-notify.js';
 import { createSpaceStatusReader } from './space-status.js';
+import { OMENS_POST_INTERVAL_MS, createOmensPoster } from './omens-post.js';
 import { DEFAULT_BACKUP_STALE_DAYS, createBackupPullReader } from './backup-pull-status.js';
 import { BackupPullNotifier } from './backup-pull-notify.js';
 import {
@@ -160,6 +161,7 @@ export class RecorderBot {
   private active: Active | undefined;
   private spaceTimer: NodeJS.Timeout | undefined;
   private sessionPostTimer: NodeJS.Timeout | undefined;
+  private omensTimer: NodeJS.Timeout | undefined;
   private statusServer: Server | undefined;
   /** DM to the owner; set once the owner is known. */
   private notifyOwner: ((text: string) => Promise<boolean>) | undefined;
@@ -236,6 +238,7 @@ export class RecorderBot {
         (err: unknown) => log.error('Registering /record failed', err)
       );
       this.startSessionPost(c);
+      this.startOmens(c);
       void this.startSpaceNotices(c)
         .catch((err: unknown) => log.error('Space notices could not start', err))
         .then(() => this.recoverOrphans());
@@ -411,6 +414,36 @@ export class RecorderBot {
     this.sessionPostTimer.unref();
     log.info(
       `Session post: on, checking ${dashboardUrl} every ${SESSION_POST_INTERVAL_MS / 60000} minutes.`
+    );
+  }
+
+  /**
+   * I-181: send the omens the GM approved in the dashboard, each as a private message to its
+   * player (omens-post.ts). Off unless DISCORD_OMENS=1.
+   */
+  private startOmens(c: Client<true>): void {
+    if (!this.config.omensOn) return;
+    const dashboardUrl = this.dashboardUrl();
+    const check = createOmensPoster({
+      dashboardUrl,
+      gmToken: this.config.gmToken ?? '',
+      log: log.info,
+      send: async (discordId, text): Promise<boolean> => {
+        const user = await c.users.fetch(discordId);
+        await user.send(text);
+        return true;
+      },
+    });
+    const tick = (): void => {
+      void check().then(sent => {
+        if (sent > 0) log.info(`Omens: sent ${sent} private message${sent === 1 ? '' : 's'}.`);
+      });
+    };
+    tick();
+    this.omensTimer = setInterval(tick, OMENS_POST_INTERVAL_MS);
+    this.omensTimer.unref();
+    log.info(
+      `Omens: on, checking ${dashboardUrl} every ${OMENS_POST_INTERVAL_MS / 60000} minutes.`
     );
   }
 
@@ -642,6 +675,7 @@ export class RecorderBot {
   async shutdown(): Promise<void> {
     if (this.spaceTimer) clearInterval(this.spaceTimer);
     if (this.sessionPostTimer) clearInterval(this.sessionPostTimer);
+    if (this.omensTimer) clearInterval(this.omensTimer);
     this.statusServer?.close();
     if (this.active) log.info(await this.stop('shutdown'));
     await destroyThenClear(() => this.client.destroy(), markerPath(this.config.sessionsDir));

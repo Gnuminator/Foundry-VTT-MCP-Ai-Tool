@@ -28,6 +28,8 @@ export interface DashboardClient {
   recordUsage?(events: UsageEvent[]): Promise<RecordUsageResult>;
   /** A player opened a handout (I-039 seen log); absent on fakes and old backends. */
   recordHandoutSeen?(pageId: string, userId: string, name: string): Promise<{ recorded: boolean }>;
+  /** Omens by post (I-181): list, decide and send steps; absent on fakes and old backends. */
+  omens?(action: string, params?: Record<string, unknown>): Promise<unknown>;
   /** The live write sweep's helper (I-016; test world only); absent on fakes. */
   liveSweep?(request: Record<string, unknown>): Promise<unknown>;
   /** Turn on for tonight (D3): read, turn on or turn back off tonight's switches; absent on fakes. */

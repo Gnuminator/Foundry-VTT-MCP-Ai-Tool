@@ -200,6 +200,11 @@ export class McpControlClient extends EventEmitter {
     };
   }
 
+  /** Omens by post (I-181). An old backend answers "Unknown method" (a ChannelError). */
+  async omens(action: string, params: Record<string, unknown> = {}): Promise<unknown> {
+    return this.send('omens', { ...params, action });
+  }
+
   /**
    * The live write sweep's helper (I-016): `snapshot` (scene lighting), `combat` (start a
    * combat with `tokenIds`) or `cleanup` (delete the documents named "AI Tool Sweep ..." and

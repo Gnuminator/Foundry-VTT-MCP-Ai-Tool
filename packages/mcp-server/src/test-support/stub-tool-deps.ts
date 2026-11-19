@@ -34,6 +34,7 @@ export function stubToolServices(): ToolServices {
     tarokka: {} as any,
     secretTerms: { findSecretTermsInMany: vi.fn(() => Promise.resolve([])) } as any,
     handouts: {} as any,
+    omens: {} as any,
     onPlaySessionMarked: (): void => {},
     wrapperStatus: (): WrapperStatus => ({
       current: '0.0.0',

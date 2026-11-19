@@ -30,6 +30,7 @@ import { livePlayModule } from './modules/live-play.js';
 import { movementModule } from './modules/movement.js';
 import { npcTurnModule } from './modules/npc-turn.js';
 import { obsidianMirrorModule } from './modules/obsidian-mirror.js';
+import { omensModule } from './modules/omens.js';
 import { ownershipModule } from './modules/ownership.js';
 import { paperSyncModule } from './modules/paper-sync.js';
 import { partyModule } from './modules/party.js';
@@ -107,6 +108,7 @@ export const TOOL_MODULES: readonly AnyToolModule[] = [
   changeHistoryModule,
   tarokkaModule,
   playSessionModule,
+  omensModule,
   playStatsModule,
   obsidianMirrorModule,
   playerViewModule,

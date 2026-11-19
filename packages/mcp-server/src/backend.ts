@@ -56,6 +56,7 @@ import type { ToolResultLike } from './tool-router.js';
 import { ClientsFile, handleWhoUsesWhat } from './who-uses-what.js';
 import { TarokkaService } from './tarokka/service.js';
 import { HandoutsService, handleRecordHandoutSeen } from './handouts/service.js';
+import { createOmensStore, omensControlReply } from './omens/store.js';
 import { SecretTermsService } from './secret-terms.js';
 import { isBatchRider } from './guarded-write/rider-undo.js';
 import { GuardedWriteService } from './guarded-write/service.js';
@@ -370,6 +371,7 @@ async function startBackend(): Promise<void> {
     worldIds,
     foundryClient,
   });
+  const omens = createOmensStore(vaultStore, worldIds, secretTerms);
   // Session notes into Foundry (recap lane, D-087): staged by the pipeline, put automatically.
   const sessionNotes = new SessionNotesService({
     foundryClient,
@@ -410,6 +412,7 @@ async function startBackend(): Promise<void> {
     tarokka: tarokkaService,
     secretTerms,
     handouts,
+    omens,
     onPlaySessionMarked: renderObsidian,
     wrapperStatus: () => wrapperRegistry.status(),
     pumpHealth: (): PumpHealthSnapshot[] => pumpHealthSources.map(source => source()),
@@ -784,6 +787,12 @@ async function startBackend(): Promise<void> {
               socket.write(`${JSON.stringify({ id: msg.id, error: { message } })}\n`);
             }
 
+            continue;
+          }
+
+          // Omens by post (I-181): the dashboard approves and sends; not a tool, never listed to Claude.
+          if (msg.method === 'omens') {
+            socket.write(`${JSON.stringify(await omensControlReply(omens, msg.id, msg.params))}\n`);
             continue;
           }
 

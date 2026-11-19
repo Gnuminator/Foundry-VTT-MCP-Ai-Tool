@@ -1,8 +1,8 @@
-// Pi stage 34, the Who uses what note written by the Pi (scripts/pi/remote/34-who-uses-what.sh and scripts/pi/who-uses-what-push.sh):
+// Pi stage 35, the Who uses what note written by the Pi (scripts/pi/remote/35-who-uses-what.sh and scripts/pi/who-uses-what-push.sh):
 //   node --test scripts/pi/who-uses-what-stage.test.mjs
 // Text checks and the job against a local bare repo (real git, a stand-in dashboard) always run when bash and git exist; the
 // stage scenarios (real lib.sh, runuser, ssh-keygen, cmp and install in a Debian 13 ARM64 container) run with
-// PI_STAGE34_CONTAINER=1 (needs Docker).
+// PI_STAGE35_CONTAINER=1 (needs Docker).
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -15,10 +15,10 @@ import { fileURLToPath } from 'node:url';
 import { runStageContainer } from './container-test/run-stage-container.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const stage = readFileSync(path.join(repo, 'scripts/pi/remote/34-who-uses-what.sh'), 'utf8');
+const stage = readFileSync(path.join(repo, 'scripts/pi/remote/35-who-uses-what.sh'), 'utf8');
 const job = readFileSync(path.join(repo, 'scripts/pi/who-uses-what-push.sh'), 'utf8');
 
-describe('stage 34 as text', () => {
+describe('stage 35 as text', () => {
   test('the snapshot check comes before the first write and DRY_RUN, CHECK and UNDO exist', () => {
     const snap = stage.indexOf('require_recent_snapshot');
     const write = stage.indexOf('install -d -m 0755');
@@ -45,7 +45,16 @@ describe('stage 34 as text', () => {
   });
 
   test('the private key is made by the foundry user, kept 0600, and never printed', () => {
-    assert.match(stage, /runuser -u "\$FOUNDRY_USER" -- ssh-keygen -q -t ed25519 -N ''/);
+    assert.match(stage, /as_foundry\(\) \{ runuser -u "\$FOUNDRY_USER" -- "\$@"; \}/);
+    assert.match(stage, /as_foundry ssh-keygen -q -t ed25519 -N ''/);
+    // root writes nothing inside the foundry-owned state folder: no redirect into $state, no root chown or chmod of its files
+    const code = stage.split('\n').filter(l => !l.trim().startsWith('#'));
+    for (const l of code) {
+      if (/as_foundry|runuser/.test(l)) continue;
+      assert.doesNotMatch(l, />\s*"?\$(state|key)/, l);
+      assert.doesNotMatch(l, /(chown|chmod|printf[^\n]*>)[^\n]*\$(state|key)/, l);
+    }
+    assert.match(stage, /\[ ! -L "\$state" \]/);
     assert.match(stage, /chmod 0600 "\$key"/);
     assert.match(stage, /install -d -m 0700 -o "\$FOUNDRY_USER"/);
     assert.doesNotMatch(stage, /(cat|sed|echo|printf)[^\n]*"\$key"(?!\.pub)/);
@@ -142,6 +151,8 @@ describe('the job against a local bare repo', { skip: !haveBash }, () => {
     await new Promise(r => server.listen(0, '127.0.0.1', r));
     port = server.address().port;
     spawnSync('git', ['init', '-q', '--bare', '-b', 'main', bare]);
+    git(bare, 'config', 'uploadpack.allowFilter', 'true');
+    git(bare, 'config', 'uploadpack.allowAnySHA1InWant', 'true');
     const seed = path.join(root, 'seed');
     mkdirSync(path.join(seed, 'Dev/Foundry AI Tool'), { recursive: true });
     writeFileSync(path.join(seed, 'Dev/Foundry AI Tool/Backlog.md'), 'backlog\n');
@@ -185,6 +196,12 @@ describe('the job against a local bare repo', { skip: !haveBash }, () => {
     const clone = path.join(work, 'repo');
     assert.ok(existsSync(path.join(clone, 'Dev/Foundry AI Tool/Who uses what.md')));
     assert.ok(!existsSync(path.join(clone, 'Secret.md')), 'the sparse clone holds only the note');
+    // Not only the working tree: the object store must not hold the other notes' content either (blobless fetch).
+    const blob = git(bare, 'rev-parse', 'main:Secret.md').stdout.trim();
+    const have = spawnSync('git', ['-C', clone, 'cat-file', '-e', blob], {
+      env: { ...process.env, GIT_NO_LAZY_FETCH: '1' },
+    });
+    assert.notEqual(have.status, 0, 'the clone holds the content of another note');
     assert.ok(!(r.stdout + r.stderr).includes('sekrit-token-123'));
     assert.equal(git(bare, 'log', '-1', '--format=%an', 'main').stdout.trim(), 'foundry-pi');
   });
@@ -267,11 +284,11 @@ describe('the job against a local bare repo', { skip: !haveBash }, () => {
 });
 
 describe(
-  'stage 34 in the ARM64 container',
-  { skip: process.env.PI_STAGE34_CONTAINER !== '1' },
+  'stage 35 in the ARM64 container',
+  { skip: process.env.PI_STAGE35_CONTAINER !== '1' },
   () => {
     test('scenarios', () => {
-      const r = runStageContainer('stage34-scenarios.sh', { timeout: 600000 });
+      const r = runStageContainer('stage35-scenarios.sh', { timeout: 600000 });
       assert.equal(r.status, 0, r.stdout + r.stderr);
       assert.ok(r.stdout.includes('ALL SCENARIOS OK'), r.stdout);
     });

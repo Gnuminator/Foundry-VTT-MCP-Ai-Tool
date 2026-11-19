@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Stage 34: the "Who uses what" note written by the Pi (backlog who-uses-what-pi-job, D-146). A systemd timer asks the Pi
+# Stage 35: the "Who uses what" note written by the Pi (backlog who-uses-what-pi-job, D-146). A systemd timer asks the Pi
 # dashboard for the GM-only usage report every 4 hours and on Sunday 23:00, renders it with who-uses-what.mjs and pushes it to
 # the vault repo as "Dev/Foundry AI Tool/Who uses what.md", where the PM board's Who tab reads it. The Pi is always on, so the
 # reading is fresh without the user's PC. The note holds names, versions, tool names and counts only; never typed text.
@@ -7,11 +7,13 @@
 # What it changes, nothing else:
 #   1. installs scripts/who-uses-what.mjs and scripts/pi/who-uses-what-push.sh into $TOOL_DIR/who-uses-what (copy both to /root
 #      first, see below; Node's built-ins only, so no npm install and no dependency on the release build);
-#   2. makes the state folder $TOOL_DATA/who-uses-what (foundry, 0700) and in it a deploy key pair (ssh-keygen as foundry, the
+#   2. makes the state folder /var/lib/foundry-ai-tool-who-uses-what (foundry, 0700; outside $TOOL_DATA, so the nightly restic
+#      backup does not carry the key; a restore needs a new key) and in it a deploy key pair (ssh-keygen as foundry, the
 #      private key never leaves the Pi and is never printed) and a known_hosts file with GitHub's published ed25519 key;
 #   3. writes the unit foundry-ai-tool-who-uses-what.service (oneshot, User=foundry, reads dashboard-access.env for the GM token)
 #      and the timer, then takes ONE reading now. The timer is enabled only when that reading was pushed. The job keeps a sparse
-#      depth-1 clone of the vault repo (the one note file) in the state folder; the Pi never holds the rest of the vault.
+#      depth-1 blobless clone of the vault repo in the state folder: the file list of the vault and the one note, never the other
+#      notes' content.
 # It restarts nothing: the bridge, the dashboard, Foundry and the recorder are not touched, so it needs no quiet check.
 #
 # First run, in two steps: the first run prints the public key and stops at the reading ("deploy key not accepted yet"). The USER
@@ -23,9 +25,9 @@
 #   UNDO=1     stop and remove the timer, the service and the installed files; the state folder (key, clone) is kept
 # A real run (and UNDO) needs a dietpi-backup snapshot from today and the user's OK. These lines are bash:
 #   scp scripts/who-uses-what.mjs scripts/pi/who-uses-what-push.sh foundry-pi:/root/   (from a clean checkout of main at the merge commit)
-#   cat scripts/pi/remote/lib.sh scripts/pi/remote/34-who-uses-what.sh | ssh foundry-pi 'DRY_RUN=1 bash -s'
-#   cat scripts/pi/remote/lib.sh scripts/pi/remote/34-who-uses-what.sh | ssh foundry-pi 'bash -s'
-#   cat scripts/pi/remote/lib.sh scripts/pi/remote/34-who-uses-what.sh | ssh foundry-pi 'CHECK=1 bash -s'
+#   cat scripts/pi/remote/lib.sh scripts/pi/remote/35-who-uses-what.sh | ssh foundry-pi 'DRY_RUN=1 bash -s'
+#   cat scripts/pi/remote/lib.sh scripts/pi/remote/35-who-uses-what.sh | ssh foundry-pi 'bash -s'
+#   cat scripts/pi/remote/lib.sh scripts/pi/remote/35-who-uses-what.sh | ssh foundry-pi 'CHECK=1 bash -s'
 # Tests only: SRC_DIR, UNIT_DIR (TOOL_ETC, TOOL_DIR, TOOL_DATA and NODE_DIR are set by lib.sh, so they are not overrides).
 
 dry="${DRY_RUN:-0}"
@@ -37,7 +39,7 @@ unit_name=foundry-ai-tool-who-uses-what
 service_file="$unit_dir/$unit_name.service"
 timer_file="$unit_dir/$unit_name.timer"
 dest="$TOOL_DIR/who-uses-what"
-state="$TOOL_DATA/who-uses-what"
+state=/var/lib/foundry-ai-tool-who-uses-what
 access_env="$TOOL_ETC/dashboard-access.env"
 files="who-uses-what.mjs who-uses-what-push.sh"
 key="$state/id_ed25519"
@@ -94,17 +96,17 @@ if [ "$check" = 1 ]; then
   command -v runuser >/dev/null 2>&1 || die "runuser not found"
   say "installed files (compare with the repo at the merge commit)"
   (cd "$dest" && sha256sum $files) | sed 's/^/    /' || true
-  token="$(env_file_value "$access_env" GM_DASHBOARD_TOKEN)"
+  # The job reads the token from the env file itself, so it never sits on a command line.
   rc=0
   out="$(runuser -u "$FOUNDRY_USER" -- env WUW_MODE=check WUW_DIR="$state" WUW_NODE="$NODE_DIR/bin/node" WUW_SCRIPT="$dest/who-uses-what.mjs" \
-    GM_DASHBOARD_TOKEN="$token" bash "$dest/who-uses-what-push.sh" 2>&1)" || rc=$?
+    WUW_ENV_FILE="$access_env" bash "$dest/who-uses-what-push.sh" 2>&1)" || rc=$?
   printf '%s\n' "$out" | sed 's/^/    /' || true
   if have_systemd; then
     systemctl is-enabled --quiet "$unit_name.timer" && ok "$unit_name.timer is enabled" || warn "$unit_name.timer is not enabled yet (run the stage when the deploy key is added)"
     systemctl list-timers "$unit_name.timer" --no-pager </dev/null 2>/dev/null | sed 's/^/    /' || true
   fi
   [ "$rc" -eq 0 ] || die "the check failed (see above)"
-  say "stage 34 check: ok"
+  say "stage 35 check: ok"
   exit 0
 fi
 
@@ -119,7 +121,7 @@ if [ "$undo" = 1 ]; then
   rm -rf "${dest:?}"
   have_systemd && systemctl daemon-reload
   ok "removed the units and $dest; $state is kept (the deploy key can be removed on GitHub)"
-  say "stage 34 done: removed"
+  say "stage 35 done: removed"
   exit 0
 fi
 
@@ -163,19 +165,23 @@ chmod 0644 "$dest/SHA256SUMS"
 sed 's/^/    /' "$dest/SHA256SUMS" || true
 
 say "the state folder, the deploy key and the host key"
-install -d -m 0700 -o "$FOUNDRY_USER" -g "$FOUNDRY_USER" "$state"
+# $state sits beside $TOOL_DATA, not inside it: /var/lib is root's, so the foundry user (Foundry, the bridge, the dashboard run as
+# it) cannot swap the folder for a link, and the nightly restic backup of $TOOL_DATA does not carry the key or the clone.
+# Everything INSIDE it is written as the foundry user, never by root (a link planted there must not make root write elsewhere).
+[ ! -L "$state" ] || die "$state is a symbolic link: refusing"
+[ -d "$state" ] || install -d -m 0700 -o "$FOUNDRY_USER" -g "$FOUNDRY_USER" "$state"
+[ "$(stat -c %U "$state")" = "$FOUNDRY_USER" ] || die "$state is not owned by $FOUNDRY_USER"
+as_foundry() { runuser -u "$FOUNDRY_USER" -- "$@"; }
 if [ -f "$key" ]; then
   ok "the deploy key is already there (kept as it is)"
 else
-  runuser -u "$FOUNDRY_USER" -- ssh-keygen -q -t ed25519 -N '' -C "foundry-pi who-uses-what" -f "$key" || die "ssh-keygen failed"
+  as_foundry ssh-keygen -q -t ed25519 -N '' -C "foundry-pi who-uses-what" -f "$key" || die "ssh-keygen failed"
   ok "generated the deploy key (the private half stays in $state, never printed)"
 fi
-[ -f "$key.pub" ] || runuser -u "$FOUNDRY_USER" -- ssh-keygen -y -f "$key" >"$key.pub" || die "no public key for $key"
-printf '%s\n' "$github_hostkey" >"$state/known_hosts"
-chown "$FOUNDRY_USER:$FOUNDRY_USER" "$state/known_hosts"
-chmod 0644 "$state/known_hosts"
-chmod 0600 "$key"
-chmod 0644 "$key.pub"
+as_foundry sh -c 'umask 022; [ -f "$1.pub" ] || ssh-keygen -y -f "$1" >"$1.pub"' sh "$key" || die "no public key for $key"
+as_foundry sh -c 'umask 022; printf "%s\n" "$1" >"$2.tmp" && mv -f "$2.tmp" "$2"' sh "$github_hostkey" "$state/known_hosts" || die "could not write known_hosts"
+as_foundry chmod 0600 "$key" || die "chmod of the key failed"
+as_foundry chmod 0644 "$key.pub" "$state/known_hosts" || die "chmod failed"
 
 say "the units"
 write_file "$service_file" 0644 "$want_service" || true
@@ -183,7 +189,7 @@ write_file "$timer_file" 0644 "$want_timer" || true
 
 if ! have_systemd; then
   warn "no systemd here (a test container?): files, key and units written, nothing started"
-  say "stage 34 done"
+  say "stage 35 done"
   exit 0
 fi
 systemctl daemon-reload
@@ -202,4 +208,4 @@ ok "$unit_name.timer enabled"
 systemctl list-timers "$unit_name.timer" --no-pager </dev/null 2>/dev/null | sed 's/^/    /' || true
 
 ok "next: the board's Who tab shows the new reading after the PC pulls the vault (git pull) and the board rebuilds"
-say "stage 34 done"
+say "stage 35 done"

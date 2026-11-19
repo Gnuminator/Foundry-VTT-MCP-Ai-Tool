@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The Pi's "Who uses what" reading (backlog who-uses-what-pi-job). Installed by scripts/pi/remote/34-who-uses-what.sh and run by
+# The Pi's "Who uses what" reading (backlog who-uses-what-pi-job). Installed by scripts/pi/remote/35-who-uses-what.sh and run by
 # foundry-ai-tool-who-uses-what.timer (every 4 hours and Sunday 23:00) as the foundry user. One run:
 #   1. asks the Pi dashboard for the report and renders it with who-uses-what.mjs (counts and names only);
 #   2. fetches the newest commit of the vault repo (depth 1, one sparse file: the Pi never holds the rest of the vault);
@@ -37,7 +37,7 @@ say() { echo "who-uses-what: $*"; }
 fail() { echo "who-uses-what: $*" >&2; exit 1; }
 
 [ -x "$node_bin" ] || fail "node is missing at $node_bin"
-[ -f "$script" ] || fail "$script is missing: run stage 34 again"
+[ -f "$script" ] || fail "$script is missing: run stage 35 again"
 command -v git >/dev/null 2>&1 || fail "git is missing"
 mkdir -p "$dir"
 
@@ -45,8 +45,13 @@ export HOME="$dir"
 export GIT_TERMINAL_PROMPT=0
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
 if [ "${WUW_SSH_PLAIN:-0}" != 1 ]; then
-  [ -f "$dir/id_ed25519" ] || fail "the deploy key $dir/id_ed25519 is missing: run stage 34 again"
+  [ -f "$dir/id_ed25519" ] || fail "the deploy key $dir/id_ed25519 is missing: run stage 35 again"
   export GIT_SSH_COMMAND="ssh -i $dir/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$dir/known_hosts -o ConnectTimeout=20"
+fi
+
+# The stage's CHECK gives the env file instead of the token (a token on a command line shows in the process list).
+if [ -n "${WUW_ENV_FILE:-}" ] && [ -f "$WUW_ENV_FILE" ] && [ -z "${GM_DASHBOARD_TOKEN:-}" ]; then
+  GM_DASHBOARD_TOKEN="$(sed -n 's/^[[:space:]]*GM_DASHBOARD_TOKEN=//p' "$WUW_ENV_FILE" | tail -n 1)"
 fi
 
 say "reading the report from the dashboard"
@@ -70,17 +75,24 @@ if [ ! -d "$repo/.git" ]; then
   git -C "$repo" init -q -b "$branch"
   git -C "$repo" remote add origin "$remote"
   git -C "$repo" config core.sparseCheckout true
-  git -C "$repo" config gc.auto 0
+  # Blobless: a depth-1 fetch brings the trees (file names) but not the other notes' content; checkout fetches only the one file.
+  git -C "$repo" config remote.origin.promisor true
+  git -C "$repo" config remote.origin.partialclonefilter blob:none
   printf '/%s\n' "$note_path" >"$repo/.git/info/sparse-checkout"
 fi
 # The remote may have been fixed in a later stage run.
 git -C "$repo" remote set-url origin "$remote"
 
+# A run killed mid-git leaves a lock that would stop every later run; runs never overlap (oneshot), so removing it is safe.
+rm -f "${repo:?}/.git/index.lock" "${repo:?}/.git/shallow.lock"
+# Old shallow tips and loose objects of earlier runs are dropped, so the clone does not grow for ever.
+git -C "$repo" gc -q --prune=now 2>/dev/null || true
+
 attempt=0
 while :; do
   attempt=$((attempt + 1))
   say "fetching $branch (depth 1)"
-  g fetch -q --depth 1 origin "$branch" || fail "git fetch failed (deploy key not added to the vault repo, or no network)"
+  g fetch -q --depth 1 --filter=blob:none origin "$branch" || fail "git fetch failed (deploy key not added to the vault repo, or no network)"
   g checkout -q -f -B "$branch" "origin/$branch" >/dev/null 2>&1 || g reset -q --hard "origin/$branch"
   mkdir -p "$(dirname "$repo/$note_path")"
   cp "$tmp/note.md" "$repo/$note_path"

@@ -233,7 +233,7 @@ is `docs/player/obsidian.md`.
   Debian 13 ARM64 container: a note reaches only its player, what a player changes never reaches the Pi, one device per player,
   remove and off).
 
-## Who uses what note (stage 34)
+## Who uses what note (stage 35)
 
 A timer on the Pi writes the usage note for the PM board's Who tab, so the reading stays fresh without the PC (D-146,
 `who-uses-what-pi-job`). Every 4 hours (25 minutes past 00, 04, 08, 12, 16 and 20) and Sunday 23:00,
@@ -242,18 +242,20 @@ A timer on the Pi writes the usage note for the PM board's Who tab, so the readi
 `Gnuminator/obsidian-vault`. The note holds names, versions, tool names and counts only. The PC sees it after `git pull`, and the
 board reads it from the vault.
 
-- **Credential:** a GitHub deploy key made on the Pi by the stage (`/var/lib/foundry-ai-tool/who-uses-what/id_ed25519`, foundry, 0600;
-  the private half is never printed and never leaves the Pi). It is a write key for the whole vault repo, which is the price of
+- **Credential:** a GitHub deploy key made on the Pi by the stage (`/var/lib/foundry-ai-tool-who-uses-what/id_ed25519`, foundry, 0600;
+  the private half is never printed and never leaves the Pi: the folder sits outside `/var/lib/foundry-ai-tool`, so the nightly
+  restic backup does not carry it, and a restore needs a new key added on GitHub). It is a write key for the whole vault repo, which is the price of
   pushing from the Pi; remove it on GitHub to stop the job. GitHub's host key is pinned in `known_hosts`.
-- **What the Pi holds of the vault:** a depth-1 sparse clone with the one note file, nothing else.
+- **What the Pi holds of the vault:** a depth-1 blobless sparse clone: the vault's file list and the one note, never the
+  other notes' content. The key is a write key for the vault repo and runs as the foundry user (like Foundry and the dashboard).
 - **Commits:** one per reading that differs (about seven a day), author `foundry-pi`; an unchanged note makes none. A push that
   loses a race with the PC is fetched and tried once more.
 - **Run it** (snapshot and the user's OK first; the first run stops after printing the public key):
   1. `scp scripts/who-uses-what.mjs scripts/pi/who-uses-what-push.sh foundry-pi:/root/`
-  2. `cat scripts/pi/remote/lib.sh scripts/pi/remote/34-who-uses-what.sh | ssh foundry-pi 'bash -s'` (`DRY_RUN=1` first)
+  2. `cat scripts/pi/remote/lib.sh scripts/pi/remote/35-who-uses-what.sh | ssh foundry-pi 'bash -s'` (`DRY_RUN=1` first)
   3. The user adds the printed public key on GitHub (vault repo, Settings, Deploy keys, Allow write access), then step 2 again: it
      takes one reading and enables the timer only when that reading was pushed.
   4. `CHECK=1` reads the report and lists the vault repo with the key (no write); `UNDO=1` removes the units and files and keeps
      the state folder.
 - Tests: `scripts/pi/who-uses-what-stage.test.mjs` (the stage and job as text, the job against a local bare repo with real git, and
-  with `PI_STAGE34_CONTAINER=1` the stage in a Debian 13 ARM64 container).
+  with `PI_STAGE35_CONTAINER=1` the stage in a Debian 13 ARM64 container).

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Pi stage 34 (scripts/pi/remote/34-who-uses-what.sh, who-uses-what-pi-job) in a Debian 13 ARM64 container with the real lib.sh,
+# Pi stage 35 (scripts/pi/remote/35-who-uses-what.sh, who-uses-what-pi-job) in a Debian 13 ARM64 container with the real lib.sh,
 # runuser, cmp, install and ssh-keygen (no systemd here: nothing starts), a stand-in Node that answers --check and writes a
 # note for --out, and a stand-in git that answers ls-remote. Scenarios:
 #   1 refusals before anything is touched: two modes, a missing source file, no access env, no GM token, no git
@@ -13,15 +13,15 @@
 #   8 with a fake systemctl and journalctl: a failed first reading prints the PUBLIC key, dies and does not enable the timer;
 #     a good reading enables the timer after the start; a rerun with the key accepted works
 # The last line is ALL SCENARIOS OK when every one passed:
-#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" <IMAGE> bash /repo/scripts/pi/container-test/stage34-scenarios.sh
-# (scripts/pi/who-uses-what-stage.test.mjs runs it with PI_STAGE34_CONTAINER=1.) STAGE=<file> runs another copy of the script.
+#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" <IMAGE> bash /repo/scripts/pi/container-test/stage35-scenarios.sh
+# (scripts/pi/who-uses-what-stage.test.mjs runs it with PI_STAGE35_CONTAINER=1.) STAGE=<file> runs another copy of the script.
 #
 # DESTRUCTIVE: it adds a user and writes /etc/foundry-ai-tool and /opt. It refuses to run anywhere but a container.
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]:-/nonexistent}")/lib.sh" || { echo "REFUSED: container-test/lib.sh not found"; exit 98; }
 require_test_container
 
-STAGE="${STAGE:-/repo/scripts/pi/remote/34-who-uses-what.sh}"
+STAGE="${STAGE:-/repo/scripts/pi/remote/35-who-uses-what.sh}"
 LIB=/repo/scripts/pi/remote/lib.sh
 JOB=/repo/scripts/pi/who-uses-what-push.sh
 
@@ -36,7 +36,7 @@ install -d -m 0755 "$TOOL_DIR" "$NODE_DIR/bin"
 install -d -m 0755 "$TOOL_DATA"
 access_env="$TOOL_ETC/dashboard-access.env"
 dest="$TOOL_DIR/who-uses-what"
-state="$TOOL_DATA/who-uses-what"
+state=/var/lib/foundry-ai-tool-who-uses-what
 src=/root/src
 unit_dir=/tmp/units
 service_file="$unit_dir/foundry-ai-tool-who-uses-what.service"
@@ -163,13 +163,31 @@ if [ "$rc" -eq 0 ] && grep -q 'v2' "$dest/who-uses-what.mjs" && [ "$key_sum" = "
 # 5.
 run CHECK=1
 rc=$?
-if [ "$rc" -eq 0 ] && echo "$OUT" | grep -q 'vault repo answers' && echo "$OUT" | grep -q 'stage 34 check: ok'; then pass "CHECK passes when the report and the vault repo answer"; else fail "check clean: rc=$rc $OUT"; fi
+if [ "$rc" -eq 0 ] && echo "$OUT" | grep -q 'vault repo answers' && echo "$OUT" | grep -q 'stage 35 check: ok'; then pass "CHECK passes when the report and the vault repo answer"; else fail "check clean: rc=$rc $OUT"; fi
 touch /tmp/fake-git-refuse
 run CHECK=1
 rc=$?
 rm -f /tmp/fake-git-refuse
 if [ "$rc" -eq 1 ] && echo "$OUT" | grep -q 'deploy key'; then pass "CHECK exits 1 when the vault repo refuses the key"; else fail "check refused: rc=$rc $OUT"; fi
 if ! echo "$OUT" | grep -q "$token" && ! echo "$OUT" | grep -q 'BEGIN OPENSSH'; then pass "CHECK prints no secret"; else fail "secret in check output"; fi
+
+# 3b. A foundry user (Foundry, the bridge) must not be able to turn root's writes into writes elsewhere: a link planted
+# where the stage writes is refused or never followed by root.
+fresh
+ln -s /tmp/linktarget "$state"
+run
+rc=$?
+rm -f "$state"
+if [ "$rc" -ne 0 ] && echo "$OUT" | grep -q 'symbolic link' && [ ! -e /tmp/linktarget ]; then pass "a state folder that is a link is refused"; else fail "state link: rc=$rc $OUT"; fi
+fresh
+install -d -m 0700 -o "$FOUNDRY_USER" -g "$FOUNDRY_USER" "$state"
+rm -f /tmp/victim
+ln -s /tmp/victim "$state/known_hosts"
+run
+rc=$?
+if [ "$rc" -eq 0 ] && [ "$(stat -c %U /tmp/victim 2>/dev/null)" != "root" ]; then pass "a link planted at known_hosts is written as $FOUNDRY_USER, not root"; else fail "planted link: rc=$rc owner=$(stat -c %U /tmp/victim 2>&1) $OUT"; fi
+rm -f /tmp/victim
+fresh
 
 # 6.
 fresh

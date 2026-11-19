@@ -508,7 +508,7 @@ export const PI_CONTAINER_MATRIX = [
   { name: 'stage 21', env: 'PI_STAGE21_CONTAINER', test: 'player-vault.test.mjs' },
   { name: 'stage 26', env: 'PI_STAGE26_CONTAINER', test: 'discord-game-server.test.mjs' },
   { name: 'stage 29', env: 'PI_STAGE29_CONTAINER', test: 'gamenight-watch-stage.test.mjs' },
-  { name: 'stage 34', env: 'PI_STAGE34_CONTAINER', test: 'who-uses-what-stage.test.mjs' },
+  { name: 'stage 35', env: 'PI_STAGE35_CONTAINER', test: 'who-uses-what-stage.test.mjs' },
   { name: 'stage 32', env: 'PI_STAGE32_CONTAINER', test: 'crash-guard-stage.test.mjs' },
   { name: 'stage 30', env: 'PI_STAGE30_CONTAINER', test: 'player-connector-stage.test.mjs' },
   { name: 'stage 31', env: 'PI_STAGE31_CONTAINER', test: 'gm-vault-peers.test.mjs' },

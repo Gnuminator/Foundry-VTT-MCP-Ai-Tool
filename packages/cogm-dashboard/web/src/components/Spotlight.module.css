@@ -1,0 +1,111 @@
+/* Spotlight balance card (During feed slot). Tokens only, so both themes follow. */
+.card {
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--fs-md);
+}
+
+.sub {
+  flex: 1;
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.link {
+  padding: 0;
+  font-size: var(--fs-sm);
+  color: var(--accent);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.hiddenRow {
+  margin-top: var(--space-2);
+}
+
+.empty {
+  color: var(--text-muted);
+}
+
+.rows {
+  display: grid;
+  gap: var(--space-2);
+  padding: 0;
+  margin: var(--space-2) 0;
+  list-style: none;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(5rem, 9rem) 1fr auto;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bars {
+  display: grid;
+  gap: 2px;
+}
+
+.bar {
+  display: block;
+  height: 0.5rem;
+  background: var(--accent);
+  border-radius: 3px;
+}
+
+.speak {
+  background: var(--text-muted);
+}
+
+.num {
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
+.hint {
+  margin: var(--space-2) 0 0;
+  font-size: var(--fs-sm);
+}
+
+.setting {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.setting input {
+  width: 4rem;
+  padding: 0.15rem 0.3rem;
+  color: var(--text);
+  background: var(--bg-elev);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+}

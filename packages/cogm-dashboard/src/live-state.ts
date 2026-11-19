@@ -120,6 +120,7 @@ export function createLiveState(inputs: LiveStateInputs): LiveState {
   /** The last world id seen, kept when `world` is nulled on a drop, to spot a switch. */
   let lastWorldId: string | null = null;
   let lastCombatJson = '';
+  let lastSpotlightJson = '';
   let worldRefreshInflight = false;
   let worldRetryTimer: NodeJS.Timeout | null = null;
   let heartbeatTimer: NodeJS.Timeout | null = null;
@@ -286,6 +287,7 @@ export function createLiveState(inputs: LiveStateInputs): LiveState {
     state.reset();
     readCache.clear();
     lastCombatJson = '';
+    lastSpotlightJson = '';
     sse.broadcast('reset', {}, gmOnly);
     // The new world's first reads may have come before this; read them again.
     inputs.resyncFeed();
@@ -359,6 +361,11 @@ export function createLiveState(inputs: LiveStateInputs): LiveState {
       // A change made elsewhere (Claude Desktop, Foundry itself) must not read back stale.
       readCache.clear();
       sse.broadcast('events', { events: added, initial: meta.initial }, gmOnly);
+      const spotlightJson = JSON.stringify(state.spotlight.snapshot());
+      if (spotlightJson !== lastSpotlightJson) {
+        lastSpotlightJson = spotlightJson;
+        sse.broadcast('spotlight', state.spotlight.snapshot(), gmOnly);
+      }
       schedulePlayerBroadcast();
     },
     onErrors(errors, meta) {

@@ -5,6 +5,32 @@ import { REPEAT_ALERT_MS, RecorderHealth, SILENCE_MS, formatAge } from './health
 const T = 1_000_000;
 const MIN = 60_000;
 
+describe('RecorderHealth speaking time', () => {
+  it('adds short gaps between packets as speech and caps long pauses', () => {
+    const h = new RecorderHealth();
+    h.join('u1', 'Mara', false, T);
+    h.join('u2', 'Brenna', false, T);
+    h.packet('u1', 'Mara', T); // first packet: 20 ms
+    h.packet('u1', 'Mara', T + 20); // +20
+    h.packet('u1', 'Mara', T + 10 * MIN); // a long pause adds at most 500 ms
+    h.packet('u2', 'Brenna', T + 5);
+    expect(h.speaking()).toEqual([
+      { name: 'Mara', ms: 540 },
+      { name: 'Brenna', ms: 20 },
+    ]);
+  });
+
+  it('keeps the time of someone who leaves and rejoins', () => {
+    const h = new RecorderHealth();
+    h.join('u1', 'Mara', false, T);
+    h.packet('u1', 'Mara', T);
+    h.leave('u1');
+    h.join('u1', 'Mara', false, T + MIN);
+    h.packet('u1', 'Mara', T + MIN);
+    expect(h.speaking()).toEqual([{ name: 'Mara', ms: 40 }]);
+  });
+});
+
 describe('RecorderHealth silence', () => {
   it('reports a member once after 5 minutes of nothing, and again only after a new packet', () => {
     const h = new RecorderHealth();

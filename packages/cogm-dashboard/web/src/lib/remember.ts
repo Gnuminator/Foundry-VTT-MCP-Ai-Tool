@@ -11,6 +11,8 @@ export const REMEMBER = {
   foldChoices: 'cogm_fold_choices',
   momentPin: 'cogm_moment_pin',
   partyGroup: 'cogm_party_group',
+  spotlightHidden: 'cogm_spotlight_hidden',
+  spotlightHintAfter: 'cogm_spotlight_hint_after',
   partyNoticeDc: 'cogm_party_notice_dc',
   partyNoticeSkill: 'cogm_party_notice_skill',
 } as const;

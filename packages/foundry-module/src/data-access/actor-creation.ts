@@ -17,7 +17,7 @@ const CREATURES_FOLDER = 'Foundry MCP Creatures';
  * Refuse a request for more actors than the hidden `maxActorsPerRequest` world
  * setting allows (default 10). Same text the old permission layer gave.
  */
-export function assertActorQuantity(quantity: number): void {
+function assertActorQuantity(quantity: number): void {
   if (quantity > 1) {
     const maxActors = game.settings.get(MODULE_ID, 'maxActorsPerRequest') as number;
     if (quantity > maxActors) {
@@ -178,7 +178,7 @@ export class ActorCreationDataAccess {
   /**
    * Add one or more freshly-authored Item documents to an existing Actor.
    *
-   * Unlike the `createActorFromCompendium*` paths, the items here are built from
+   * Unlike `createActorFromCompendiumEntry`, the items here are built from
    * caller-supplied data, no compendium lookup. This is how planner-authored
    * content (talents, actions, powers, custom gear) is pushed onto a sheet.
    *

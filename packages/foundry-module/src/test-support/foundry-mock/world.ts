@@ -341,10 +341,11 @@ export function installFoundryGlobals(world: TestWorld): () => void {
         path.split('.').reduce((node, key) => (node == null ? undefined : node[key]), obj),
       setProperty: (obj: any, path: string, value: unknown): boolean => {
         const parts = path.split('.');
+        if (parts.some(key => key === '__proto__' || key === 'constructor' || key === 'prototype'))
+          return false;
         let node = obj;
         for (let i = 0; i < parts.length; i++) {
           const key = parts[i];
-          if (key === '__proto__' || key === 'constructor' || key === 'prototype') return false;
           if (i === parts.length - 1) node[key] = value;
           else node = node[key] ??= {};
         }

@@ -1,6 +1,6 @@
 ---
 source: gm/dashboard-player-pages.md
-sourceHash: 800ae825e936
+sourceHash: 2dbdb8b8cd07
 title: 'Dashboardet: spillersider og Obsidian'
 description: 'Spillersiden, afsløring af et handout, spillerlinks, My character og Open in Obsidian.'
 ---
@@ -38,7 +38,13 @@ sessionerne åbner den med Last recap, Handouts og Quests, og de levende kort ry
 - **Handouts**: sider, du afslørede, med hemmelige sektioner, inline rolls og links til uafslørede
   sider fjernet. En side afsløret siden sessionen startede (eller, mellem sessionerne, siden den
   forrige sluttede) har et **New**-mærke. En side til udvalgte spillere siger "just for you".
-- **Quests**: afslørede sider, hvis titel siger "quest" (eller "opgave").
+- **Quests**: afslørede sider, hvis titel siger "quest" (eller "opgave"). En åben quest viser den dag,
+  du afslørede den. En færdig quest er streget over under **Done**, og en mislykket har et
+  **Failed**-mærke. Recap-kortet begynder med en enkelt linje, **Last time**. Spillerne ser stadig kun
+  det, du afslørede, så intet her kan spoile historien.
+- **Party stash**: hvad partiet bærer, karakter for karakter, med et søgefelt til item-navnet og
+  gruppens samlede guld. Et item, der ikke er identified (eller som du har markeret hemmeligt), vises
+  kun som "Unidentified item". Den læser kun spillernes egne karakterer.
 
 Headeren viser worlden, scenens **Navigation Name** (ellers "Current scene", aldrig det rigtige
 navn) med dens tid på dagen (kun på scener med global illumination) og vejr, for eksempel "Village
@@ -97,7 +103,9 @@ nødvendigt. En spiller, der ikke ejer nogen karakter, ser "Ask your GM".
 Siden har fire visninger, og hver spiller vælger sin (husket på deres enhed):
 
 - **At the table**: store HP, AC og initiative, conditions, spell slots, resources, attacks og
-  prepared spells. Den følger dashboardets tema.
+  prepared spells. Den følger dashboardets tema. Under arket er et **On my turn**-kort, der viser, hvad
+  karakteren kan gøre, grupperet som action, bonus action, reaction og free. Det hjælper en ny spiller,
+  der ikke kender sine muligheder endnu. En kontakt under arket skjuler det.
 - **Paper 2024** (standard-papirvisningen) og **Paper 2014**: sort på hvidt, i den samme rækkefølge som
   det trykte karakterark i den udgave, så en spiller kan skrive det af på papir eller printe det
   (**Print** nederst).
@@ -108,7 +116,8 @@ Siden har fire visninger, og hver spiller vælger sin (husket på deres enhed):
 Det, siden udelader: GM'ens hemmelige sektioner i beskrivelser, de sande navne på uidentificerede
 items (den viser, hvad spilleren ser i Foundry) og enhver actor, spilleren ikke ejer. Som
 spillersiden er den live på Pi bag login med e-mailkode, så spillerne når den fra deres egne
-enheder.
+enheder. Med The Veil-temaet bruger My character de samme skrifttyper og den samme tåge som
+spillersiden.
 
 > **Usikker? Spørg Claude.** Spørg GM coach: "Hvordan giver jeg hver spiller et privat link til deres karakterside?"
 

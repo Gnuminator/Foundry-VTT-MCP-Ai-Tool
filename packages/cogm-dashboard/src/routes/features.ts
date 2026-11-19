@@ -11,6 +11,7 @@ import {
 } from '../client-versions.js';
 import type { DashboardDeps } from '../dashboard-types.js';
 import { DiaryStore } from '../diary-store.js';
+import { mountDowntimeRoute } from '../downtime-route.js';
 import { mountHandoutSeenRoute } from '../handout-seen-route.js';
 import { mountHelpRoute } from '../help-route.js';
 import { mountMeRoute } from '../me-route.js';
@@ -19,6 +20,7 @@ import { playerConnectorFromEnv, type PlayerConnectorOptions } from '../player-c
 import type { PlayerLinkStore } from '../player-links.js';
 import { mountPlayerRoute } from '../player-route.js';
 import { gmOnly } from '../redact.js';
+import { mountPreviouslyOnRoute } from '../previously-on-route.js';
 import { mountSessionNotesRoute } from '../session-notes-route.js';
 import { mountSpaceRoute } from '../space-route.js';
 import { mountUsageRoute, type PlayerDirectory } from '../usage-route.js';
@@ -170,6 +172,14 @@ export function mountMeSpaceVersionRoutes(
     pageHeaders: res => PLAYER_PAGE_HEADERS.apply(res),
   });
 
+  // The downtime inbox (I-180): a player's own entries behind their private link.
+  mountDowntimeRoute(app, {
+    client,
+    links,
+    directory,
+    worldId: () => ctx.world()?.id ?? null,
+  });
+
   // The storage space check (2026-10-06): GM only; nothing on /player or /me.
   const spaceLogger = logger.child('space');
   mountSpaceRoute(app, {
@@ -217,6 +227,16 @@ export function mountHelpAndNotesRoutes(
     client,
     requireGm,
     gmActionsEnabled: () => settings.gmActionsEnabled,
+    logger,
+  });
+
+  // "Previously on" (item previously-on): last night's approved recap to chat, optionally spoken.
+  // Off unless FOUNDRY_AI_PREVIOUSLY_ON=1.
+  mountPreviouslyOnRoute(app, {
+    client,
+    requireGm,
+    gmActionsEnabled: () => settings.gmActionsEnabled,
+    enabled: () => process.env.FOUNDRY_AI_PREVIOUSLY_ON === '1',
     logger,
   });
 }

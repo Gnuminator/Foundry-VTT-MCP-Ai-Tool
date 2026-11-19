@@ -51,14 +51,18 @@ function holdersHtml(holders) {
   return holders
     .map(
       h =>
-        `<div class="stash-holder"><h4>${escape(h.name)}</h4><ul>` +
-        h.items
-          .map(
-            i =>
-              `<li${i.unidentified ? ' class="stash-hidden"' : ''}>${escape(i.name)}${i.quantity > 1 ? ` <span class="stash-qty">x${i.quantity}</span>` : ''}</li>`
-          )
-          .join('') +
-        '</ul></div>'
+        `<div class="stash-holder"><h4>${escape(h.name)}</h4>` +
+        (h.items.length === 0
+          ? '<p class="stash-empty">Carries nothing yet.</p>'
+          : '<ul>' +
+            h.items
+              .map(
+                i =>
+                  `<li${i.unidentified ? ' class="stash-hidden"' : ''}>${escape(i.name)}${i.quantity > 1 ? ` <span class="stash-qty">x${i.quantity}</span>` : ''}</li>`
+              )
+              .join('') +
+            '</ul>') +
+        '</div>'
     )
     .join('');
 }
@@ -79,10 +83,10 @@ export function mountPartyStash(anchor, key) {
   card.hidden = true;
   card.style.gridColumn = '1 / -1';
   card.innerHTML =
-    '<h3>Party stash</h3>' +
+    '<h2>Party stash</h2><div class="body">' +
     '<p class="stash-gold">The group\'s gold: <strong id="stash-gold">...</strong></p>' +
     '<input type="search" id="stash-search" placeholder="Search by item name" aria-label="Search the stash by item name" />' +
-    '<div id="stash-list"></div>';
+    '<div id="stash-list"></div></div>';
   anchor.after(card);
 
   const elGold = card.querySelector('#stash-gold');

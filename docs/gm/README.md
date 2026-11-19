@@ -40,6 +40,7 @@ should see when it worked and what to do if it did not.
 | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | [First 15 minutes](first-15-minutes.md)                           | The one page to read first: what this is, four small steps, what to ignore for now.                            |
 | [Your first hour as GM](first-hour.md)                            | A set reading order: Foundry's own guides for the basics, our pages for the tool.                              |
+| [Session 0 walkthrough script](session-0-walkthrough.md)          | A ten minute script for the recorded tool walkthrough at session 0, in click order.                            |
 | [Quest: your first hour](first-hour-quest.md)                     | The first hour as four stages to tick off.                                                                     |
 | [Getting started](getting-started.md)                             | What the tool is, its parts, how they fit together, and today's setup.                                         |
 | [Glossary](glossary.md)                                           | The Foundry words and the tool words used in these guides.                                                     |

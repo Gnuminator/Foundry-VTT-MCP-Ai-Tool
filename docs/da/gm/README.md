@@ -1,6 +1,6 @@
 ---
 source: gm/README.md
-sourceHash: f2745b4c4683
+sourceHash: 636b3f4c7fc4
 title: GM-guides
 description: Guides til en GM, der kører et spil med Foundry AI Tool, skrevet til en, der er ny i Foundry og i værktøjet.
 ---
@@ -42,6 +42,7 @@ du gør, hvis det ikke gjorde.
 | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | [De første 15 minutter](first-15-minutes.md)                     | Siden du læser først: hvad det er, fire små trin, og hvad du kan ignorere indtil videre.                         |
 | [Din første time som GM](first-hour.md)                          | En fast læserækkefølge: Foundrys egne guides til det basale, vores sider til værktøjet.                          |
+| [Manuskript til session 0](session-0-walkthrough.md)             | Et manuskript på ti minutter til den optagede værktøjsgennemgang på session 0, i klikrækkefølge.                 |
 | [Quest: din første time](first-hour-quest.md)                    | Den første time som fire trin, du kan sætte flueben ved.                                                         |
 | [Kom i gang](getting-started.md)                                 | Hvad værktøjet er, dets dele, hvordan de hænger sammen og dagens opsætning.                                      |
 | [Ordliste](glossary.md)                                          | Foundry-ordene og værktøjsordene i guiderne.                                                                     |

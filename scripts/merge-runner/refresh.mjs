@@ -5,7 +5,13 @@
  * head carries to the new one by patch id (the gate checks that), because a clean merge of main
  * changes no line of the lane's own patch.
  *
- * It never forces anything and never resolves a conflict: a real conflict, a lockfile that
+ * Generated tool reference pages (docs/reference/tools.md, docs/reference/tools/) are the one thing
+ * it does resolve: a conflict only in those files is settled by taking the lane's side and running
+ * `npm run docs:tools`, and a drift refusal whose only failed guard is the mcp-server tests
+ * (a stale tool reference after main added a tool) gets the same regeneration. The regenerated
+ * pages go into the merge commit; the gate leaves them out of its patch id, so the review carries.
+ *
+ * It never forces anything and never resolves any other conflict: a real conflict, a lockfile that
  * `npm install --package-lock-only` would still change, a fork PR, a draft, or a branch that
  * already carries one of the runner's own refresh commits (so a PR that keeps failing for another
  * reason is not merged again and again) stay refusals for the lane to fix.
@@ -24,7 +30,14 @@ export const REFRESH_SUBJECT = 'Merge aitool/main (merge runner refresh)';
  * same after a real merge; the unnamed one is the moved lockfile, checked again below).
  */
 export const REFRESHABLE =
-  /^pr: mergeable is |merge conflicts|^drift: drift-check failed(?! \(guards:)/i;
+  /^pr: mergeable is |merge conflicts|^drift: drift-check failed(?! \(guards:)|^drift: drift-check failed \(guards: mcp-server tests \([^()]*tool reference[^()]*\)\) \(log /i;
+
+/** The drift refusal whose only failed guard is the one that checks the generated tool reference. */
+const TOOL_DOCS_DRIFT =
+  /^drift: drift-check failed \(guards: mcp-server tests \([^()]*tool reference[^()]*\)\) \(log /i;
+
+/** Generated pages `npm run docs:tools` rewrites; the gate's patch id ignores the same paths. */
+export const GENERATED_DOCS = /^docs\/reference\/(tools\.md|tools\/[^/]+\.md)$/;
 
 const IDENT = [
   '-c',
@@ -145,20 +158,73 @@ export function refreshBranch(o) {
   const lockMoved =
     base !== '' && git(['diff', '--quiet', base, main, '--', 'package-lock.json']).status !== 0;
   // A drift refusal that names no guard is the moved lockfile; with the lock unmoved merging cannot help.
-  if (/^drift: /i.test(o.reason) && !lockMoved)
+  const toolDocs = TOOL_DOCS_DRIFT.test(o.reason);
+  if (/^drift: /i.test(o.reason) && !lockMoved && !toolDocs)
     return no('drift refusal, but package-lock.json did not move');
-  const merged = git([...IDENT, 'merge', '--no-edit', '-m', REFRESH_SUBJECT, main], 5 * 60_000);
-  if (merged.status !== 0) {
+  // Back to the old head, and no half-written generated page left behind (reset keeps untracked files).
+  const restore = () => {
+    git(['merge', '--abort']);
+    git(['reset', '-q', '--hard', o.head]);
+    git(['clean', '-fdq', '--', 'docs/reference']);
+  };
+  const fail = (/** @type {string} */ why) => {
+    restore();
+    return no(why);
+  };
+  // An old head that main already contains would fast-forward, and the amend below would rewrite main's tip.
+  if (git(['merge-base', '--is-ancestor', o.head, main]).status === 0)
+    return no('the head is already part of main');
+  let regen = toolDocs;
+  let regenChanged = false;
+  const merged = git(
+    [...IDENT, 'merge', '--no-ff', '--no-verify', '--no-edit', '-m', REFRESH_SUBJECT, main],
+    5 * 60_000
+  );
+  const mergePending = merged.status !== 0;
+  if (mergePending) {
     const files = git(['diff', '--name-only', '--diff-filter=U'])
       .stdout.split(/\r?\n/)
       .filter(Boolean);
-    git(['merge', '--abort']);
-    git(['reset', '-q', '--hard', o.head]);
-    return no(
-      files.length > 0
-        ? `a real conflict in ${files.slice(0, 5).join(', ')}: the lane has to resolve it`
-        : `git merge failed (${oneLine(merged.stderr || merged.stdout, 160)})`
-    );
+    if (files.length === 0 || !files.every(f => GENERATED_DOCS.test(f))) {
+      return fail(
+        files.length > 0
+          ? `a real conflict in ${files.slice(0, 5).join(', ')}: the lane has to resolve it`
+          : `git merge failed (${oneLine(merged.stderr || merged.stdout, 160)})`
+      );
+    }
+    // Only generated pages conflict: take the lane's side, regenerate below, then commit.
+    regen = true;
+    if (
+      git(['checkout', '--ours', '--', ...files]).status !== 0 ||
+      git(['add', '--', ...files]).status !== 0
+    )
+      return fail('the generated tool pages could not be staged');
+  }
+  if (regen) {
+    const gen =
+      process.platform === 'win32'
+        ? o.run('cmd.exe', ['/d', '/s', '/c', 'npm run docs:tools'], {
+            cwd: o.checkout,
+            timeout: NPM_TIMEOUT,
+          })
+        : o.run('npm', ['run', 'docs:tools'], { cwd: o.checkout, timeout: NPM_TIMEOUT });
+    if (gen.status !== 0)
+      return fail(`npm run docs:tools failed (${oneLine(gen.stderr || gen.stdout, 160)})`);
+    // One add per path: git refuses the whole call when one pathspec matches nothing.
+    git(['add', '--', 'docs/reference/tools.md']);
+    git(['add', '--', 'docs/reference/tools']);
+    // --no-verify: the repo's pre-commit hook must not run (or rewrite pages) in the unattended gate checkout.
+    if (mergePending) {
+      if (git([...IDENT, 'commit', '--no-verify', '--no-edit', '-m', REFRESH_SUBJECT]).status !== 0)
+        return fail('the merge commit could not be written');
+    } else if (git(['diff', '--cached', '--quiet']).status !== 0) {
+      regenChanged = true;
+      if (git([...IDENT, 'commit', '--no-verify', '--amend', '--no-edit']).status !== 0)
+        return fail('the regenerated tool pages could not be committed');
+    }
+    // A tool-reference refusal that regeneration does not cure is not the pages' fault: no push.
+    if (toolDocs && !mergePending && !regenChanged && !lockMoved)
+      return fail('regenerating the tool pages changed nothing');
   }
   if (lockMoved) {
     const npm =
@@ -174,7 +240,7 @@ export function refreshBranch(o) {
     const changed = git(['status', '--porcelain', '--', 'package-lock.json']).stdout.trim();
     if (npm.status !== 0 || changed) {
       git(['checkout', '-q', '--', 'package-lock.json']);
-      git(['reset', '-q', '--hard', o.head]);
+      restore();
       return no(
         npm.status !== 0
           ? `npm install --package-lock-only failed (${oneLine(npm.stderr || npm.stdout, 160)})`
@@ -190,7 +256,7 @@ export function refreshBranch(o) {
     ['push', `--force-with-lease=${ref}:${o.head}`, 'aitool', `${head}:${ref}`],
     { cwd: o.checkout, timeout: TIMEOUT }
   );
-  git(['reset', '-q', '--hard', o.head]);
+  restore();
   if (pushed.status !== 0)
     return no(`the push failed (${oneLine(pushed.stderr || pushed.stdout, 160)})`);
   return { head };

@@ -245,6 +245,12 @@ export function patchIdAt(run, sha, mainRef = MAIN) {
     '--dst-prefix=b/',
     baseSha,
     sha,
+    // The generated tool pages are not part of the patch: the merge runner regenerates them when
+    // main adds a tool (merge-runner/refresh.mjs) and CI checks them against the generator.
+    '--',
+    '.',
+    ':(exclude)docs/reference/tools.md',
+    ':(glob,exclude)docs/reference/tools/*.md',
   ]);
   if (diff.status !== 0) return { error: `git diff for ${s} failed (${why(diff)})` };
   if (diff.stdout.trim() === '') return { error: `the patch at ${s} is empty` };

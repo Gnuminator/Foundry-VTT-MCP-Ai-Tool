@@ -453,6 +453,9 @@ test('main left shared/ alone: the worktree still gets its own shared build (gen
   try {
     commit(other, 'main.txt', 'from another lane\n', 'other lane merged');
     git(other, 'push', '-q', 'origin', 'HEAD:main');
+    // The lane's own dist differs from src, so the guard passes only through the worktree's own build
+    // (it would read "stale" through the lane's dist and exit 3).
+    fs.writeFileSync(path.join(lane, 'shared', 'dist', 'api.txt'), 'stale\n');
     const { code, out } = runWith(lane, {
       checks: [readsSharedDist('v1')],
       sharedBuild: buildShared,

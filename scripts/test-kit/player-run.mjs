@@ -149,7 +149,7 @@ export function standardArrayChoice(labels, current) {
  * left it empty until a method was picked, newer ones start on Standard Array. Either way, make sure Standard Array is
  * the one showing. With one method on there is no drop-down and nothing to do.
  */
-async function chooseStandardArrayMethod(page, studio) {
+export async function chooseStandardArrayMethod(page, studio, wait = sleep) {
   const select = studio.rootOf(page).locator('#ability-generation-method-select');
   if ((await select.count()) === 0) return 'single method';
   const current = await select
@@ -159,7 +159,7 @@ async function chooseStandardArrayMethod(page, studio) {
   // The drop-down is only opened when another method shows (Escape would close the whole Actor Studio window).
   if (standardArrayChoice([], current.trim()) === null) return 'already Standard Array';
   await select.locator('.selected-option').click();
-  await sleep(400);
+  await wait(400);
   const labels = (await select.locator('.option .option-label').allInnerTexts()).map(l => l.trim());
   const index = standardArrayChoice(labels, current.trim());
   if (index === null || index < 0) {
@@ -170,7 +170,7 @@ async function chooseStandardArrayMethod(page, studio) {
     throw new Error(`Standard Array is not offered on the Abilities tab (methods: ${labels.join(', ')})`);
   }
   await select.locator('.option').filter({ hasText: /standard array/i }).first().click();
-  await sleep(600);
+  await wait(600);
   const shown = (await select.locator('.selected-option').innerText().catch(() => '')).trim();
   if (standardArrayChoice([], shown) !== null) {
     throw new Error(`Standard Array did not stick on the Abilities tab (it shows "${shown}")`);

@@ -35,7 +35,8 @@ export async function buildSceneFixture({ gm, dashboard, log = () => {} }) {
     const have = listOf(listed, 'scenes').find((/** @type {any} */ s) => s.name === FIXTURE_SCENE);
     if (have) {
       log(`scene ${FIXTURE_SCENE}: already there`);
-      return { created: false, sceneId: have.id, tokenIds: [], groupId: party.groupId, actorIds };
+      const tokenIds = await ensureTokens({ gm, dashboard, sceneId: have.id, actorIds, log });
+      return { created: false, sceneId: have.id, tokenIds, groupId: party.groupId, actorIds };
     }
   }
   const sceneFolder = (await gm.call('ensureFolder', { type: 'Scene', name: 'Kit' })).folderId;
@@ -50,17 +51,7 @@ export async function buildSceneFixture({ gm, dashboard, log = () => {} }) {
     lights: 0,
   });
   log(`scene ${scene.name}`);
-  const tokenIds = [];
-  for (const [i, actorId] of actorIds.entries()) {
-    const { tokenId } = await gm.call('placeToken', {
-      sceneId: scene.sceneId,
-      actorId,
-      x: 3 + i * 3,
-      y: 3,
-    });
-    tokenIds.push(tokenId);
-  }
-  log(`${tokenIds.length} tokens placed`);
+  const tokenIds = await placeMissing({ gm, sceneId: scene.sceneId, actorIds, have: [], log });
   return {
     created: true,
     sceneId: scene.sceneId,
@@ -68,4 +59,34 @@ export async function buildSceneFixture({ gm, dashboard, log = () => {} }) {
     groupId: party.groupId,
     actorIds,
   };
+}
+
+/**
+ * Place a token for each fixture actor that has none on the scene, at the grid cell its position in
+ * the list gives it. Returns every token id (the existing ones first when a scene is topped up).
+ * @param {{gm: {call: (action: string, args?: any) => Promise<any>}, sceneId: string, actorIds: string[], have: {tokenId: string, actorId?: string}[], log: (line: string) => void}} c
+ * @returns {Promise<string[]>}
+ */
+async function placeMissing({ gm, sceneId, actorIds, have, log }) {
+  const tokenIds = have.map(t => t.tokenId);
+  let placed = 0;
+  for (const [i, actorId] of actorIds.entries()) {
+    if (have.some(t => t.actorId === actorId)) continue;
+    const { tokenId } = await gm.call('placeToken', { sceneId, actorId, x: 3 + i * 3, y: 3 });
+    tokenIds.push(tokenId);
+    placed++;
+  }
+  if (placed > 0) log(`${placed} tokens placed`);
+  return tokenIds;
+}
+
+/**
+ * A fixture scene left without tokens by an interrupted run counts as there but is not whole: look at
+ * its tokens and add the ones that are missing.
+ * @param {{gm: {call: (action: string, args?: any) => Promise<any>}, dashboard: any, sceneId: string, actorIds: string[], log: (line: string) => void}} c
+ */
+async function ensureTokens({ gm, dashboard, sceneId, actorIds, log }) {
+  const positions = await dashboard.tool('get-token-positions', { sceneId });
+  const have = listOf(positions, 'tokens');
+  return placeMissing({ gm, sceneId, actorIds, have, log });
 }

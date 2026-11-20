@@ -15,7 +15,7 @@
 #              Needs a dietpi-backup snapshot from today and the user's OK. Nothing restarts.
 #   CHECK=1    read-only, any time: says what is in the vault, what the build has and whether the ignore list is right;
 #              exit 0 when the vault holds the build's files and the ignore list is right, exit 1 otherwise. Needs no snapshot.
-# It never deletes anything in the vault, and never touches data.json or any other file in the plugin's folder.
+# It deletes nothing in the vault (only its own leftover temp file is removed), and never touches data.json or any other file in the plugin's folder.
 # Run from the PC (bash, not PowerShell):
 #   cat scripts/pi/remote/lib.sh scripts/pi/remote/33-obsidian-plugin.sh | ssh foundry-pi 'CHECK=1 bash -s'
 #   cat scripts/pi/remote/lib.sh scripts/pi/remote/33-obsidian-plugin.sh | ssh foundry-pi 'bash -s'
@@ -129,12 +129,14 @@ fi
 refuse_links
 # The folders first (as the foundry user): the ignore list's temp file lives in .obsidian/plugins, which the ignore list
 # covers, so a half-written temp file is never offered to a PC.
-runuser -u "$FOUNDRY_USER" -- sh -c 'mkdir -p "$1" && chmod 0750 "$1"' sh "$plugin_dir" || die "could not make $plugin_dir as $FOUNDRY_USER"
+# Every folder this makes (.obsidian, plugins, the plugin's own) is 0750 like the vault; one that already exists keeps its mode.
+runuser -u "$FOUNDRY_USER" -- sh -c 'for d in "$1/.obsidian" "$1/.obsidian/plugins" "$2"; do [ -d "$d" ] || mkdir -m 0750 "$d" || exit 1; done' sh \
+  "$gm_dir" "$plugin_dir" || die "could not make $plugin_dir as $FOUNDRY_USER"
 if [ "$need_ignore" = 1 ]; then
   say "writing the ignore list"
   # The "!" lines go right above ".obsidian/plugins"; lines already in the file stay as they are, and a "!" line that is
   # already there is not added twice. The line itself is known to be there (has_plugins_line, above).
-  awk -v inc="$include_lines" '
+  new_ignore="$(awk -v inc="$include_lines" '
     BEGIN { n = split(inc, want, "\n") }
     { line[NR] = $0 }
     END {

@@ -94,7 +94,7 @@ if (MAP_MODE === 'scale' || MAP_MODE === 'scale-revert' || MAP_MODE === 'check')
     };
     if (matches(cur, p.to)) {
       counts.already++;
-      note(`already fixed ${p.name}: grid ${dump(cur)}`);
+      note(`already ${undo ? 'as imported' : 'fixed'} ${p.name}: grid ${dump(cur)}`);
     } else if (matches(cur, p.from)) {
       if (write) {
         await s.update({ grid: p.to });

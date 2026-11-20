@@ -110,7 +110,10 @@ for folder_id in $folders; do
     case "$pct" in 100 | 100.*) full=1 ;; esac
     if printf '%s' "$connections" | grep -q "\"$dev_id\":{[^}]*\"connected\":true"; then
       state="connected now"
-      if [ "$full" != 1 ]; then
+      if [ "$pct" = "?" ]; then
+        warn "$name is connected but Syncthing did not say how much of $folder_id it holds: unknown, run the check again"
+        problems=$((problems + 1))
+      elif [ "$full" != 1 ]; then
         warn "$name is connected but holds $pct percent of $folder_id: it is still catching up, or stuck"
         problems=$((problems + 1))
       fi
@@ -119,6 +122,9 @@ for folder_id in $folders; do
       se="$(epoch "${seen:-1970-01-01T00:00:00Z}")"
       if [ "$se" -le 86400 ]; then
         warn "$name has never connected to this Pi: its copy of $folder_id was never filled"
+        problems=$((problems + 1))
+      elif [ "$pct" = "?" ]; then
+        warn "$name is not connected and Syncthing did not say how much of $folder_id it holds: unknown, so not called out of date"
         problems=$((problems + 1))
       elif [ "$full" != 1 ]; then
         warn "$name is not connected and holds $pct percent of $folder_id: it missed changes and is out of date until its PC is on and Syncthing runs"

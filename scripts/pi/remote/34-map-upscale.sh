@@ -23,7 +23,7 @@
 #   cat scripts/pi/remote/lib.sh scripts/pi/remote/34-map-upscale.sh scripts/pi/remote/gm-script.sh | ssh foundry-pi 'MODE=scale bash -s'          (dry run)
 #   cat scripts/pi/remote/lib.sh scripts/pi/remote/34-map-upscale.sh scripts/pi/remote/gm-script.sh | ssh foundry-pi 'MODE=scale APPLY=1 bash -s'
 #   the same with MODE=switch, and MODE=revert for the way back.
-# Env: MODE (check, files, scale, switch, revert, scenes-check; default check); APPLY=1 for a real scale/switch/revert run
+# Env: MODE (check, files, scale, scale-revert, switch, revert, scenes-check; default check); APPLY=1 for a real scale/scale-revert/switch/revert run
 # (without it a dry run that changes nothing; any other APPLY value is refused); WORLD (curse-of-strahd, the world that must
 # be running for the GM modes); SRC (the folder on the Pi, default /root/map-upscale); FOLDER (default assets/strahd-maps-2x,
 # below the Foundry Data folder; must match the folder prepare.mjs put in data.js).

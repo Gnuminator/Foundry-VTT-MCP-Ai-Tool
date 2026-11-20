@@ -185,6 +185,7 @@ const NO_GUARD = {
   '26-discord-game-server.sh': 'the Discord bot unit; the bot stays a systemd unit after the cutover (compose.yml has no bot)',
   '29-gamenight-watch.sh': 'its own watch unit (After= lines only name the stack); not a stack unit',
   '32-crash-guard.sh': 'drop-ins only for stack units that are enabled systemd units, plus its own timer; starts none of them',
+  '35-who-uses-what.sh': 'its own oneshot service and timer only; the report reads the dashboard, which a cut-over stack still serves on its port',
   'set-discord-token.sh': 'restarts the Discord bot unit only; the bot is not a container',
   'set-tunnel-token.sh': 'restarts the cloudflared unit only; not part of the stack',
 };

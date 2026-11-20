@@ -11,6 +11,7 @@ import {
 describe('errorMessage', () => {
   it('reads an Error, a string and other values', () => {
     expect(errorMessage(new Error('boom'))).toBe('boom');
+    expect(errorMessage(new TypeError())).toBe('TypeError');
     expect(errorMessage('plain')).toBe('plain');
     expect(errorMessage({ a: 1 })).toBe('{"a":1}');
     expect(errorMessage(undefined)).toBe('undefined');

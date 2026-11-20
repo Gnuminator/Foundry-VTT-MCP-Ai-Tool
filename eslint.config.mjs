@@ -196,7 +196,7 @@ export default defineConfig(
               name: '@gnuminator/shared',
               allowTypeImports: true,
               message:
-                'The module build runs in the browser and cannot load the shared package: use `import type`.',
+                'The module build runs in the browser and cannot load the shared package: use `import type`, or import values from `@gnuminator/shared/browser`.',
             },
           ],
         },

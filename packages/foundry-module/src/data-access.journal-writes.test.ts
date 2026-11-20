@@ -76,7 +76,7 @@ async function addJournalWithPages(
 
 describe('FoundryDataAccess: createJournalEntry: permission gate', () => {
   it('throws "Journal creation denied" when writes are not enabled', async () => {
-    // Do NOT call world.enableWrites() → permissionCheck.allowed === false
+    // Do NOT call world.enableWrites(): requireWriteOperations refuses
     await expect(
       da.createJournalEntry({ name: 'The Hunt', content: 'Find the dragon.' })
     ).rejects.toThrow(/^Journal creation denied:/);

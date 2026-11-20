@@ -13,7 +13,9 @@ Layout inside the inbox clone::
     sessions/<session name>/names.txt            (when the session has one)
     sessions/<session name>/notes/...            (written by the routine)
 
-The whole feature is off unless ``FVTT_RECAP_INBOX`` points at the clone.
+The whole feature is off unless ``FVTT_RECAP_INBOX`` points at the clone. The clone needs an
+upstream branch (``git clone`` or ``git push -u`` sets it): the pass pulls with rebase and
+autostash, and pushes only when commits are ahead of ``@{u}``.
 """
 
 from __future__ import annotations
@@ -119,7 +121,7 @@ def sync(sessions_root: Path, inbox: Path, *, use_git: bool = True) -> SyncRepor
     """One PC pass: pull the inbox, import finished notes, export new sessions, push."""
     report = SyncReport()
     if use_git:
-        _git(inbox, "pull", "--rebase")
+        _git(inbox, "pull", "--rebase", "--autostash")
     report.imported = import_notes(inbox, sessions_root)
     if sessions_root.is_dir():
         for session in sorted(p for p in sessions_root.iterdir() if p.is_dir()):

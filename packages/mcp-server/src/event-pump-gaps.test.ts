@@ -44,7 +44,6 @@ let foundry: FakeModule;
 
 function makePump(worldIds?: { current: () => Promise<string> }): EventPump {
   const logger = makeLogger();
-  logger.child = (): unknown => logger;
   return new EventPump({
     foundryClient: foundry,
     worldIds: worldIds ?? { current: (): Promise<string> => Promise.resolve('w1') },
@@ -196,7 +195,6 @@ describe('EventPump gaps and health', () => {
     vi.setSystemTime(T0);
     let world = 'w1';
     const logger = makeLogger();
-    logger.child = (): unknown => logger;
     const pump = new EventPump({
       foundryClient: foundry,
       worldIds: { current: (): Promise<string> => Promise.resolve(world) },

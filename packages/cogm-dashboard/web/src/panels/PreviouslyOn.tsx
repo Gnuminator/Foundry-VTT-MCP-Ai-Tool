@@ -91,7 +91,15 @@ export default function PreviouslyOnCard({ active }: { active: boolean }): JSX.E
       <p className="notes-line" aria-live="polite">
         {state.rendering.length > 0 ? 'Making the voice...' : ''}
         {state.failed.length > 0 && state.rendering.length === 0
-          ? 'The voice could not be made. Check that the narration tool is set up on this PC, then try again.'
+          ? `The ${
+              [
+                ...new Set(
+                  state.failed
+                    .map(key => LANG_WORDS[key.slice(key.lastIndexOf(':') + 1) as Lang] ?? '')
+                    .filter(Boolean)
+                ),
+              ].join(' and ') || 'spoken'
+            } voice could not be made. Check that the narration tool is set up on this PC, then try again.`
           : ''}
       </p>
       {state.languages.map(lang => (

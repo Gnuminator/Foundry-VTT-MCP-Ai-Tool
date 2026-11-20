@@ -1,3 +1,5 @@
+import * as path from 'path';
+
 import type { Express } from 'express';
 import { createSpaceStatusReader } from '@gnuminator/shared';
 
@@ -8,6 +10,7 @@ import {
   obsidianClientRecorder,
 } from '../client-versions.js';
 import type { DashboardDeps } from '../dashboard-types.js';
+import { DiaryStore } from '../diary-store.js';
 import { mountDowntimeRoute } from '../downtime-route.js';
 import { mountHandoutSeenRoute } from '../handout-seen-route.js';
 import { mountHelpRoute } from '../help-route.js';
@@ -151,6 +154,11 @@ export function mountMeSpaceVersionRoutes(
   mountMeRoute(app, {
     client,
     links,
+    // Character diaries (I-183): the players' own entries, in the state folder.
+    diary: new DiaryStore(
+      config.stateDir ? path.join(config.stateDir, 'player-diaries.json') : null,
+      logger
+    ),
     connector: playerConnector.enabled ? playerConnector.store : null,
     directory,
     requireGm,

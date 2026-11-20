@@ -92,6 +92,7 @@ export function collectPlayerFiles() {
   files.set('SKILL.md', read('SKILL.md'));
   files.set('references/level-up.md', read('pages/level-up.md'));
   files.set('references/rules-question.md', read('pages/rules-question.md'));
+  files.set('references/diary.md', read('pages/diary.md'));
   files.set(
     'references/character-creation.md',
     swap(

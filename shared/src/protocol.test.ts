@@ -1,5 +1,5 @@
 /**
- * @gnuminator/shared — wire-protocol contract tests
+ * @gnuminator/shared: wire-protocol contract tests
  *
  * Guards the frozen strings and the two frame schemas the code really parses (module-hello and
  * module-request); the other frame shapes are TypeScript types only (ARCHITECTURE.md §3).

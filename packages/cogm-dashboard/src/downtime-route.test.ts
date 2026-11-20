@@ -25,6 +25,7 @@ async function start(client: DowntimeClient): Promise<string> {
     client,
     links: {
       userFor: (_w: string, k?: string) => (k === 'good' ? 'anna' : null),
+      worldFor: (k?: string) => (k === 'good' ? 'w' : null),
     } as unknown as PlayerLinkStore,
     directory: {
       refreshIfStale: () => Promise.resolve(),
@@ -65,6 +66,7 @@ describe('downtime route', () => {
       client: { downtime: () => Promise.resolve({ entries: [] }) },
       links: {
         userFor: (_w: string, k?: string) => (k === 'good' ? 'anna' : null),
+        worldFor: () => null,
       } as unknown as PlayerLinkStore,
       directory: {
         refreshIfStale: () => Promise.resolve(),
@@ -80,6 +82,33 @@ describe('downtime route', () => {
     expect((await fetch(`${base}/api/me/downtime`, { headers: h })).status).toBe(200);
     world = null; // the GM client left: the last world stands in, the link stays valid
     expect((await fetch(`${base}/api/me/downtime`, { headers: h })).status).toBe(200);
+  });
+
+  it('finds the world from the link after a restart with no table open', async () => {
+    const app = express();
+    app.use(express.json());
+    mountDowntimeRoute(app, {
+      client: { downtime: () => Promise.resolve({ entries: [] }) },
+      links: {
+        userFor: (w: string, k?: string) =>
+          (w === 'w' && k === 'good') || (w === 'old' && k === 'stale') ? 'anna' : null,
+        worldFor: (k?: string) => (k === 'good' ? 'w' : k === 'stale' ? 'old' : null),
+      } as unknown as PlayerLinkStore,
+      directory: {
+        refreshIfStale: () => Promise.resolve(),
+        get: () => undefined,
+      } as unknown as PlayerDirectory,
+      worldId: () => null,
+    });
+    await new Promise<void>(r => (server = app.listen(0, '127.0.0.1', r)));
+    const base = `http://127.0.0.1:${(server!.address() as AddressInfo).port}`;
+    // A leftover link from an old world does not pin the world for everyone after it.
+    expect(
+      (await fetch(`${base}/api/me/downtime`, { headers: { 'X-CoGM-Me': 'stale' } })).status
+    ).toBe(200);
+    expect(
+      (await fetch(`${base}/api/me/downtime`, { headers: { 'X-CoGM-Me': 'good' } })).status
+    ).toBe(200);
   });
 
   it('answers 501 for an old backend and 400 for a malformed edit id', async () => {

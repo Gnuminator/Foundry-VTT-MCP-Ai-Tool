@@ -20,6 +20,9 @@
        installer keeps the stored token).
     5. if the installer fails, the files it replaced are put back.
 
+  The checksum file and the installer come from the same release page, so the check catches a damaged
+  or cut-off download, not a tampered release: it is an integrity check only, not a signature.
+
   Writes one line per run to <StateDir>\update.log and the result to <StateDir>\update-status.json
   (names and version numbers only). Never reads, prints or changes the token or Client ID/secret.
 
@@ -109,7 +112,19 @@ function Get-InstalledVersion {
   try { return [string](Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\FoundryMCPServer' -ErrorAction Stop).DisplayVersion } catch { return '' }
 }
 
-function Test-ClaudeRunning { return [bool](Get-Process -Name $ClaudeProcess -ErrorAction SilentlyContinue) }
+# Claude Code's claude.exe has the same process name as Claude Desktop but lives under the user's
+# .local\bin or .claude folder (or node_modules); it does not lock the install, so it is not counted.
+# Only those three folders are skipped: the Claude Code that Claude Desktop bundles still counts.
+# A process whose path cannot be read counts as Claude Desktop, the safe side.
+$claudeCodePath = '[\\/](\.local[\\/]bin|\.claude|node_modules)[\\/]'
+function Test-ClaudeRunning {
+  foreach ($proc in @(Get-Process -Name $ClaudeProcess -ErrorAction SilentlyContinue)) {
+    $procPath = ''
+    try { $procPath = [string]$proc.Path } catch { }
+    if (-not $procPath -or $procPath -notmatch $claudeCodePath) { return $true }
+  }
+  return $false
+}
 
 function Get-Sha256Line([string]$sums, [string]$file) {
   foreach ($l in ($sums -split "`n")) {

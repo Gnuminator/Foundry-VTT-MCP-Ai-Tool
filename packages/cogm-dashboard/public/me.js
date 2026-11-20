@@ -418,6 +418,113 @@ document.addEventListener('change', e => {
     render();
   }
 });
+// "My diary" (I-183): the player's own entries, kept on the table's server behind their key.
+let diaryEntries = [];
+let diaryEditing = null; // the id of the entry in the form, or null for a new one
+let diaryLoaded = false;
+
+function diaryStatus(text) {
+  $('md-status').textContent = text || '';
+}
+
+function diaryCharName() {
+  const sheets = (data && data.sheets) || [];
+  const s = sheets.find(x => x.id === charId) || sheets[0];
+  return s && s.name ? String(s.name) : '';
+}
+
+function renderDiary() {
+  $('md-list').innerHTML = diaryEntries
+    .map(
+      e => `<li data-id="${esc(e.id)}">
+        <div class="md-meta">${esc(e.character || 'My character')}, ${esc(new Date(e.updatedAt).toLocaleDateString())}</div>
+        <p class="md-text">${esc(e.text)}</p>
+        <button type="button" data-diary-edit="${esc(e.id)}">Edit</button>
+        <button type="button" data-diary-del="${esc(e.id)}">Delete</button>
+      </li>`
+    )
+    .join('');
+}
+
+async function diaryCall(method, path, body) {
+  const res = await fetch(path, {
+    method,
+    headers: { 'X-CoGM-Me': key, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+  const out = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(out.error || 'Could not reach your diary. Try again.');
+  return out;
+}
+
+async function loadDiary() {
+  if (!key || diaryLoaded) return;
+  try {
+    const out = await diaryCall('GET', '/api/me/diary');
+    diaryEntries = out.entries || [];
+    diaryLoaded = true;
+    $('me-diary').hidden = false;
+    renderDiary();
+  } catch {
+    // No diary here (an older server, or no link): the section stays hidden.
+  }
+}
+
+function diaryReset() {
+  diaryEditing = null;
+  $('md-text').value = '';
+  $('md-cancel').hidden = true;
+  $('md-save').textContent = 'Save entry';
+}
+
+$('md-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  diaryStatus('Saving…');
+  try {
+    await diaryCall('POST', '/api/me/diary', {
+      ...(diaryEditing ? { id: diaryEditing } : {}),
+      character: $('md-char').value || diaryCharName(),
+      text: $('md-text').value,
+    });
+    diaryReset();
+    diaryLoaded = false;
+    await loadDiary();
+    diaryStatus('Saved.');
+  } catch (err) {
+    diaryStatus(err.message);
+  }
+});
+$('md-cancel').addEventListener('click', () => {
+  diaryReset();
+  diaryStatus('');
+});
+$('md-list').addEventListener('click', async e => {
+  const edit = e.target.closest('[data-diary-edit]');
+  if (edit) {
+    const entry = diaryEntries.find(x => x.id === edit.dataset.diaryEdit);
+    if (!entry) return;
+    diaryEditing = entry.id;
+    $('md-char').value = entry.character;
+    $('md-text').value = entry.text;
+    $('md-cancel').hidden = false;
+    $('md-save').textContent = 'Update entry';
+    $('md-text').focus();
+    return;
+  }
+  const del = e.target.closest('[data-diary-del]');
+  if (del && window.confirm('Delete this diary entry?')) {
+    try {
+      await diaryCall('DELETE', `/api/me/diary/${encodeURIComponent(del.dataset.diaryDel)}`);
+      if (diaryEditing === del.dataset.diaryDel) diaryReset();
+      diaryLoaded = false;
+      await loadDiary();
+      diaryStatus('Deleted.');
+    } catch (err) {
+      diaryStatus(err.message);
+    }
+  }
+});
+
 $('me-print').addEventListener('click', () => window.print());
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) {
@@ -431,4 +538,5 @@ setInterval(() => {
 render();
 void load();
 void loadConnector();
+void loadDiary();
 mountDowntime($('me-downtime'), key);

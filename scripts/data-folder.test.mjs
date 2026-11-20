@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -28,6 +29,33 @@ test('a root folder follows the move, and the old place answers until then', () 
       path.join(data, 'FoundryAI', 'module-archive')
     );
     assert.equal(resolveRootPath('C:/FoundryAI', data, drive), path.join(data, 'FoundryAI'));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('Get-DataFolder (data-folder.ps1) follows the same rule as dataFolder()', { skip: process.platform !== 'win32' }, () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'dataf-'));
+  const ps1 = path.join(import.meta.dirname, 'data-folder.ps1');
+  const run = (/** @type {string} */ dataDir, /** @type {string} */ home) => {
+    const r = spawnSync(
+      'powershell',
+      ['-NoProfile', '-Command', `. '${ps1}'; Get-DataFolder 'FoundrySessions'`],
+      { encoding: 'utf8', env: { ...process.env, USERPROFILE: home, FVTT_DATA_DIR: dataDir } }
+    );
+    assert.equal(r.status, 0, r.stderr);
+    return r.stdout.trim();
+  };
+  try {
+    const home = path.join(root, 'home');
+    const data = path.join(root, 'data');
+    const legacy = path.join(home, 'Documents', 'FoundrySessions');
+    assert.equal(run('', home), legacy, 'no data folder: the old place');
+    assert.equal(run(data, home), path.join(data, 'FoundrySessions'), 'nothing exists: the new place');
+    mkdirSync(legacy, { recursive: true });
+    assert.equal(run(data, home), legacy, 'old folder exists, not moved yet: the old place');
+    mkdirSync(path.join(data, 'FoundrySessions'), { recursive: true });
+    assert.equal(run(data, home), path.join(data, 'FoundrySessions'), 'moved: the new place');
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

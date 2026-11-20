@@ -415,7 +415,7 @@ describe('FoundryDataAccess: addActorItems', () => {
 // ===========================================================================
 
 describe('FoundryDataAccess: addActorsToScene: guards', () => {
-  it('throws ACCESS_DENIED when modifyScene is disabled', async () => {
+  it('throws the writes-disabled refusal when writes are off', async () => {
     await expect(
       da.addActorsToScene({ actorIds: ['a1'], placement: 'grid', hidden: false })
     ).rejects.toThrow(WRITES_DISABLED_MESSAGE);

@@ -98,7 +98,6 @@ beforeEach(async () => {
   store = new VaultStore({ dataDir });
   foundry = new FakeModule();
   logger = makeLogger();
-  logger.child = (): unknown => logger;
 });
 
 afterEach(async () => {

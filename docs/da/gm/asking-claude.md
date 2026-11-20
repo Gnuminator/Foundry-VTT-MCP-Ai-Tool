@@ -1,6 +1,6 @@
 ---
 source: gm/asking-claude.md
-sourceHash: 2b5fb45e9e5c
+sourceHash: 8aa1ddb930e3
 title: Spørg Claude
 description: Sådan bruger du Claude Desktop med værktøjet, gode forespørgsler, de færdige prompts, hvordan Claudes ændringer godkendes, og hvad Claude ikke kan.
 ---
@@ -213,7 +213,7 @@ Dashboardets **GM Actions**-kontakt beskytter kun dashboardet. Den stopper ikke 
   token står på, og `measure-distance` tæller højden med. En flad scene virker som før.
 - **Room whisper.** `plan-room-setup` har en `whisper`-handling: en GM-only Region, der whisper et
   rumkort til dig, når en token går ind. Teksten ligger i en GM-only journal, der laves i samme plan.
-  Spillerne ser ingenting. Den planlægges, bekræftes og fortrydes som de andre room setups.
+  Spillerne bliver ikke vist noget på skærmen. Den planlægges, bekræftes og fortrydes som de andre room setups.
 - **Undo og Prone.** Når du fortryder damage, der sendte en helt ned på 0 hit points, tager det nu også
   den Prone af, der følger med Unconscious.
 

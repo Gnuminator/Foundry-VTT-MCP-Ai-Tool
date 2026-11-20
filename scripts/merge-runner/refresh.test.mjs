@@ -103,6 +103,9 @@ test('clean merge: main is merged in, the merge commit is pushed, the lane patch
     assert.equal(s.run(s.remote, 'rev-parse', 'refs/heads/lane'), r.head);
     assert.equal(s.run(s.checkout, 'rev-parse', 'HEAD'), s.head);
     assert.equal(s.run(s.checkout, 'log', '-1', '--format=%s', r.head), REFRESH_SUBJECT);
+    // a real two-parent merge: the old lane head first, then main's tip
+    const mainTip = s.run(s.checkout, 'rev-parse', 'aitool/main');
+    assert.equal(s.run(s.checkout, 'rev-list', '--parents', '-n', '1', r.head), `${r.head} ${s.head} ${mainTip}`);
     // review carries by patch id: the diff from the merge base is the same patch
     assert.equal(
       patchId(s, s.checkout, 'aitool/main', s.head),
@@ -149,6 +152,27 @@ test('not refreshed: a reason merging main cannot cure, a head that has main, on
     moveMain({ ...s, head: first.head }, 'more.txt', 'more\n');
     const second = refreshBranch(opts(s, { head: first.head }));
     assert.match(second?.why ?? '', /already merged in by the runner once/);
+  } finally {
+    s.cleanup();
+  }
+});
+
+test('not refreshed: a head that is already part of main (merging would fast-forward)', () => {
+  const s = setup();
+  try {
+    // main takes the lane commit by fast-forward, then moves on: the head is an ancestor of main
+    s.run(s.checkout, 'checkout', '-q', 'main');
+    s.run(s.checkout, 'merge', '-q', '--ff-only', s.head);
+    s.write('main.txt', 'main\n');
+    s.run(s.checkout, 'add', '-A');
+    s.run(s.checkout, 'commit', '-q', '-m', 'main after lane');
+    s.run(s.checkout, 'push', '-q', 'aitool', 'HEAD:main');
+    s.run(s.checkout, 'fetch', '-q', 'aitool');
+    s.run(s.checkout, 'checkout', '-q', '--detach', s.head);
+    const mainBefore = s.run(s.remote, 'rev-parse', 'refs/heads/main');
+    assert.match(refreshBranch(opts(s))?.why ?? '', /already part of main/);
+    assert.equal(s.run(s.remote, 'rev-parse', 'refs/heads/main'), mainBefore);
+    assert.equal(s.run(s.checkout, 'rev-parse', 'HEAD'), s.head);
   } finally {
     s.cleanup();
   }

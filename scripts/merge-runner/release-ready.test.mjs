@@ -170,6 +170,25 @@ test('a red roundtrip on a later tip retries quietly: one red line per release i
   assert.equal(posts.length, 1);
 });
 
+test('a different kind of red on a later tip posts again (failed, then could not run)', () => {
+  let tip = TIP;
+  let code = 1;
+  const { d, posts } = fake({ tip: () => tip, worker: () => ({ code, output: 'boom' }) });
+  const run = makeReleaseRun(d);
+  run.step(unblocked);
+  run.step(unblocked);
+  tip = 'd'.repeat(40);
+  run.step(unblocked);
+  run.step(unblocked);
+  assert.equal(posts.length, 1);
+  code = 2;
+  tip = 'e'.repeat(40);
+  run.step(unblocked);
+  run.step(unblocked);
+  assert.equal(posts.length, 2);
+  assert.match(posts[1], /could not run/);
+});
+
 test('the release session is started only when wired, and named in the post', () => {
   const started = [];
   const { d, posts } = fake({

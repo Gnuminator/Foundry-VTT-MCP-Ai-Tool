@@ -56,6 +56,7 @@ function runHook(installPath, name, command) {
     input: JSON.stringify({ tool_name: 'Bash', tool_input: { command } }),
     encoding: 'utf8',
     cwd: REPO,
+    timeout: 30000,
     env: { ...process.env, CLAUDE_PROJECT_DIR: REPO },
   });
   // A crashed hook prints nothing, so a clean exit and empty stderr count as part of every result.
@@ -78,7 +79,7 @@ export function main() {
     claude(profile, ['plugin', 'marketplace', 'add', mp]);
     claude(profile, ['plugin', 'install', ID]);
     const first = installed(profile);
-    if (!first || !path.resolve(first.installPath).startsWith(path.resolve(profile))) {
+    if (!first || !path.resolve(first.installPath).startsWith(path.resolve(profile) + path.sep)) {
       throw new Error(`install landed outside the throwaway profile: ${first?.installPath}`);
     }
     check(Boolean(first?.enabled), 'installed and enabled in a clean profile');
@@ -97,7 +98,7 @@ export function main() {
     const allows = r => r.clean && r.out === '';
     check(denies(runHook(root, 'guard-python-stdin.mjs', 'python3 -c 1')), 'installed guard-python-stdin denies python3');
     check(allows(runHook(root, 'guard-python-stdin.mjs', 'ls')), 'installed guard-python-stdin allows ls');
-    const sed = `sed -i 's/a/b/' ${path.join(REPO, 'package.json')}`;
+    const sed = `sed -i 's/a/b/' "${path.join(REPO, 'package.json')}"`;
     check(denies(runHook(root, 'guard-shell-edits.mjs', sed)), 'installed guard-shell-edits (acorn from project) denies sed -i');
     check(allows(runHook(root, 'guard-shell-edits.mjs', 'git status')), 'installed guard-shell-edits allows git status');
 

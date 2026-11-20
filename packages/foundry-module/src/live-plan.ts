@@ -114,11 +114,14 @@ function asActor(value: unknown): LiveActor | null {
  * The combatants of the fight the dashboard shows (the active one, else the latest), as the
  * combat strip lists them: a fight can run on another scene than the one being viewed.
  */
-function fightCombatants(): Rec[] {
+function currentFight(): Rec | null {
   const g = rec(game);
   const combats = contentsOf(g?.combats);
-  const fight = rec(g?.combat) ?? rec(combats[combats.length - 1]);
-  return contentsOf(fight?.combatants)
+  return rec(g?.combat) ?? rec(combats[combats.length - 1]);
+}
+
+function fightCombatants(): Rec[] {
+  return contentsOf(currentFight()?.combatants)
     .map(rec)
     .filter((c): c is Rec => c !== null);
 }
@@ -489,8 +492,7 @@ function freshStart(): Rec {
  * or when the actor is not in it.
  */
 function turnHolder(actor: LiveActor): { combatantId: string; rounds: 0 | 1 } | null {
-  const g = rec(game);
-  const fight = rec(rec(g?.combats)?.active) ?? rec(g?.combat);
+  const fight = currentFight();
   if (!fight) return null;
   const mine = fightCombatants().find(c => asActor(c.actor)?.uuid === actor.uuid);
   const id = str(mine?.id);
@@ -519,6 +521,7 @@ export async function planCondition(
   const status = statusInfo(request.condition);
   const on = request.active !== false;
   // "Until the end of its turn" with no count means one round.
+  if (request.ends && !on) throw new Error('ends only goes with putting a condition on');
   const baseRounds = on ? (validRounds(request.rounds) ?? (request.ends ? 1 : null)) : null;
   const expiry = request.ends === 'turn-end' ? 'turnEnd' : 'turnStart';
   const endsText = request.ends === 'turn-end' ? ', ends at the end of its turn' : '';
@@ -582,8 +585,12 @@ export async function planCondition(
       continue;
     }
     // Without a count, "until the end of its turn" counts from the target's own place in the order.
-    const holder = request.ends && request.rounds === undefined ? turnHolder(actor) : null;
-    const rounds = holder ? holder.rounds : baseRounds;
+    const holder = request.ends ? turnHolder(actor) : null;
+    if (request.ends && !holder && currentFight()) {
+      skip('is not in the fight: its turn cannot be timed');
+      continue;
+    }
+    const rounds = holder && request.rounds === undefined ? holder.rounds : baseRounds;
     const start = holder ? { ...freshStart(), combatant: holder.combatantId } : freshStart();
     const extras: string[] = [];
     // An expired or disabled effect leaves actor.statuses but keeps dnd5e's fixed id, so a create

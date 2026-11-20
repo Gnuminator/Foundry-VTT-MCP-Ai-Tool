@@ -67,7 +67,7 @@ export interface LiveActorRequest {
   rounds?: number;
   /**
    * condition (on, timed): when in the target's turn the timer ends: its turn start (Foundry's
-   * default) or its turn end ("until the end of its next turn"). Without rounds it means 1 round.
+   * default) or its turn end ("until the end of its next turn"). Without rounds it means the target's next turn (this round if it has not acted yet).
    */
   ends?: 'turn-start' | 'turn-end';
   /** clear-conditions: names or ids to remove; omitted = only expired effects. */

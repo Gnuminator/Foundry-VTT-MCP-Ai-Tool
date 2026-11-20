@@ -858,7 +858,33 @@ describe('condition on', () => {
       const plan = await planLiveChange(
         hpRequest({ action: 'condition', condition: 'poisoned', ends: 'turn-end', rounds: 2 })
       );
-      expect((plan.ops[0] as any).data.duration).toMatchObject({ value: 2, expiry: 'turnEnd' });
+      const data = (plan.ops[0] as any).data;
+      expect(data.duration).toMatchObject({ value: 2, expiry: 'turnEnd' });
+      expect(data.start.combatant).toBe('c2');
+    });
+
+    it('skips a target that is not in the fight', async () => {
+      fightWithWolfAt(2, 0);
+      addActor({ id: 'a9', name: 'Bystander' });
+      await expect(
+        planLiveChange(
+          hpRequest({
+            action: 'condition',
+            condition: 'poisoned',
+            ends: 'turn-end',
+            targets: ['Bystander'],
+          })
+        )
+      ).rejects.toThrow(/not in the fight/);
+    });
+
+    it('refuses ends when removing a condition', async () => {
+      fightWithWolfAt(2, 0);
+      await expect(
+        planLiveChange(
+          hpRequest({ action: 'condition', condition: 'poisoned', active: false, ends: 'turn-end' })
+        )
+      ).rejects.toThrow(/ends only goes with/);
     });
   });
 

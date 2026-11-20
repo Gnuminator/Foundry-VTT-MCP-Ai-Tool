@@ -116,12 +116,6 @@ Stage 20 (`scripts/pi/remote/20-vault-sync.sh`, Obsidian O8) is the check that i
 
 Without `SET_TIMEZONE=1` the stage only reads: no snapshot, any time, game night included.
 
-**Sync check** (`scripts/pi/remote/sync-check.sh`, backlog obsidian-staleness): which PC holds how much of the GM vault and of
-each player vault, when each was last seen, and the last file the Pi received from a PC. A warning means a PC holds less than
-everything (still catching up if it is connected, out of date if it is not) or has never connected; how long a PC was away is
-only printed. Read only, no snapshot, any time. Run it with
-`cat scripts/pi/remote/lib.sh scripts/pi/remote/sync-check.sh | ssh foundry-pi 'bash -s'`; `STRICT=1` exits 1 on a warning.
-
 - **Report:** `cat scripts/pi/remote/lib.sh scripts/pi/remote/20-vault-sync.sh | ssh foundry-pi 'bash -s'` (warnings are
   not failures; it fails when Syncthing, its service, the foundry user or the folder is missing, or `TIMEZONE` is not a zone name).
   `STRICT=1` also fails on a conflict, a wrong zone or a folder shared with no PC. The disk warnings never fail it.
@@ -132,6 +126,12 @@ only printed. Read only, no snapshot, any time. Run it with
   `PEER_ID=<the PC's ID>` and `PEER_NAME` to add a PC), then this stage's report, and a test note written on each side.
 - Tests: `scripts/pi/vault-sync.test.mjs` (the stage as text, and with `PI_STAGE20_CONTAINER=1` two real Syncthings in a
   Debian 13 ARM64 container: a note each way, a forced conflict, the zone checks).
+
+**Sync check** (`scripts/pi/remote/sync-check.sh`, backlog obsidian-staleness): which PC holds how much of the GM vault and of
+each player vault, when each was last seen, and the last file the Pi received from a PC. A warning means a PC holds less than
+everything (still catching up if it is connected, out of date if it is not) or has never connected (when Syncthing gives no completion figure the warning says unknown, not out of date); how long a PC was away is
+only printed. Read only, no snapshot, any time. Run it with
+`cat scripts/pi/remote/lib.sh scripts/pi/remote/sync-check.sh | ssh foundry-pi 'bash -s'`; `STRICT=1` exits 1 on a warning.
 
 ## Who the GM vault is shared with (stage 31)
 

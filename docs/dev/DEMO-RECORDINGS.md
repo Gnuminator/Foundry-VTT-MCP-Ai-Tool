@@ -397,7 +397,13 @@ muted 1280x720 60 fps MP4 (2.5 MB or less) and a JPEG poster (150 KB or less) pe
 take folder is used. Options: `--only roll,undo`, `--takes <folder>`, `--out <folder>`. It uses the
 CPU (libx264), so no GPU lock. `scripts/wiki/stage.mjs` stops the wiki build when a file the home
 page names is missing or over budget. Record the takes on a demo world with no campaign or book
-text: the loops are public. The `mood` loop needs a `scene-mood` take that does not exist yet.
+text: the loops are public. The six loops come from the takes `table-player-attack` (roll), `damage-undo` (undo),
+`handout-reveal` (handout), `scene-mood` (mood) and `during-play` (cards and strip). The Tarokka
+drawer is not used: it names book positions even with the cards blurred.
+
+On 2026-11-20 `--recorder ffmpeg` with the default `ddagrab` input recorded every frame upside
+down (ffmpeg 9.0.2, driver 616.92). Set `FOUNDRY_DEMO_GRAB=gdigrab` and it is upright. Look at
+a poster before you commit the loops.
 
 ## Before a public video
 

@@ -22,7 +22,7 @@ export const LOOPS = [
   { id: 'undo', take: 'damage-undo', from: 'apply', to: 'watch-undo', max: 8 },
   { id: 'handout', take: 'handout-reveal', from: 'reveal', to: 'player-after', max: 8 },
   { id: 'mood', take: 'scene-mood', from: 'switch', to: 'restore', max: 8 },
-  { id: 'cards', take: 'tarokka', from: 'deal', to: 'show', max: 8 },
+  { id: 'cards', take: 'during-play', from: 'cards', to: 'cards', max: 8 },
   { id: 'strip', take: 'during-play', from: 'strip', to: 'strip', max: 8 },
 ];
 

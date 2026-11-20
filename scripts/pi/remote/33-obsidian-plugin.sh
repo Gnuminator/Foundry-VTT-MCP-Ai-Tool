@@ -150,7 +150,9 @@ if [ "$need_ignore" = 1 ]; then
         if (!drop) print line[i]
       }
       if (stop == 0) for (w = 1; w <= n; w++) print want[w]
-    }' "$stignore_file" |
+    }' "$stignore_file")" || die "could not build the new ignore list (nothing was changed)"
+  [ -n "$new_ignore" ] || die "the new ignore list came out empty (nothing was changed)"
+  printf '%s\n' "$new_ignore" |
     runuser -u "$FOUNDRY_USER" -- sh -c 't="$2"; rm -f "$t" && cat >"$t" && chmod 0640 "$t" && mv -f "$t" "$1"' sh \
       "$stignore_file" "$gm_dir/.obsidian/plugins/.stignore.foundry-tmp" || die "could not write the new ignore list (nothing else was changed)"
   stignore_ok || die "the ignore list is still not right after writing it (see $stignore_file)"

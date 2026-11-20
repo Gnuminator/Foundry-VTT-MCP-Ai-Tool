@@ -26,6 +26,7 @@ const WRITES = [
   'dnd5e-add-feature',
   'dnd5e-add-features-from-compendium',
   'dnd5e-create-npc',
+  'draft-omens',
   'link-quest-to-npc',
   'manage-rest',
   'manage-world-items',

@@ -55,6 +55,7 @@ import { ClientsFile, handleWhoUsesWhat } from './who-uses-what.js';
 import { TarokkaService } from './tarokka/service.js';
 import { handleDowntime } from './downtime/store.js';
 import { HandoutsService, handleRecordHandoutSeen } from './handouts/service.js';
+import { createOmensStore, omensControlReply } from './omens/store.js';
 import { SecretTermsService } from './secret-terms.js';
 import { isBatchRider } from './guarded-write/rider-undo.js';
 import { GuardedWriteService } from './guarded-write/service.js';
@@ -264,6 +265,7 @@ async function startBackend(): Promise<void> {
     worldIds,
     foundryClient,
   });
+  const omens = createOmensStore(vaultStore, worldIds, secretTerms);
   // Session notes into Foundry (recap lane, D-087): staged by the pipeline, put automatically.
   const sessionNotes = new SessionNotesService({
     foundryClient,
@@ -304,6 +306,7 @@ async function startBackend(): Promise<void> {
     tarokka: tarokkaService,
     secretTerms,
     handouts,
+    omens,
     onPlaySessionMarked: renderObsidian,
     wrapperStatus: () => wrapperRegistry.status(),
     pumpHealth: (): PumpHealthSnapshot[] => pumpHealthSources.map(source => source()),
@@ -690,8 +693,12 @@ async function startBackend(): Promise<void> {
             continue;
           }
 
-          // The players' downtime inbox (I-180): the dashboard passes the user id it mapped from the
-          // player's link key; not a tool, never listed to Claude, never forwarded by the wrapper.
+          if (msg.method === 'omens') {
+            socket.write(`${JSON.stringify(await omensControlReply(omens, msg.id, msg.params))}\n`);
+            continue;
+          }
+
+          // Downtime inbox (I-180): the dashboard passes the mapped user id; not a tool, never forwarded.
           if (msg.method === 'downtime') {
             try {
               // Vault only, so it also works between sessions with no GM client joined.

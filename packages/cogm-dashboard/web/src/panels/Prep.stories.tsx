@@ -2,7 +2,15 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import type { JSX } from 'react';
 
 import { Opened } from '../storybook/Opened';
-import { bridgeDown, fail, pending, toolOk, type Reply } from '../storybook/fakeApi';
+import {
+  bridgeDown,
+  fail,
+  pending,
+  reply,
+  toolOk,
+  type FakeApi,
+  type Reply,
+} from '../storybook/fakeApi';
 import { PREP, PREP_BUSY, PREP_FRESH } from '../storybook/fixtures/prep';
 import { PHONE_VIEW, VEIL } from '../storybook/modes';
 
@@ -10,8 +18,17 @@ import { PrepDrawer } from './Prep';
 
 // The prep drawer: last session, open threads, next session notes. It asks for get-prep-digest
 // each time it opens.
-const digest = (reply: Reply): { dashboard: { api: { tools: Record<string, Reply> } } } => ({
-  dashboard: { api: { tools: { 'get-prep-digest': reply } } },
+// The omens section below the digest asks for its own list and the player names.
+const digest = (answer: Reply): { dashboard: { api: FakeApi } } => ({
+  dashboard: {
+    api: {
+      tools: { 'get-prep-digest': answer },
+      routes: {
+        'GET /api/omens': reply({ omens: [], players: {} }),
+        'GET /api/player/names': reply([]),
+      },
+    },
+  },
 });
 
 const meta = {

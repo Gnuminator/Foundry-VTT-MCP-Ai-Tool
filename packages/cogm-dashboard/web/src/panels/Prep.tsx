@@ -4,7 +4,7 @@
 // which the dashboard counts as a read.
 import type { PrepLooseEnd, PrepLooseEnds } from '@gnuminator/shared';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useRef, useState, type JSX, type ReactNode } from 'react';
+import { Suspense, lazy, useEffect, useRef, useState, type JSX, type ReactNode } from 'react';
 
 import { Drawer, DrawerClose } from '../components/Drawer';
 import { useToast } from '../components/Toasts';
@@ -12,6 +12,9 @@ import { callTool, errorText } from '../lib/api';
 import { usage } from '../lib/usage';
 import { Button, EmptyState, ErrorState, LoadingState } from '../ui';
 import { PREFLIGHT_ICONS, type CheckStatus } from './Preflight';
+
+// The omens list loads from its own chunk, only once the Prep drawer is open (bundle budget).
+const OmensSection = lazy(() => import('./Omens').then(m => ({ default: m.OmensSection })));
 
 type PrepAction = 'summary' | 'last-session';
 
@@ -617,6 +620,8 @@ export function PrepDrawer({
       <h3 className="preflight-h">Recent changes</h3>
       <div>{d && <Changes rc={d.recentChanges} />}</div>
       <div>{d?.tarokka?.hasReading && <p className="pf-detail">A Tarokka reading exists.</p>}</div>
+      <h3 className="preflight-h">Omens by post</h3>
+      <Suspense fallback={null}>{open && <OmensSection open={open} />}</Suspense>
     </Drawer>
   );
 }

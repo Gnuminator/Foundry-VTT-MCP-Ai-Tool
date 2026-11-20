@@ -251,7 +251,7 @@ test('a failed load says why and a refresh recovers', async ({ page }) => {
   const drawer = await openPrep(page);
 
   await expect(drawer.locator('.drawer-sub')).toHaveText('GM only. The digest did not load.');
-  await expect(drawer.locator('.empty')).toHaveText(
+  await expect(drawer.locator('.empty').first()).toHaveText(
     "Couldn't load the prep digest: Bridge not connected"
   );
   await expect(drawer.getByRole('list', { name: 'Quests' })).toHaveCount(0);

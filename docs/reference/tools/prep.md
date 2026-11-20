@@ -186,6 +186,19 @@ Kind: read-only. Title: Get play session state.
 
 No parameters.
 
+## draft-omens
+
+Direct write. GM ONLY. Omens by post: draft a short private text (dream, letter, rumor) for ONE player, up to 1500 characters; edit, remove or list drafts. Only writes the vault's omens list; the GM approves each in the dashboard and only approved texts go to that player on Discord. No spoilers: nothing unrevealed, no secret names.
+
+Kind: changes something. Title: Draft omens by post.
+
+Parameters:
+
+- `action` (string, required): One of: `add`, `edit`, `remove`, `list`.
+- `userId` (string): add: the player.
+- `text` (string): add or edit: the text.
+- `id` (string)
+
 ## get-play-stats
 
 GM ONLY. Derived play statistics for the connected world (the same numbers as the AI Tool/Stats/ Obsidian notes): campaign totals, dice, one play session's stats (default the latest) and one PC's or every PC's totals (damage, healing, downs, kills, rolls, spells, resources, loot, currency, XP). Built fresh from the bridge vault's session and play logs; never returns raw play records. A session has a mode ("live", or "paper" for a night played on paper). Changes written by a paper sync are not counted as damage, healing or rolls: a paper night shows them as paperNet (HP lost and regained, slots, resources, coins, XP, items gained and lost per character), and the campaign has the sum. Works with Foundry closed (the last world this bridge saw).

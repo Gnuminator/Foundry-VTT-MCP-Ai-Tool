@@ -50,6 +50,8 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { OMENS_CONTROLS } from './dashboard-controls-omens.mjs';
+
 export const HOWS = [
   'open',
   'read',
@@ -68,7 +70,6 @@ export const HOWS = [
  *   optional?: boolean, selector?: string, fill?: string, at?: {x: number, y: number}, restore?: boolean,
  *   needs?: string, theme?: string, slow?: boolean, changes?: boolean | string, idle?: string
  * }} ControlRow */
-
 /** The reason every module entry is skipped. */
 export const MODULE_SKIP_REASON = 'inside Foundry: the foundry-controls scenario';
 
@@ -1212,9 +1213,8 @@ export const PLAYER_CONTROLS = [
     why: 'only shown with the Veil theme',
   },
 ];
-
-/** Both tables, dashboard first. */
-export const CONTROLS = [...DASHBOARD_CONTROLS, ...PLAYER_CONTROLS];
+/** Both tables, dashboard first (the omens rows are in their own file). */
+export const CONTROLS = [...DASHBOARD_CONTROLS, ...OMENS_CONTROLS, ...PLAYER_CONTROLS];
 
 /** The surface a control name belongs to, from its prefix. */
 export function surfaceOf(name) {

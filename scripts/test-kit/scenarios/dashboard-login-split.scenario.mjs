@@ -233,6 +233,9 @@ export default {
             ['/api/tool', 'POST', { name: 'get-world-info', args: {} }],
             ['/api/control', 'POST', { action: 'kit-split-check' }],
             ['/api/player-links', 'GET', undefined],
+            ['/api/omens', 'GET', undefined],
+            ['/api/omens/outbox', 'GET', undefined],
+            ['/api/omens/claim', 'POST', { id: 'x' }],
           ])) {
             const r = await call(p, { method, token: playerToken, body });
             t.check(

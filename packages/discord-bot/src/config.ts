@@ -18,6 +18,8 @@
  * | `FOUNDRY_AI_BOT_STATUS_HOST` | its listen address; default `127.0.0.1` (the Pi network address to share it, never the internet) |
  * | `FOUNDRY_AI_PLAYER_PAGE_URL` | the player page link in the post (required for the post; no default) |
  * | `FOUNDRY_AI_PLAYER_TOKEN` | the dashboard's player token, if the deployment sets one |
+ * | `DISCORD_OMENS` | `1` sends the omens the GM approved in the dashboard as private messages (I-181); unset = off |
+ * | `FOUNDRY_AI_GM_TOKEN` | the dashboard's GM token, for the omens (blank when the dashboard has no token split) |
  * | `REHEARSAL_TOKEN_1` to `_3` | speaker bot tokens for `rehearse` (one bot application each) |
  * | `REHEARSAL_CHANNEL_ID` | the voice channel rehearsals use                          |
  * | `FVTT_REHEARSAL_DIR` | where rehearsals go; default `FoundryRehearsals` in `FVTT_DATA_DIR`, else `Documents` |
@@ -57,6 +59,10 @@ export interface BotConfig {
   playerPageUrl?: string | undefined;
   /** The dashboard's player token, when the deployment sets one. */
   playerToken?: string | undefined;
+  /** I-181: true sends the omens the GM approved. */
+  omensOn?: boolean | undefined;
+  /** The dashboard's GM token (the omens outbox is GM only). */
+  gmToken?: string | undefined;
   /**
    * The #gm-bot channel for recorder alerts (silent speaker, stream error, rejoin trouble, restart
    * after a crash). `DISCORD_GM_BOT_CHANNEL_ID`, else `GAMENIGHT_WATCH_CHANNEL_ID` (the same
@@ -129,6 +135,8 @@ export function loadConfig(envFile = defaultEnvFile(), requireToken = true): Bot
     statusHost: get('FOUNDRY_AI_BOT_STATUS_HOST'),
     playerPageUrl: get('FOUNDRY_AI_PLAYER_PAGE_URL'),
     playerToken: get('FOUNDRY_AI_PLAYER_TOKEN'),
+    omensOn: ['1', 'true', 'on'].includes((get('DISCORD_OMENS') ?? '').toLowerCase()),
+    gmToken: get('FOUNDRY_AI_GM_TOKEN'),
     gmBotChannelId: get('DISCORD_GM_BOT_CHANNEL_ID') ?? get('GAMENIGHT_WATCH_CHANNEL_ID'),
   };
 }

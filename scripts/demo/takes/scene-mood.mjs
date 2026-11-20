@@ -45,6 +45,7 @@ export async function setup(t) {
     action: 'apply',
     preset: 'Bright day',
   });
+  if (!plan?.planId) throw new Error(`No plan for the starting mood: ${JSON.stringify(plan)}`);
   await callToolApi(t.env.dashboardUrl, 'apply-planned-change', { planId: plan.planId });
   await setGmActionsApi(t.env.dashboardUrl, false);
 

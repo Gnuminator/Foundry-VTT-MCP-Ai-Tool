@@ -60,7 +60,8 @@ document.addEventListener('DOMContentLoaded', function () {
   var still = !('IntersectionObserver' in window) ||
     (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   if (still) {
-    clips.forEach(function (v) { v.addEventListener('play', function () { load(v); }, { once: true }); });
+    // Sets the source only (preload="none" downloads nothing); the visitor presses play.
+    clips.forEach(load);
     return;
   }
   var io = new IntersectionObserver(function (entries) {
@@ -68,7 +69,6 @@ document.addEventListener('DOMContentLoaded', function () {
       var v = e.target;
       if (e.isIntersecting) {
         load(v);
-        v.removeAttribute('controls');
         var p = v.play();
         if (p && p.catch) p.catch(function () { v.setAttribute('controls', ''); });
       } else {

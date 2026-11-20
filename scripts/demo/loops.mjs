@@ -19,7 +19,7 @@ import { testEnv } from './lib/env.mjs';
 /** The six loops. `from` and `to` are step names; the clip is at most `max` seconds. */
 export const LOOPS = [
   { id: 'roll', take: 'table-player-attack', from: 'attack', to: 'live-feed', max: 8 },
-  { id: 'undo', take: 'damage-undo', from: 'apply', to: 'watch-undo', max: 8 },
+  { id: 'undo', take: 'damage-undo', from: 'undo', to: 'watch-undo', max: 8 },
   { id: 'handout', take: 'handout-reveal', from: 'reveal', to: 'player-after', max: 8 },
   { id: 'mood', take: 'scene-mood', from: 'switch', to: 'restore', max: 8 },
   { id: 'cards', take: 'during-play', from: 'cards', to: 'cards', max: 8 },
@@ -30,13 +30,15 @@ export const CLIP_BYTES = 2_500_000;
 export const POSTER_BYTES = 150_000;
 
 /** Start and length in seconds of a loop in a take's steps. */
-export function window(loop, steps) {
+export function loopWindow(loop, steps) {
   const a = steps.find(s => s.step === loop.from);
   const b = steps.find(s => s.step === loop.to);
   if (!a || !b)
     throw new Error(`${loop.id}: step ${!a ? loop.from : loop.to} is not in steps.json`);
-  const start = a.start;
-  return { start, length: Math.min(loop.max, Math.max(1, b.end - a.start)) };
+  const span = b.end - a.start;
+  // A span longer than `max` keeps its end, where the payoff the caption names is.
+  if (span > loop.max) return { start: b.end - loop.max, length: loop.max };
+  return { start: a.start, length: Math.max(1, span) };
 }
 
 /** The newest folder `<take>-<date>-<time>` that holds `<take>.mp4`. */
@@ -72,7 +74,7 @@ function main() {
       continue;
     }
     const steps = JSON.parse(readFileSync(join(dir, 'steps.json'), 'utf8'));
-    const { start, length } = window(loop, steps);
+    const { start, length } = loopWindow(loop, steps);
     const src = join(dir, `${loop.take}.mp4`);
     const clip = join(out, `${loop.id}.mp4`);
     // Raise the CRF until the clip fits the budget.
@@ -100,6 +102,10 @@ function main() {
         clip,
       ]);
       if (statSync(clip).size <= CLIP_BYTES) break;
+    }
+    if (statSync(clip).size > CLIP_BYTES) {
+      console.error(`${loop.id}: clip is over ${CLIP_BYTES} B at the highest CRF`);
+      process.exitCode = 1;
     }
     const poster = join(out, `${loop.id}.jpg`);
     for (const q of [4, 8, 12, 18]) {

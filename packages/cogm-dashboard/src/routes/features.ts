@@ -12,6 +12,8 @@ import {
 import type { DashboardDeps } from '../dashboard-types.js';
 import { DiaryStore } from '../diary-store.js';
 import { mountDowntimeRoute } from '../downtime-route.js';
+import { gmConnectorFromEnv } from '../gm-connector.js';
+import { mountGmRoute } from '../gm-route.js';
 import { mountHandoutSeenRoute } from '../handout-seen-route.js';
 import { mountHelpRoute } from '../help-route.js';
 import { mountMeRoute } from '../me-route.js';
@@ -136,6 +138,16 @@ export function mountRawBodyRoutes(
       },
     },
     clients: clientsOf(f),
+    ...(deps.accessFetch ? { accessFetch: deps.accessFetch } : {}),
+  });
+  // The remote GM connector: /mcp/core to /mcp/admin behind the GM Access application.
+  mountGmRoute(app, {
+    config,
+    connector:
+      deps.gmConnector ??
+      gmConnectorFromEnv(process.env, message => logger.child('gm-connector').warn(message)),
+    client,
+    logger,
     ...(deps.accessFetch ? { accessFetch: deps.accessFetch } : {}),
   });
   return playerConnector;

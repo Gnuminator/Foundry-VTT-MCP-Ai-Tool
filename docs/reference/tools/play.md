@@ -486,6 +486,7 @@ Parameters:
 - `active` (boolean): condition: false removes it. Default: `true`.
 - `level` (integer): condition exhaustion: the level to set.
 - `rounds` (integer): condition: lasts this many rounds, then counts as expired (clear-conditions removes it). Omit for until removed. Not for exhaustion. Range: 1 to 100.
+- `ends` (string): condition with a timer: expire at the start (default) or the end of the target's own turn. "Until the end of its next turn" is ends turn-end (rounds defaults to its next turn: this round if it has not acted yet, else the next). The plan text states it. Apply the plan before the turn order moves on: a plan applied later can end at once. One of: `turn-start`, `turn-end`.
 - `conditions` (array of string): clear-conditions: names to remove (prone...); omit for expired effects only.
 - `resource` (string): resource: "spell3", "pact", a class resource (Ki Points, primary) or an item name.
 - `value` (integer): resource: the new current value (0 to max).

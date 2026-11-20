@@ -389,6 +389,22 @@ then `pwsh scripts/test-env/start.ps1 -Server B -World ai-tool-demo`.
 fullscreen window with ffmpeg like a take does (it uses the screen for a few seconds per loop) and
 re-encodes each to a muted 60 fps 1080p file under 2 MB, failing when one is bigger.
 
+## Home page loops
+
+`npm run demo:loops` cuts the six loops of the wiki home page (idea I-192) from recorded takes: a
+muted 1280x720 60 fps MP4 (2.5 MB or less) and a JPEG poster (150 KB or less) per loop, into
+`docs/images/showcase/`. Each loop names its take and steps in `scripts/demo/loops.mjs`; the newest
+take folder is used. Options: `--only roll,undo`, `--takes <folder>`, `--out <folder>`. It uses the
+CPU (libx264), so no GPU lock. `scripts/wiki/stage.mjs` stops the wiki build when a file the home
+page names is missing or over budget. Record the takes on a demo world with no campaign or book
+text: the loops are public. The six loops come from the takes `table-player-attack` (roll), `damage-undo` (undo),
+`handout-reveal` (handout), `scene-mood` (mood) and `during-play` (cards and strip). The Tarokka
+drawer is not used: it names book positions even with the cards blurred.
+
+On 2026-11-20 `--recorder ffmpeg` with the default `ddagrab` input recorded every frame upside
+down (ffmpeg 9.0.2, driver 616.92). Set `FOUNDRY_DEMO_GRAB=gdigrab` and it is upright. Look at
+a poster before you commit the loops.
+
 ## Before a public video
 
 The privacy checklist in the vault research note "Videos" applies: test server only,

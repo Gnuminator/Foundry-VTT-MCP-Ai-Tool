@@ -10,6 +10,19 @@ Foundry AI Tool kører ved siden af Foundry VTT (D&D 5e). Det giver GM'en et das
 lader Claude hjælpe med forberedelse og spil, og skriver session notes. Hver ændring Claude laver
 bliver logget og kan fortrydes.
 
+## Se det på 30 sekunder
+
+Seks korte klip fra en demo-spilaften. Hvert klip afspilles, når det kommer til syne.
+
+<div class="loops">
+<figure class="loop"><video data-src="/Foundry-VTT-MCP-Ai-Tool/images/showcase/roll.mp4" poster="/Foundry-VTT-MCP-Ai-Tool/images/showcase/roll.jpg" width="1280" height="720" muted loop playsinline preload="none" controls aria-label="Angrebsslag på et karakterark, noteret i dashboardets Live Feed"></video><figcaption>En spiller slår et angreb fra karakterarket. GM'ens dashboard fanger det i Live Feed.</figcaption></figure>
+<figure class="loop"><video data-src="/Foundry-VTT-MCP-Ai-Tool/images/showcase/undo.mp4" poster="/Foundry-VTT-MCP-Ai-Tool/images/showcase/undo.jpg" width="1280" height="720" muted loop playsinline preload="none" controls aria-label="Skade på tre tokens, og så fortrudt"></video><figcaption>Giv skade til tre væsner med ét klik. Skiftet mening? Fortryd det under Recent Changes.</figcaption></figure>
+<figure class="loop"><video data-src="/Foundry-VTT-MCP-Ai-Tool/images/showcase/handout.mp4" poster="/Foundry-VTT-MCP-Ai-Tool/images/showcase/handout.jpg" width="1280" height="720" muted loop playsinline preload="none" controls aria-label="Et handout afsløret for spillerne"></video><figcaption>Læs hvad et handout ændrer, og afslør det så. Det dukker op på spillernes side.</figcaption></figure>
+<figure class="loop"><video data-src="/Foundry-VTT-MCP-Ai-Tool/images/showcase/mood.mp4" poster="/Foundry-VTT-MCP-Ai-Tool/images/showcase/mood.jpg" width="1280" height="720" muted loop playsinline preload="none" controls aria-label="En scenestemning skiftet og sat tilbage"></video><figcaption>Skift en scenes lys og musik med ét klik, og skift det tilbage lige så let.</figcaption></figure>
+<figure class="loop"><video data-src="/Foundry-VTT-MCP-Ai-Tool/images/showcase/cards.mp4" poster="/Foundry-VTT-MCP-Ai-Tool/images/showcase/cards.jpg" width="1280" height="720" muted loop playsinline preload="none" controls aria-label="During-dashboardet i Cards-layout"></video><figcaption>During-dashboardet i Cards-layout: bordets live feed ved siden af holdet og kampstrimlen.</figcaption></figure>
+<figure class="loop"><video data-src="/Foundry-VTT-MCP-Ai-Tool/images/showcase/strip.mp4" poster="/Foundry-VTT-MCP-Ai-Tool/images/showcase/strip.jpg" width="1280" height="720" muted loop playsinline preload="none" controls aria-label="Den levende turrækkefølge-linje"></video><figcaption>Turrækkefølge-linjen viser hvem der har tur og alles hit points, med et blik.</figcaption></figure>
+</div>
+
 ## Hvem er du?
 
 <div class="audience-choice">

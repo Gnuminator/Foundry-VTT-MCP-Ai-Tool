@@ -48,7 +48,7 @@ describe('demo dashboard helpers', () => {
     const ids = [...new Set([...helpers.matchAll(/#([a-z][a-z0-9-]*)/g)].map(m => m[1]))];
     expect(ids.length).toBeGreaterThan(5);
     // Foundry's own elements, which take scripts also click (table-player-attack runs in Foundry).
-    const foundryIds = new Set(['tooltip', 'chat-notifications']);
+    const foundryIds = new Set(['tooltip', 'chat-notifications', 'notifications']);
     // The Before / During / After tabs are built as `tab-${moment}` in components/Moments.tsx.
     const built = (id: string): boolean => /^tab-(before|during|after)$/.test(id);
     const missing = ids.filter(

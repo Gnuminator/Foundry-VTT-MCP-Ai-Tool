@@ -20,6 +20,8 @@
         "br",
         "details",
         "div",
+        "figcaption",
+        "figure",
         "span",
         "strong",
         "img",

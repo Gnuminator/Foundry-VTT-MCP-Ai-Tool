@@ -130,8 +130,11 @@ function downloadAndExtractNode() {
   ensureDir(nodeExtractPath);
 
   try {
-    execSync(
-      `powershell -Command "Expand-Archive -Path '${nodeZipPath}' -DestinationPath '${nodeExtractPath}' -Force"`,
+    // Windows' own tar unpacks zips and overwrites. Expand-Archive broke on the v0.31.0 release
+    // runner (the PowerShell 7 Archive module could not find ZipFileExtensions.ExtractToDirectory).
+    execFileSync(
+      path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe'),
+      ['-xf', nodeZipPath, '-C', nodeExtractPath],
       { stdio: 'inherit' }
     );
 

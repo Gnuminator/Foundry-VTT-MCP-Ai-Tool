@@ -35,15 +35,16 @@ export function mountDowntimeRoute(app: Express, options: DowntimeRouteOptions):
   function who(req: Request, res: Response): string | null {
     res.set('Cache-Control', 'no-store');
     // The inbox is for the time between sessions: with no GM client joined the live world is
-    // null, so the last world seen stands in (the links and the entries are per world).
-    const world = worldId() ?? lastWorld;
+    // null, so the last world seen stands in, or after a restart the world that holds the key.
+    const raw = req.headers[ME_KEY_HEADER];
+    const key = Array.isArray(raw) ? raw[0] : raw;
+    const live = worldId();
+    if (live) lastWorld = live;
+    const world = live ?? links.worldFor(key) ?? lastWorld;
     if (!world) {
       res.status(503).json({ error: 'The table is offline right now. Try again later.' });
       return null;
     }
-    lastWorld = world;
-    const raw = req.headers[ME_KEY_HEADER];
-    const key = Array.isArray(raw) ? raw[0] : raw;
     const userId = links.userFor(world, key);
     if (!userId) {
       res

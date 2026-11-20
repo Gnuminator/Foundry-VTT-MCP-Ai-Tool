@@ -289,6 +289,9 @@ export const CHECKS = [
   nodeTest('prep-ritual-test', 'tools', 'tools/prep-ritual/build.test.mjs'),
   { name: 'prep-ritual-build', group: 'tools', cmd: 'node', args: ['tools/prep-ritual/build.mjs'] },
   { name: 'build', group: 'build', cmd: 'npm', args: ['run', 'build'] },
+  // The release workflow's esbuild bundles (index and backend), so an esbuild bump or a import
+  // esbuild cannot follow fails on the PR and not at the next release.
+  { name: 'bundle-server', group: 'build', cmd: 'npm', args: ['run', 'bundle:server'] },
   {
     // CI runs this on Node 24 only; green is run on Node 24.
     name: 'bundle-budget',

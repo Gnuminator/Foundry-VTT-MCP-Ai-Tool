@@ -21,7 +21,8 @@ function item(
   system: Record<string, unknown> = {},
   contents: any[] = []
 ): any {
-  return { documentName: 'Item', name, type, system: { ...system }, contents };
+  // A container holds its items in system.contents, as dnd5e's container items do.
+  return { documentName: 'Item', name, type, system: { ...system, contents } };
 }
 
 const docs = new Map<string, any>();
@@ -37,7 +38,7 @@ beforeEach(() => {
     users: {
       contents: [
         { id: 'u1', name: 'Gamemaster', isGM: true },
-        { id: 'u2', name: 'Christian', isGM: false },
+        { id: 'u2', name: 'Player One', isGM: false },
       ],
     },
     actors: { contents: [] },
@@ -61,7 +62,7 @@ beforeEach(() => {
             data.system.container = container;
             data._id = `new${out.length + 1}`;
             out.push(data);
-            for (const c of it.contents) await walk(c, data._id, depth + 1);
+            for (const c of it.system.contents ?? []) await walk(c, data._id, depth + 1);
           };
           for (const it of items) await walk(it, null, 0);
           return out;
@@ -92,7 +93,7 @@ describe('planPcCreation', () => {
     docs.set('Compendium.p.Item.bless', item('Bless', 'spell', { prepared: 0 }));
     const plan = await planPcCreation({
       name: 'Ebbe',
-      owner: 'christian',
+      owner: 'player one',
       items: [
         { uuid: 'Compendium.p.Item.pack' },
         { uuid: 'Compendium.p.Item.mace', equipped: true, quantity: 2 },
@@ -113,7 +114,7 @@ describe('planPcCreation', () => {
     expect(mace.system).toMatchObject({ equipped: true, quantity: 2 });
     expect(bless.system.prepared).toBe(1);
     expect(plan.items.find(i => i.name === 'Rope')?.inside).toBe('Explorer Pack');
-    expect(plan.actor).toEqual({ name: 'Ebbe', owner: 'Christian' });
+    expect(plan.actor).toEqual({ name: 'Ebbe', owner: 'Player One' });
     expect(plan.summary).toMatch(/4 items/);
   });
 

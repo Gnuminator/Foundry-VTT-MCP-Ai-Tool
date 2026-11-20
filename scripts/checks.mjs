@@ -255,6 +255,7 @@ export const CHECKS = [
   nodeTest('pi-ssh-log-secrets', 'pi', 'scripts/pi/ssh-log-secrets.test.mjs'),
   nodeTest('pi-sync-check', 'pi', 'scripts/pi/sync-check.test.mjs'),
   nodeTest('pi-deployed-state', 'pi', 'deploy/pi/deployed-state.test.mjs'),
+  nodeTest('cloudflare-join-veil', 'pi', 'deploy/cloudflare/join-veil/worker.test.mjs'),
   nodeTest('tunnel-client', 'scripts', 'installer/nsis/tunnel-client.test.mjs'),
   nodeTest('configure-claude', 'scripts', 'installer/nsis/configure-claude.test.mjs'),
   nodeTest('client-update', 'scripts', 'installer/nsis/client-update.test.mjs'),

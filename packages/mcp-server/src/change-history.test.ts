@@ -2048,7 +2048,6 @@ describe('ChangeHistory.list undo state', () => {
     const dataDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'change-history-'));
     const store = new VaultStore({ dataDir });
     const logger = makeLogger();
-    logger.child = (): unknown => logger;
     try {
       await store.appendLines('w1', 'gm', changeJournalFileName(localDateKey(NOW - MIN)), [
         hpChange(10, 5, { actionId: 'a', t: NOW - 3 * MIN }),

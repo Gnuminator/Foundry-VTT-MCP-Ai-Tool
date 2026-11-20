@@ -601,7 +601,7 @@ export function runGroup(name, io = {}) {
 /**
  * What the `pi` group's tests read: the Pi scripts and container tests, Plan B, the game-night
  * watch, this file (the group list), deploy/, the packages the stage tests import (shared,
- * discord-bot), the Pi setup doc, and the manifests and workflow. Pinned by scripts/pi/ci-pi-filter.test.mjs.
+ * discord-bot), the Pi setup doc, the manifests and the whole .github/workflows folder. Pinned by scripts/pi/ci-pi-filter.test.mjs.
  */
 export const PI_GROUP_PATHS =
   /^(scripts\/pi\/|scripts\/plan-b\/|scripts\/gamenight-watch|scripts\/who-uses-what\.mjs$|scripts\/checks\.mjs$|deploy\/|shared\/|packages\/discord-bot(\/|$)|docs\/dev\/PI-SETUP\.md$|package\.json$|package-lock\.json$|\.github\/workflows\/)/;

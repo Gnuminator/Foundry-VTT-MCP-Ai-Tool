@@ -137,6 +137,11 @@ export default {
     const monster = monsterOf(t.kit, 'beast');
     const sceneId = t.kit.scene.sceneId;
     const known = await page.evaluate(MESSAGE_IDS_SCRIPT);
+    const hasStrike = await page.evaluate(
+      ({ actorId }) => game.actors.get(actorId)?.items.some(i => i.name === 'Unarmed Strike') ?? false,
+      { actorId: hero.actorId }
+    );
+    t.check(hasStrike, `${hero.name} has no Unarmed Strike item, which the attack request uses`);
 
     const poison = (tokenId, active) => page.evaluate(POISON_SCRIPT, { sceneId, tokenId, active });
     t.cleanup(async () => {

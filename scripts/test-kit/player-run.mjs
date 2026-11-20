@@ -169,8 +169,12 @@ async function chooseStandardArrayMethod(page, studio) {
   if (index < 0) {
     throw new Error(`Standard Array is not offered on the Abilities tab (methods: ${labels.join(', ')})`);
   }
-  await select.locator('.option').nth(index).click();
+  await select.locator('.option').filter({ hasText: /standard array/i }).first().click();
   await sleep(600);
+  const shown = (await select.locator('.selected-option').innerText().catch(() => '')).trim();
+  if (standardArrayChoice([], shown) !== null) {
+    throw new Error(`Standard Array did not stick on the Abilities tab (it shows "${shown}")`);
+  }
   return 'picked Standard Array';
 }
 

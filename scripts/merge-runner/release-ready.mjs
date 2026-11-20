@@ -335,7 +335,12 @@ export function makeReleaseDeps(o) {
 /** Starts the claude CLI detached; it outlives this round. @type {NonNullable<Parameters<typeof makeReleaseDeps>[0]['spawn']>} */
 function defaultSpawn(cmd, args, o) {
   try {
-    const child = spawnProcess(cmd, args, { cwd: o.cwd, detached: true, stdio: 'ignore' });
+    const child = spawnProcess(cmd, args, {
+      cwd: o.cwd,
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true,
+    });
     child.on('error', () => {});
     child.unref();
     return {};

@@ -211,7 +211,12 @@ export function makeSelfCheck(o) {
   const run =
     o.run ??
     ((args, cwd) => {
-      const r = spawnSync('git', args, { cwd, encoding: 'utf8', timeout: 120_000 });
+      const r = spawnSync('git', args, {
+        cwd,
+        encoding: 'utf8',
+        timeout: 120_000,
+        windowsHide: true,
+      });
       return {
         status: r.status ?? 1,
         stdout: r.stdout ?? '',

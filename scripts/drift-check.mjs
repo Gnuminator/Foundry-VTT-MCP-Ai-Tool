@@ -102,7 +102,7 @@ const CTRL_C_EXIT = 3221225786;
 
 /** @param {string} cwd @param {string[]} args */
 function git(cwd, args) {
-  const r = spawnSync('git', args, { cwd, encoding: 'utf8' });
+  const r = spawnSync('git', args, { cwd, encoding: 'utf8', windowsHide: true });
   return { ok: r.status === 0, out: (r.stdout ?? '').trim(), err: (r.stderr ?? '').trim() };
 }
 
@@ -252,6 +252,7 @@ function buildMergedShared(cwd, dir, buildCommand, log) {
   const r = spawnSync(buildCommand, {
     cwd: path.join(dir, 'shared'),
     shell: true,
+    windowsHide: true,
     encoding: 'utf8',
   });
   if (r.status === 0) return null;
@@ -308,7 +309,12 @@ export function ensureSharedBuilt(cwd, buildCommand, log) {
   log(
     `drift-check: shared/dist is ${distTime ? 'older than shared/src' : 'missing'}; building shared.`
   );
-  const r = spawnSync(buildCommand, { cwd: shared, shell: true, encoding: 'utf8' });
+  const r = spawnSync(buildCommand, {
+    cwd: shared,
+    shell: true,
+    windowsHide: true,
+    encoding: 'utf8',
+  });
   if (r.status === 0) {
     if (entry && !fs.existsSync(entry)) {
       return `the build ran but emitted no ${path.relative(cwd, entry).replaceAll('\\', '/')}; delete shared/*.tsbuildinfo and run again`;
@@ -530,6 +536,7 @@ export function runChecks(dir, checks, log, main, sha, merged, changed = null) {
         cwd: path.join(dir, check.cwd ?? '.'),
         env: { ...process.env, CI: 'true' },
         shell: true,
+        windowsHide: true,
         encoding: 'utf8',
       });
     let r = exec();

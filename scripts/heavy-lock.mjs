@@ -568,7 +568,7 @@ export function runCommand(command, label, priority) {
       lock.release();
       resolve(code);
     };
-    const child = spawn(command, { shell: true, stdio: 'inherit', env });
+    const child = spawn(command, { shell: true, stdio: 'inherit', env, windowsHide: true });
     child.on('error', () => done(1));
     child.on('exit', (code, signal) => done(code ?? (signal ? 130 : 1)));
   });

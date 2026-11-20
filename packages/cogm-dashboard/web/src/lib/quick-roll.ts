@@ -1,7 +1,7 @@
 // Quick roll requests (item quick-roll-buttons): the choices behind the one-click "ask for a roll"
 // bar on the Party card and the combat strip, and the request-player-rolls arguments they make.
 // Nothing here talks to the bridge; components/QuickRoll.tsx sends. The ids are the names the
-// module's roll path resolves (data-access/player-rolls.ts getSkillCode).
+// module's roll path resolves (data-access/player-rolls-format.ts getSkillCode).
 
 export type RollKind = 'check' | 'save' | 'skill';
 

@@ -552,7 +552,7 @@ it('refuses a non-GM and an unknown action', async () => {
 describe('whisper (I-168)', () => {
   const area = { x: 1, y: 1, width: 3, height: 2 };
 
-  it('makes one GM-visible Region with a tokenMoveIn script and nothing else', async () => {
+  it('makes a hidden card and one GM-visible Region with a tokenMoveIn script', async () => {
     world.setActiveScene(scene('a', 'Hall').id);
     const plan = await planRoomSetup({
       action: 'whisper',
@@ -637,5 +637,8 @@ describe('whisper (I-168)', () => {
     await expect(planRoomSetup({ action: 'whisper', name: '', area, text: 'x' })).rejects.toThrow(
       /needs a name/
     );
+    await expect(
+      planRoomSetup({ action: 'whisper', name: 'n'.repeat(121), area, text: 'x' })
+    ).rejects.toThrow(/120 characters at most/);
   });
 });

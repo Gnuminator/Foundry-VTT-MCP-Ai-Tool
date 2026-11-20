@@ -11,6 +11,7 @@
  * - `POST /api/me/roll`               -> the player rolls one of their open roll requests (the body
  *                                          carries the button id; the module rolls for their character
  *                                          from the GM client and checks the request is theirs)
+ * - `GET|POST /api/me/diary`, `DELETE /api/me/diary/:id` -> the player's own diary entries (I-183)
  * - `POST /api/me/portrait`            -> the player puts their own picture on a character they own
  *                                          (raw image body; the module stores it in their own folder)
  * - `GET  /api/player-links`            -> GM: each player, with their link if they have one
@@ -35,6 +36,7 @@ import express, { type Express, type NextFunction, type Request, type Response }
 
 import type { PlayerLinksBody } from './api-bodies.js';
 import type { ClientRegistry } from './client-versions.js';
+import type { DiaryStore } from './diary-store.js';
 import type { SessionEvent } from './feed/types.js';
 import type { Logger } from './logger.js';
 import { buildPartyStash } from './party-stash.js';
@@ -58,6 +60,8 @@ export interface MeClient {
 export interface MeRouteOptions {
   client: MeClient;
   links: PlayerLinkStore;
+  /** The players' own diary entries (I-183); absent on fakes. */
+  diary?: DiaryStore;
   directory: PlayerDirectory;
   requireGm: (req: Request, res: Response, next: () => void) => void;
   /** For a failed link save or removal (the reply to the GM is a fixed sentence). */
@@ -386,6 +390,66 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
         });
       })
       .finally(() => rolling.delete(userId));
+  });
+
+  // "My diary" (I-183): the player's own entries for their character, behind their private key.
+  // The key is the only identity: a player reads and changes only their own list, and the list
+  // is in no other route (not /player, not the GM stream).
+  const diary = options.diary;
+  const DIARY_MESSAGES: Record<string, string> = {
+    empty: 'Write something first.',
+    'too-long': 'That entry is too long. Keep it under 4000 characters.',
+    full: 'Your diary is full. Delete an old entry first.',
+    'not-found': 'That entry is gone.',
+    'bad-id': 'That entry is gone.',
+  };
+  function diaryUser(req: Request, res: Response): { world: string; userId: string } | null {
+    res.set('Cache-Control', 'no-store');
+    const world = worldId();
+    const raw = req.headers[ME_KEY_HEADER];
+    const key = Array.isArray(raw) ? raw[0] : raw;
+    const userId = world ? links.userFor(world, key) : null;
+    if (!world || !userId) {
+      res
+        .status(401)
+        .json({ code: 'no-link', error: 'This link is not valid. Ask your GM for a new one.' });
+      return null;
+    }
+    if (!diary) {
+      res.status(501).json({ error: 'The diary is not available here.' });
+      return null;
+    }
+    return { world, userId };
+  }
+  app.get('/api/me/diary', (req: Request, res: Response) => {
+    const who = diaryUser(req, res);
+    if (who && diary) res.json({ entries: diary.list(who.world, who.userId) });
+  });
+  app.post('/api/me/diary', (req: Request, res: Response) => {
+    const who = diaryUser(req, res);
+    if (!who || !diary) return;
+    const body = (req.body ?? {}) as { id?: unknown; character?: unknown; text?: unknown };
+    const id = typeof body.id === 'string' ? body.id : undefined;
+    const result = diary.save(who.world, who.userId, {
+      ...(id !== undefined ? { id } : {}),
+      character: body.character,
+      text: body.text,
+    });
+    if (!result.ok) {
+      res
+        .status(result.code === 'not-found' || result.code === 'bad-id' ? 404 : 400)
+        .json({ error: DIARY_MESSAGES[result.code] });
+      return;
+    }
+    res.json({ ok: true, entry: result.entry });
+  });
+  app.delete('/api/me/diary/:id', (req: Request, res: Response) => {
+    const who = diaryUser(req, res);
+    if (!who || !diary) return;
+    const removed = diary.remove(who.world, who.userId, String(req.params.id ?? ''));
+    res
+      .status(removed ? 200 : 404)
+      .json(removed ? { ok: true } : { error: DIARY_MESSAGES['not-found'] });
   });
 
   // "Upload my portrait": the body is the picture itself (raw bytes), `actor` the character's id,

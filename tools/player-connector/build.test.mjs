@@ -930,6 +930,7 @@ test('the guide is built from the player skill: instructions, topics, no skill f
   assert.match(g.instructions, /get-helper-guide/);
   assert.deepEqual(Object.keys(g.pages).sort(), [
     'character-creation',
+    'diary',
     'join',
     'level-up',
     'make-a-character',

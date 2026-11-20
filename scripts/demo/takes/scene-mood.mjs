@@ -93,7 +93,7 @@ export async function run(t) {
     await applyMood(t, page, 'Bright day');
     await t.pause(500);
     await t.scene('Foundry');
-    await t.pause(3000);
+    await t.pause(2 * 1500);
     await t.shot('Foundry', 'mood-bright');
   });
 

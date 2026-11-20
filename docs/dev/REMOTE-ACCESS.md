@@ -252,6 +252,20 @@ For the Claude custom connector there is a second application, `Player remote`, 
 Managed OAuth and the `Foundry players` email policy. Its AUD tag goes into `player-connector.json` as `appAudience`, with
 `emailPlayers` and `remoteEndpoint`; the Pi side is stage 30 (see `docs/dev/pi/network-and-access.md`, "The remote part").
 
+### The GM remote connector (not deployed yet)
+
+The five GM tool sets can be served as Claude custom connectors: `/mcp/core`, `/mcp/play`, `/mcp/prep`,
+`/mcp/build` and `/mcp/admin` on the dashboard, one per set, so the Search and tools switches and the
+per-set budgets stay as with the local installer. It needs its own Access application, `Dashboard GMs
+remote`, with Managed OAuth and the `Dashboard GMs` email policy, **never** `Foundry players`. Its AUD
+tag goes into the file named by `FOUNDRY_AI_GM_CONNECTOR_CONFIG` as `appAudience`. Who counts as a GM is
+decided again in the dashboard: the file's `gmEmails` list, else `GM_EMAILS`; with neither, or a
+`gmEmails` that names nobody usable, every login is refused (503). Variables: `FOUNDRY_AI_GM_CONNECTOR=on`,
+`FOUNDRY_AI_GM_CONNECTOR_CONFIG`, and for the test bridge only `FOUNDRY_AI_GM_CONNECTOR_DEV_EMAIL` (a bare
+loopback request counts as that email; ignored with a team domain or off loopback). A guarded write that
+waits on Foundry for more than about 100 seconds can reach Claude as a Cloudflare 524 although it landed:
+check `list-changes` before retrying.
+
 ### Removing a player
 
 Cloudflare One, Access controls, Applications, `Foundry players`, Policies, edit `Players`, delete

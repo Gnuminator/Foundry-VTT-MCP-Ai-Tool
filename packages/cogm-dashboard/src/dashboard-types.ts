@@ -5,6 +5,7 @@ import type { AccessJwtVerifier } from './access-jwt.js';
 import type { ClientRegistry } from './client-versions.js';
 import type { Config } from './config.js';
 import type { GameFeedHandlers } from './feed/types.js';
+import type { GmConnectorOptions } from './gm-connector.js';
 import type { Logger } from './logger.js';
 import type { OpenRouteOptions } from './open-route.js';
 import type { PlayerConnectorOptions } from './player-connector.js';
@@ -77,6 +78,8 @@ export interface DashboardDeps {
   accessFetch?: ConstructorParameters<typeof AccessJwtVerifier>[1];
   /** The player connector (D-136); default from the environment (`FOUNDRY_AI_PLAYER_CONNECTOR*`). */
   playerConnector?: PlayerConnectorOptions;
+  /** The remote GM connector (/mcp/core to /mcp/admin); default from `FOUNDRY_AI_GM_CONNECTOR*`. */
+  gmConnector?: GmConnectorOptions;
   /** The storage space check's status file; default env FOUNDRY_AI_SPACE_STATUS, else the Pi's path. */
   spaceStatusFile?: string;
   /** Test clock for the space check's age. */

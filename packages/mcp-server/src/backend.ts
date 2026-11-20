@@ -34,6 +34,7 @@ import { FoundryClient } from './foundry-client.js';
 
 import { createTools, guardedChangesModule, playerModule } from './tools/index.js';
 import { splitPlayerTools } from './tool-sets.js';
+import { remoteGmCall, remoteGmList, remoteGmSet } from './remote-gm.js';
 import {
   PLAYER_CONFIG_ENV,
   PLAYER_DASHBOARD_TOOL_NAMES,
@@ -759,6 +760,52 @@ async function startBackend(): Promise<void> {
               const message = e instanceof Error ? e.message : 'Switches failed';
               socket.write(`${JSON.stringify({ id: msg.id, error: { message } })}\n`);
             }
+
+            continue;
+          }
+
+          // The remote GM connector (item remote-gm-connector): the dashboard's /mcp/<set> routes
+          // forward a GM whom Cloudflare Access has signed in. The set comes from the path, the
+          // tools are that set's only, and each call runs the same route as a stdio entry's.
+          if (msg.method === 'remote_gm_list' || msg.method === 'remote_gm_call') {
+            const rp = (msg.params ?? {}) as { set?: unknown; name?: unknown; args?: unknown };
+            const rset = remoteGmSet(rp.set);
+            if (!rset) {
+              socket.write(
+                `${JSON.stringify({ id: msg.id, error: { message: 'Unknown set' } })}\n`
+              );
+              continue;
+            }
+            if (msg.method === 'remote_gm_list') {
+              socket.write(
+                `${JSON.stringify({ id: msg.id, result: remoteGmList(allTools, rset) })}\n`
+              );
+              continue;
+            }
+            const answer = async (): Promise<void> => {
+              const result = await remoteGmCall(
+                {
+                  allTools,
+                  run: (n, a) =>
+                    repeatGuard.run(n, a, '', () => {
+                      const route = Object.hasOwn(toolRouter, n) ? toolRouter[n] : undefined;
+                      if (typeof route !== 'function') {
+                        throw new Error(unknownToolMessage(n));
+                      }
+                      return route(a, { signal: socketAbort.signal });
+                    }),
+                  record: (tool, startedAt, r) =>
+                    recordCall(tool, startedAt, r, { who: 'gm', via: 'connector' }),
+                },
+                rset,
+                rp.name,
+                rp.args
+              );
+              if (!socket.destroyed) socket.write(`${JSON.stringify({ id: msg.id, result })}\n`);
+            };
+            // A long wait (wait-for-game-event) must not hold up the lines behind it.
+            if (typeof rp.name === 'string' && DETACHED_TOOLS.has(rp.name)) void answer();
+            else await answer();
 
             continue;
           }

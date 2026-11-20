@@ -269,6 +269,7 @@ export function reexec(o) {
     const start = now();
     const r = spawn(process.execPath, [o.script, ...o.argv], {
       stdio: 'inherit',
+      windowsHide: true,
       env: { ...env, [CHILD_ENV]: '1' },
     });
     const code = r.status ?? 1;

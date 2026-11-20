@@ -1035,7 +1035,7 @@ export function quickSteps(files, cwd = process.cwd()) {
  * @returns {string[] | null} null when no base ref exists
  */
 export function changedFiles(cwd) {
-  const git = (/** @type {string[]} */ args) => spawnSync('git', args, { cwd, encoding: 'utf8', windowsHide: true });
+  const git = (/** @type {string[]} */ args) => spawnSync('git', args, { cwd, ...HIDE });
   const base = ['aitool/main', 'origin/main', 'main'].find(
     b => git(['rev-parse', '--verify', '--quiet', b]).status === 0
   );

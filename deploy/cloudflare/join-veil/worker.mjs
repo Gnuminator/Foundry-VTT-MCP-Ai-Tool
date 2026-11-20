@@ -5,8 +5,8 @@
  * passes the request on to Foundry (the tunnel origin) and, for the /join HTML only, appends one
  * <style> block to <head> with HTMLRewriter. Everything else passes through untouched.
  *
- * Fails open: a non-HTML or non-200 answer, any error, or VEIL_OFF=1 returns Foundry's own
- * response. Removing the route or the Worker gives Foundry's normal join page; nothing breaks.
+ * Fails open: a non-HTML or non-200 answer, any rewrite error, or VEIL_OFF=1 returns Foundry's
+ * own response; an exception in the Worker itself passes the request on to the origin. Removing the route or the Worker gives Foundry's normal join page; nothing breaks.
  */
 import { VEIL_JOIN_CSS } from './veil-join-css.mjs';
 
@@ -33,18 +33,30 @@ export async function handle(request, env = {}, deps = {}) {
     if (env.VEIL_OFF === '1' || !isJoinRequest(request) || !Rewriter) return response;
     const type = response.headers.get('content-type') ?? '';
     if (response.status !== 200 || !type.includes('text/html')) return response;
-    return new Rewriter()
+    // The join page is a few KB: rewrite a clone and read it fully before answering, so a
+    // rewriter fault shows up here (and falls back to the untouched response), not mid-stream.
+    const html = await new Rewriter()
       .on('head', {
         element(element) {
           element.append(STYLE_TAG, { html: true });
         },
       })
-      .transform(response);
+      .transform(response.clone())
+      .text();
+    const headers = new Headers(response.headers);
+    // The body changed: drop validators and the old length so a browser never keeps a stale look.
+    for (const name of ['etag', 'last-modified', 'content-length']) headers.delete(name);
+    return new Response(html, { status: response.status, headers });
   } catch {
     return response;
   }
 }
 
 export default {
-  fetch: (request, env) => handle(request, env),
+  fetch(request, env, ctx) {
+    // If the Worker itself throws (for example the origin fetch), Cloudflare passes the request
+    // on to the origin instead of showing its own error page.
+    ctx?.passThroughOnException?.();
+    return handle(request, env);
+  },
 };

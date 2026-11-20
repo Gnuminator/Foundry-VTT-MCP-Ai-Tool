@@ -6,8 +6,9 @@ styles there, so the look is added at the edge with `HTMLRewriter`: one `<style>
 
 ## Safe by design
 
-- Fails open: a non-HTML or non-200 answer, any error, or the `VEIL_OFF=1` variable returns
-  Foundry's own response.
+- Fails open: a non-HTML or non-200 answer, any rewrite error (the small page is rewritten fully
+  before it is sent), or the `VEIL_OFF=1` variable returns Foundry's own response. An exception in
+  the Worker itself passes the request on to Foundry (`passThroughOnException`).
 - With the Worker route removed, Foundry's normal join page is served. Nothing depends on it.
 - Colours, borders and type only; no layout is touched.
 

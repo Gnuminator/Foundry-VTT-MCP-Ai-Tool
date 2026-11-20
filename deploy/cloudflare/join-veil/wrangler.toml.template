@@ -3,6 +3,8 @@
 name = "foundry-join-veil"
 main = "worker.mjs"
 compatibility_date = "2026-11-01"
+# No public workers.dev address: the Worker is reachable only through the Access-protected route.
+workers_dev = false
 
 # Route only the join page. The Worker passes the request on to the origin (the tunnel host).
 # routes = [{ pattern = "<FOUNDRY_HOSTNAME>/join*", zone_name = "<ZONE>" }]

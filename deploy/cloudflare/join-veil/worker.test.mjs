@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
-import { handle, isJoinRequest, STYLE_TAG } from './worker.mjs';
+import worker, { handle, isJoinRequest, STYLE_TAG } from './worker.mjs';
 
 // The shape of Foundry 14's /join answer (head, then a body the client fills in).
 const JOIN_HTML = `<!DOCTYPE html>
@@ -123,6 +123,54 @@ describe('join page Worker', () => {
       }
     );
     assert.equal(await out.text(), JOIN_HTML);
+  });
+
+  test("a rewriter that fails while reading returns Foundry's own response", async () => {
+    class StreamFails {
+      on() {
+        return this;
+      }
+      transform() {
+        return new Response(
+          new ReadableStream({
+            start(controller) {
+              controller.error(new Error('mid-stream'));
+            },
+          })
+        );
+      }
+    }
+    const out = await handle(
+      new Request('https://f.example/join'),
+      {},
+      { fetchOrigin: async () => html(), Rewriter: StreamFails }
+    );
+    assert.equal(await out.text(), JOIN_HTML);
+  });
+
+  test('the rewritten page drops the origin validators and length', async () => {
+    const origin = new Response(JOIN_HTML, {
+      headers: {
+        'content-type': 'text/html',
+        etag: 'W/"abc"',
+        'last-modified': 'Mon, 01 Jan 2026 00:00:00 GMT',
+        'content-length': String(JOIN_HTML.length),
+        'x-keep': '1',
+      },
+    });
+    const out = await run('https://f.example/join', origin);
+    assert.equal(out.headers.get('etag'), null);
+    assert.equal(out.headers.get('last-modified'), null);
+    assert.equal(out.headers.get('content-length'), null);
+    assert.equal(out.headers.get('x-keep'), '1');
+    assert.ok((await out.text()).includes(STYLE_TAG));
+  });
+
+  test('the Worker asks Cloudflare to pass on to the origin if it throws', () => {
+    let asked = false;
+    const ctx = { passThroughOnException: () => (asked = true) };
+    worker.fetch(new Request('http://127.0.0.1:1/game'), {}, ctx).catch(() => {});
+    assert.equal(asked, true);
   });
 
   test('isJoinRequest', () => {

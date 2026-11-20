@@ -172,7 +172,7 @@ export function makeUnreadyDeps({ sh, repo, vault, file }) {
     noticeMark: (/** @type {string} */ key) => {
       try {
         fs.mkdirSync(path.dirname(store), { recursive: true });
-        fs.writeFileSync(store, JSON.stringify([...read(), key].slice(-200)));
+        fs.writeFileSync(store, JSON.stringify([...read(), key].slice(-1000)));
       } catch {
         // not remembered: it may be posted once more after a restart
       }

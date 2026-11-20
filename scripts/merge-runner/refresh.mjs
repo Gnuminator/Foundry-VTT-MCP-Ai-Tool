@@ -7,11 +7,12 @@
  *
  * Generated tool reference pages (docs/reference/tools.md, docs/reference/tools/) are the one thing
  * it does resolve: a conflict only in those files is settled by taking the lane's side and running
- * `npm run docs:tools`, and a drift refusal whose only failed guard is the mcp-server tests
- * (a stale tool reference after main added a tool) gets the same regeneration. The regenerated
+ * `npm run docs:tools`, and a drift refusal whose only failed guard is the tool-reference test
+ * of the mcp-server tests (a stale tool reference after main added a tool) gets the same regeneration. The regenerated
  * pages go into the merge commit; the gate leaves them out of its patch id, so the review carries.
  *
- * It never forces anything and never resolves any other conflict: a real conflict, a lockfile that
+ * It never forces anything (the push is a lease on the old head, so a lane push in between stops
+ * it, per head) and carries one refresh commit per branch. It never resolves any other conflict: a real conflict, a lockfile that
  * `npm install --package-lock-only` would still change, a fork PR, a draft, or a branch that
  * already carries one of the runner's own refresh commits (so a PR that keeps failing for another
  * reason is not merged again and again) stay refusals for the lane to fix.

@@ -135,12 +135,13 @@ export function makeReleaseRun(d) {
       d.mark(failKey);
       const env = ran.code === 2;
       d.log(`${r.id}: live:roundtrip ${env ? 'could not run' : 'failed'} on ${tip.slice(0, 7)}`);
-      // One red line per release item; later tips retry quietly.
-      if (d.seen(`release-failpost:${r.id}`)) return;
-      d.mark(`release-failpost:${r.id}`);
+      // One red line per release item and kind of red (failed, could not run); later tips retry quietly.
+      const postKey = `release-failpost:${r.id}:${env ? 'env' : 'fail'}`;
+      if (d.seen(postKey)) return;
       d.post(
         `merge runner: ${r.id} is unblocked, but live:roundtrip ${env ? 'could not run (the test environment did not come up)' : 'failed'} on main ${tip.slice(0, 7)}; not ready to tag. ${cut(ran.output, 300)}`
       );
+      d.mark(postKey);
       return;
     }
     const text = `${r.title}: everything it waits for has merged and live:roundtrip is green on main ${tip.slice(0, 7)}. Ready to tag (RELEASING.md: version, changelog fold, release PR, then the tag needs your OK, and the Pi update too).`;

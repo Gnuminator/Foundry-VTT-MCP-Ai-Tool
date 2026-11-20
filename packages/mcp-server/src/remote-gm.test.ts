@@ -2,8 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { remoteGmCall, remoteGmList, remoteGmSet } from './remote-gm.js';
 import type { ToolDefinitionLike } from './tool-router.js';
-import { RENAMED_TOOLS } from './param-aliases.js';
-import { TOOL_SETS, toolSetOf } from './tool-sets.js';
+import { TOOL_SETS } from './tool-sets.js';
 
 const defs = (names: string[]): ToolDefinitionLike[] =>
   names.map(name => ({ name, description: name, inputSchema: { type: 'object' } }));
@@ -60,18 +59,11 @@ describe('remoteGmCall', () => {
     expect(run).not.toHaveBeenCalled();
   });
 
-  it('refuses a dashboard-only route that sits in no set, and checks a renamed tool by its new name', async () => {
+  it('refuses a dashboard-only route that sits in no set', async () => {
     const run = vi.fn(async () => ({}));
     const d = deps(run);
     expect((await remoteGmCall(d, 'core', 'plan-obsidian-quest-import', {})).isError).toBe(true);
     expect(run).not.toHaveBeenCalled();
-    // An old name runs only in the set of the tool it became.
-    const renamed = Object.entries(RENAMED_TOOLS)[0];
-    const target = renamed[1].to;
-    const withTarget = { ...d, allTools: defs([target]) };
-    const set = toolSetOf(target) as 'core';
-    expect((await remoteGmCall(withTarget, set, renamed[0], {})).isError).toBeUndefined();
-    expect(run).toHaveBeenCalledOnce();
   });
 
   it('turns a thrown error into an error result', async () => {

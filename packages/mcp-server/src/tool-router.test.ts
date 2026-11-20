@@ -164,16 +164,6 @@ describe('buildToolRouter', () => {
     expect(tool(deps, 'scene').switchScene).toHaveBeenCalledWith(args);
   });
 
-  it('answers a removed tool name through the tool that took over', async () => {
-    const deps = makeDeps();
-    const router = buildToolRouter(deps);
-    await router['get-compendium-entry-full']({ packId: 'p', entryId: 'e' });
-    expect(tool(deps, 'compendium').handleGetCompendiumItem).toHaveBeenCalledWith({
-      packId: 'p',
-      itemId: 'e',
-    });
-  });
-
   it('renames old parameter names before the handler sees them', async () => {
     const deps = makeDeps();
     const router = buildToolRouter(deps);

@@ -2,6 +2,229 @@
 
 ## Unreleased
 
+## v0.31.0 (released 2026-11-20): timed conditions, GM tool sets as web connectors, a downtime inbox and the last build before session 0
+
+**Wire contracts:** additive only. New tools `plan-macro` (build set) and `get-read-aloud` (play set), a new `ends` field on the condition change in `plan-actor-change`, and the dashboard's `/mcp/<set>` connector paths. The old tool name `get-compendium-entry-full` is gone: the router no longer answers it, so a saved prompt that still uses it must say `get-compendium-item` (with `itemId` for the old `entryId`).
+
+### Process and tooling
+
+- **`backlog.mjs set`:** a lane can now change one planning field of a Backlog item (title, the link of a claimed item, board, gate, area, blocked by, depends on, touches, source, done when) through the tool, so board fixes no longer need a hand edit of `Backlog.md`.
+- **Lane kit plugin install check:** `node scripts/lane-plugin-install-check.mjs` builds the `foundry-lane-kit` plugin into a temporary marketplace, installs it into a clean Claude Code profile, checks the skills, agents, `/ready` and hook scripts that landed, runs two installed guard hooks, and proves a version bump reaches the profile. It uses a throwaway profile, so nothing on the PC changes (I-161).
+- **Lane kit as a Claude Code plugin (first slice):** `node scripts/build-lane-plugin.mjs` builds the plugin `foundry-lane-kit` (every skill, the review agents, the `/ready` command and the guard hooks, with plugin-root hook paths) from `.claude/`, plus a marketplace file; `--check` reports drift. `.claude/` stays the one place to edit, so running lanes are not affected. The built copy is committed at release, not per pull request (I-161).
+- **`/ready` for lanes:** `node scripts/lane-ready.mjs` runs the merge gate's own dry run, checks that the PR names its Backlog item, and then either writes the ready line or prints one list of everything that is missing, so paperwork and drift refusals stop at the lane instead of at the merge runner (I-156).
+- **Process lows swept:** the release red-post notice now repeats when the kind of red changes (failed, then could not run) and is marked after it is posted; the merge-runner notice store keeps 1000 keys instead of 200; the plugin install check compares install paths with a separator, quotes the sed path and times out a hook after 30 seconds; the refresh module comment names the tool-reference test and the lease push; new tests cover the refresh refusal for a head already in main and the two-parent refresh merge.
+
+### Player helper
+
+- **Backstory and roleplay buddy skill:** a second player skill (`foundry-backstory-buddy`) that
+  installs next to the D&D helper, reads only the player's own sheet and the handouts the GM has
+  revealed, and ends with one copy-ready note. Build with `npm run backstory-buddy`; a test checks
+  that the skill text names only player tools and none of the player deny-list terms (I-182).
+- **Character diaries:** a player can ask their Claude helper for a short in-character diary entry
+  about the last session (it asks for one feeling first and names only facts the player has been
+  shown), edit it, and save it under **My diary** on their My character page. Entries are kept
+  per player on the table's server, and no other page or player sees them (I-183).
+- **Diary fixes:** My diary retries its first load when you open it again after a failure, says so when
+  the table keeps diaries in memory only, shows visible labels on its two fields, and ignores saved
+  entries that lack a timestamp.
+
+### Claude Desktop
+
+- **Change cards inside Claude:** in hosts that support MCP Apps, a `plan-*` tool (core, play, build and admin sets; prep plans stay text only for now) shows a small
+  read-only card with the diff (before and after) next to the text plan. The text plan is still
+  returned, and Apply still goes through `apply-planned-change` with Claude's own approval. Hosts
+  without the extension show text only (I-187).
+
+### Tests
+
+- **Cheap CI failures caught before the push:** `npm run green -- --quick` now runs the unused-code ratchet (about 8 s) when TypeScript sources or manifests changed, and the live-sweep coverage test (about 1 s, "add a sweep step (or a recorded skip) for: ...") when a tool module, the tool sets page or the sweep changed. `unused:ratchet` lists the unused exports, types and files in the files the branch changed (ci-cheap-failures).
+- **Em-dash sweep, scripts:** comments in `scripts/` smoke tests and the live read sweep, and in `.gitignore`, now use colons and full stops instead of em dashes. No behaviour changed (`em-dash-sweep`).
+- **Em-dash sweep, shared:** comments in `shared/` now use commas, colons and full stops instead of em dashes. No code or wire value changed (`em-dash-sweep`).
+- **Scene fixture:** `kit fixture` adds a scene, two named tokens and a party group to the kit world
+  (idempotent, kit-flagged, local target only), so the canvas probes find something to work on in a
+  world without a campaign scene (I-028 pass 2).
+- **Full modules-all kit goes green:** the AC5e roll-mode scenario rolls the hero's Unarmed Strike (the hero has no "Kit Sword", so the attack never went through dnd5e), and the known-finding cap for the Automated Animations null-id error is 100, since the full kit rolls far more than a smoke run (Backlog `kit-green-pre-release`).
+- **CI and test lows, sweep 2:** a pull request now also bundles the bridge with esbuild (`bundle-server` check), so an esbuild bump fails there and not at the next release. The kit's scene fixture tops up a fixture scene left without tokens by an interrupted run, `chooseStandardArrayMethod` has stub tests with a fake Playwright locator and the drift-check test for the worktree's own shared build now fails without that build.
+- **CI and tests lows sweep:** the Standard Array picker in the player-run kit script clicks the option by its text and checks it stuck, the AC5E roll-mode scenario asserts the hero has Unarmed Strike, actor-image has a test for an unset data folder, the redundant `logger.child` lines are gone from seven tests, and the Pi group paths docblock names the whole workflows folder.
+- **Four red kit scenarios fixed in the kit:** foundry-controls closed the revealed Tarokka page while dnd5e was still syncing its sidebar (a race that raised a new console error group); the bridge probe and monsters-every now retry for 45 s when the bridge link drops for a few seconds mid-run, which failed heroes-features-deep, heroes-features-use and monsters-every on 2026-11-18 (nightly-kit-4-red).
+- **Nightly kit green again:** the bridge-health check no longer expects the player tools in `/api/tools` (only `/mcp/player` serves them); real-character-flows switches dnd5e's "auto apply downed" on for its 0 HP steps and restores it; two known console errors (Automated Animations `getTokenFromItemID`, the already-deleted effect socket error) are on the expected list.
+
+### Process
+
+- **`npm run ci:health`:** prints how CI ran in the last 24 hours and 7 days (runs, failed, cancelled, red main runs, median and p90 minutes). The Saturday `usage:week -- --write-vault` run adds the 7 day figures as `ci-*` lines to the vault note Weekly check, where the Board reads them (I-160).
+- **CI skips the Pi scripts group on a pull request that touches no Pi input:** `build-test` shows a "pi: skipped" summary line and stays green, so the required checks never hang. Pushes to main, merge_group and dispatch runs always run it. The three Pi checks that read package sources and docs (world switches, runtime imports, Obsidian guides) moved to the scripts group, so they never skip (I-159).
+- **The merge runner regenerates the tool pages itself:** a PR that fell behind main because both
+  added a tool no longer needs a lane turn. The runner takes the lane's side of a conflict in the
+  generated tool pages, runs `npm run docs:tools`, commits it in the refresh merge and the gate
+  runs again. Any other conflict, a failing regeneration or a baseline that would go up is refused
+  as before. The gate's review carry ignores the generated tool pages (I-158).
+- **Merge runner starts the release:** when every PR and item a `release-*` Backlog item depends on has merged, the runner runs `live:roundtrip` on main (own test server lock, the merge train is untouched), posts once in #pr-log and adds a due-today Waiting item that the release is ready to tag (`backlog.mjs waiting`). `--release-session` (off by default) also starts a headless Sonnet release session that stops before the tag and the Pi. It never tags, releases or changes the Pi.
+- **Ready-line hint:** "Ready but no ready line" no longer names a `progress` command for a PR whose Backlog item does not exist; it says no item exists and gives an `add` command, then the `progress` command.
+
+### Fixes
+
+- **Merge refusals say why:** a failing CI check in a refusal now names the failing step (and the
+  job's first annotation), a job that hit its limit reads "timed out after 25 min", and a green
+  PR makes no extra gh call. drift-check runs a guard once more when Vitest could not start a
+  worker, and a refusal that still fails that way is marked as infrastructure, not the PR, so the
+  merge runner tries it again by itself (I-157).
+- **No flashing console windows on Windows:** the merge runner, the merge gate, `drift-check`, the
+  heavy lock and `npm run green` start every child process with `windowsHide: true`, so a merge
+  round or a quick check no longer pops up command windows (item `hide-console-flashes`).
+- **Merge runner gates a rewritten ready line:** a PR refused by the gate stays refused only while
+  its ready line is gone; when the lane writes a ready line again for the same head, the runner
+  gates it in the next round instead of skipping it until a restart.
+- **Dashboard lows sweep 6:** "Previously on" names which language's voice failed and stops
+  listing it once that voice exists, removes render folders of an old recap text when a new voice
+  starts, and on Windows ends the whole narration process tree when it times out. The downtime
+  inbox finds its world from the player's link after a dashboard restart with no table open.
+- **Docs lows sweep:** the player helper page says a connected player sees nine tools (the seven table tools plus the two guide tools) in English and Danish, the dashboard README describes the full player view, the release guide lists every file `version:sync` stamps, the voice stack README says the sessions folder must exist, comments and notes point at the pages the Pi and test kit text moved to, and the wiki staging now stops with an error when a Danish GM page links into `docs/da/foundry` instead of quietly making a GitHub link.
+- **Tool call log:** a player's `get-my-handouts` and `get-my-play-stats` calls (answered by the dashboard) now reach the call log through a new `record_call` bridge message; day files older than 90 days are deleted. `npm run usage:calls` prints the "bridge writes the log" note only when the PC log is empty (the stale-connector hint still shows whenever it applies).
+- **Renown:** `get-renown` no longer returns the creature list (only the planner needs it), "who can join a faction" follows dnd5e's `system.isCreature`, and an unknown faction says that a faction in a compendium has to be imported into the world first.
+- **Tools:** the `get-compendium-entry-full` alias now has an end release (0.31) that a test enforces; a relative `FVTT_DATA_DIR` gives an absolute portrait folder.
+- **Undo and the Prone it removes:** the "Also removed: Prone" line is written after the undo ran and only for a Prone that was really removed. A second change that leaves a hero at 0 HP no longer claims the first change's Prone.
+- **Renamed tools:** a call to an old tool name now logs under the tool set of the tool it became, and a cut result names that tool's parameters.
+- **Who uses what:** the Claude connector and client rows carry a short per-PC id, so two PCs on one bridge are two rows.
+- **plan-macro:** the description says how to write a random index the macro check accepts.
+- **Small MCP tools fixes:** a backend that never took the lock no longer deletes another backend's lock file on exit; an omen finished as sent after a reopen and edit keeps the text that was actually sent; handout presses wrap very long words and mark sideways overflow.
+- **Module lows sweep:** an error with no message now reports its name instead of an empty string,
+  the lint message for the module's shared imports names `@gnuminator/shared/browser`, and the
+  write-gate docs say which write functions call `requireWriteOperations`. Test titles, comments
+  and one unused export were tidied, and the room whisper test now covers the 120 character name
+  refusal.
+- **Process lows swept:** the merge runner has tests for a failed ready-line write after a refresh and for the train tick running before the ready line is re-read, the `set` CLI tests cover the link format check and retitling on the CRLF vault, `Get-DataFolder` has a test, and the recap inbox pulls with `--autostash` and documents that its clone needs an upstream.
+- **Picture links:** `plan-actor-image` now refuses a link whose target is not a drive path or a relative path on Windows, and skips its link walk only for a file that is itself in a network folder; tests cover a local junction chain, and the PC-creation test fixtures use neutral names.
+- **Test lows swept:** the build-watch test no longer outruns its timeout or skips cleanup, the lock test tolerates the ARM thread name, the nightly kit docs name the 12:00 retry, and `ranToday`, the planner kit line and the game-day brief allowlist have tests.
+- **Pi backup no longer counts the Assistant GM as a player:** after a quick restart of the GM browser, systemd could report an invocation id its journal lines did not carry, so the nightly backup saw "1 player online", waited three hours and skipped the night. The join check now also matches the run's main PID (Pi stage 6 and the shared helper in lib.sh).
+- **Actor Studio no longer opens on an empty Abilities tab:** with both Standard Array and Point Buy on, the tab starts on Standard Array (fork change on branch `l-s0/ability-default`, shipped with the next fork release). The player test run (`scripts/test-kit/player-run.mjs`) now picks Standard Array from the method list when the tab does not start on it.
+- **Server tests share one tool harness:** the last seven own `makeTools` copies and the last two own logger stubs in `packages/mcp-server` tests now use `make-tool-harness.ts` or `makeLogger`; both harness ratchet counts fall to 0.
+- **Server tests share one logger stub:** the tool tests under `packages/mcp-server/src/tools` now use `makeLogger` instead of their own copies; the harness ratchet falls from 20 to 2 own logger stubs.
+- **Undoing an AI damage that dropped a hero to 0 HP also stands them up:** dnd5e adds a Prone
+  effect together with Unconscious, and the undo only reversed the hit points, so the hero stayed
+  prone. The change journal now files that Prone effect under the AI change, and Undo (the Undo
+  button, `undo-change` and a planned undo) removes it with the hit points.
+
+### Installer
+
+- **The client updates itself without the tunnel too:** a direct (Tailscale) install now ships `client-update.ps1`, switches automatic updates on the first time, and registers its own sign-in task. It reads the table's version from the address you gave the installer (read-only), and keeps the SHA256SUMS check, the "only when Claude Desktop is closed" rule and the rollback. An upgrade keeps an earlier off choice; a silent install with `/NOAUTOUPDATE` leaves it off. A new Start menu entry, **Update the client now**, updates on demand (tunnel and direct installs). Item client-autoupdate-direct.
+- **Claude Code no longer blocks the client auto-update:** the updater only counts Claude Desktop as running, not Claude Code's `claude.exe` (under `.local\bin`, `.claude` or `node_modules`). A failed launch of the updater at sign-in is now written to `update.log`, and the updater header says the checksum is an integrity check only.
+
+### Docs
+
+- **Setup pages use the path Claude Desktop shows now:** the GM coach, D&D helper and player helper setup pages (English and Danish) say Settings, Plugins (filters All, Connectors, Skills; the Add menu for the marketplace; the three cards under Discover) instead of Customize, and tell readers to remove an earlier zip skill (By you) once the plugin is installed. The in-chat update notice (`skillStubNotice`) now points to the same Settings, Plugins, Skills path.
+- **Game-day brief:** a read-only scheduled Claude task that runs the pre-flight check and the prep digest and sends one push line to the tool admin, set to run two hours before a game night; it uses no write tool and no paid API. The task definition and install note ship in `deploy/scheduled-tasks/game-day-brief/`, a test keeps it to the two read tools, and the game night runbook mentions it (I-162).
+- **Guides cover the v0.31 features (English and Danish):** the GM and player guides now explain the quest log, party stash and "On my turn" card on the player pages, the roll tracker, monster attacks on the live strip, tablet use, Tool Runner pins, the Read-aloud drawer, the Loose ends report, the Campaign Atlas canvases, Discord `/recap`, `/npc` and `/handouts`, change cards, the macro forge, floor-aware tools, the room whisper and undo of a Prone hit.
+- **Actor Studio picture without test names:** the picture in the "make a character" guide now shows only the Create Actor and Actor Studio buttons, cropped so no test actor names appear.
+- **Tool-set sizes refreshed:** `docs/reference/TOOL-SETS.md` now shows the measured sizes of every set and the total. The room whisper line in the GM guide (English and Danish) no longer says players see nothing at all.
+- **"Let's prep" skill for the GM:** a new skill, `foundry-prep-ritual`, walks the GM through the 30-minute prep in five fixed steps (last session, loose ends, this night's scenes, encounter budget, handouts), one question at a time, and ends with the pre-flight result. It uses only existing prep tools; a test fails if one is renamed. New guide page `docs/gm/prep-ritual.md`; the zip builds with `node tools/prep-ritual/build.mjs`.
+- **Session 0 walkthrough script:** a ten minute click-by-click script for the recorded tool walkthrough, in English and Danish.
+
+### Tools
+
+- **`get-compendium-entry-full` is gone:** the one-release alias ended with 0.31 and was deleted, along with its test lines. Use `get-compendium-item` (`itemId` instead of `entryId`).
+- **Conditions that end at the end of a turn:** the condition change in `plan-actor-change` takes
+  `ends: turn-end` (or `turn-start`) beside `rounds`, so "frightened until the end of its next turn"
+  is one plan. The plan line says when it ends, and Undo removes it again (I-169).
+- **Look-alike tools, part 4:** tool descriptions no longer name a tool that lives in another set (for example the creature filter, the session log or the token details), so Claude with only some sets on is not pointed at tools it does not have.
+- **Macro forge (`plan-macro`):** the AI can plan a script macro for the GM. The plan shows the full source and a plain-English summary, the macro is created GM-only and flagged, and undo deletes it. It sits behind its own off-by-default switch "AI Tool: Macro forge (writes)". The source is parsed and checked against an allowlist when planned and again when applied (only Foundry's own names, no network, browser storage, other pages, dynamic code, other macros, picture or file fields, web addresses or computed member names). It is a guard against mistakes, not a sandbox, and a determined author can still find ways round the list: the full source appears in the plan for the GM to read before confirming. A plan can never edit a macro's script or owners (I-189).
+- **`get-read-aloud` (play set):** the boxed read-aloud text of a scene's linked pages, read from
+  the world on request (I-167).
+
+### Dashboard
+
+- **Stash card and recorder polish:** the player stash card says so when nothing is carried or the
+  load failed, keeps its search box in view in a long stash, uses the muted text colour instead of
+  faded text, announces list changes, and a hidden item no longer shows its quantity. A speaker
+  under half a second shows 1 s instead of 0 s on the recorder card, and a failed stash read
+  answers 503 instead of hanging.
+- **Downtime inbox:** on "My character" a player writes what their character does between sessions
+  (up to ten short entries, edit and delete their own). Nobody else sees them on /player or /me.
+  The prep digest lists everyone's entries for the GM, marked "from player" as wishes, not as
+  things that happened (I-180).
+- **Monster actions, small fixes:** the pressed action button says it is busy while its roll runs, and picking another creature no longer wipes the result line. The confirm window for damage after an unknown hit now says "Hit not confirmed (check the chat card)".
+- **Nudge button label:** after "Nudge sent" the roll bar's nudge button now says so to screen readers too, and e2e cases cover the Nudge and Post results buttons.
+- **Monster action buttons on the live strip:** pick one creature that is not a player character and up to four of its weapon attacks show as buttons under the pick bar. A click rolls the attack against the creature you targeted in Foundry (the roll and its damage appear in Foundry's chat as normal), shows one result line, and puts the damage on the target only after a confirm, unless the live-play "apply without confirming" switch is on. With no target, or more than one, it says so and rolls nothing (I-165).
+- **Party stash on the player page:** a card with what the party carries, by character, a search by item name and the group's total gold. Items that are not identified (or flagged secret) show only as "Unidentified item"; only the players' own characters are read (I-175).
+- **Previously on:** a card in the After view posts last night's approved player recap to chat in
+  Danish or English and plays it spoken on the GM's PC (local narration voice, no paid service).
+  Off unless `FOUNDRY_AI_PREVIOUSLY_ON=1` is set; needs GM Actions on (item previously-on).
+- **Quest log on the player page:** open quests show the day the GM revealed them, finished quests are struck through under "Done" (failed ones carry a "Failed" tag), and the recap card starts with a one-line "Last time". Players still see only what the GM revealed (I-171).
+- **Read-aloud shelf:** a new "📖 Read-aloud" drawer under Advanced shows the boxed read-aloud
+  text of the journal pages the scene links (the scene's own link and its map pins), in order. Show
+  opens a block full size, Copy puts it on the clipboard. The text is read from the world when the
+  drawer opens and is never stored; a scene with no boxed text says so (I-167).
+- **Roll tracker:** the roll bar's status line now has an id per ask, turns green when everyone has
+  rolled and offers **Post results to chat** ("Perception Skill Check: Brenna 17, Tom 9."). A player
+  who has not answered after 5 minutes gets a **Nudge** button that posts "Still waiting for Tom:
+  Perception Skill Check." to chat. Works for the whole party and for a single character (I-166).
+- **Player page polish after the session 0 rehearsal:** the Party stash card now matches the other cards (same heading band, a search box that follows the theme instead of a white bar, a line for characters that carry nothing), and the page content is centered on wide screens instead of hugging the left edge.
+- **Spotlight balance:** a GM-only card under the Live Feed on the During screen shows a bar per player character for what they did (rolls, damage rolls and item uses from the play log), and, while the Discord recorder runs, a second bar for speaking time. A hint names a character with little spotlight, but only once the party has taken as many actions as the GM sets (default 20, 0 turns hints off). The card can be hidden. Nothing of it reaches `/player` (I-177).
+- **Tablet remote for the Live view:** on a touch screen or a screen up to a 10 inch tablet in
+  landscape, every button, select and checkbox label on the Live view is at least 44 px and the page
+  never scrolls sideways. Holding a finger on a control for half a second shows its tooltip text
+  as a toast, so nothing depends on hover (I-191).
+- **Pinned tools and recent runs in the Tool Runner:** any tool form can be saved as a named pin (📌 Pin) and shows as a button in a "Pinned" row on the During bar. A read runs at once and shows its answer under the row; a plan or a write still goes through GM Actions and the confirm window. Pins can be renamed and removed in the Tool Runner, which also lists the last eight runs (click one to refill the form) and the three calls used most, each with a Pin button. Pins are kept in the GM's browser (tool-runner-pins; I-174).
+- **"On my turn" card:** My character lists what a character can do, grouped by action, bonus action, reaction and free, and a switch under the sheet hides it (I-170).
+- **The Veil on the player pages:** when the GM's theme is The Veil, `/me` now gets the same
+  self-hosted Gloock and Spectral type, the mist and the lamplit selection as `/player`; the
+  `/player` header wraps cleanly on a phone and its buttons and selects use the Veil font. No
+  external fonts. Veil screens of both pages join the screenshot and axe checks (I-179).
+
+### Discord bot
+
+- **Lookups for players:** `/recap`, `/npc <name>` and `/handouts` answer from the handouts the GM has revealed to everyone, the same data the player page shows. The answer is the handout's own text, only the asker sees it, and an unrevealed name says "Nothing revealed yet". No AI call (I-186).
+
+### Module
+
+- **Floor-aware tools:** on a scene with more than one Scene Level, `get-token-positions` lists the level of each token and `measure-distance` counts height and says which level each token is on, with the map and height parts apart. A flat scene answers as before (I-178).
+- **Room setup hazard warns about unused options:** a hazard plan now lists options that do not
+  apply to its kind (for example an effect uuid on difficult terrain) in the plan warnings instead
+  of ignoring them silently (lows sweep; PR #1141).
+- **Six module updates pinned for the Pi before G0:** 3ds-atlas 1.6.2, autoanimations 8.0.7, calendaria 1.4.10, combat-tracker-dock 5.0.5, dice-calculator 4.0.7 and travel-pace 5.4.1 passed the module rehearsal on test server A and are in the PC module archive for Pi stage 25. The foundry-modules skill index names the new versions.
+- **Room-enter whisper:** `plan-room-setup` has a new `whisper` action. It makes a GM-only Region that whispers a room card to the GMs when a token enters it. The card text sits on a GM-only journal entry made in the same plan, and players are shown nothing. It goes through plan, confirm and undo like the other room setup actions (I-168).
+- **Stingers on the table TV:** a natural 20 or 1 on an attack or saving throw flashes a 2 second overlay on the Table TV user's screen only. A world setting, "Table TV stingers", turns it off or limits it to natural 20s; never more than one every 20 seconds (I-176).
+
+### Prep
+
+- **Handout press:** the new tool `plan-handout-press` (Play set; the Prep set is full) turns supplied text into a handout picture, a letter on aged paper with a wax seal, a notice or a card, rendered with the Edge, Chrome or Chromium already installed on the computer the backend runs on (the Pi has none) (no image AI, no downloads, about two seconds). Applying the plan adds a hidden image page to the "Handouts" journal; queue and reveal it the usual way, and Undo removes the page (undoing the plan that created the Handouts journal removes the journal with every pressed page added since). Text that names a secret term is refused. Needs the "Handouts" switch (I-184). Wire contracts: additive only, the new bridge handler `uploadHandoutImage` (in the write gate).
+- **Loose ends report:** `get-prep-digest` gets a `looseEnds` part and the Prep drawer a "Loose ends" section. It names the open quests nobody updated for two sessions, the NPCs who acted in one session only and the scenes not used for two sessions, each with "last seen session N", plus a count of scenes never used. Read-only, from the play log and session log, no new tool (I-172).
+- **Omens by post:** between sessions Claude drafts one short private text per player (`draft-omens`,
+  Prep set). The GM approves each one in the Prep drawer's new "Omens by post" list; the Discord bot
+  (`DISCORD_OMENS=1`, off by default) then sends only approved texts, each to that player's own
+  Discord account, once. A text that names a Tarokka card name is flagged and needs a confirmation. Claude can draft
+  but cannot approve or send (I-181).
+
+### Orange Pi
+
+- **Veil look on Foundry's join page, built, not deployed:** a small Cloudflare Worker
+  (`deploy/cloudflare/join-veil/`) adds The Veil stylesheet to `/join` at the edge. It changes
+  only that page, passes everything else through, and falls back to Foundry's own page on any
+  error or with the `VEIL_OFF` switch. Nothing is deployed yet; that needs the user's OK.
+- **Small Pi stage fixes:** stage 33 builds the new ignore list before it replaces the old one and makes its new folders 0750; the sync check says "unknown" instead of "out of date" when Syncthing gives no completion figure; stage 34's header names `scale-revert` and the scale-revert scene log says "as imported" for grid scenes; the stage 2 test runs from a file; the docs and test comments match.
+- **Sharper adventure maps, stage 34:** a stage script and a GM script put the corrected scene scales and the 2x maps in the real world,
+  in steps that can each be checked and repeated (files, scale, switch, revert), with the maps and scene data prepared on the PC so
+  no book content is in the repository (I-092). Tested in the ARM64 container and on a test server; the Pi run waits until after
+  the G0 session.
+- **Who uses what, written by the Pi (stage 35):** a Pi timer (every 4 hours and Sunday 23:00) asks the Pi dashboard for the usage report and pushes it as `Who uses what.md` to the vault repo with a deploy key made on the Pi, so the PM board's Who tab stays fresh without the PC. The stage takes one reading before it enables the timer and never touches another service. Tested against a real git repo and in the ARM64 container; not run on the Pi yet (item `who-uses-what-pi-job`).
+
+### Obsidian
+
+- **Campaign Atlas:** the GM vault gets two new canvases next to the Tarokka spread,
+  `AI Tool/Atlas/Quests.canvas` (quest journals with the NPCs and scenes they link to) and
+  `AI Tool/Atlas/Places.canvas` (scenes in one group per Foundry folder, arrows for links between
+  them). Cards open the mirror notes. Cards you move, and cards and arrows you add, stay put when
+  the canvases are rebuilt on the next export (the Atlas also keeps card colours and arrow
+  labels; the Tarokka spread rebuilds its card text and colour, so keep notes on your own
+  cards). Delete the marker card to take a canvas over (I-185).
+
+### Release
+
+- **The prep ritual skill ships with each release:** `foundry-prep-ritual.zip` is built in the release workflow, listed in SHA256SUMS.txt and attached to the release, and CI keeps it as an artifact, like the GM coach zip (I-164).
+
+### Remote access
+
+- **GM tool sets as remote connectors:** the dashboard serves `/mcp/core`, `/mcp/play`, `/mcp/prep`, `/mcp/build` and `/mcp/admin`, one path per tool set, so the same five sets can be added to Claude as custom connectors without the local installer. Off unless `FOUNDRY_AI_GM_CONNECTOR=on`; login is a Cloudflare Access Managed OAuth token for the GM application (`FOUNDRY_AI_GM_CONNECTOR_CONFIG` names its audience and, optionally, the allowed emails). Same tool budgets, same plan, confirm and undo. Tested on the test bridge only; nothing deployed (remote-gm-connector).
+
 ## v0.30.0 (released 2026-11-17): renown tools, one roll-request tool, one name for the actor and a single-file module
 
 **Wire contracts:** changed, with fallbacks. Two new play tools, `get-renown` and `plan-renown-change`. `get-compendium-entry-full` leaves the tool list (the router still answers it for one release through `get-compendium-item`); `request-ability-check` and `request-attack-roll` stay as aliases of `request-player-rolls` for one release. Actor parameters are now `actor`, with the old names still accepted; `plan-scene-change` no longer takes `mood`. Two new player-set tools, `get-my-handouts` and `get-my-play-stats`, and a new GM route `GET /api/who-uses-what`. Roll requests now default `isPublic` to true. Bridge handlers now declare a kind; the unused `validateWritePermissions` query is removed, and no other method name, the module id or the socket channel changed.

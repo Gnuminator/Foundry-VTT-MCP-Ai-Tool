@@ -34,20 +34,25 @@ afterEach(async () => {
   await Promise.all(closers.splice(0).map(c => c()));
 });
 
+let dashboardGms: string[] = ['a@x.com'];
+afterEach(() => {
+  dashboardGms = ['a@x.com'];
+});
+
 interface Seen {
   lists: string[];
   calls: Array<{ set: string; name: string; args: unknown }>;
 }
 
 async function start(
-  file: GmConnectorFile = { appAudiences: [GM_AUD], gmEmails: [] },
+  file: GmConnectorFile = { appAudiences: [GM_AUD], gmEmails: [], gmEmailsBroken: false },
   over: Partial<GmConnectorOptions> = {},
   client: Record<string, unknown> = {}
 ): Promise<{ base: string; seen: Seen }> {
   const seen: Seen = { lists: [], calls: [] };
   const app = express();
   mountGmRoute(app, {
-    config: { host: '127.0.0.1' },
+    config: { host: '127.0.0.1', auth: { gmEmails: dashboardGms } },
     connector: { enabled: true, teamDomain: TEAM, devEmail: '', read: () => file, ...over },
     client: {
       isConnected: true,
@@ -104,7 +109,11 @@ describe('gm connector login', () => {
   });
 
   it('refuses no token (401), a service token (403), another application (401), a player email list miss (403)', async () => {
-    const { base } = await start({ appAudiences: [GM_AUD], gmEmails: ['gm@x.com'] });
+    const { base } = await start({
+      appAudiences: [GM_AUD],
+      gmEmails: ['gm@x.com'],
+      gmEmailsBroken: false,
+    });
     const body = { jsonrpc: '2.0', id: 1, method: 'ping' };
     expect((await rpc(base, 'core', body)).status).toBe(401);
     expect((await rpc(base, 'core', body, jwt({ common_name: 'svc.access' }))).status).toBe(403);
@@ -113,8 +122,28 @@ describe('gm connector login', () => {
     expect((await rpc(base, 'core', body, person('GM@x.com'))).status).toBe(200);
   });
 
+  it('fails closed: broken list, no list anywhere, or a login outside GM_EMAILS', async () => {
+    const body = { jsonrpc: '2.0', id: 1, method: 'ping' };
+    const ok = { appAudiences: [GM_AUD], gmEmails: [], gmEmailsBroken: false };
+    // An empty file list falls back to GM_EMAILS: another email the policy admits is refused.
+    const fallback = await start(ok);
+    expect((await rpc(fallback.base, 'admin', body, person('a@x.com'))).status).toBe(200);
+    expect((await rpc(fallback.base, 'admin', body, person('player@x.com'))).status).toBe(403);
+    const broken = await start({ ...ok, gmEmailsBroken: true });
+    expect((await rpc(broken.base, 'core', body, person('a@x.com'))).status).toBe(503);
+    dashboardGms = [];
+    const none = await start(ok);
+    expect((await rpc(none.base, 'core', body, person('a@x.com'))).status).toBe(503);
+  });
+
+  it('a malformed token is 401, not 503', async () => {
+    const { base } = await start();
+    const body = { jsonrpc: '2.0', id: 1, method: 'ping' };
+    expect((await rpc(base, 'core', body, 'junk')).status).toBe(401);
+  });
+
   it('answers 503 when no audience is configured and never mounts when off', async () => {
-    const none = await start({ appAudiences: [], gmEmails: [] });
+    const none = await start({ appAudiences: [], gmEmails: [], gmEmailsBroken: false });
     expect(
       (await rpc(none.base, 'core', { jsonrpc: '2.0', id: 1, method: 'ping' }, person('a@x.com')))
         .status
@@ -213,7 +242,13 @@ describe('parseGmConnectorFile', () => {
   it('reads the audience and lowercases, dedupes and filters the emails', () => {
     expect(
       parseGmConnectorFile({ appAudience: ' a ', gmEmails: ['A@x.com', 'a@x.com', 'bad', 5] })
-    ).toEqual({ appAudiences: ['a'], gmEmails: ['a@x.com'] });
-    expect(parseGmConnectorFile(null)).toEqual({ appAudiences: [], gmEmails: [] });
+    ).toEqual({ appAudiences: ['a'], gmEmails: ['a@x.com'], gmEmailsBroken: false });
+    expect(parseGmConnectorFile({ gmEmails: 'gm@x.com' }).gmEmailsBroken).toBe(true);
+    expect(parseGmConnectorFile({ gmEmails: ['bad'] }).gmEmailsBroken).toBe(true);
+    expect(parseGmConnectorFile(null)).toEqual({
+      appAudiences: [],
+      gmEmails: [],
+      gmEmailsBroken: false,
+    });
   });
 });

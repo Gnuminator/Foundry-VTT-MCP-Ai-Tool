@@ -13,17 +13,20 @@ import { parseTeamDomain } from './access-jwt.js';
  *   "gmEmails": ["gm@example.com"] }
  * ```
  *
- * `appAudience` is the check that Access signed the token for that application (its policy is
- * the real gate). `gmEmails` is a second, optional list: when it names anyone, only those verified
- * emails get in; empty or absent, the policy alone decides.
+ * `appAudience` is the check that Access signed the token for that application. `gmEmails` is
+ * the app-side list of who is a GM here: only those verified emails get in. Absent, the
+ * dashboard's own `GM_EMAILS` is used (the same meaning of "GM" as everywhere else); with neither,
+ * or with a `gmEmails` key that names nobody usable, every login is refused.
  */
 
 export interface GmConnectorFile {
   readonly appAudiences: readonly string[];
   readonly gmEmails: readonly string[];
+  /** `gmEmails` is in the file but names nobody usable: every login is refused. */
+  readonly gmEmailsBroken: boolean;
 }
 
-const EMPTY: GmConnectorFile = { appAudiences: [], gmEmails: [] };
+const EMPTY: GmConnectorFile = { appAudiences: [], gmEmails: [], gmEmailsBroken: false };
 
 function str(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
@@ -39,7 +42,10 @@ export function parseGmConnectorFile(raw: unknown): GmConnectorFile {
     .filter(m => m.includes('@'))
     // A bad entry must not widen the list by silently emptying it: keep what parses.
     .filter((m, i, all) => all.indexOf(m) === i);
-  return { appAudiences, gmEmails };
+  // A key that is there but gives nobody (a string, no valid address) is a typo: refuse all,
+  // never fall back to "anyone the Access policy admits".
+  const gmEmailsBroken = 'gmEmails' in rec && gmEmails.length === 0;
+  return { appAudiences, gmEmails, gmEmailsBroken };
 }
 
 export interface GmConnectorOptions {

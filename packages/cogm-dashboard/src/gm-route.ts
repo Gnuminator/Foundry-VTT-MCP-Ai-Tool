@@ -35,7 +35,7 @@ interface GmRouteClient {
 }
 
 interface GmRouteOptions {
-  config: Pick<Config, 'host'>;
+  config: Pick<Config, 'host'> & { auth: Pick<Config['auth'], 'gmEmails'> };
   connector: GmConnectorOptions;
   client: GmRouteClient;
   logger: Logger;
@@ -60,6 +60,21 @@ type JsonRpcId = string | number | null;
 
 function rpcError(id: JsonRpcId, code: number, message: string): object {
   return { jsonrpc: '2.0', id, error: { code, message } };
+}
+
+/** A token with the shape of an Access JWT: three parts and a header naming RS256 and a key id. */
+function looksSigned(token: string): boolean {
+  const parts = token.split('.');
+  if (parts.length !== 3) return false;
+  try {
+    const head = JSON.parse(Buffer.from(parts[0], 'base64url').toString('utf8')) as {
+      alg?: unknown;
+      kid?: unknown;
+    };
+    return head.alg === 'RS256' && typeof head.kid === 'string';
+  } catch {
+    return false;
+  }
 }
 
 /** A request from this machine itself: a loopback peer and none of the headers a proxy adds. */
@@ -123,10 +138,15 @@ export function mountGmRoute(app: Express, options: GmRouteOptions): void {
       return { status: 503 };
     }
     if (!result.ok) {
-      if (result.reason === 'invalid') return { status: v.hasKeys ? 401 : 503 };
+      if (result.reason === 'invalid') {
+        return { status: v.hasKeys || !looksSigned(token) ? 401 : 503 };
+      }
       return { status: 403 };
     }
-    if (file.gmEmails.length > 0 && !file.gmEmails.includes(result.email)) return { status: 403 };
+    // Who is a GM comes from an app-side list, never from the Access policy alone.
+    const allowed = file.gmEmails.length > 0 ? file.gmEmails : options.config.auth.gmEmails;
+    if (file.gmEmailsBroken || allowed.length === 0) return { status: 503 };
+    if (!allowed.includes(result.email)) return { status: 403 };
     return { email: result.email };
   }
 

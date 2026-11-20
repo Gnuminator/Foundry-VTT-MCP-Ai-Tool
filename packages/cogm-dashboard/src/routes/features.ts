@@ -142,7 +142,7 @@ export function mountRawBodyRoutes(
   });
   // The remote GM connector: /mcp/core to /mcp/admin behind the GM Access application.
   mountGmRoute(app, {
-    config,
+    config: { host: config.host, auth: config.auth },
     connector:
       deps.gmConnector ??
       gmConnectorFromEnv(process.env, message => logger.child('gm-connector').warn(message)),

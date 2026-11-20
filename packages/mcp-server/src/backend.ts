@@ -868,7 +868,7 @@ async function startBackend(): Promise<void> {
 // Check lock BEFORE any async operations
 // If another instance is running, wait forever silently (don't exit)
 // This prevents Claude Desktop from seeing a "server closed" error
-const hasLock = acquireLock();
+const hasLock = acquireLock(CONTROL_PORT);
 
 void (async function main(): Promise<void> {
   if (!hasLock) {

@@ -6,27 +6,23 @@ import { DEFAULT_CONTROL_PORT } from '@gnuminator/shared';
 
 import { evaluateLockFile } from './lock.js';
 
-// Control port the lock is scoped to; same env contract as backend.ts.
-const CONTROL_PORT = parseInt(
-  process.env.MCP_CONTROL_PORT?.length
-    ? process.env.MCP_CONTROL_PORT
-    : String(DEFAULT_CONTROL_PORT),
-  10
-);
-
 // Lock file is port-scoped for non-default ports so an alternate-port standalone
 // instance never fights the live 31414 backend's lock. The default port keeps the
 // original lock name for exact backward compatibility.
-const LOCK_FILE = path.join(
-  os.tmpdir(),
-  CONTROL_PORT === DEFAULT_CONTROL_PORT
-    ? 'foundry-mcp-backend.lock'
-    : `foundry-mcp-backend-${CONTROL_PORT}.lock`
-);
+export function lockFileFor(port: number): string {
+  return path.join(
+    os.tmpdir(),
+    port === DEFAULT_CONTROL_PORT ? 'foundry-mcp-backend.lock' : `foundry-mcp-backend-${port}.lock`
+  );
+}
+
+// Set by acquireLock(port) from the caller's post-dotenv control port, and reused by releaseLock().
+let LOCK_FILE = lockFileFor(DEFAULT_CONTROL_PORT);
 
 let lockFd: number | null = null;
 
-export function acquireLock(): boolean {
+export function acquireLock(port: number): boolean {
+  LOCK_FILE = lockFileFor(port);
   try {
     try {
       lockFd = fs.openSync(LOCK_FILE, 'wx');

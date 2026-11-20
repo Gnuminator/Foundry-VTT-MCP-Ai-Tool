@@ -321,14 +321,14 @@ export function round(d, tried, attempts, tick) {
     return r.status === 0;
   };
   /**
-   * The refusal replaces the ready line only while it is still that same line (`--if-ready`,
-   * checked under backlog.mjs's lock): a lane that wrote a newer one keeps it.
+   * The refusal replaces the ready line only while it is still that same line (`--if-ready`, under
+   * backlog.mjs's lock). Once it is gone the head leaves `tried`: a rewritten ready line is gated again.
    * @param {{ id: string, pr: number, head: string }} r @param {string} why
    */
   const refuse = (r, why) => {
     const reason = oneLine(why, 300);
     d.log(`#${r.pr} (${r.id}) not merged: ${reason}`);
-    write(
+    const written = write(
       r.id,
       [
         'progress',
@@ -339,6 +339,7 @@ export function round(d, tried, attempts, tick) {
       ],
       'progress'
     );
+    if (written) tried.delete(`${r.pr}@${r.head}`); // a failed write keeps it: the line is still there
     d.post(`merge runner: #${r.pr} not merged: ${reason}`);
   };
   /**
@@ -754,6 +755,7 @@ function sh(cmd, args, o = {}) {
     maxBuffer: 64 * 1024 * 1024,
     timeout: o.timeout ?? SHORT_TIMEOUT_MS,
     cwd: o.cwd,
+    windowsHide: true,
     env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
   });
   return {
@@ -892,6 +894,14 @@ const stamp = line => console.log(`merge-runner: ${new Date().toISOString()} ${l
 function realDeps(o) {
   const vaultGit = (/** @type {string[]} */ args) =>
     sh('git', ['-C', o.vault, ...args], { timeout: 60_000 });
+  /** @param {{ pr: number, head: string }} r */
+  const prepare = r => {
+    try {
+      return prepareCheckout(o.checkout, r);
+    } catch (e) {
+      return e instanceof Error ? e.message : String(e);
+    }
+  };
   const trainDeps = makeTrainDeps({
     sh,
     stamp,
@@ -899,13 +909,7 @@ function realDeps(o) {
     repoRoot: path.resolve(here, '..'),
     checkout: o.checkout,
     vault: o.vault,
-    prepare: r => {
-      try {
-        return prepareCheckout(o.checkout, r);
-      } catch (e) {
-        return e instanceof Error ? e.message : String(e);
-      }
-    },
+    prepare,
     mainCopy,
     post: t => deps.post(t),
     trainFile: path.join(os.homedir(), '.foundry-ai-tool', 'merge-train.json'),
@@ -914,13 +918,7 @@ function realDeps(o) {
   const deps = {
     readBacklog: () => readUpstreamBacklog(vaultGit, m => stamp(`WARNING: ${m}`)),
     gh: args => sh('gh', args),
-    prepare: r => {
-      try {
-        return prepareCheckout(o.checkout, r);
-      } catch (e) {
-        return e instanceof Error ? e.message : String(e);
-      }
-    },
+    prepare,
     refresh: makeRefresh({ checkout: o.checkout, run: sh, repo: REPO, mainRef: MAIN }),
     gate: pr => {
       const copy = mainCopy(o.checkout, 'scripts/lane-merge.mjs', 'scripts/lane-merge');

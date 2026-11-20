@@ -26,7 +26,7 @@ export function isRunnerProcess(pid) {
         '-Command',
         `(Get-CimInstance Win32_Process -Filter 'ProcessId=${Number(pid)}').CommandLine`,
       ],
-      { encoding: 'utf8', timeout: 60_000 }
+      { encoding: 'utf8', timeout: 60_000, windowsHide: true }
     );
     const line = (r.stdout ?? '').trim();
     // An unreadable command line (empty answer) counts as a runner: never two runners.

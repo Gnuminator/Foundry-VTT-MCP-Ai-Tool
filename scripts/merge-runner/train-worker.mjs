@@ -40,6 +40,7 @@ function run(cmd, args, timeout) {
     maxBuffer: 64 * 1024 * 1024,
     timeout,
     shell: false,
+    windowsHide: true,
   });
   const out = `${r.stdout ?? ''}${r.stderr ?? ''}`;
   for (const l of out.split(/\r?\n/).filter(Boolean).slice(-40)) console.log(`  ${l}`);

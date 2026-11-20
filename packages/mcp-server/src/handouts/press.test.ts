@@ -83,11 +83,14 @@ describe('renderPress', () => {
     async () => {
       for (const template of ['letter', 'notice', 'card'] as const) {
         const html = pressHtml(template, {
-          title: 'W'.repeat(PRESS_LIMITS.title[template]),
+          // Words, so the title and footer wrap like real text (one long word would be clipped).
+          title: 'Wanted '
+            .repeat(PRESS_LIMITS.title[template])
+            .slice(0, PRESS_LIMITS.title[template]),
           body: Array.from({ length: 3 }, () =>
             'Wordy text '.repeat(40).slice(0, Math.floor(PRESS_LIMITS.body[template] / 3) - 2)
           ).join('\n\n'),
-          footer: 'F'.repeat(PRESS_LIMITS.footer),
+          footer: 'Footer '.repeat(PRESS_LIMITS.footer).slice(0, PRESS_LIMITS.footer),
         });
         const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'press-fit-'));
         try {

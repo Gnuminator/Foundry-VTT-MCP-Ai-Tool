@@ -47,7 +47,7 @@ while(s.scrollHeight>s.clientHeight+1&&k>0.55){k-=0.05;
 els.forEach(function(e,i){var b=base[i];if(b[0])e.style.fontSize=(b[0]*k)+'px';
 e.style.marginTop=(b[1]*k)+'px';e.style.marginBottom=(b[2]*k)+'px';
 if(b[3])e.style.height=(b[3]*k)+'px';});}
-if(s.scrollHeight>s.clientHeight+1)document.body.dataset.overflow='1';})();`;
+if(s.scrollHeight>s.clientHeight+1||s.scrollWidth>s.clientWidth+1)document.body.dataset.overflow='1';})();`;
 
 interface Size {
   width: number;
@@ -137,7 +137,7 @@ export function pressHtml(template: HandoutPressTemplate, content: PressContent)
   return (
     '<!doctype html><html><head><meta charset="utf-8"><style>' +
     `html,body{margin:0;width:${width}px;height:${height}px;overflow:hidden}` +
-    `body{font-family:${SERIF};position:relative}${css}` +
+    `body{font-family:${SERIF};position:relative}.sheet h1,.sheet p,.sheet .foot{overflow-wrap:anywhere}${css}` +
     `</style></head><body><div class="sheet">${inner}</div><script>${FIT_SCRIPT}</script></body></html>`
   );
 }

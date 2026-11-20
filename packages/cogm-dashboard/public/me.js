@@ -453,7 +453,11 @@ async function diaryCall(method, path, body) {
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
   const out = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(out.error || 'Could not reach your diary. Try again.');
+  if (!res.ok) {
+    const err = new Error(out.error || 'Could not reach your diary. Try again.');
+    err.status = res.status;
+    throw err;
+  }
   return out;
 }
 
@@ -464,9 +468,14 @@ async function loadDiary() {
     diaryEntries = out.entries || [];
     diaryLoaded = true;
     $('me-diary').hidden = false;
+    $('md-memory').hidden = out.persistent !== false;
     renderDiary();
-  } catch {
-    // No diary here (an older server, or no link): the section stays hidden.
+  } catch (err) {
+    // No diary here (an older server, or no link): the section stays hidden. Any other failure
+    // shows it with the reason; opening it again retries.
+    if (err && (err.status === 501 || err.status === 401)) return;
+    $('me-diary').hidden = false;
+    diaryStatus((err && err.message) || 'Could not load your diary. Open it again to retry.');
   }
 }
 
@@ -539,4 +548,7 @@ render();
 void load();
 void loadConnector();
 void loadDiary();
+$('me-diary').addEventListener('toggle', () => {
+  if ($('me-diary').open && !diaryLoaded) void loadDiary();
+});
 mountDowntime($('me-downtime'), key);

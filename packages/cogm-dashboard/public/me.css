@@ -683,6 +683,11 @@ body.paper .me-views button[aria-pressed='true'] {
   }
 }
 
+.me-diary label {
+  display: block;
+  margin-top: 0.4rem;
+  font-size: 0.85rem;
+}
 .me-diary textarea,
 .me-diary input {
   display: block;

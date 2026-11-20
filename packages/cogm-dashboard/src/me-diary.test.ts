@@ -162,4 +162,26 @@ describe('DiaryStore', () => {
     expect(b.list('other', ANNA)).toEqual([]);
     fs.rmSync(dir, { recursive: true, force: true });
   });
+
+  it('drops entries without timestamps and reports whether it is persistent', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'diary-'));
+    const file = path.join(dir, 'd.json');
+    const entry = { id: 'abcdefghijkl', character: 'Ebbe', text: 'Hi' };
+    const stamp = '2026-01-01T00:00:00.000Z';
+    fs.writeFileSync(
+      file,
+      JSON.stringify({
+        worlds: {
+          w: {
+            [ANNA]: [entry, { ...entry, id: 'mnopqrstuvwx', createdAt: stamp, updatedAt: stamp }],
+          },
+        },
+      })
+    );
+    const store = new DiaryStore(file);
+    expect(store.list('w', ANNA).map(e => e.id)).toEqual(['mnopqrstuvwx']);
+    expect(store.persistent).toBe(true);
+    expect(new DiaryStore(null).persistent).toBe(false);
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
 });

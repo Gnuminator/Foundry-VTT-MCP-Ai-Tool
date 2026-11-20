@@ -7,7 +7,7 @@ import { DEFAULT_CONTROL_PORT } from '@gnuminator/shared';
 import { evaluateLockFile } from './lock.js';
 
 // Lock file is port-scoped for non-default ports so an alternate-port standalone
-// instance never fights the live 31414 backend's lock. The default port keeps the
+// instance never fights the live default-port backend's lock. The default port keeps the
 // original lock name for exact backward compatibility.
 export function lockFileFor(port: number): string {
   return path.join(

@@ -30,13 +30,7 @@ export const ACTOR_ALIASES: readonly string[] = [
  */
 export const RENAMED_TOOLS: Readonly<
   Record<string, { to: string; params: Readonly<Record<string, string>>; until: string }>
-> = {
-  'get-compendium-entry-full': {
-    to: 'get-compendium-item',
-    params: { entryId: 'itemId' },
-    until: '0.31',
-  },
-};
+> = {};
 
 /** Per-tool renames: tool name, then old parameter name to current parameter name. */
 export const TOOL_ALIASES: Readonly<Record<string, Readonly<Record<string, string>>>> = {

@@ -1,3 +1,0 @@
-### Tools
-
-- **Macro forge (`plan-macro`):** the AI can plan a script macro for the GM. The plan shows the full source and a plain-English summary, the macro is created GM-only and flagged, and undo deletes it. It sits behind its own off-by-default switch "AI Tool: Macro forge (writes)". The source is parsed and checked against an allowlist when planned and again when applied (only Foundry's own names, no network, browser storage, other pages, dynamic code, other macros, picture or file fields, web addresses or computed member names). It is a guard against mistakes, not a sandbox, and a determined author can still find ways round the list: the full source appears in the plan for the GM to read before confirming. A plan can never edit a macro's script or owners (I-189).

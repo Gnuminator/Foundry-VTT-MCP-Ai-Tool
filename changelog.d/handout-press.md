@@ -1,3 +1,0 @@
-### Prep
-
-- **Handout press:** the new tool `plan-handout-press` (Play set; the Prep set is full) turns supplied text into a handout picture, a letter on aged paper with a wax seal, a notice or a card, rendered with the Edge, Chrome or Chromium already installed on the computer the backend runs on (the Pi has none) (no image AI, no downloads, about two seconds). Applying the plan adds a hidden image page to the "Handouts" journal; queue and reveal it the usual way, and Undo removes the page (undoing the plan that created the Handouts journal removes the journal with every pressed page added since). Text that names a secret term is refused. Needs the "Handouts" switch (I-184). Wire contracts: additive only, the new bridge handler `uploadHandoutImage` (in the write gate).

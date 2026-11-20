@@ -1,3 +1,0 @@
-### Installer
-
-- **The client updates itself without the tunnel too:** a direct (Tailscale) install now ships `client-update.ps1`, switches automatic updates on the first time, and registers its own sign-in task. It reads the table's version from the address you gave the installer (read-only), and keeps the SHA256SUMS check, the "only when Claude Desktop is closed" rule and the rollback. An upgrade keeps an earlier off choice; a silent install with `/NOAUTOUPDATE` leaves it off. A new Start menu entry, **Update the client now**, updates on demand (tunnel and direct installs). Item client-autoupdate-direct.

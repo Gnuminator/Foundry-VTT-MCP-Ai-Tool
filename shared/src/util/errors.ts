@@ -7,7 +7,7 @@ import { SWITCH_OFF_PATH } from '../switch-off.js';
 
 /** The message of a caught value: an Error's message, a string as it is, anything else as text. */
 export function errorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
+  if (error instanceof Error) return error.message || error.name;
   if (typeof error === 'string') return error;
   try {
     return JSON.stringify(error) ?? String(error);

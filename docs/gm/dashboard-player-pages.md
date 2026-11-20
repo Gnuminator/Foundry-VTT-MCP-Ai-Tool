@@ -33,7 +33,13 @@ recap, Handouts and Quests, and the live cards move down. Its parts:
 - **Handouts**: pages you revealed, with secret sections, inline rolls and links to unrevealed
   pages removed. A page revealed since the session started (or, between sessions, since the last
   one ended) carries a **New** mark. A page for chosen players says "just for you".
-- **Quests**: revealed pages whose title says "quest" (or "opgave").
+- **Quests**: revealed pages whose title says "quest" (or "opgave"). An open quest shows the day you
+  revealed it. A finished quest is struck through under **Done**, and a failed one carries a
+  **Failed** tag. The recap card starts with a one-line **Last time**. Players still see only what
+  you revealed, so nothing here can spoil the story.
+- **Party stash**: what the party carries, character by character, with a search box for the item
+  name and the group's total gold. An item that is not identified (or that you flagged secret)
+  shows only as "Unidentified item". It reads only the players' own characters.
 
 The header shows the world, the scene's **Navigation Name** (else "Current scene", never the real
 name) with its time of day (only on scenes with global illumination) and weather, for example
@@ -41,7 +47,8 @@ name) with its time of day (only on scenes with global illumination) and weather
 "Connecting…". With The Veil theme the footer also has a **Mist** choice, which only changes that
 device.
 
-Players open it from their own devices, behind the same email-code login as Foundry.
+Players open it from their own devices, behind the same email-code login as Foundry. With The Veil
+theme, My character uses the same fonts and mist as the player page.
 
 ### Revealing a handout
 
@@ -92,7 +99,9 @@ needed. A player who owns no character sees "Ask your GM".
 The page has four views, and each player picks theirs (remembered on their device):
 
 - **At the table**: big HP, AC and initiative, conditions, spell slots, resources, attacks and
-  prepared spells. It follows the dashboard theme.
+  prepared spells. It follows the dashboard theme. Under the sheet is an **On my turn** card that
+  lists what the character can do, grouped as action, bonus action, reaction and free. It helps a
+  new player who does not know their options yet. A switch under the sheet hides it.
 - **Paper 2024** (the default paper view) and **Paper 2014**: black on white, in the same order
   as the printed character sheet of that edition, so a player can copy it onto paper or print it
   (**Print** at the bottom).

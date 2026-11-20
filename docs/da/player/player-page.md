@@ -1,6 +1,6 @@
 ---
 source: player/player-page.md
-sourceHash: fd180d40997d
+sourceHash: c322d243a241
 title: Brug player page
 description: Korte how-tos om den valgfri player page ved siden af Foundry, med at vælge dit navn, følge combaten, handouts til dig, roll-knapper og hvordan du spørger GM'en om det, værktøjet ved.
 ---
@@ -38,6 +38,28 @@ Player page er live bag login med e-mailkode. GM'en sender dig adressen.
   ikke på deres side, og i Foundry kan kun du åbne den. Del den ved bordet, hvis din karakter ville.
 - **Tip:** er der ikke noget nyt? Handouts dukker op inden for få sekunder efter, at GM'en har vist
   dem. Genindlæs siden, hvis en ser ud til at mangle.
+
+## Tjek quests og party stash
+
+- **Kig på:** **Quests** på player page. En åben quest viser den dag, GM'en afslørede den, en færdig er
+  streget over under **Done**, og en mislykket har et **Failed**-mærke. Recap-kortet begynder med en
+  enkelt linje, **Last time**.
+- **Kig på:** **Party stash**: hvad partiet bærer, med et søgefelt og gruppens guld. Et item, du ikke har
+  identified, vises kun som "Unidentified item".
+- **Godt at vide:** du ser kun det, GM'en har afsløret. Intet her er en spoiler.
+
+## Se, hvad du kan på din tur
+
+- **Kig på:** **On my turn**-kortet på **My character**. Det grupperer, hvad din karakter kan gøre, som
+  action, bonus action, reaction og free, så du ikke skal huske det. En kontakt under sheetet skjuler
+  det, hvis du ikke vil have det.
+
+## Spørg Discord-botten
+
+- **Gør:** skriv `/recap` i Discord for det seneste recap, `/npc <navn>` for det, GM'en har fortalt alle
+  om en person, eller `/handouts` for de handouts, der er afsløret indtil nu.
+- **Godt at vide:** kun du ser svaret. Det er handoutens egen tekst, den samme som på player page, og et
+  navn, GM'en ikke har afsløret, giver "Nothing revealed yet".
 
 ## Vid, hvornår sessionen bliver optaget
 

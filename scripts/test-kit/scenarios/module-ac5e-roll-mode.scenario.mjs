@@ -158,7 +158,7 @@ export default {
     const modes = async () => {
       const before = await page.evaluate(MESSAGE_IDS_SCRIPT);
       await t.tool('request-ability-check', { targetPlayer: hero.name, ability: 'str', isPublic: true }, { confirm: true });
-      await t.tool('request-attack-roll', { targetPlayer: hero.name, weaponOrSpellName: 'Kit Sword', isPublic: true }, { confirm: true });
+      await t.tool('request-attack-roll', { targetPlayer: hero.name, weaponOrSpellName: 'Unarmed Strike', isPublic: true }, { confirm: true });
       const requests = await page.evaluate(NEW_ROLLS_SCRIPT, { known: before });
       const buttonMode = async label => {
         const b = requests.buttons.find(x => x.label.toLowerCase().includes(label.toLowerCase()));

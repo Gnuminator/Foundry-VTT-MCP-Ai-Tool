@@ -222,6 +222,8 @@ most once per connection every 6 hours. The backend also answers
 calls that are not listed here: `link_status` (whether the module's socket is connected; the Pi
 health check and the Assistant GM probe it), `character_sheet`, `player_roll`, `player_portrait`, the
 switch views `session_switches` and `feature_switches`, `session_notes`, `record_handout_seen`,
+`downtime` (I-180; `{ action: list|save|delete, userId, name?, id?, text? }`, result `{ entries }`;
+the players' downtime inbox in the vault, one player's own entries per call),
 `live_sweep`, the player connector's `list_player_tools` and `player_tool`, `record_call` (the
 dashboard tells the bridge about a `get-my-handouts` or `get-my-play-stats` call it answered
 itself, so the call log has it: `{ tool, userId, ms, size, ok }`, result `{ ok }`), and the two "who
@@ -424,8 +426,8 @@ refuses to write while a bridge backend holds its lock.
 or `read`; the kind is a required argument of `bridgeHandlers.on/set`, so none is unclassified).
 `registerHandlers` wraps every write kind once, so it refuses with "Write
 operations are disabled in the module settings" while "AI Tool: Allow Write Operations" is off, whoever
-calls (Claude or the dashboard). Guarded writes keep their own gate below. The data-access write
-functions call `requireWriteOperations()` too, and the actor quantity limit lives in
+calls (Claude or the dashboard). Guarded writes keep their own gate below. The actor-creation and
+journal write functions call `requireWriteOperations()` too, and the actor quantity limit lives in
 `data-access/actor-creation.ts`.
 
 **Guarded writes (`guarded-write/service.ts` + module `data-access/guarded-write.ts`).**
@@ -596,7 +598,7 @@ can drive it, and that even the GM can't fat-finger a destructive bulk operation
    `game.user.isGM`, so a player client receiving the broadcast can't be tricked into writing.
 4. **The write gate (`write-gate.ts`).** The master `allowWriteOperations` setting disables every
    classified write handler at once (§2), and the data-access write functions below the bridge
-   call `requireWriteOperations()` too. Creating actors from a compendium is bounded by the
+   call `requireWriteOperations()` too (the actor-creation and journal ones). Creating actors from a compendium is bounded by the
    hidden `maxActorsPerRequest` setting (default 10, checked in `data-access/actor-creation.ts`).
 5. **Guarded writes (new features).** Off per feature by default, confirmed with a diff,
    audited off-Foundry, conflict-checked and undoable (§4d).

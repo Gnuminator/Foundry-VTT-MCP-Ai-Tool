@@ -24,8 +24,8 @@
       "id": "autoanimations-null-id",
       "module": "autoanimations",
       "match": "Cannot read properties of null (reading 'id')",
-      "max": 4,
-      "why": "Automated Animations 8.0.1 (a major update from 7.1.10) with dnd5e 6.0.6: seen twice in one smoke run of the kit (2026-10-27, first rehearsal), not seen in spells-deep alone. Not bisected against 7.1.10. Check when the modules are learned (Backlog: learn-modules) and remove the entry if a later 8.x release fixes it."
+      "max": 100,
+      "why": "Automated Animations 8.0.1 (a major update from 7.1.10) with dnd5e 6.0.6: seen twice in one smoke run of the kit (2026-10-27, first rehearsal), not seen in spells-deep alone. The full modules-all kit, which rolls far more, logged it 47 times on 8.0.7 (2026-11-19, every scenario still passed), so the cap is 100. Not bisected against 7.1.10. Check when the modules are learned (Backlog: learn-modules) and remove the entry if a later 8.x release fixes it."
     },
     {
       "id": "foundry-14-369-forced-deletion",

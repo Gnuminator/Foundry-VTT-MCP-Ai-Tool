@@ -68,6 +68,15 @@ one to fill the field. You can still type by hand.
 - "More exist: type to narrow the list." means the list was cut short.
 - For a field that takes several values, click several entries; each is ticked.
 
+### Pins and recent runs
+
+When you have filled in a tool form you use often, click **📌 Pin** and give it a name. It then shows
+as a button in a **Pinned** row on the During bar. A read runs at once and the answer shows under the
+row. A plan or a write still goes through GM Actions and the confirm window, so a pin never changes
+anything on its own. In the Tool Runner you can rename and remove pins. It also lists your last eight
+runs (click one to fill the form again) and the three calls you use most, each with a **Pin** button.
+Pins are kept in this browser, so on a new computer you pin again.
+
 ### Applying a plan Claude made
 
 When Claude plans a change in Claude Desktop, you can apply it from the dashboard:
@@ -164,6 +173,10 @@ The facts for preparing your next session, in one place and without AI. **Refres
 - **Ready**: the handout queue by scene, the bosses on your scenes (legendary actions, legendary
   resistances, lair) and the pre-flight result, with a button to the pre-flight drawer.
 - **Recent changes**: how many guarded changes were made, and the latest ones.
+- **Loose ends**: the open quests nobody updated for two sessions, the NPCs who acted in only one
+  session, and the scenes not used for two sessions, each with "last seen session N", plus a count
+  of scenes never used. It is only a reminder from the play log and session log; nothing changes.
+  Claude gets the same list from `get-prep-digest`.
 
 Claude reads the same facts with `get-prep-digest`, which the prompt `prep-next-session` uses
 first. Without Foundry connected, the drawer still shows last session and says what is missing.
@@ -175,6 +188,15 @@ one is written), never the player recap draft or a transcript. The sessions fold
 `FVTT_SESSIONS_DIR`, else `FoundrySessions` in the data folder (`FVTT_DATA_DIR`) or in `Documents` in your user folder, on the computer the
 bridge runs on. If no session has a summary yet, or the bridge cannot see that folder (it runs on
 another computer), Claude says so in one line.
+
+## The read-aloud drawer (📖 Read-aloud)
+
+Under **Advanced** you find **📖 Read-aloud**. It shows the boxed read-aloud text from the journal
+pages the current scene links to (the scene's own link and its map pins), in order, so you do not have
+to dig through the module while the players wait. **Show** opens one block full size on a screen
+players can see; **Copy** puts it on the clipboard. The text is read from your world when you open
+the drawer and is never stored. A scene with no boxed text says so. Claude can read the same text with
+`get-read-aloud`.
 
 ## The party drawer (🛡 Party)
 

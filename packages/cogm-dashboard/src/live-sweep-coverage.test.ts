@@ -17,6 +17,8 @@ const RECORDED_SKIPS: Record<string, string> = {
     'ships off (feature scene-mood) and needs a playlist in the world (I-034, I-129); checked by hand on server A (save, apply, music switch, undo), see the PR',
   'plan-actor-image':
     'needs a picture file in an allowed folder on the PC (FOUNDRY_AI_TOOL_IMAGE_ROOTS); checked by hand on server A (plan, apply, actor read back, file served, undo, a file outside the folder refused, a 3 MB picture), see the PR',
+  'plan-handout-press':
+    'ships off (feature handouts) and needs Edge or Chrome on the PC to render; checked by hand on server B (letter, notice and card planned in about 1 s each, applied hidden, queued, revealed, picture served, undo), see the PR',
   'plan-token-rings':
     'ships off (feature token-rings); bulk write on every actor of the world (I-093); checked by hand on the strahd-kit copy on server C (plan, apply 150, apply the 7 left, new tokens ringed, undo both, ring count back to 0), and for tokens placed on a scene on server C (scenes without placed refused, plan one named token with a missing scene and name reported, apply, ring on, undo, ring off), see the PRs',
   'plan-macro':

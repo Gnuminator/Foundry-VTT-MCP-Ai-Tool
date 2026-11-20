@@ -1,18 +1,18 @@
 /**
- * @gnuminator/shared — parity and contract-guard tests
+ * @gnuminator/shared: parity and contract-guard tests
  *
  * Three categories of coverage:
  *
- *   A. Frozen constants — assert exact wire-contract values. If any of these
+ *   A. Frozen constants: assert exact wire-contract values. If any of these
  *      fail, the module, backend, and dashboard are no longer in sync.
  *
- *   B. Schema defaults — verify that `.default(…)` values are exactly what
+ *   B. Schema defaults: verify that `.default(…)` values are exactly what
  *      callers rely on (no silent drift from a schema reorganisation).
  *
- *   C. Validation bounds — confirm that out-of-range inputs are rejected and
+ *   C. Validation bounds: confirm that out-of-range inputs are rejected and
  *      that sentinel defaults (e.g. `animate:false`) are applied correctly.
  *
- *   D. Round-trip parse — a representative CampaignStructure and
+ *   D. Round-trip parse: a representative CampaignStructure and
  *      CampaignTemplate must parse cleanly and produce stable output.
  */
 
@@ -400,7 +400,7 @@ describe('round-trip parse', () => {
     expect(result.parts[1].dependencies).toEqual(['0']);
     expect(result.parts[1].subParts).toHaveLength(1);
     expect(result.metadata.theme).toBe('classic fantasy');
-    // Partial metadata — tags should be absent (no default applied on .partial())
+    // Partial metadata: tags should be absent (no default applied on .partial())
     expect((result.metadata as { tags?: string[] }).tags).toBeUndefined();
   });
 });

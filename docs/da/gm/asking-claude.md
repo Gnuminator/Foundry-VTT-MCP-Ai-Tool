@@ -1,6 +1,6 @@
 ---
 source: gm/asking-claude.md
-sourceHash: 127ea20c0f95
+sourceHash: 2b5fb45e9e5c
 title: Spørg Claude
 description: Sådan bruger du Claude Desktop med værktøjet, gode forespørgsler, de færdige prompts, hvordan Claudes ændringer godkendes, og hvad Claude ikke kan.
 ---
@@ -199,6 +199,23 @@ ikke kun Claudes.
 Dashboardets **GM Actions**-kontakt beskytter kun dashboardet. Den stopper ikke Claude Desktop.
 
 > **Usikker? Spørg Claude.** Spørg GM coach: "Hvordan tjekker og fortryder jeg det, Claude ændrer i mit spil?"
+
+## Nyere ting, Claude kan
+
+- **Ændringskort.** I Claude Desktop viser et `plan-*`-tool (core, play, build og admin; prep-planer
+  er foreløbig kun tekst) et lille skrivebeskyttet kort med før og efter ved siden af tekstplanen.
+  Tekstplanen er der stadig, og Apply kræver stadig dit ja. Hosts uden kort viser kun tekst.
+- **Macros.** Bed Claude skrive en script-macro, så planlægger den en med `plan-macro`. Planen viser
+  hele scriptet og et almindeligt resumé, macroen laves GM-only, og Undo sletter den. Den er slået fra,
+  til du tænder **AI Tool: Macro forge (writes)**. Scriptet tjekkes mod en liste over tilladte ting,
+  men det er en beskyttelse mod fejl, ikke en mur: læs scriptet i planen, før du bekræfter.
+- **Etager.** På en scene med mere end ét Scene Level siger `get-token-positions`, hvilket niveau hver
+  token står på, og `measure-distance` tæller højden med. En flad scene virker som før.
+- **Room whisper.** `plan-room-setup` har en `whisper`-handling: en GM-only Region, der whisper et
+  rumkort til dig, når en token går ind. Teksten ligger i en GM-only journal, der laves i samme plan.
+  Spillerne ser ingenting. Den planlægges, bekræftes og fortrydes som de andre room setups.
+- **Undo og Prone.** Når du fortryder damage, der sendte en helt ned på 0 hit points, tager det nu også
+  den Prone af, der følger med Unconscious.
 
 ## Hvad Claude ikke kan
 

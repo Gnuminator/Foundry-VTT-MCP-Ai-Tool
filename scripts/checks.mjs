@@ -161,6 +161,8 @@ export const CHECKS = [
     'scripts/changelog-fold.test.mjs',
     'scripts/review-note.test.mjs',
     'scripts/lane-ready.test.mjs',
+    'scripts/build-lane-plugin.test.mjs',
+    'scripts/lane-plugin-install-check.test.mjs',
     'scripts/heavy-lock.test.mjs',
     'scripts/test-coverage-check.test.mjs',
     'scripts/planner-wake.test.mjs',
@@ -184,6 +186,7 @@ export const CHECKS = [
   nodeTest('game-day-brief', 'scripts', 'scripts/game-day-brief.test.mjs'),
   nodeTest('gamenight-watch', 'scripts', 'scripts/gamenight-watch.test.mjs'),
   nodeTest('gamenight-watch-pi', 'scripts', 'scripts/gamenight-watch-pi.test.mjs'),
+  nodeTest('pi-who-uses-what-stage', 'pi', 'scripts/pi/who-uses-what-stage.test.mjs'),
   nodeTest('pi-player-connector-stage', 'pi', 'scripts/pi/player-connector-stage.test.mjs'),
   nodeTest(
     'pi-player-connector-cloudflare',
@@ -237,6 +240,7 @@ export const CHECKS = [
     'scripts/pi/obsidian-plugin-stage.test.mjs',
     'scripts/pi/obsidian-plugin-guides.test.mjs'
   ),
+  nodeTest('pi-map-upscale-stage', 'pi', 'scripts/pi/map-upscale-stage.test.mjs'),
   nodeTest('pi-player-vault', 'pi', 'scripts/pi/player-vault.test.mjs'),
   nodeTest(
     'pi-seven-books',
@@ -508,10 +512,12 @@ export const PI_CONTAINER_MATRIX = [
   { name: 'stage 21', env: 'PI_STAGE21_CONTAINER', test: 'player-vault.test.mjs' },
   { name: 'stage 26', env: 'PI_STAGE26_CONTAINER', test: 'discord-game-server.test.mjs' },
   { name: 'stage 29', env: 'PI_STAGE29_CONTAINER', test: 'gamenight-watch-stage.test.mjs' },
+  { name: 'stage 35', env: 'PI_STAGE35_CONTAINER', test: 'who-uses-what-stage.test.mjs' },
   { name: 'stage 32', env: 'PI_STAGE32_CONTAINER', test: 'crash-guard-stage.test.mjs' },
   { name: 'stage 30', env: 'PI_STAGE30_CONTAINER', test: 'player-connector-stage.test.mjs' },
   { name: 'stage 31', env: 'PI_STAGE31_CONTAINER', test: 'gm-vault-peers.test.mjs' },
   { name: 'stage 33', env: 'PI_STAGE33_CONTAINER', test: 'obsidian-plugin-stage.test.mjs' },
+  { name: 'stage 34', env: 'PI_STAGE34_CONTAINER', test: 'map-upscale-stage.test.mjs' },
   { name: 'stage 16', env: 'PI_STAGE16_CONTAINER', test: 'board-status.test.mjs' },
   { name: 'stage 17', env: 'PI_STAGE17_CONTAINER', test: 'gh-runner.test.mjs' },
   {
@@ -598,7 +604,7 @@ export function runGroup(name, io = {}) {
  * discord-bot), the Pi setup doc, and the manifests and workflow. Pinned by scripts/pi/ci-pi-filter.test.mjs.
  */
 export const PI_GROUP_PATHS =
-  /^(scripts\/pi\/|scripts\/plan-b\/|scripts\/gamenight-watch|scripts\/checks\.mjs$|deploy\/|shared\/|packages\/discord-bot(\/|$)|docs\/dev\/PI-SETUP\.md$|package\.json$|package-lock\.json$|\.github\/workflows\/)/;
+  /^(scripts\/pi\/|scripts\/plan-b\/|scripts\/gamenight-watch|scripts\/who-uses-what\.mjs$|scripts\/checks\.mjs$|deploy\/|shared\/|packages\/discord-bot(\/|$)|docs\/dev\/PI-SETUP\.md$|package\.json$|package-lock\.json$|\.github\/workflows\/)/;
 
 /**
  * Whether the `pi` group has to run. Only a pull request that changed no Pi input skips it; every

@@ -14,6 +14,7 @@ import {
   planArrayMoves,
   insideRepo,
   refusals,
+  standardArrayChoice,
   worldRefusals,
 } from '../player-run.mjs';
 
@@ -172,4 +173,12 @@ test('main refuses an --out folder inside the repo before it opens a browser', a
       ]),
     /inside the repo/
   );
+});
+
+test('standardArrayChoice: picks Standard Array from the method list, or nothing when it already shows', () => {
+  const labels = ['Point Buy', 'Standard Array'];
+  assert.equal(standardArrayChoice(labels, 'Point Buy'), 1);
+  assert.equal(standardArrayChoice(labels, ''), 1);
+  assert.equal(standardArrayChoice(labels, 'Standard Array'), null);
+  assert.equal(standardArrayChoice(['Point Buy', 'Manual Entry'], 'Point Buy'), -1);
 });

@@ -180,7 +180,7 @@ function gate(o = {}) {
     if (key === 'git fetch -q') return { status: 128, stdout: '', stderr: 'not our ref' };
     if (key === 'git merge-base aitool/main' && args[2] !== 'HEAD')
       return ok(`${'b'.repeat(40)}\n`);
-    if (key === 'git diff --binary') return ok(`patch ${args.at(-1)}\n`);
+    if (key === 'git diff --binary') return ok(`patch ${args[args.indexOf('--') - 1]}\n`);
     if (key === 'git show -s') return ok(`${o.commitTimes?.[args[3]] ?? 1000}\n`);
     if (key === 'git patch-id --verbatim') {
       const id =
@@ -711,6 +711,7 @@ const NOT_CONTRACT = [
   'combat-change',
   'export-index',
   'foundry-setup',
+  'handout-press',
   'index',
   'library-index',
   'live-play',
@@ -3955,6 +3956,22 @@ test('carry: patchIdAt pins the submodule rendering in its diff', () => {
   patchIdAt(run, 'c'.repeat(40));
   const diff = seen.find(a => a[0] === 'diff') ?? [];
   assert.ok(diff.includes('--submodule=short') && diff.includes('--ignore-submodules=none'));
+});
+
+test('carry: patchIdAt leaves the generated tool pages out of the patch', () => {
+  /** @type {string[][]} */
+  const seen = [];
+  const run = (/** @type {string} */ _c, /** @type {string[]} */ args) => {
+    seen.push(args);
+    if (args[0] === 'cat-file') return { status: 0, stdout: '', stderr: '' };
+    if (args[0] === 'merge-base') return { status: 0, stdout: `${'b'.repeat(40)}\n`, stderr: '' };
+    if (args[0] === 'diff') return { status: 0, stdout: 'diff', stderr: '' };
+    return { status: 0, stdout: `${'a'.repeat(40)} ${'0'.repeat(40)}\n`, stderr: '' };
+  };
+  patchIdAt(run, 'c'.repeat(40));
+  const diff = seen.find(a => a[0] === 'diff') ?? [];
+  assert.ok(diff.includes(':(exclude)docs/reference/tools.md'));
+  assert.ok(diff.includes(':(glob,exclude)docs/reference/tools/*.md'));
 });
 
 test('carry: an entry for another patch listed after the carried one in a note refuses the carry', () => {

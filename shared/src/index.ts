@@ -1,5 +1,5 @@
 /**
- * @gnuminator/shared — public surface
+ * @gnuminator/shared: public surface
  *
  * Re-exports the complete shared vocabulary for the Foundry AI Tool:
  *   - Domain types and interfaces   (types.ts)
@@ -34,6 +34,7 @@ export * from './ownership.js';
 export * from './foundry-setup.js';
 export * from './character-sheet.js';
 export * from './actor-image.js';
+export * from './handout-press.js';
 export * from './player-portrait.js';
 export * from './combat-change.js';
 export * from './scene-change.js';

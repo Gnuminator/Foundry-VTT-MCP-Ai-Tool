@@ -77,6 +77,7 @@ const PINNED_RECORDLESS_WRITES = [
   'sendChatMessage',
   'showJournalPage',
   'uploadActorImage',
+  'uploadHandoutImage',
   'uploadPlayerPortrait',
 ];
 const PINNED_WRITES = [

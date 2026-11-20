@@ -55,6 +55,7 @@ import {
 import type { ToolResultLike } from './tool-router.js';
 import { ClientsFile, handleWhoUsesWhat } from './who-uses-what.js';
 import { TarokkaService } from './tarokka/service.js';
+import { handleDowntime } from './downtime/store.js';
 import { HandoutsService, handleRecordHandoutSeen } from './handouts/service.js';
 import { SecretTermsService } from './secret-terms.js';
 import { isBatchRider } from './guarded-write/rider-undo.js';
@@ -787,6 +788,22 @@ async function startBackend(): Promise<void> {
           if (msg.method === 'record_handout_seen') {
             try {
               const result: unknown = await handleRecordHandoutSeen(handouts, msg.params);
+              socket.write(`${JSON.stringify({ id: msg.id, result })}\n`);
+            } catch (e: unknown) {
+              const message = e instanceof Error ? e.message : 'Bad request';
+              socket.write(`${JSON.stringify({ id: msg.id, error: { message } })}\n`);
+            }
+
+            continue;
+          }
+
+          // The players' downtime inbox (I-180): the dashboard passes the user id it mapped from the
+          // player's link key; not a tool, never listed to Claude, never forwarded by the wrapper.
+          if (msg.method === 'downtime') {
+            try {
+              // Vault only, so it also works between sessions with no GM client joined.
+              const worldId = await worldIds.currentOrLastKnown();
+              const result: unknown = await handleDowntime(vaultStore, worldId, msg.params);
               socket.write(`${JSON.stringify({ id: msg.id, result })}\n`);
             } catch (e: unknown) {
               const message = e instanceof Error ? e.message : 'Bad request';

@@ -469,13 +469,15 @@ async function loadDiary() {
     diaryLoaded = true;
     $('me-diary').hidden = false;
     $('md-memory').hidden = out.persistent !== false;
+    diaryStatus('');
     renderDiary();
   } catch (err) {
     // No diary here (an older server, or no link): the section stays hidden. Any other failure
     // shows it with the reason; opening it again retries.
-    if (err && (err.status === 501 || err.status === 401)) return;
+    const status = err && err.status;
+    if (status === 501 || status === 401 || status === 404) return;
     $('me-diary').hidden = false;
-    diaryStatus((err && err.message) || 'Could not load your diary. Open it again to retry.');
+    diaryStatus(status ? err.message : 'Could not reach your diary. Open it again to retry.');
   }
 }
 

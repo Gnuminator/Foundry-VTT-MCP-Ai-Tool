@@ -497,7 +497,10 @@ export async function planCondition(
   if (!request.condition) throw new Error('Name the condition (prone, poisoned, exhaustion...)');
   const status = statusInfo(request.condition);
   const on = request.active !== false;
-  const rounds = on ? validRounds(request.rounds) : null;
+  // "Until the end of its turn" with no count means one round.
+  const rounds = on ? (validRounds(request.rounds) ?? (request.ends ? 1 : null)) : null;
+  const expiry = request.ends === 'turn-end' ? 'turnEnd' : 'turnStart';
+  const endsText = request.ends === 'turn-end' ? ', ends at the end of its turn' : '';
   if (rounds !== null && status.levels !== null) {
     throw new Error(`${status.name} is a level, not a timed condition: leave rounds out`);
   }
@@ -607,7 +610,8 @@ export async function planCondition(
     const data = await statusEffectData(status.id);
     if (rounds !== null) {
       data.duration = { ...rec(data.duration), value: rounds, units: 'rounds' };
-      extras.unshift(rounds === 1 ? 'for 1 round' : `for ${rounds} rounds`);
+      if (request.ends) (data.duration as Rec).expiry = expiry;
+      extras.unshift(`${rounds === 1 ? 'for 1 round' : `for ${rounds} rounds`}${endsText}`);
     }
     if (staleUuid) {
       ops.push({
@@ -619,7 +623,7 @@ export async function planCondition(
           'duration.units': rounds !== null ? 'rounds' : null,
           // The ended one still carries its old expiry: a revived untimed effect must not end at
           // the owner's next turn start, a timed one ends there (Foundry's default for a timed create).
-          'duration.expiry': rounds !== null ? 'turnStart' : null,
+          'duration.expiry': rounds !== null ? expiry : null,
           'duration.expired': false,
           start: freshStart(),
         },

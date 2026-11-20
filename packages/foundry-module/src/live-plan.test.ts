@@ -802,6 +802,19 @@ describe('condition on', () => {
     expect(plan.targets[0]?.line).toBe('Wolf: Poisoned (for 3 rounds)');
   });
 
+  it('ends a timed condition at the end of the target turn and says so', async () => {
+    addActor({ id: 'a1', name: 'Wolf' });
+    const plan = await planLiveChange(
+      hpRequest({ action: 'condition', condition: 'poisoned', ends: 'turn-end' })
+    );
+    expect((plan.ops[0] as any).data.duration).toMatchObject({
+      value: 1,
+      units: 'rounds',
+      expiry: 'turnEnd',
+    });
+    expect(plan.targets[0]?.line).toContain('for 1 round, ends at the end of its turn');
+  });
+
   it('refuses rounds on exhaustion and a bad number of rounds', async () => {
     addActor({ id: 'a1', name: 'Wolf' });
     await expect(

@@ -391,7 +391,11 @@ switch ($Action) {
           # stops the task (and everything under it) while it replaces files.
           $psExe = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
           $cmd = "`"$psExe`" -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$updater`" -Action Check -StateDir `"$StateDir`""
-          Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = $cmd } | Out-Null
+          $launch = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = $cmd }
+          if ($launch -and $launch.ReturnValue -ne 0) {
+            # update.log, not tunnel.log: cloudflared's error output replaces tunnel.log a moment later.
+            Add-Content -LiteralPath (Join-Path $StateDir 'update.log') -Value ('{0} auto-update check did not start (Win32_Process.Create returned {1})' -f (Get-Date -Format 's'), $launch.ReturnValue)
+          }
         } catch { }
       }
       $backoff = 5

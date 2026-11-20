@@ -30,7 +30,7 @@
   "packages/foundry-module/src/settings.ts": 1,
   "packages/foundry-module/src/test-support/foundry-mock/documents.ts": 1,
   "packages/mcp-server/.env.example": 2,
-  "packages/mcp-server/src/backend.ts": 4,
+  "packages/mcp-server/src/backend.ts": 3,
   "packages/mcp-server/src/config.ts": 1,
   "packages/mcp-server/src/control-target.ts": 1,
   "packages/mcp-server/src/foundry-connector.ts": 1,

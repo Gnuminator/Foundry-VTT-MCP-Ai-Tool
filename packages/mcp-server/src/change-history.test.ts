@@ -605,6 +605,17 @@ describe('buildActions', () => {
     // A Prone the GM sets a moment after an AI hit that left the hero standing is not the change's.
     const notDown = { ...ai, after: [val('system.attributes.hp.value', 7)] };
     expect(buildActions([notDown, prone])[0].followUps).toEqual([]);
+    // A second change that only leaves the hero at 0 HP did not add Prone, so it does not take
+    // the first change's Prone when that one arrives after the second change began.
+    const second = {
+      ...ai,
+      changeId: 'chg-y',
+      t: ai.t + 100,
+      before: [val('system.attributes.hp.value', 0)],
+    };
+    const [first, again] = buildActions([ai, second, { ...prone, t: ai.t + 400 }]);
+    expect(first).toMatchObject({ changeId: 'chg-x', followUps: [prone] });
+    expect(again).toMatchObject({ changeId: 'chg-y', followUps: [] });
   });
 
   it("does not swallow a person's own concentration end into an AI item delete across browsers, and files a re-deleted dependent under the latest change", () => {

@@ -56,7 +56,7 @@ const DOCUMENT_LOOKUP_TOOLS = 'list-characters, list-scenes or list-journals';
 
 import type { FoundryClient } from '../foundry-client.js';
 import type { Logger } from '../logger.js';
-import { riderUndoOps, type BatchRiderSource } from './rider-undo.js';
+import { removedRiderLines, riderUndoOps, type BatchRiderSource } from './rider-undo.js';
 import { mergeChangeHistory } from '../obsidian/audit-merge.js';
 import { changeNoteNames, changeNoteParts } from '../obsidian/change-note-parts.js';
 import type { AuditEntry, AuditLog, VaultOpRecord } from '../vault/audit.js';
@@ -1146,7 +1146,7 @@ export class GuardedWriteService {
           )
           .map(line => `undone: ${line}`),
         ...leftAlone,
-        ...riders.lines,
+        ...removedRiderLines(riders.lines, foundry?.results.slice(results.length)),
       ],
       undoOf: entry.changeId,
       ...(requestedBy ? { requestedBy } : {}),

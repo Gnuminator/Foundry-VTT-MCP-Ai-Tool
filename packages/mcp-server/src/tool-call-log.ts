@@ -14,6 +14,7 @@ import * as path from 'path';
 
 import { localDateKey } from './event-pump.js';
 import { GM_SKILLS, PLAYER_SKILL } from './skill-guide.js';
+import { RENAMED_TOOLS } from './param-aliases.js';
 import { toolSetOf } from './tool-sets.js';
 import type { ToolResultLike } from './tool-router.js';
 import { usageLogEnabled } from './usage-log.js';
@@ -145,7 +146,8 @@ export function buildCallLine(
   return {
     t: new Date(now).toISOString(),
     tool: tool.slice(0, MAX_TOOL_NAME),
-    set: toolSetOf(tool) ?? 'unknown',
+    // A renamed tool's old name still routes: it logs under the set of the tool it became.
+    set: toolSetOf(RENAMED_TOOLS[tool]?.to ?? tool) ?? 'unknown',
     ms: Math.max(0, Math.round(now - startedAt)),
     size: resultSize(result),
     ok: !!result && result.isError !== true,

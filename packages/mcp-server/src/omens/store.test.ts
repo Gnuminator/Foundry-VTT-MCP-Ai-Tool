@@ -91,6 +91,19 @@ describe('omens by post', () => {
     expect((await omens.list()).omens[0].status).toBe('sent');
   });
 
+  it('a late finish after a reopen and an edit labels the text that went out', async () => {
+    const a = await omens.add(ANNA, 'For Anna.');
+    await omens.setPlayer(ANNA, DISCORD_ANNA);
+    await omens.decide(a.id, 'approve');
+    await omens.claim(a.id);
+    await omens.decide(a.id, 'reopen', false, true);
+    await omens.edit(a.id, 'Changed after sending.');
+    await omens.finish(a.id, true);
+    const [sent] = (await omens.list()).omens;
+    expect(sent.status).toBe('sent');
+    expect(sent.text).toBe('For Anna.');
+  });
+
   it('a send that keeps failing stops after three tries and shows why', async () => {
     const a = await omens.add(ANNA, 'For Anna.');
     await omens.setPlayer(ANNA, DISCORD_ANNA);

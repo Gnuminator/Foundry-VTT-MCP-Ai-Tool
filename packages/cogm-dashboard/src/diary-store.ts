@@ -57,7 +57,9 @@ export class DiaryStore {
               e =>
                 ID_RE.test(e?.id ?? '') &&
                 typeof e.text === 'string' &&
-                typeof e.character === 'string'
+                typeof e.character === 'string' &&
+                typeof e.createdAt === 'string' &&
+                typeof e.updatedAt === 'string'
             )
           );
         }
@@ -71,6 +73,11 @@ export class DiaryStore {
         });
       }
     }
+  }
+
+  /** False without a state folder: the entries then vanish when the dashboard restarts. */
+  get persistent(): boolean {
+    return this.file !== null;
   }
 
   /** The player's entries, newest first. */

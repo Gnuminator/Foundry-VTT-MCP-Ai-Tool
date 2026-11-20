@@ -42,7 +42,7 @@ describe('34-map-upscale.sh as text', () => {
     assert.doesNotMatch(code, /-delete|rmdir|rm -rf|\bcp -r|\bcp -a/);
     const changes = stage.slice(
       stage.indexOf('# ---- changes start here'),
-      stage.indexOf('scale | switch | revert | scenes-check)')
+      stage.indexOf('scale | scale-revert | switch | revert | scenes-check)')
     );
     assert.doesNotMatch(changes, /^\s*(cp|mv|chmod|chown|install|mkdir|tee)\b/m);
     assert.match(changes, /runuser -u "\$FOUNDRY_USER" -- mkdir -p "\$dest"/);

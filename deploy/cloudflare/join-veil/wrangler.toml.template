@@ -1,0 +1,14 @@
+# Template only: no real hostname or account id in the repo. Copy it outside the repo as
+# wrangler.toml and fill in the placeholders.
+name = "foundry-join-veil"
+main = "worker.mjs"
+compatibility_date = "2026-11-01"
+# No public workers.dev address: the Worker is reachable only through the Access-protected route.
+workers_dev = false
+
+# Route only the join page. The Worker passes the request on to the origin (the tunnel host).
+# routes = [{ pattern = "<FOUNDRY_HOSTNAME>/join*", zone_name = "<ZONE>" }]
+
+# Kill switch: pass Foundry's own page through without removing the route.
+# [vars]
+# VEIL_OFF = "1"

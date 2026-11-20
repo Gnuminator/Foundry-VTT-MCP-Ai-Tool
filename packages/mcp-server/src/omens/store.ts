@@ -44,6 +44,8 @@ interface Omen {
   /** Failed send attempts so far, and why the last one failed. */
   attempts?: number;
   lastError?: string;
+  /** The text the bot was handed at claim, so a late "sent" after a reopen and edit labels what went out. */
+  claimedText?: string;
   /** Secret terms found in the text when it was drafted or edited (Tarokka cards and so on). */
   secretTerms?: string[];
 }
@@ -197,11 +199,12 @@ export class OmensStore {
         createdAt: omen.createdAt,
       };
       if (secretTerms) next.secretTerms = secretTerms;
+      if (omen.claimedText !== undefined) next.claimedText = omen.claimedText;
       return next;
     });
   }
 
-  /** Remove a draft, rejected or sent omen. */
+  /** Remove an omen that is not approved or sending (draft, rejected, failed or sent). */
   async remove(id: string): Promise<void> {
     const worldId = await this.worldIds.current();
     await this.store.update<OmensFile>(worldId, 'gm', OMENS_FILE, 1, current => {
@@ -278,7 +281,7 @@ export class OmensStore {
       const omens = { ...(current?.data?.omens ?? {}) };
       const omen = omens[id];
       if (omen?.status !== 'approved') return { omens };
-      omens[id] = { ...omen, status: 'sending' };
+      omens[id] = { ...omen, status: 'sending', claimedText: omen.text };
       claimed = { id, userId: omen.userId, discordId, text: omen.text };
       return { omens };
     });
@@ -295,8 +298,8 @@ export class OmensStore {
     return this.change(worldId, id, omen => {
       if (ok) {
         if (omen.status === 'sent') return omen;
-        const { attempts: _a, lastError: _e, ...rest } = omen;
-        return { ...rest, status: 'sent', sentAt: this.stamp() };
+        const { attempts: _a, lastError: _e, claimedText, ...rest } = omen;
+        return { ...rest, text: claimedText ?? omen.text, status: 'sent', sentAt: this.stamp() };
       }
       if (omen.status !== 'sending') return omen;
       const attempts = (omen.attempts ?? 0) + 1;

@@ -31,6 +31,27 @@ test('the fixture makes a scene, two named tokens and a party group, once', asyn
   }
 });
 
+test('a fixture scene left without tokens by an interrupted run gets them on the next run', async () => {
+  const fake = await startFake({ world: 'strahd-kit' });
+  try {
+    const dashboard = createDashboardClient({ base: fake.base });
+    await buildSceneFixture({ gm: fake.gm, dashboard });
+    fake.world.tokens.clear();
+    const logs = [];
+    const again = await buildSceneFixture({ gm: fake.gm, dashboard, log: l => logs.push(l) });
+    assert.equal(again.created, false);
+    assert.equal(again.tokenIds.length, 2);
+    assert.equal(fake.world.tokens.size, 2);
+    assert.ok(logs.includes('2 tokens placed'), logs.join(' | '));
+    // A third run finds both tokens and places nothing.
+    const third = await buildSceneFixture({ gm: fake.gm, dashboard });
+    assert.deepEqual([...third.tokenIds].sort(), [...again.tokenIds].sort());
+    assert.equal(fake.world.tokens.size, 2);
+  } finally {
+    await fake.close();
+  }
+});
+
 test('--target pi refuses the fixture command', () => {
   const o = parseArgs(['fixture', '--target', 'pi']);
   assert.throws(() => checkPiOptions(o), EnvError);

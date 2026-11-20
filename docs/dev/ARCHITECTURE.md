@@ -226,7 +226,9 @@ switch views `session_switches` and `feature_switches`, `session_notes`, `record
 never forwarded by the stdio wrapper),
 `downtime` (I-180; `{ action: list|save|delete, userId, name?, id?, text? }`, result `{ entries }`;
 the players' downtime inbox in the vault, one player's own entries per call),
-`live_sweep`, the player connector's `list_player_tools` and `player_tool`, `record_call` (the
+`live_sweep`, the player connector's `list_player_tools` and `player_tool`, the remote GM connector's
+`remote_gm_list` and `remote_gm_call` (`{ set, name?, args? }`; the dashboard's `/mcp/<set>` routes send
+the set from the path, the backend runs only tools that set lists), `record_call` (the
 dashboard tells the bridge about a `get-my-handouts` or `get-my-play-stats` call it answered
 itself, so the call log has it: `{ tool, userId, ms, size, ok }`, result `{ ok }`), and the two "who
 uses what" calls (D-146): `record_client` (`{ piece, who, install?, name?, version }`, result `{ ok }`;

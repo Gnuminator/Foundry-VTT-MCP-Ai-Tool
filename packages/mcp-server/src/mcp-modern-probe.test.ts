@@ -240,6 +240,15 @@ describe('MCP 2026-07-28 probe against dist/index.js', () => {
     const second = await w.toolNames();
     expect(first).toEqual(FAKE_TOOLS.map(t => t.name));
     expect(second).toEqual(first);
+    // The 2025 era stays clean on the other results too: no modern fields.
+    const called = await w.request('tools/call', { name: 'get-world-info', arguments: {} });
+    expect(called.error).toBeUndefined();
+    expect(called.result).not.toHaveProperty('resultType');
+    expect(called.result).not.toHaveProperty('ttlMs');
+    const prompts = await w.request('prompts/list');
+    expect(prompts.error).toBeUndefined();
+    expect(prompts.result).not.toHaveProperty('resultType');
+    expect(prompts.result).not.toHaveProperty('ttlMs');
   });
 
   it('works against a bridge that does not know hello, and an empty tool list is an error', async () => {

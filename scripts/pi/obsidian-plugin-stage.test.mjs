@@ -20,7 +20,7 @@ describe('33-obsidian-plugin.sh as text', () => {
   test('CHECK=1 needs no snapshot, every writing run does, and the snapshot comes before the first write', () => {
     assert.match(stage, /if \[ "\$check" != 1 \]; then\n {2}require_recent_snapshot/);
     const snap = stage.indexOf('require_recent_snapshot');
-    assert.ok(snap > 0 && snap < stage.indexOf('mkdir -p "$1"'));
+    assert.ok(snap > 0 && snap < stage.indexOf('mkdir -m 0750'));
     assert.ok(snap < stage.indexOf('cp "$1" "$t"'));
     // CHECK exits before any write
     assert.ok(stage.indexOf('exit 1\nfi') < stage.indexOf('# ---- changes start here'));

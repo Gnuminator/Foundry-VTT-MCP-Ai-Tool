@@ -21,6 +21,9 @@ let LOCK_FILE = lockFileFor(DEFAULT_CONTROL_PORT);
 
 let lockFd: number | null = null;
 
+// True only after this process took the lock; releaseLock never unlinks another process's file.
+let owned = false;
+
 export function acquireLock(port: number): boolean {
   LOCK_FILE = lockFileFor(port);
   try {
@@ -86,6 +89,8 @@ export function acquireLock(port: number): boolean {
       fs.fsyncSync(lockFd);
     } catch {}
 
+    owned = true;
+
     console.error(`Acquired backend lock with PID ${process.pid}`);
 
     return true;
@@ -105,7 +110,8 @@ export function releaseLock(): void {
       lockFd = null;
     }
 
-    if (fs.existsSync(LOCK_FILE)) {
+    if (owned && fs.existsSync(LOCK_FILE)) {
+      owned = false;
       try {
         fs.unlinkSync(LOCK_FILE);
       } catch {}

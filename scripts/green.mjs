@@ -181,10 +181,13 @@ function stamp(d) {
   return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
 }
 
+/** Options for a child that must not open a console window on Windows. */
+const HIDE = { encoding: /** @type {const} */ ('utf8'), windowsHide: true };
+
 /** The git top level of the current directory, else the directory itself. */
 function repoRoot() {
-  const r = spawnSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' });
-  return r.status === 0 && r.stdout.trim() ? path.resolve(r.stdout.trim()) : process.cwd();
+  const top = spawnSync('git', ['rev-parse', '--show-toplevel'], HIDE).stdout?.trim();
+  return top ? path.resolve(top) : process.cwd();
 }
 
 /**
@@ -195,7 +198,7 @@ function repoRoot() {
  */
 export function cleanTreeHash(cwd) {
   const git = (/** @type {string[]} */ args) =>
-    spawnSync('git', args, { cwd, encoding: 'utf8', windowsHide: true });
+    spawnSync('git', args, { cwd, ...HIDE });
   const status = git(['status', '--porcelain']);
   if (status.status !== 0 || status.stdout.trim() !== '') return null;
   const tree = git(['rev-parse', 'HEAD^{tree}']);
@@ -211,12 +214,7 @@ export function cleanTreeHash(cwd) {
  */
 export function worktreeTreeHash(cwd) {
   const git = (/** @type {string[]} */ args, /** @type {Record<string, string>} */ extra = {}) =>
-    spawnSync('git', args, {
-      cwd,
-      encoding: 'utf8',
-      windowsHide: true,
-      env: { ...process.env, ...extra },
-    });
+    spawnSync('git', args, { cwd, ...HIDE, env: { ...process.env, ...extra } });
   const real = git(['rev-parse', '--git-path', 'index']);
   if (real.status !== 0 || !real.stdout.trim()) return null;
   const index = path.join(os.tmpdir(), `green-index-${process.pid}-${Date.now()}`);
@@ -460,6 +458,7 @@ function spawnStep(step, fd, cwd) {
     const r = spawnSync(commandLine(step), {
       cwd,
       shell: true,
+      windowsHide: true,
       stdio: ['ignore', fd, fd],
       env: {
         ...stepEnvironment(process.env, PORTABLE_NODE_DIR),
@@ -1036,7 +1035,7 @@ export function quickSteps(files, cwd = process.cwd()) {
  * @returns {string[] | null} null when no base ref exists
  */
 export function changedFiles(cwd) {
-  const git = (/** @type {string[]} */ args) => spawnSync('git', args, { cwd, encoding: 'utf8' });
+  const git = (/** @type {string[]} */ args) => spawnSync('git', args, { cwd, ...HIDE });
   const base = ['aitool/main', 'origin/main', 'main'].find(
     b => git(['rev-parse', '--verify', '--quiet', b]).status === 0
   );

@@ -274,6 +274,20 @@ export class McpControlClient extends EventEmitter {
     return this.send('list_player_tools');
   }
 
+  /** One tool set's definitions and instructions, for `/mcp/<set>` (remote GM connector). */
+  async remoteGmList(set: string): Promise<unknown> {
+    return this.send('remote_gm_list', { set });
+  }
+
+  /**
+   * One GM tool call of one set (remote GM connector): `{ content, isError? }` as the stdio
+   * wrapper would return it. The set comes from the dashboard's path. A guarded write can wait
+   * up to about 4 minutes for Foundry, so the timeout is long.
+   */
+  async remoteGmCall(set: string, name: string, args: unknown): Promise<unknown> {
+    return this.send('remote_gm_call', { set, name, args }, 270_000);
+  }
+
   /**
    * One player tool for a verified Foundry user (D-136): `{ content, isError? }`. The user id
    * comes from the dashboard's login check, never from the tool arguments. A control method.

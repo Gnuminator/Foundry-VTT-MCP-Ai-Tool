@@ -70,9 +70,12 @@ const backlog = (items, extra = {}) =>
  */
 function fakes(o) {
   const calls = { gh: [], gate: [], backlog: [], post: [], log: [], prepare: [] };
+  // A fixed text stands for the vault file: a `progress --if-ready <pr>@<head>` write replaces that
+  // ready line, as backlog.mjs does (a ready line written afterwards goes through `setText`).
+  let current = typeof o.text === 'string' ? o.text : null;
   /** @type {import('./merge-runner.mjs').Deps} */
   const deps = {
-    readBacklog: () => (typeof o.text === 'function' ? o.text() : o.text),
+    readBacklog: () => (typeof o.text === 'function' ? o.text() : (current ?? o.text)),
     gh: args => {
       calls.gh.push(args);
       if (args[0] === 'run') return { status: 0, stdout: o.main ?? GREEN, stderr: '' };
@@ -116,12 +119,20 @@ function fakes(o) {
     },
     backlog: args => {
       calls.backlog.push(args);
+      const at = args.indexOf('--if-ready');
+      if (args[0] === 'progress' && at > 0 && current !== null) {
+        const head = args[at + 1].split('@')[1];
+        current = current
+          .split('\n')
+          .map(l => (l.startsWith('- progress:') && l.includes(`head ${head}`) ? `- progress: ${args[2]}` : l))
+          .join('\n');
+      }
       return { status: 0, stdout: '', stderr: '' };
     },
     post: text => calls.post.push(text),
     log: line => calls.log.push(line),
   };
-  return { deps, calls };
+  return { deps, calls, setText: (/** @type {string} */ t) => (current = t) };
 }
 
 const open = (head = SHA) => ({ state: 'OPEN', headRefOid: head });
@@ -251,6 +262,38 @@ test('a refusal writes the reason as a progress line and posts one line; it is n
   assert.doesNotMatch(f.calls.backlog[0][2], /\bmerged\b/i);
   round(f.deps, tried);
   assert.equal(f.calls.gate.length, 1, 'the same head is not gated twice in one run');
+});
+
+test('a ready line rewritten for the same head after a refusal is gated again, without a restart', () => {
+  const f = fakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: open() },
+    gates: { 5: { status: 1, stdout: 'lane:merge: refused because review: no note says Merge' } },
+  });
+  const tried = new Set();
+  round(f.deps, tried);
+  assert.equal(f.calls.gate.length, 1);
+  assert.doesNotMatch(f.deps.readBacklog() ?? '', /ready, head/, 'the refusal replaced the line');
+  round(f.deps, tried);
+  assert.equal(f.calls.gate.length, 1, 'no ready line, nothing to gate');
+  // The lane fixes the cause and writes the ready line for the very same head.
+  f.setText(backlog([['one', `PR #5 ready, head ${SHA}, review r.md`]]));
+  round(f.deps, tried);
+  assert.equal(f.calls.gate.length, 2, 'the rewritten line is gated again');
+});
+
+test('a refusal whose progress write failed keeps the head in tried (the old ready line is still there)', () => {
+  const f = fakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: open() },
+    gates: { 5: { status: 1, stdout: 'lane:merge: refused because review: no note says Merge' } },
+  });
+  f.deps.backlog = () => ({ status: 1, stdout: '', stderr: 'locked' });
+  const tried = new Set();
+  round(f.deps, tried);
+  round(f.deps, tried);
+  assert.equal(f.calls.gate.length, 1, 'not gated twice');
+  assert.ok(tried.has(`5@${SHA}`));
 });
 
 test('a refusal for being behind main: the refreshed head gets a new ready line with the same review; a failed refresh refuses', () => {

@@ -128,6 +128,7 @@ export function relaunchFromMain(o) {
   const r = spawn(execPath, [file, ...argv], {
     cwd: o.cwd ?? process.cwd(),
     stdio: 'inherit',
+    windowsHide: true,
     env: { ...env, [ENV_FROM_MAIN]: '1', [ENV_FETCHED]: '1' },
   });
   // A child that was killed (a signal, or a caller's timeout) has no exit status; say so.

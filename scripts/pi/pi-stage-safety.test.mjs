@@ -740,11 +740,15 @@ ${failMv}
       return { root, prelude };
     };
     const stage2 = read('scripts/pi/remote/2-node.sh');
-    const go = (fail, root, prelude) =>
-      spawnSync('bash', ['-c', `source "${lib}"\n${prelude}\n${stage2}`], {
+    // As a file, like stage 3, not a `bash -c` string (no command text is built from the paths).
+    const go = (fail, root, prelude) => {
+      const scriptFile = join(root, 'stage2.sh');
+      writeFileSync(scriptFile, `source "${lib}"\n${prelude}\n${stage2}`);
+      return spawnSync('bash', [posix(scriptFile)], {
         encoding: 'utf8',
         env: { ...process.env, FAIL_MV: fail ? '1' : '0' },
       });
+    };
     const version = file => readFileSync(file, 'utf8').match(/v24\.\d+\.\d+/)?.[0];
 
     test('control: without a failure the new Node is in place and the old one is kept as .prev', () => {

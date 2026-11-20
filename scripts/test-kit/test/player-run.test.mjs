@@ -8,6 +8,7 @@ import {
   ABILITY_KEYS,
   DEFAULTS,
   TARGET,
+  chooseStandardArrayMethod,
   main,
   nextArrayMove,
   parseArgs,
@@ -181,4 +182,82 @@ test('standardArrayChoice: picks Standard Array from the method list, or nothing
   assert.equal(standardArrayChoice(labels, ''), 1);
   assert.equal(standardArrayChoice(labels, 'Standard Array'), null);
   assert.equal(standardArrayChoice(['Point Buy', 'Manual Entry'], 'Point Buy'), -1);
+});
+
+/**
+ * A fake Playwright page for the ability method drop-down: a select with a current label and a list of
+ * options. It records every click and every key press, and "Standard Array" sticks when its option is clicked.
+ * @param {{ shows: string, labels: string[], present?: boolean, sticks?: boolean }} o
+ */
+function fakeMethodPage({ shows, labels, present = true, sticks = true }) {
+  const events = [];
+  let current = shows;
+  const option = {
+    filter: () => ({
+      first: () => ({
+        click: async () => {
+          events.push('click option');
+          if (sticks) current = 'Standard Array';
+        },
+      }),
+    }),
+  };
+  const select = {
+    count: async () => (present ? 1 : 0),
+    locator: sel => {
+      if (sel === '.selected-option') {
+        return {
+          innerText: async () => current,
+          click: async () => events.push('click selected'),
+        };
+      }
+      if (sel === '.option') return option;
+      if (sel === '.option .option-label') return { allInnerTexts: async () => labels };
+      throw new Error(`unexpected selector ${sel}`);
+    },
+  };
+  const page = { keyboard: { press: async key => events.push(`press ${key}`) } };
+  const studio = { rootOf: () => ({ locator: () => select }) };
+  return { page, studio, events };
+}
+
+const noWait = async () => {};
+
+test('chooseStandardArrayMethod: no drop-down means a single method and no clicks', async () => {
+  const f = fakeMethodPage({ shows: '', labels: [], present: false });
+  assert.equal(await chooseStandardArrayMethod(f.page, f.studio, noWait), 'single method');
+  assert.deepEqual(f.events, []);
+});
+
+test('chooseStandardArrayMethod: Standard Array already showing opens nothing', async () => {
+  const f = fakeMethodPage({ shows: 'Standard Array', labels: ['Point Buy', 'Standard Array'] });
+  assert.equal(await chooseStandardArrayMethod(f.page, f.studio, noWait), 'already Standard Array');
+  assert.deepEqual(f.events, []);
+});
+
+test('chooseStandardArrayMethod: another method showing picks Standard Array and never presses Escape', async () => {
+  const f = fakeMethodPage({ shows: 'Point Buy', labels: ['Point Buy', 'Standard Array'] });
+  assert.equal(await chooseStandardArrayMethod(f.page, f.studio, noWait), 'picked Standard Array');
+  assert.deepEqual(f.events, ['click selected', 'click option']);
+});
+
+test('chooseStandardArrayMethod: a list without Standard Array is closed by a click, not Escape, then throws', async () => {
+  const f = fakeMethodPage({ shows: 'Point Buy', labels: ['Point Buy', 'Manual Entry'] });
+  await assert.rejects(
+    () => chooseStandardArrayMethod(f.page, f.studio, noWait),
+    /Standard Array is not offered/
+  );
+  assert.deepEqual(f.events, ['click selected', 'click selected']);
+});
+
+test('chooseStandardArrayMethod: a pick that does not stick throws with what the tab shows', async () => {
+  const f = fakeMethodPage({
+    shows: 'Point Buy',
+    labels: ['Point Buy', 'Standard Array'],
+    sticks: false,
+  });
+  await assert.rejects(
+    () => chooseStandardArrayMethod(f.page, f.studio, noWait),
+    /did not stick.*"Point Buy"/
+  );
 });

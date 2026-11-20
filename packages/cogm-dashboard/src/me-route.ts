@@ -423,7 +423,8 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
   }
   app.get('/api/me/diary', (req: Request, res: Response) => {
     const who = diaryUser(req, res);
-    if (who && diary) res.json({ entries: diary.list(who.world, who.userId) });
+    if (who && diary)
+      res.json({ entries: diary.list(who.world, who.userId), persistent: diary.persistent });
   });
   app.post('/api/me/diary', (req: Request, res: Response) => {
     const who = diaryUser(req, res);

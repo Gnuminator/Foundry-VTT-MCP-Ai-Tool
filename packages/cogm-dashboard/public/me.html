@@ -39,11 +39,15 @@
         table page and other players never see them. Ask your Claude helper to draft one, then edit
         it here.
       </p>
+      <p class="muted" id="md-memory" hidden>
+        This table keeps diaries in memory only: they are lost when the dashboard restarts.
+      </p>
       <form id="md-form">
-        <input id="md-char" aria-label="Character" maxlength="80" placeholder="Character" />
+        <label for="md-char">Character</label>
+        <input id="md-char" maxlength="80" placeholder="Character" />
+        <label for="md-text">Diary entry</label>
         <textarea
           id="md-text"
-          aria-label="Diary entry"
           rows="8"
           maxlength="4000"
           placeholder="Paste or write an entry"

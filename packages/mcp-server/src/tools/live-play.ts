@@ -228,7 +228,7 @@ export class LivePlayTools {
               type: 'string',
               enum: ['turn-start', 'turn-end'],
               description:
-                'condition with a timer: expire at the start (default) or the end of the target\'s own turn. "Until the end of its next turn" is ends turn-end (rounds defaults to its next turn: this round if it has not acted yet, else the next). The plan text states it.',
+                'condition with a timer: expire at the start (default) or the end of the target\'s own turn. "Until the end of its next turn" is ends turn-end (rounds defaults to its next turn: this round if it has not acted yet, else the next). The plan text states it. Apply the plan before the turn order moves on: a plan applied later can end at once.',
             },
             conditions: {
               type: 'array',

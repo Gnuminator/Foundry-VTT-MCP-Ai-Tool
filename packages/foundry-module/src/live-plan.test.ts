@@ -815,6 +815,53 @@ describe('condition on', () => {
     expect(plan.targets[0]?.line).toContain('for 1 round, ends at the end of its turn');
   });
 
+  describe('ends in a fight', () => {
+    function fightWithWolfAt(wolfIdx: number, turn: number): void {
+      const wolf = addActor({ id: 'a1', name: 'Wolf' });
+      const ids = ['c0', 'c1', 'c2'];
+      world.setCombat({
+        turn,
+        turns: ids.map(id => ({ id })),
+        combatants: ids.map((id, i) => ({
+          id,
+          name: `C${i}`,
+          actor: i === wolfIdx ? wolf : { uuid: `Actor.other${i}` },
+        })),
+      });
+    }
+
+    it('counts this round and stamps the target when its turn is still to come', async () => {
+      fightWithWolfAt(2, 0);
+      const plan = await planLiveChange(
+        hpRequest({ action: 'condition', condition: 'poisoned', ends: 'turn-end' })
+      );
+      const data = (plan.ops[0] as any).data;
+      expect(data.duration).toMatchObject({ value: 0, units: 'rounds', expiry: 'turnEnd' });
+      expect(data.start.combatant).toBe('c2');
+      expect(plan.targets[0]?.line).toBe(
+        'Wolf: Poisoned (this round, ends at the end of its turn)'
+      );
+    });
+
+    it('counts one round when the target has already had its turn', async () => {
+      fightWithWolfAt(0, 1);
+      const plan = await planLiveChange(
+        hpRequest({ action: 'condition', condition: 'poisoned', ends: 'turn-end' })
+      );
+      const data = (plan.ops[0] as any).data;
+      expect(data.duration).toMatchObject({ value: 1, expiry: 'turnEnd' });
+      expect(data.start.combatant).toBe('c0');
+    });
+
+    it('keeps an explicit number of rounds', async () => {
+      fightWithWolfAt(2, 0);
+      const plan = await planLiveChange(
+        hpRequest({ action: 'condition', condition: 'poisoned', ends: 'turn-end', rounds: 2 })
+      );
+      expect((plan.ops[0] as any).data.duration).toMatchObject({ value: 2, expiry: 'turnEnd' });
+    });
+  });
+
   it('refuses rounds on exhaustion and a bad number of rounds', async () => {
     addActor({ id: 'a1', name: 'Wolf' });
     await expect(

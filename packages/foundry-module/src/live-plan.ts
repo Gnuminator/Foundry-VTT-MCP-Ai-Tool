@@ -481,6 +481,27 @@ function freshStart(): Rec {
   };
 }
 
+/**
+ * For "until its next turn": the actor's combatant in the running fight, which Foundry must stamp
+ * as the effect's holder (it counts the expiry at that combatant's turn, not the current one's), and
+ * how many round changes lie before that turn. 0 when the turn is still to come this round (the
+ * effect then ends in this round), 1 when it has passed or is the current one. Null outside a fight
+ * or when the actor is not in it.
+ */
+function turnHolder(actor: LiveActor): { combatantId: string; rounds: 0 | 1 } | null {
+  const g = rec(game);
+  const fight = rec(rec(g?.combats)?.active) ?? rec(g?.combat);
+  if (!fight) return null;
+  const mine = fightCombatants().find(c => asActor(c.actor)?.uuid === actor.uuid);
+  const id = str(mine?.id);
+  if (!id) return null;
+  const turns = contentsOf(fight.turns).map(rec);
+  const idx = turns.findIndex(t => str(t?.id) === id);
+  const turn = num(fight.turn);
+  if (idx < 0 || turn === null) return null;
+  return { combatantId: id, rounds: idx > turn ? 0 : 1 };
+}
+
 /** A whole number of rounds from 1 to 100, null when the request has none. */
 function validRounds(rounds: number | undefined): number | null {
   if (rounds === undefined) return null;
@@ -498,10 +519,10 @@ export async function planCondition(
   const status = statusInfo(request.condition);
   const on = request.active !== false;
   // "Until the end of its turn" with no count means one round.
-  const rounds = on ? (validRounds(request.rounds) ?? (request.ends ? 1 : null)) : null;
+  const baseRounds = on ? (validRounds(request.rounds) ?? (request.ends ? 1 : null)) : null;
   const expiry = request.ends === 'turn-end' ? 'turnEnd' : 'turnStart';
   const endsText = request.ends === 'turn-end' ? ', ends at the end of its turn' : '';
-  if (rounds !== null && status.levels !== null) {
+  if (baseRounds !== null && status.levels !== null) {
     throw new Error(`${status.name} is a level, not a timed condition: leave rounds out`);
   }
   const ops: GuardedOp[] = [];
@@ -556,10 +577,14 @@ export async function planCondition(
     }
     if (hasStatus(actor, status.id)) {
       skip(
-        `is already ${status.name}${rounds !== null ? ' (remove it first to put it on for a time)' : ''}`
+        `is already ${status.name}${baseRounds !== null ? ' (remove it first to put it on for a time)' : ''}`
       );
       continue;
     }
+    // Without a count, "until the end of its turn" counts from the target's own place in the order.
+    const holder = request.ends && request.rounds === undefined ? turnHolder(actor) : null;
+    const rounds = holder ? holder.rounds : baseRounds;
+    const start = holder ? { ...freshStart(), combatant: holder.combatantId } : freshStart();
     const extras: string[] = [];
     // An expired or disabled effect leaves actor.statuses but keeps dnd5e's fixed id, so a create
     // would clash with it: bring that effect back with an update instead.
@@ -611,7 +636,10 @@ export async function planCondition(
     if (rounds !== null) {
       data.duration = { ...rec(data.duration), value: rounds, units: 'rounds' };
       if (request.ends) (data.duration as Rec).expiry = expiry;
-      extras.unshift(`${rounds === 1 ? 'for 1 round' : `for ${rounds} rounds`}${endsText}`);
+      if (holder) data.start = start;
+      const span =
+        rounds === 0 ? 'this round' : rounds === 1 ? 'for 1 round' : `for ${rounds} rounds`;
+      extras.unshift(`${span}${endsText}`);
     }
     if (staleUuid) {
       ops.push({
@@ -625,7 +653,7 @@ export async function planCondition(
           // the owner's next turn start, a timed one ends there (Foundry's default for a timed create).
           'duration.expiry': rounds !== null ? expiry : null,
           'duration.expired': false,
-          start: freshStart(),
+          start,
         },
       });
       extras.push(`brings back the ${isExpired(stale ?? {}) ? 'expired' : 'inactive'} one`);

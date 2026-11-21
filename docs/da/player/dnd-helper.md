@@ -1,6 +1,6 @@
 ---
 source: player/dnd-helper.md
-sourceHash: 0f98d5edc5a0
+sourceHash: 07573e52d354
 title: D&D-hjælperen til spillere
 description: Installer Claude Desktop og din Foundry-spillerconnector, og lav, level op og tjek så din egen karakter og slå regler op, trin for trin.
 ---
@@ -70,7 +70,7 @@ den og spring trin 2 og 3 over. Der er ingen fil, intet Client ID og ingen secre
 også med den gratis Claude-plan og i Claude på nettet.
 
 1. Åbn din **My character**-side, åbn **Your Claude connector** og tryk **Copy** ved adressen.
-2. Åbn **Settings**, **Connectors** i Claude, og vælg "Add custom connector". Indsæt adressen.
+2. Åbn **Settings**, **Plugins** i Claude, og vælg "Add custom connector". Indsæt adressen.
    Lad eventuelle avancerede felter stå tomme. Tryk **Add** og derefter **Connect**.
 3. En Cloudflare-side spørger efter din e-mail. Brug den e-mail, som den, der kører værktøjet,
    har til dig. Cloudflare sender dig en kode: skriv den ind. Derefter siger Claude, at den er
@@ -112,8 +112,8 @@ Spørger din browser, om den skal beholde en fil, den ikke kender, så vælg **K
 installér den på samme måde, og når en formular spørger, så indsæt dit **Client ID** i det første
 felt og din **Client Secret** i det andet (**My character**-siden har begge med kopiér-knapper).
 
-For at tjekke, at det virker, så åbn en ny chat og klik på **+** eller værktøjsikonet ved
-beskedfeltet. Du skulle gerne se **Foundry** (eller **foundry-player**) med ni tools (de syv
+For at tjekke, at det virker, så åbn en ny chat og klik på **+** ved
+beskedfeltet, så **Plugins**. Du skulle gerne se **Foundry** (eller **foundry-player**) med ni tools (de syv
 bordtools, **get-player-skill-guide** og **get-helper-guide**). Gør du det, sidder stikket i. Hjælperens instrukser følger med
 extension, så du skulle ikke behøve at tilføje en skill eller slå Code execution til. Følger Claude
 ikke hjælperens trin, så se Fejlfinding.

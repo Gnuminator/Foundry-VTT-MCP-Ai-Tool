@@ -31,7 +31,7 @@ This is one of the [one-time setups](README.md#one-time-setups). For a new insta
 4. Go on. A small window asks for the **Client ID**, then the **secret**. Paste each one and press
    Enter. The secret is hidden while you type; that is normal. Nothing you paste is shown or saved
    anywhere except in a locked store that only your Windows user can open.
-5. Finish. Start Claude Desktop. Click the **+** in the chat box, choose **Connectors**, and switch
+5. Finish. Start Claude Desktop. Click the **+** in the chat box, choose **Plugins**, and switch
    on the ones you want (`foundry-mcp` is Core; Play and Prep are the ones you will use most).
    A connector that is switched off is not available in that chat. Then do "Stop the Allow
    questions" below once, so Claude does not ask "Allow?" on every tool call.
@@ -45,7 +45,7 @@ The address page is already filled in, but the installer asks for the Client ID 
 keep the key you were given and paste both.
 
 Do this when Claude seems to be missing tools that the guides mention. An old client hides newer
-tools without any error. To check: make sure the Prep connector is switched on (**+**, then **Connectors**), then in a new
+tools without any error. To check: make sure the Prep connector is switched on (the **+** menu, then **Plugins**), then in a new
 chat ask Claude _"Run get-preflight"_. The row **Claude Desktop connectors are up to date** is green
 when you are current. A warning means an old client is still connected: quit Claude Desktop from the
 tray, run the newest installer, start Claude Desktop again and ask once more. If the row says no

@@ -17,7 +17,7 @@ address Cloudflare uses for the TV. The tool admin sets up the PC and the folder
 
 ## 1. Make the Table player
 
-1. In Claude Desktop click the **+** in the chat box, **Connectors**, and switch on
+1. In Claude Desktop click the **+** in the chat box, **Plugins**, and switch on
    **foundry-mcp-admin**.
 2. Ask: _Plan a Table user for the TV._ Claude shows a plan: one new player named Table, no password.
 3. Read it, then confirm. It shows in **Recent Changes** with an **Undo**.

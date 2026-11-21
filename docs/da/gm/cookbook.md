@@ -1,6 +1,6 @@
 ---
 source: gm/cookbook.md
-sourceHash: f45f66610d84
+sourceHash: 9a399f82305d
 title: Cookbook
 description: Færdige forespørgsler og klik til GM'en, grupperet efter det øjeblik du har brug for dem (før, under og efter en session), med hvad der sker og ét tip til hver.
 ---
@@ -280,7 +280,7 @@ Det kræver, at **play**-settet er tændt.
 ## Når en opskrift går galt
 
 - **"Switch on the play set"** (eller et andet set): Claude mangler et værktøj, der er slukket. Tænd
-  det i **+**-menuen, **Connectors**, og spørg igen.
+  det i **+**-menuen, så **Plugins**, og spørg igen.
 - **Claude vælger det forkerte token:** nævn det præcist ("Wolf 2") eller vælg det i Tool Runner.
 - **En plan bliver afvist:** dens funktionskontakt er slukket, planen er mere end 15 minutter gammel,
   eller tingen er ændret i Foundry siden. Bed om en ny plan.

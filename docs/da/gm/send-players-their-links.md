@@ -1,6 +1,6 @@
 ---
 source: gm/send-players-their-links.md
-sourceHash: ef09307b407d
+sourceHash: 573577bf8b57
 title: Send spillerne deres links
 description: Sådan giver du hver spiller adressen til spillersiden, deres eget private My character-link og adressen til D&D-hjælperen.
 ---
@@ -30,7 +30,7 @@ samme email-kode som i Foundry.
 ## Adressen til D&D-hjælperen
 
 Der er intet at sende. Nederst på My character viser kortet **Your Claude connector** (tryk på det for at åbne det) web-adressen til
-D&D-hjælperen. Spilleren kopierer den, åbner Claude, Settings, Connectors, **Add custom connector**,
+D&D-hjælperen. Spilleren kopierer den, åbner Claude, Settings, Plugins, **Add custom connector**,
 indsætter den og trykker **Connect**, og logger så ind med sin egen email (Cloudflare mailer en kode).
 Mangler kortet eller web-adressen, er hjælperen ikke sat op til den spiller endnu: spørg Gnuminator.
 

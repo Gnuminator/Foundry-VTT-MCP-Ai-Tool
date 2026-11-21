@@ -41,7 +41,7 @@ running inside it.
 
 ### 3. Start Claude Desktop
 
-- [ ] Start Claude Desktop. In the **Search and tools** menu the five Foundry AI Tool connectors
+- [ ] Start Claude Desktop. In the **+** menu, then **Plugins**, the five Foundry AI Tool connectors
       (Core, Play, Prep, Build, Admin) are listed; switch Core on.
       **(Anything that was running inside Claude Desktop ended when you quit it: expected.)**
 

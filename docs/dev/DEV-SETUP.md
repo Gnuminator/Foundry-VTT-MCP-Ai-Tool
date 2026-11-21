@@ -5,8 +5,8 @@ A `.vscode/` config ships with the repo, so most of this is automatic.
 
 ## 1. Open the project
 
-- **File → Open Folder** → select the repo root (the folder that contains `package.json`, for example
-  `Foundry VTT AI Tool`). _Not_ a parent folder such as `Projects`.
+- **File → Open Folder** → select the repo root **`foundry-vtt-mcp`** (the folder that contains
+  `package.json`). _Not_ the parent "Foundry VTT MCP" folder.
 - When prompted **"Do you trust the authors?"** → **Yes / Trust** (it's your repo; required for the
   extensions, tasks, and the TypeScript server to run).
 
@@ -15,7 +15,7 @@ A `.vscode/` config ships with the repo, so most of this is automatic.
 VS Code reads `.vscode/extensions.json` and offers the recommended set in a notification, and you've already
 installed them. The repo's `.vscode/settings.json` then configures them automatically:
 
-- **Prettier** is the default formatter with **format-on-save** (matches `.prettierrc` and the lint-staged hook).
+- **Prettier** is the default formatter with **format-on-save** (matches `.prettierrc` + CI's `format:check`).
 - **ESLint** auto-fixes on save and resolves the right config per workspace (`eslint.config.mjs` at the repo root).
 - **TypeScript** uses the workspace version (`node_modules/typescript`). If VS Code prompts
   **"Use Workspace Version"**, accept it. (Or: open any `.ts` file → `Ctrl+Shift+P` →
@@ -25,24 +25,24 @@ No per-extension tweaking needed beyond that.
 
 ## 3. Verify the toolchain (integrated terminal)
 
-Open the terminal with **`` Ctrl+` ``** (it opens at the repo root). Each worktree needs its own
-install, so start with:
+Open the terminal with **`` Ctrl+` ``** (it opens at the repo root) and confirm green:
 
 ```bash
-npm ci                    # a fresh clone or a new worktree
-npm run green -- --quick  # what you touched, against aitool/main
+npm install            # only needed on a fresh clone; skip if node_modules already exists
+npm run build          # composite build of all workspaces
+npm run typecheck      # strict TS, all workspaces
+npm run lint:ratchet   # any ESLint error fails (baseline 0)
+npm run emdash:ratchet # em dashes may only go down
+npm run line:ratchet   # source files over 1,000 lines may not grow (--update lowers, --except <file> "<reason>" for a named exception)
+CI=true npm test       # every workspace
+npm run docs:lint      # markdownlint (.markdownlint-cli2.jsonc)
+npm run docs:links     # every relative link and #anchor in the tracked Markdown
+npm run changelog:check # the CHANGELOG fragments in changelog.d/
+node scripts/mcp-schema-smoke-test.mjs
+node scripts/standalone-smoke-test.mjs
+node scripts/cogm-split-smoke-test.mjs
+node scripts/validate-manifest.js
 ```
-
-`npm run green -- --quick` is the check to run before a pull request. It diffs your branch against
-`aitool/main` and runs the typecheck, unit tests, ESLint, markdownlint and link checks for the
-packages and docs you changed. The full `npm run green` runs everything CI's `build-test` job runs,
-in the same order, and takes a long time; use it only when CI cannot tell you (Windows-only
-behaviour, CI down). `npm run green -- --list` prints the step names, `--only a,b` runs some of them,
-and `npm run green -- --cloud` runs CI on GitHub for the pushed commit. The CI result on the pull
-request head is the real green.
-
-Two baselines can fail a pull request when your change makes a count drop. Lower them with
-`npm run lint:ratchet -- --update` and `npm run emdash:ratchet -- --update`.
 
 If a workspace build emits nothing, delete stale `*.tsbuildinfo` and rebuild. The **Vitest** extension
 also gives you a Testing sidebar: run or debug any test inline once it indexes.

@@ -48,20 +48,20 @@ deploy/
 
 ## Quick orientation
 
-| Goal                                    | Start with                                                                       |
-| --------------------------------------- | -------------------------------------------------------------------------------- |
-| Understand the full remote topology     | `docs/dev/REMOTE-ACCESS.md`                                                      |
-| Run bridge + dashboard on a Linux host  | `Dockerfile` + `docker-compose.yml.template`                                     |
-| Set up the Cloudflare Tunnel            | `cloudflare/config.yml.template` + `docs/history/REMOTE-ACCESS-SCAFFOLD.md` (§3) |
-| Configure Cloudflare Access email gates | `cloudflare/access-policy.md`                                                    |
-| Keep the bridge alive on Windows today  | `windows/install-service.md`                                                     |
+| Goal                                    | Start with                                                        |
+| --------------------------------------- | ----------------------------------------------------------------- |
+| Understand the full remote topology     | `docs/dev/REMOTE-ACCESS.md`                                       |
+| Run bridge + dashboard on a Linux host  | `Dockerfile` + `docker-compose.yml.template`                      |
+| Set up the Cloudflare Tunnel            | `cloudflare/config.yml.template` + `docs/dev/REMOTE-ACCESS.md §3` |
+| Configure Cloudflare Access email gates | `cloudflare/access-policy.md`                                     |
+| Keep the bridge alive on Windows today  | `windows/install-service.md`                                      |
 
 ---
 
 ## Seams (what you fill in)
 
 Before any of these templates can run, every `<PLACEHOLDER>` must be replaced with a real
-value. The complete list is in `docs/history/REMOTE-ACCESS-SCAFFOLD.md` §5 (seams list). Short summary:
+value. The complete list is in `docs/dev/REMOTE-ACCESS.md §5 (seams list)`. Short summary:
 
 - `<TUNNEL_UUID>`: from `cloudflared tunnel create cogm`
 - `<YOUR_DOMAIN>`: the domain on your Cloudflare account (e.g. `example.com`)

@@ -7,8 +7,6 @@
  * This reads every bold name that sits next to a UI word (button, tab, panel, drawer, switch, ...) or
  * after "Click" / "Press" / "Tap", and looks for it among the strings of the dashboard source
  * (packages/cogm-dashboard: the React app, the player page, the server-rendered pages). A name that is
- * It also reads a quoted message that follows "says", "shows" or "reads" (and the Danish "viser",
- * "står", "siger"). A name that is
  * in no string must be listed in scripts/docs-ui-exceptions.json (Foundry's own buttons and the like),
  * with the reason.
  *
@@ -29,9 +27,6 @@ const UI_WORDS =
   'button|buttons|tab|tabs|panel|panels|drawer|drawers|switch|switches|toggle|card|cards|link|links|dialog|menu|section|chip|pill|banner|knob|checkbox|row|knap|knappen|knapper|fane|fanen|faner|panelet|skuffen|skuffe|menuen|kontakten';
 const VERBS =
   'tick|untick|pick|go to|åbn|brug|slå til|klik|tryk|v[æ]lg|click|clicks|press|presses|tap|taps|hit|choose|select|open|opens|use|uses|switch on|turn on|toggle';
-
-/** Words that put a quoted message on screen ("the banner says "N to fix""). */
-const SHOWS = 'says|shows|reads|viser|står|siger';
 
 /** Checklists outside docs/gm that also name dashboard controls. */
 export const CHECKLISTS = ['docs/dev/SMOKE-TEST.md'];
@@ -178,10 +173,7 @@ export function boldNames(text) {
   flush();
   const bold = '\\*\\*([^*]{2,60})\\*\\*';
   const lead = '(?<![\\p{L}\\p{N}])';
-  // A message in quotes right after a word that says it is on screen: reads "Session since".
-  const quoted = `["“]([^"“”]{2,60})["”]`;
   const res = [
-    new RegExp(`${lead}(?:${SHOWS})\\s+(?::\\s*)?${quoted}`, 'giu'),
     new RegExp(`${bold}(?:\\s+(?:${UI_WORDS})(?![\\p{L}\\p{N}]))`, 'giu'),
     new RegExp(`${lead}(?:${UI_WORDS})\\s+${bold}`, 'giu'),
     new RegExp(`${lead}(?:${VERBS})\\s+(?:on\\s+|the\\s+|på\\s+)*${bold}`, 'giu'),

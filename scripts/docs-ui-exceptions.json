@@ -87,22 +87,6 @@
     { "name": "Submit", "reason": "Item Piles Editing Currencies window button" },
     { "name": "Show To Players", "reason": "Item Piles pile window button" },
     { "name": "Configure Pile", "reason": "Item Piles pile window button" },
-    { "name": "Config Update", "reason": "Item Piles Configure Pile window button" },
-    {
-      "name": "Foundry connected",
-      "reason": "Pre-flight check label, built in packages/mcp-server (tools/preflight.ts), outside the scanned sources"
-    },
-    {
-      "name": "Kasimir is down: 0 HP, unconscious, death saves begin",
-      "reason": "Example of a chat line the AI writes, not a control"
-    },
-    { "name": "let's prep", "reason": "What the GM says to Claude to start the prep ritual" },
-    {
-      "name": "You're adding this item to the item pile",
-      "reason": "Item Piles window text"
-    },
-    { "name": "Select 2 more Languages", "reason": "Actor Studio message" },
-    { "name": "Not Equipped", "reason": "Foundry dnd5e sheet tooltip" },
-    { "name": "Choices still open", "reason": "Actor Studio message" }
+    { "name": "Config Update", "reason": "Item Piles Configure Pile window button" }
   ]
 }

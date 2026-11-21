@@ -491,8 +491,6 @@ export function stageShowcase() {
     if (!existsSync(file)) continue;
     for (const m of readFileSync(file, 'utf8').matchAll(/(?:data-src|poster)="([^"]+)"/g)) {
       if (m[1].startsWith(prefix)) names.add(m[1].slice(prefix.length));
-      else if (m[1].includes('images/showcase/'))
-        throw new Error(`${page}: loop media "${m[1]}" does not start with ${prefix}`);
     }
   }
   if (names.size === 0) return;

@@ -53,15 +53,6 @@ test('boldNames reads the Danish twins too', () => {
   assert.deepEqual(names.sort(), ['Handouts', 'Start session', 'Undo']);
 });
 
-test('boldNames reads quoted messages next to says, shows and reads', () => {
-  const text =
-    'The banner says "Connection closed: reload the page".\nThe strip shows “N to fix” and\nviser "Session since". A "plain" quote is not checked.';
-  assert.deepEqual(
-    boldNames(text).map(b => b.name),
-    ['Connection closed: reload the page', 'N to fix', 'Session since']
-  );
-});
-
 test('boldNames joins hard-wrapped lines and reads tick and åbn', () => {
   const text =
     'First press\n**Reveal next** now.\n\n- tick\n  **Show cards**\n- Åbn **Handouts**\n\nThe **Open\nJournal** button.';

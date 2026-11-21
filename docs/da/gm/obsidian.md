@@ -1,6 +1,6 @@
 ---
 source: gm/obsidian.md
-sourceHash: b39153b0c6ea
+sourceHash: d0908a431b35
 title: Din Obsidian-vault
 description: GM'ens Obsidian-vault på din egen pc, hvad du kan redigere i den, og hvordan du forbinder AI Tool-pluginet til dashboardet på serveren.
 ---
@@ -12,12 +12,6 @@ din pc ([Engangsopsætning: din vault på din pc](setup-obsidian-sync.md)). Du l
 og bogteksten, så den bliver på din pc. Spillerne får deres egne vaults uden hemmelighederne.
 
 ## Hvad der er i den
-
-**Altid til stede:** Home, session notes og statistik og din Prep-mappe. **Når du har tændt for
-spejlingen:** worldens NPC'er, scenes, journals, quests, karakterer, Library og dagsnoterne under
-`Everyone`. Spejlingen er slukket, til du beder om den. Bed Claude: "Tænd for Obsidian-spejlingen"
-(den kræver, at Admin-sættet er slået til, og du ser ændringen, før den sker). Indtil da er de
-mapper tomme eller mangler, og det er normalt.
 
 - **Home:** din startside til kampagnen, `Home.md` i worldens mappe. Den er sorteret efter, hvad
   du laver (før, under og efter en session) med links og levende tabeller til NPC'er, scenes,

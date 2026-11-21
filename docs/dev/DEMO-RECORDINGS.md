@@ -407,11 +407,6 @@ a poster before you commit the loops.
 
 ## Before a public video
 
-Go through this list before a take leaves your machine:
-
-- Record on the test server only, never the live campaign.
-- Turn Do Not Disturb on and close chat apps (Discord, mail, Claude Desktop), so no
-  notification lands in the frame.
-- No real names and no secrets (tokens, emails, addresses) on screen.
-- SRD or invented content only: no book or campaign text.
-- Watch the raw take once, start to end, before it goes anywhere.
+The privacy checklist in the vault research note "Videos" applies: test server only,
+Claude Desktop closed, no real names, no secrets on screen, SRD or invented content only,
+and watch the raw take once before it goes anywhere.

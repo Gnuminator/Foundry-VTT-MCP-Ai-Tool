@@ -23,8 +23,7 @@ it. If no prompt appears for a write, tell the user; never edit `.claude/setting
   app, field, before, after, who approved), update `Cloudflare expected state.json` there, and run
   the drift check.
 - **Never print tokens, emails or account ids.** Reduce reads to names, settings and counts.
-  Emails, account and tunnel ids, tokens and AUD tags stay out of the public repo; the hostnames are
-  already in it and sit behind Access.
+  Nothing about the domain goes into the public repo.
 - The connector has no token access (403); do not try.
 
 ## Drift check

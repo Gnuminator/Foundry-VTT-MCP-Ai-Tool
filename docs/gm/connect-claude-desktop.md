@@ -16,14 +16,14 @@ The free Claude plan is enough to connect, but it has a daily limit; see
 
 This is one of the [one-time setups](README.md#one-time-setups). For a new install do "Install",
 "Check that it works" and "Stop the Allow questions", in that order. To move to a newer client
-(a file called `FoundryMCPServer-Setup-vX.Y.Z.exe`) do "Update the client".
+(for example `FoundryMCPServer-Setup-v0.28.0.exe`) do "Update the client".
 
 ## Install
 
 1. **Quit Claude Desktop completely.** Right-click its icon in the tray (bottom right, near the
    clock) and choose **Quit**. Closing the window is not enough. The installer will not close it for
    you.
-2. Download `FoundryMCPServer-Setup-vX.Y.Z.exe` (X.Y.Z is the newest version number) from **Assets** at the bottom of
+2. Download `FoundryMCPServer-Setup-vX.Y.Z.exe` (for example v0.28.0) from **Assets** at the bottom of
    the newest release on <https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases>, or use
    the copy you were sent. Run it.
 3. On the page called "Bridge address", tick **Use the Cloudflare tunnel**. In **Tunnel name**

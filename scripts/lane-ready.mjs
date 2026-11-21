@@ -43,6 +43,63 @@ export function gateProblems(output) {
     .filter(Boolean);
 }
 
+/**
+ * The command that fixes each drift guard (names are the `name` fields in drift-check's CHECKS),
+ * so a refusal says what to run and not only which guard failed. A guard with no generator gets
+ * the by-hand advice.
+ * @type {Array<[RegExp, string]>}
+ */
+export const DRIFT_FIXES = [
+  [/^lint baseline/, 'npm run lint:ratchet -- --update'],
+  [/^em-dash baseline/, 'npm run emdash:ratchet -- --update'],
+  [/^line baseline/, 'npm run line:ratchet -- --update'],
+  [/^unused baseline/, 'npm run unused:ratchet -- --update'],
+  [/^usage catalog/, 'npm run usage:catalog'],
+  [/^mcp-server tests/, 'npm run docs:tools'],
+  [/^changelog fragments/, 'npm run changelog:check'],
+];
+
+/**
+ * Failing guard names from a gate refusal, or from raw drift-check output (`raw`, `  FAIL <guard>` lines).
+ * @param {string} output @param {boolean} [raw] @returns {string[]}
+ */
+export function driftGuards(output, raw = false) {
+  // The gate's refusal names them: `drift: drift-check failed (guards: a, b (x, y)) (log ...`.
+  const named = output.match(/drift-check failed \(guards: (.+?)\)(?: \[infra[^\]]*\])? \(log /);
+  // Raw drift-check output (when /ready ran it itself) has one `  FAIL <guard>` line per guard.
+  if (!named) {
+    return raw ? [...output.matchAll(/^ {2}FAIL (.+?)\s*$/gm)].map(m => m[1]) : [];
+  }
+  /** @type {string[]} */
+  const out = [];
+  let depth = 0;
+  let cur = '';
+  for (const ch of named[1] + ',') {
+    if (ch === '(') depth++;
+    if (ch === ')') depth--;
+    if (ch === ',' && depth === 0) {
+      if (cur.trim()) out.push(cur.trim());
+      cur = '';
+    } else cur += ch;
+  }
+  return out;
+}
+
+/**
+ * One line per failing guard with the exact command to run, then the reminder to commit, push and
+ * run /ready again. Empty when no guard failed.
+ * @param {string[]} guards @returns {string[]}
+ */
+export function driftAdvice(guards) {
+  if (guards.length === 0) return [];
+  const lines = guards.map(g => {
+    const hit = DRIFT_FIXES.find(([re]) => re.test(g));
+    return `drift (${g}): ${hit ? `run \`${hit[1]}\`` : 'fix by hand (see the drift-check log)'}`;
+  });
+  lines.push('drift: after the fix, merge aitool/main, commit, push, then run /ready again');
+  return lines;
+}
+
 /** The Backlog ids a PR description names, once each (`Backlog` and `Backlog-part` lines). @param {string} body */
 export function backlogIds(body) {
   return [...new Set([...runnerIds(body), ...runnerIds(body, 'Backlog-part')])];
@@ -161,6 +218,17 @@ export function main(o = {}) {
         ? found
         : [`gate: the dry run ended with exit ${gate.status} and no reason; run it by hand`])
     );
+    let guards = driftGuards(output);
+    // The gate runs drift-check last and skips it once anything else failed; run it here so one
+    // list shows everything that would refuse the head.
+    if (/drift-check not run/.test(output) && guards.length === 0) {
+      const d = run('npm', ['run', 'drift:check']);
+      guards = driftGuards(`${d.stdout}\n${d.stderr}`, true);
+      if (d.status !== 0 && guards.length === 0) {
+        missing.push('drift: drift-check failed; run `npm run drift:check` by hand');
+      }
+    }
+    missing.push(...driftAdvice(guards));
   }
 
   if (missing.length > 0) {

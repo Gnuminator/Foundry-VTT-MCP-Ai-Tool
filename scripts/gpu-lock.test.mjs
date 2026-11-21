@@ -61,6 +61,24 @@ test('releases the lock when the job fails and passes its exit code on', { skip:
   }
 });
 
+test('hands the job its arguments untouched (dashes, spaces, quotes, backslashes)', { skip: !hasPwsh }, () => {
+  const { dir, root } = setup();
+  try {
+    const out = join(dir, 'args.json');
+    const echo = join(dir, 'echo.ps1');
+    writeFileSync(echo, `$args | ConvertTo-Json -AsArray | Set-Content '${out.replace(/\\/g, '/')}'\n`);
+    const want = ['make', 'C:\\Users\\a b\\x "y".md', '--out', 'D:\\out dir'];
+    const r = pwsh([
+      '-File', runner, '-Holder', 'test job', '-Root', root, '-Script', echo,
+      '-ArgsJson', JSON.stringify(want),
+    ]);
+    assert.equal(r.status, 0, r.stderr);
+    assert.deepEqual(JSON.parse(readFileSync(out, 'utf8')), want);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('refuses with the holder named and does not start the job', { skip: !hasPwsh }, () => {
   const { dir, root, marker, job } = setup();
   try {
@@ -82,8 +100,8 @@ test('refuses with the holder named and does not start the job', { skip: !hasPws
 
 test('voice-stack transcribe and the dashboard voice both go through the GPU lock', () => {
   const stack = readFileSync(join(here, 'voice-stack.ps1'), 'utf8');
-  assert.match(stack, /Enter-GpuLock/);
-  assert.match(stack, /finally\s*\{\s*Exit-GpuLock/);
+  // the lock is taken before the transcriber runs, and its release is the finally of that run
+  assert.match(stack, /Enter-GpuLock[^\n]*\n\s*try \{ Invoke-Compose \$tArgs \}\s*\n\s*finally \{ Exit-GpuLock/);
   const route = readFileSync(
     join(here, '..', 'packages', 'cogm-dashboard', 'src', 'previously-on-route.ts'),
     'utf8'

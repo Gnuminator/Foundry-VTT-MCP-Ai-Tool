@@ -243,7 +243,7 @@ function defaultNarrate(scriptPath: string, outDir: string): Promise<void> {
       clearTimeout(timer);
       if (code === 0) done();
       else if (code === 1 && refusal.includes('The GPU is in use')) fail(new Error(refusal.trim()));
-      else fail(new Error(`narrate exited ${code}`));
+      else fail(new Error(`narrate exited ${code}${refusal.trim() ? `: ${refusal.trim()}` : ''}`));
     });
   });
 }

@@ -500,7 +500,7 @@ export class RecorderBot {
   /** `/recap`, `/npc` and `/handouts`: one read of the player state, answered only to the asker. */
   /** Where the bot reads the player state: the setting, else the local dashboard. */
   private dashboardUrl(): string {
-    return this.config.dashboardUrl ?? 'http://127.0.0.1:3100';
+    return this.config.dashboardUrl ?? 'http://127.0.0.1:3000';
   }
 
   private async onLookup(i: ChatInputCommandInteraction): Promise<void> {

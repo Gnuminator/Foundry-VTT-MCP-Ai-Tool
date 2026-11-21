@@ -16,7 +16,7 @@
 #   1. refuses unless the env file and the bot's service exist (stage 8 ran);
 #   2. reads the state (key names and ids only, the token line shown as <hidden>) and prints what would change;
 #   The session-over post also needs FOUNDRY_AI_PLAYER_PAGE_URL (the link players open; the bot keeps the post off without
-#   it) and FOUNDRY_AI_DASHBOARD_URL (the Pi's dashboard is on port 3000, which is also the bot's default). Give
+#   it) and FOUNDRY_AI_DASHBOARD_URL (the Pi's dashboard is on port 3000, the bot's default is 3100). Give
 #   PLAYER_PAGE_URL=https://... (no query or token) to set the first and, with it, DASHBOARD_URL (default
 #   http://127.0.0.1:3000). Without it an existing link is kept and the stage warns when there is none.
 #   3. when the lines are already right the file is not changed, but a bot that started before the file was written (a
@@ -106,12 +106,16 @@ lines_right() { # every wanted KEY=VALUE is the last such line in the file
 }
 
 # The session-over post (bot.ts) stays off unless FOUNDRY_AI_PLAYER_PAGE_URL is set, and the bot reads the session flag
-# from FOUNDRY_AI_DASHBOARD_URL (the bot's default is port 3000, the Pi's dashboard port). Without a PLAYER_PAGE_URL here, an
+# from FOUNDRY_AI_DASHBOARD_URL (default port 3100, the Pi's dashboard is on 3000). Without a PLAYER_PAGE_URL here, an
 # existing page link is kept; with neither, the post is off and the stage says so.
 post_note() {
   if [ -z "$(get "$env_file" FOUNDRY_AI_PLAYER_PAGE_URL)" ]; then
     warn "FOUNDRY_AI_PLAYER_PAGE_URL is not set: the bot will NOT post the session-over link in #session-notes. Rerun with PLAYER_PAGE_URL=https://... (no ?token=)"
   fi
+  case "$(get "$env_file" FOUNDRY_AI_DASHBOARD_URL)" in
+    http://127.0.0.1:3000 | http://localhost:3000) ;;
+    *) warn "FOUNDRY_AI_DASHBOARD_URL is not set to the Pi's dashboard (port 3000; the bot's default is 3100): the bot would read the session flag from the wrong port. Rerun with PLAYER_PAGE_URL=https://... to set it" ;;
+  esac
 }
 
 # The keys this stage sets (the four ids and, with PLAYER_PAGE_URL, the two addresses). UNDO touches only these.

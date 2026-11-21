@@ -69,9 +69,9 @@ test('summarize and verdict use the targets', () => {
   assert.equal(verdict('haiku', broken).ok, false);
 });
 
-test('the case set has 30 cases, unique ids and a valid chain', () => {
-  assert.equal(CASES.length, 30);
-  assert.equal(new Set(CASES.map(c => c.id)).size, 30);
+test('the case set has 33 cases, unique ids and a valid chain', () => {
+  assert.equal(CASES.length, 33);
+  assert.equal(new Set(CASES.map(c => c.id)).size, 33);
   assert.deepEqual(chainOf(4).map(c => c.id), [2, 3, 4]);
   for (const c of CASES) {
     assert.ok(c.ask && c.paths.length > 0 && c.sets.includes('core'), `case ${c.id}`);

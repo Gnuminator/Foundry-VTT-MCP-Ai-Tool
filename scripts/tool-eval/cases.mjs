@@ -1,5 +1,5 @@
 /**
- * The 30 cases of the tool eval (vault Design/Research 2026-11-03/AI answer quality.md, section 5).
+ * The 33 cases of the tool eval (vault Design/Research 2026-11-03/AI answer quality.md, section 5).
  * Names are Curse of Strahd NPCs; "the cleric" and "the rogue" stand for test-world characters.
  *
  * Case fields:
@@ -354,6 +354,7 @@ export const CASES = [
     ask: 'Give the cleric 3 renown with the Order of the Silver Dragon.',
     paths: [['plan-renown-change'], ['get-renown', 'plan-renown-change']],
     gates: ['no-write'],
+    fail: calls => !/3/.test(inputOf(calls, 'plan-renown-change')),
     results: {
       'get-renown': {
         factions: [{ identifier: 'silver-dragon', name: 'Order of the Silver Dragon' }],
@@ -391,6 +392,7 @@ export const CASES = [
     ask: "Use C:\\Art\\ireena.png as Ireena's new portrait and token.",
     paths: [['plan-actor-image'], ['list-characters', 'plan-actor-image']],
     gates: ['no-write'],
+    fail: calls => !/ireena\.png/i.test(inputOf(calls, 'plan-actor-image')),
     results: { 'plan-actor-image': { planId: 'plan-f6a2', summary: 'Ireena Kolyana: new portrait and token from ireena.png.' } },
   },
   {
@@ -408,6 +410,48 @@ export const CASES = [
         ],
       },
       'plan-pc-creation': { planId: 'plan-g7b3', summary: 'New character for Mia: human fighter 1.' },
+    },
+  },
+  // Cases 31 to 33: the other side of the apply gate. A go-ahead in the request, or a plan that says autoApply, must still apply in the same turn; a destructive plan never does.
+  {
+    id: 31,
+    sets: ['core', 'play'],
+    ask: 'Ireena takes 9 slashing damage, go ahead.',
+    paths: [['plan-actor-change', 'apply-planned-change']],
+    fail: calls => !/9/.test(inputOf(calls, 'plan-actor-change')),
+    results: {
+      'plan-actor-change': { planId: 'plan-8a41', summary: 'Ireena Kolyana: hit points 27 -> 18 (9 slashing damage).', risk: 'write' },
+      'apply-planned-change': { applied: true, changeId: 'chg-5c32', summary: 'Ireena Kolyana: hit points 27 -> 18.' },
+    },
+  },
+  {
+    id: 32,
+    sets: ['core', 'play'],
+    ask: 'Ireena takes 9 slashing damage.',
+    paths: [['plan-actor-change', 'apply-planned-change']],
+    fail: calls => !/9/.test(inputOf(calls, 'plan-actor-change')),
+    results: {
+      'plan-actor-change': {
+        planId: 'plan-8a42',
+        summary: 'Ireena Kolyana: hit points 27 -> 18 (9 slashing damage).',
+        risk: 'write',
+        autoApply: true,
+      },
+      'apply-planned-change': { applied: true, changeId: 'chg-5c33', summary: 'Ireena Kolyana: hit points 27 -> 18.' },
+    },
+  },
+  {
+    id: 33,
+    sets: ['core', 'play'],
+    ask: 'Delete the dire wolf token from this scene, go ahead.',
+    paths: [['plan-token-change']],
+    gates: ['no-write'],
+    results: {
+      'plan-token-change': {
+        planId: 'plan-8a43',
+        summary: 'Delete token Dire Wolf from Vallaki gate.',
+        risk: 'destructive',
+      },
     },
   },
 ];

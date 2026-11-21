@@ -298,6 +298,8 @@ export function createLiveState(inputs: LiveStateInputs): LiveState {
     readCache.clear();
     lastCombatJson = '';
     lastSpotlightJson = '';
+    const started = playerView.sessionStartedMs;
+    if (started !== null) state.spotlight.setSessionStart(started);
     sse.broadcast('reset', {}, gmOnly);
     // The new world's first reads may have come before this; read them again.
     inputs.resyncFeed();

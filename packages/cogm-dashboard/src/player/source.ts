@@ -127,7 +127,7 @@ export class PlayerViewSource {
     return this.sessionSinceValue;
   }
 
-  /** When the open play session started (ms); null while none is open or none has been read. */
+  /** When the open or last play session started (ms); null until one has been read. */
   get sessionStartedMs(): number | null {
     return this.sessionStartedValue;
   }
@@ -189,7 +189,9 @@ export class PlayerViewSource {
         if (marker) {
           changed ||= marker.open !== this.sessionOpenValue;
           this.sessionOpenValue = marker.open;
-          const started = marker.open ? marker.startedAtMs : null;
+          // The last start seen stays after the session closes, so the spotlight keeps showing
+          // that session until the next one starts.
+          const started = marker.startedAtMs ?? this.sessionStartedValue;
           changed ||= started !== this.sessionStartedValue;
           this.sessionStartedValue = started;
         }

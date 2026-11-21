@@ -1,6 +1,6 @@
 ---
 source: gm/dashboard-drawers.md
-sourceHash: 8fe6bca8f604
+sourceHash: 2c24a2d67963
 title: 'Dashboardet: confirm-vindue, Tool Runner og skuffer'
 description: 'Confirm-vinduet, Tool Runner og skufferne Tarokka, Handouts, Prep og Party.'
 ---
@@ -162,6 +162,19 @@ spiller, der valgte det navn ("Playing as ...") øverst på siden.
 
 > **Usikker? Spørg Claude.** Spørg GM coach: "Hvordan sætter jeg et handout i kø under forberedelsen og afslører det ved bordet?"
 
+**Handout press.** Vil du have et handout til at ligne et brev på gammelt papir med et vokssegl, en
+opslagstavle-seddel eller et kort, så bed Claude om at presse et: giv den teksten, så bruger den
+`plan-handout-press` (i Play-connectoren). Den tegner billedet på den computer, dashboardets
+backend kører på, med den Edge, Chrome eller Chromium, der allerede er installeret der (Pi har
+måske ingen, så bed fra en PC-session) og uden billed-AI. Når planen anvendes,
+lægges en skjult billedside i journalen "Handouts". Spillerne ser intet endnu: sæt den i kø og
+afslør den som ovenfor. Undo i Recent Changes fjerner siden. Tekst, der nævner et hemmeligt
+begreb, afvises.
+
+- **Slå det til:** i Foundry, Game Settings, kategorien **Foundry AI Tool**, sæt kryds ved "AI Tool:
+  Handouts (writes)" (den samme kontakt som til at afsløre handouts).
+- **Hvad spillerne ser:** kun det færdige billede, når du afslører det.
+
 ## Prep-skuffen (📋 Prep)
 
 Fakta til at forberede din næste session, ét sted og uden AI. **Refresh** genindlæser dem.
@@ -185,6 +198,31 @@ Fakta til at forberede din næste session, ét sted og uden AI. **Refresh** geni
 
 Claude læser de samme fakta med `get-prep-digest`, som prompten `prep-next-session` bruger først.
 Uden Foundry forbundet viser skuffen stadig last session og siger, hvad der mangler.
+
+**Omens by post.** Mellem sessionerne kan du sende hver spiller en kort privat tekst som hint om,
+hvad der kommer. Claude skriver kladderne (bed "Draft an omen for each player"; den bruger
+`draft-omens` i Prep-connectoren), men kan hverken godkende eller sende. Skuffens liste **Omens by
+post** viser hver kladde med spillerens navn:
+
+- **Approve** eller **Reject** hver enkelt. En tekst, der nævner et hemmeligt begreb (et
+  Tarokka-kortnavn, for eksempel), viser en advarsel og beder dig bekræfte, før den tæller som
+  godkendt. **Back to draft** tager en godkendt eller afvist tilbage.
+- **Discord ids for omens:** en spiller uden Discord-bruger-id endnu viser "it cannot be sent". Åbn
+  det fold-ud, skriv spillerens Discord-bruger-id (kun cifre) og link det.
+- **Slå det til:** den, der kører Discord-botten, sætter `DISCORD_OMENS=1` i botens `.env`. Det er
+  slået fra som standard, og med det slået fra bliver en godkendt tekst liggende. Hvis dashboardet
+  deler GM- og spiller-token, skal botten også have `FOUNDRY_AI_GM_TOKEN`.
+- **Hvad spillerne ser:** én privat Discord-besked hver, sendt én gang inden for få minutter efter
+  din godkendelse, kun til den spillers egen konto. Ingen ser en anden spillers tekst, og intet
+  vises på player page. En mislykket afsendelse prøves automatisk igen nogle gange; lykkes den stadig ikke, siger listen hvorfor, og du kan godkende den igen.
+
+Du kan altid læse et hint højt eller skrive det i chatten i stedet; det her er et ekstra.
+
+**Downtime fra spillerne.** På My character kan en spiller skrive, hvad karakteren gør mellem
+sessionerne (se [My character](dashboard-player-pages.md)). Prep digest viser hver spillers indlæg,
+alle markeret "from player": de er ønsker, ikke noget, der er sket. Når du forbereder, så spørg
+Claude "What did the players ask to do in their downtime?", så læser den dem med `get-prep-digest`.
+Selve skuffen viser dem ikke.
 
 **Previously on.** `get-prep-digest` (ikke skuffen endnu) starter med et kort "Previously on":
 GM-resuméet fra den nyeste optagede session, der har et. Den læser kun

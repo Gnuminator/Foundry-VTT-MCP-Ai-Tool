@@ -62,6 +62,16 @@ const targetFor = (type, subtype) => {
   if (type === 'spell') return targetPackOf('spells');
   return targetPackOf('items');
 };
+// 2014 (MotM) species the 2024 Player's Handbook replaces (the user, 2026-11-21; Backlog studio-species-dupes-g0): Actor
+// Studio listed Aasimar, Goliath and Orc twice because the old copy is named "X (MotM)" and Actor Studio's edition filter
+// only hides a 2014 entry whose name or identifier matches a 2024 one. Their copies are not made, so the orphan step
+// removes any that exist; the entries stay in aitool-content.species (hidden from players, never deleted) and characters
+// that already hold one keep it (an actor owns its own copy). Changeling and Shifter have no 2024 twin and stay.
+// Undo: empty this list and run MODE=baseline again, the copies come back. An entry is skipped only when it is still
+// the 2014 race it was listed for.
+const SUPERSEDED_SPECIES = new Set(['d2bLqBHqlmOFt4m8', 'I7AP6K8xuCDQBmIH', 'iT8VhyVlZlWdAnHn']);
+const isSuperseded = o =>
+  SUPERSEDED_SPECIES.has(o._id) && o.type === 'race' && o.system?.source?.rules === '2014';
 const LEGACY = 'world.legacy-other-books';
 const HIDDEN = { PLAYER: 'NONE', TRUSTED: 'NONE', ASSISTANT: 'OWNER', GAMEMASTER: 'OWNER' };
 const OPEN = { PLAYER: 'OBSERVER', TRUSTED: 'OBSERVER', ASSISTANT: 'OWNER', GAMEMASTER: 'OWNER' };
@@ -356,6 +366,10 @@ for (const id of sourcePacks) {
   const ids = sourceIndex[id].map(e => e._id);
   for (const doc of await pick(game.packs.get(id), ids)) {
     const o = doc.toObject();
+    if (isSuperseded(o)) {
+      log(`SKIPPED superseded 2014 species ${o.name} (not copied to the players' pack)`);
+      continue;
+    }
     const target = targetFor(o.type, o.system?.type?.value);
     const text = rewrite(
       JSON.stringify({ system: o.system, effects: o.effects ?? [] }),

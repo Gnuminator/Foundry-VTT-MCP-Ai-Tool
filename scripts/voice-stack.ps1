@@ -20,7 +20,7 @@
   Refuses to run if .env points any port at a Foundry or bridge port (Foundry 30000-30001, dashboard
   3100, live bridge 31414-31416, test bridge 31514-31516; test servers B and C: 30002-30003,
   3101-3102, 31524-31525, 31534-31535; rehearsal 30100, 31614-31615, 3300; Control Center 3200). Never touches containers outside the
-  fvtt-voice project. One GPU job at a time: transcribe warns when the GPU is already busy.
+  fvtt-voice project. One GPU job at a time: transcribe takes the GPU lock (scripts/gpu-lock.ps1) and refuses, naming the holder, while another job holds it.
 
   names options: -Dashboard <url> (default http://127.0.0.1:3100), -Offline (extra list only), -Items,
   -Journals (also list world item and journal names; off by default), GM_DASHBOARD_TOKEN is sent as the
@@ -55,6 +55,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'data-folder.ps1')
+. (Join-Path $PSScriptRoot 'gpu-lock.ps1')
 $Root = Join-Path (Split-Path -Parent $PSScriptRoot) 'tools/voice-stack'
 $ComposeFile = Join-Path $Root 'docker-compose.yml'
 $EnvFile = Join-Path $Root '.env'
@@ -236,7 +237,7 @@ switch ($Command) {
     if ($gpu) {
       Write-Host "GPU: $gpu"
       if ((Get-GpuUsedMiB) -gt 6000) {
-        Write-Warning 'The GPU already holds more than 6 GB. Another GPU job may be running; the transcriber may run out of memory or slow down.'
+        Write-Warning 'The GPU already holds more than 6 GB. Something outside the GPU lock may be using it; the transcriber may run out of memory or slow down.'
       }
     }
 
@@ -255,7 +256,11 @@ switch ($Command) {
       }
     }
     if ($Force) { $tArgs += '--force' }
-    Invoke-Compose $tArgs
+    # The transcriber is the GPU job: hold the GPU lock for it alone (the pipeline below is CPU).
+    # A held lock stops here with a message that names the holder; the release runs on any failure.
+    $gpuSession = Enter-GpuLock -Holder 'voice-stack transcribe' -Purpose "transcribe $(Split-Path -Leaf $folder)"
+    try { Invoke-Compose $tArgs }
+    finally { Exit-GpuLock -Session $gpuSession }
 
     if ($NoPipeline) {
       Write-Host "Transcripts: $(Join-Path $folder 'transcripts/json')"

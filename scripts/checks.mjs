@@ -264,6 +264,7 @@ export const CHECKS = [
   nodeTest('client-update', 'scripts', 'installer/nsis/client-update.test.mjs'),
   nodeTest('plan-b', 'scripts', 'scripts/plan-b/plan-b.test.mjs'),
   nodeTest('data-folder', 'scripts', 'scripts/data-folder.test.mjs'),
+  nodeTest('gpu-lock', 'scripts', 'scripts/gpu-lock.test.mjs'),
   nodeTest('tv-table-viewer', 'scripts', 'scripts/tv/start-table-viewer.test.mjs'),
   { name: 'wiki-scripts', group: 'scripts', cmd: 'npm', args: ['run', 'wiki:test'], env: CI },
   nodeTest('dnd-helper-test', 'tools', 'tools/dnd-helper/build.test.mjs'),

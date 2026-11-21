@@ -118,6 +118,11 @@ const NARRATE_TOOL = resolve(
   'narrate.ps1'
 );
 
+/** Runs a script while holding the GPU lock (`scripts/gpu-lock-run.ps1`). */
+const GPU_LOCK_RUN = resolve(NARRATE_TOOL, '..', '..', '..', 'scripts', 'gpu-lock-run.ps1');
+
+const GPU_LOCK_SCRIPT = resolve(NARRATE_TOOL, '..', '..', '..', 'scripts', 'test-env', 'lock.ps1');
+
 /** Short fingerprint of the recap text: a new text gets its own folder, so a voice is never stale. */
 function hashOf(text: string): string {
   return createHash('sha256').update(text).digest('hex').slice(0, 8);
@@ -171,18 +176,60 @@ function defaultNarrate(scriptPath: string, outDir: string): Promise<void> {
       fail(new Error(`narrate.ps1 not found at ${NARRATE_TOOL}`));
       return;
     }
+    if (!existsSync(GPU_LOCK_RUN)) {
+      fail(new Error(`gpu-lock-run.ps1 not found at ${GPU_LOCK_RUN}`));
+      return;
+    }
+    // The voice runs on the GPU: it goes through the GPU lock wrapper, which refuses with a message
+    // naming the holder when another GPU job is running, and releases the lock when narrate ends.
     const child = spawn(
       'pwsh',
-      ['-NoProfile', '-File', NARRATE_TOOL, 'make', scriptPath, '--out', outDir],
-      { windowsHide: true, ...SILENT }
+      [
+        '-NoProfile',
+        '-File',
+        GPU_LOCK_RUN,
+        '-Holder',
+        'Previously on narration',
+        '-Purpose',
+        'Previously on voice',
+        '-Script',
+        NARRATE_TOOL,
+        '-ArgsJson',
+        JSON.stringify(['make', scriptPath, '--out', outDir]),
+      ],
+      { windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] }
     );
+    let refusal = '';
+    child.stderr?.on('data', (chunk: Buffer) => {
+      refusal = (refusal + chunk.toString()).slice(-400);
+    });
     const timer = setTimeout(() => {
       // On Windows kill() only ends pwsh, not the python it started: end the whole tree.
       if (process.platform === 'win32' && child.pid) {
-        spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], {
+        const pid = child.pid;
+        spawn('taskkill', ['/pid', String(pid), '/T', '/F'], {
           windowsHide: true,
           ...SILENT,
-        }).on('error', () => child.kill());
+        })
+          .on('error', () => child.kill())
+          // The wrapper's `finally` does not run when its tree is killed: free the GPU lock
+          // (its session id is `gpu-job-<wrapper pid>`) so the next job is not blocked.
+          .on('exit', () => {
+            spawn(
+              'pwsh',
+              [
+                '-NoProfile',
+                '-File',
+                GPU_LOCK_SCRIPT,
+                'release',
+                '-Server',
+                'GPU',
+                '-Session',
+                `gpu-job-${pid}`,
+              ],
+              { windowsHide: true, ...SILENT }
+            ).on('error', () => undefined);
+          });
       } else {
         child.kill();
       }
@@ -195,7 +242,8 @@ function defaultNarrate(scriptPath: string, outDir: string): Promise<void> {
     child.on('exit', code => {
       clearTimeout(timer);
       if (code === 0) done();
-      else fail(new Error(`narrate exited ${code}`));
+      else if (code === 1 && refusal.includes('The GPU is in use')) fail(new Error(refusal.trim()));
+      else fail(new Error(`narrate exited ${code}${refusal.trim() ? `: ${refusal.trim()}` : ''}`));
     });
   });
 }

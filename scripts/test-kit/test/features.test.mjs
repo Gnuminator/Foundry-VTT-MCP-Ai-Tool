@@ -961,10 +961,12 @@ test('the feature scenarios run after the others (order), and a bad order is ref
     catalog,
   });
   const all = scenarios.map(s => s.scenario.id);
-  // The login split restarts the dashboard, so it runs after everything, the feature scenarios too.
-  assert.equal(all.at(-1), 'dashboard-login-split');
+  // The login split and the player connector restart the dashboard, so they run after everything, the
+  // feature scenarios too.
+  assert.deepEqual(all.slice(-2), ['dashboard-login-split', 'player-connector']);
   // module-load also runs late (order 200): it reads the module errors the others raised.
-  const ids = all.filter(id => id !== 'dashboard-login-split' && id !== 'module-load');
+  const restarts = ['dashboard-login-split', 'player-connector'];
+  const ids = all.filter(id => !restarts.includes(id) && id !== 'module-load');
   assert.deepEqual(ids.slice(-4).sort(), [
     'heroes-features-deep',
     'heroes-features-use',

@@ -66,7 +66,7 @@ export default {
     'get-player-skill-guide',
   ],
   // Last, like the login split: its dashboard restart clears the dashboard's in-memory state.
-  order: 1000,
+  order: 1001,
   timeoutMs: 300000,
 
   async run(t) {

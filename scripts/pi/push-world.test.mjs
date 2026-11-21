@@ -48,7 +48,13 @@ function run(...args) {
     ],
     { encoding: 'utf8' }
   );
-  return { status: r.status, text: `${r.stdout}\n${r.stderr}` };
+  // pwsh wraps an error to the terminal width and draws a gutter: strip colour codes and the gutter, join the lines.
+  const text = `${r.stdout}\n${r.stderr}`
+    // eslint-disable-next-line no-control-regex
+    .replace(/\x1B\[[0-9;]*m/g, '')
+    .replace(/^\s*\d*\s*\|\s?/gm, '')
+    .replace(/\s+/g, ' ');
+  return { status: r.status, text };
 }
 
 function setNewestFile(iso) {

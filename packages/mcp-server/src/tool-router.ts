@@ -37,7 +37,10 @@ export type ToolHandler = (args: unknown, context?: ToolCallContext) => Promise<
  * The map has a null prototype so a `name` like 'toString' / 'constructor' can't
  * resolve to an inherited Object.prototype method and slip past that guard.
  */
-export function buildToolRouter(deps: ToolRouterDeps): Record<string, ToolHandler> {
+export function buildToolRouter(
+  deps: ToolRouterDeps,
+  renamed: typeof RENAMED_TOOLS = RENAMED_TOOLS
+): Record<string, ToolHandler> {
   const routes = Object.create(null) as Record<string, ToolHandler>;
   const actorTools = actorToolNames(
     deps.modules.flatMap(module => module.definitions(instanceOf(deps, module)))
@@ -52,7 +55,7 @@ export function buildToolRouter(deps: ToolRouterDeps): Record<string, ToolHandle
         route(tools, applyParamAliases(name, args, actorTools), context);
     }
   }
-  for (const [old, { to, params }] of Object.entries(RENAMED_TOOLS)) {
+  for (const [old, { to, params }] of Object.entries(renamed)) {
     const target = routes[to];
     if (!target || Object.hasOwn(routes, old)) continue;
     routes[old] = (args, context): Promise<unknown> => target(applyRenames(args, params), context);

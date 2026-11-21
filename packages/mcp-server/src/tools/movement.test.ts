@@ -63,11 +63,12 @@ describe('MovementTools.handleMeasureDistance', () => {
     });
   });
 
-  it('returns a parameter-error string (not a throw) on invalid args', async () => {
+  it('throws a parameter error on invalid args', async () => {
     const { tools, query } = makeTools(MovementTools);
-    const result = await tools.handleMeasureDistance({ fromTokenName: 'A' }); // missing toTokenName
-    expect(typeof result).toBe('string');
-    expect(result as string).toMatch(/Parameter error/i);
+    // missing toTokenName
+    await expect(tools.handleMeasureDistance({ fromTokenName: 'A' })).rejects.toThrow(
+      /Parameter error/i
+    );
     expect(query).not.toHaveBeenCalled();
   });
 

@@ -201,7 +201,9 @@ export class DiceRollTools {
     // Alias for one release: maps onto request-player-rolls.
     const parsed = schema.safeParse(args);
     if (!parsed.success) {
-      return `Parameter error: ${parsed.error.issues.map(e => e.message).join(', ')}`;
+      throw new Error(`Parameter error: ${parsed.error.issues.map(e => e.message).join(', ')}`, {
+        cause: parsed.error,
+      });
     }
     const { ability, reason, ...rest } = parsed.data;
     return this.handleRequestPlayerRolls({
@@ -222,7 +224,9 @@ export class DiceRollTools {
     // Alias for one release: maps onto request-player-rolls.
     const parsed = schema.safeParse(args);
     if (!parsed.success) {
-      return `Parameter error: ${parsed.error.issues.map(e => e.message).join(', ')}`;
+      throw new Error(`Parameter error: ${parsed.error.issues.map(e => e.message).join(', ')}`, {
+        cause: parsed.error,
+      });
     }
     const { weaponOrSpellName, ...rest } = parsed.data;
     return this.handleRequestPlayerRolls({
@@ -254,7 +258,9 @@ export class DiceRollTools {
     } catch (error: unknown) {
       this.logger.error('Error rolling NPC check', error);
       if (error instanceof z.ZodError) {
-        return `Parameter error: ${error.issues.map(e => e.message).join(', ')}`;
+        throw new Error(`Parameter error: ${error.issues.map(e => e.message).join(', ')}`, {
+          cause: error,
+        });
       }
       throw error;
     }
@@ -313,7 +319,7 @@ export class DiceRollTools {
           }
           return e.message;
         });
-        return `Parameter error: ${messages.join(', ')}`;
+        throw new Error(`Parameter error: ${messages.join(', ')}`, { cause: error });
       }
       throw error;
     }

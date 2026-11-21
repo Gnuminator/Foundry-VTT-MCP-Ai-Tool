@@ -6,8 +6,8 @@ description: Step by step with pictures, the game's web address, the one-time em
 # Join the game
 
 **Phones are for reading, not playing.** Use a laptop or desktop computer to play. And **give Danni
-your email first**: until Danni adds it to the list, no login code ever arrives and Cloudflare shows
-no error.
+your email first**: Danni passes it on to the person who runs the tool, who adds it to the access
+list. Until it is on the list, no login code ever arrives and Cloudflare shows no error.
 
 We play in two places at once: **Foundry** in your web browser (the map, your character sheet,
 the dice) and **Discord** (voice). This page gets you into both. Do it once before session 0, so

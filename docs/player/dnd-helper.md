@@ -279,14 +279,13 @@ helper again from your **My character** page and install it over the old one.
 
 **Can I add the helper as a plugin too? (Pro and Max)**
 You do not need to: the extension already carries the helper's instructions. If you want the
-skill form anyway, open Settings, Plugins, add the marketplace
-`Gnuminator/foundry-ai-tool-plugins` (the **Add** menu) and install **Foundry player helper** under
-**Discover**. It reads its guide
-from the table, so it stays current.
+skill form anyway, open Settings, Plugins, add the marketplace `Gnuminator/foundry-ai-tool-plugins`
+(the **Add** menu) and install **Foundry player helper** under **Discover**. It reads its guide from
+the table, so it stays current.
 
 **I installed the old skill zip earlier.**
-It still works, but you no longer need it. You can remove it in Settings, Plugins, Skills (it shows as **By you**). If you installed the plugin, remove
-the zip copy so the helper is not there twice.
+It still works, but you no longer need it. You can remove it in Settings, Plugins, Skills (it shows
+as **By you**). If you installed the plugin, remove the zip copy so the helper is not there twice.
 
 **It claims it changed my character.**
 It cannot, and it should never say so. Check your sheet in Foundry, then tell the person who runs

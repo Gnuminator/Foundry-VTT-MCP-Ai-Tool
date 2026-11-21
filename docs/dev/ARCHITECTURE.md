@@ -662,11 +662,13 @@ AI work happens when someone asks Claude through the MCP tools (subscription-fir
   be on **and** an explicit `confirm`. Destructive tools require a _second_ `confirmDestructive`.
   Gating is enforced on the **server**, not in CSS, so a hostile browser can't bypass it.
 
-This is also where the **player vs GM split** lives (built in Phase 6: `auth.ts`, `redact.ts`,
-role-aware `sse.ts`, `requireGm`, `/player`): GM-only data is filtered off the SSE stream and the
-write surface is gated server-side, behind auth, so the player view shows the combat order and
-public feed without hidden HP, notes, or write access. The allowlist projection that replaces the
-redaction is planned as M2 (campaign plan in the private vault, feature 2).
+This is also where the **player vs GM split** lives (`auth.ts`, `requireGm`, `redact.ts`,
+role-aware `sse.ts`, `player/projection.ts`, `/player`). The player page never joins the GM hub:
+it has its own stream and `/api/player/*` routes, which carry only the allowlist projection of the
+state (`player/projection.ts`), so the player view shows the combat order and public feed without
+hidden HP, notes, or write access. Every GM-hub broadcast still goes through `gmOnly`
+(`redact.ts`), which sends nothing to a non-GM client, and the write surface is gated server-side,
+behind auth.
 
 ---
 

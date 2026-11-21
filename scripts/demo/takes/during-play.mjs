@@ -75,4 +75,10 @@ export async function run(t) {
       await t.shot('Dashboard', 'strip');
     }
   );
+
+  // Leave the demo world as it was: setup started a combat, so end it here.
+  const gm = await t.scene('Foundry');
+  await gm.page.evaluate(async () => {
+    for (const c of globalThis.game.combats.filter(c => c.active)) await c.delete();
+  });
 }

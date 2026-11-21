@@ -62,6 +62,7 @@ write_stubs() {
   # The real node under the stage's $NODE_DIR/bin and on the PATH.
   printf '#!/usr/bin/env bash\nexec "%s" "$@"\n' "$REAL_NODE" >"$SB/node24/bin/node"
   cp "$SB/node24/bin/node" "$BIN/node"
+  chmod +x "$SB/node24/bin/node" "$BIN/node"
   cat >"$BIN/id" <<'EOF'
 #!/usr/bin/env bash
 if [ "$*" = "-u" ]; then echo 0; else /usr/bin/id "$@"; fi

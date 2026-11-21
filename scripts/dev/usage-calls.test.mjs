@@ -84,7 +84,7 @@ test('weekLine: used of catalog, never used, error rate, worst tools', () => {
   const text = weekLine(summarize(calls, catalog), 7);
   assert.equal(
     text,
-    'Tool calls, last 7 days: 4 calls, 2 tools used of 4; 2 never used; 2 errors (50.0%); most errors: b 1/1, a 1/3; errors by class: unclassified 2; largest results: a 5 chars, a 5 chars, a 5 chars.'
+    'Tool calls, last 7 days: 4 calls, 2 tools used of 4; 2 never used; 2 errors (50.0%); most errors: b 1/1, a 1/3; errors by class: unclassified 2; largest results: a 5 chars, a 5 chars.'
   );
 });
 

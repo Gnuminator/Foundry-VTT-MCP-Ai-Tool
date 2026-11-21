@@ -48,11 +48,12 @@ export function errorText(result: ToolResultLike | undefined): string {
 
 /** Sort an error message into one of the fixed classes. */
 function classifyError(text: string): ErrorClass {
-  if (/not connected|no foundry connection|link is disabled/i.test(text)) return 'not-connected';
-  if (/timed? ?out|no answer in|did not answer/i.test(text)) return 'timeout';
+  // Switches first: "event log is off ... or the Foundry link is disabled" is a switch, not a link.
   if (/switched off|\bis off\b|turned off|allow write operations/i.test(text)) return 'switch-off';
+  if (/not connected|no foundry connection|link is disabled/i.test(text)) return 'not-connected';
+  if (/timed? ?out|no answer in|did not answer|connection closed/i.test(text)) return 'timeout';
   if (
-    /invalid (arguments?|parameters?|input)|zoderror|validation|expected (string|number|boolean|object|array)|unknown tool|\brequired\b/i.test(
+    /invalid (arguments?|parameters?|input|option|type|value)|zoderror|validation|expected (string|number|boolean|object|array)|too_(small|big)|invalid_(type|value)/i.test(
       text
     )
   ) {

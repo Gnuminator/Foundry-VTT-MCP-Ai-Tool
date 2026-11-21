@@ -241,7 +241,9 @@ export function summarize(calls, catalog = null) {
     const k = typeof c.err === 'string' && c.err ? c.err : 'unclassified';
     errorClasses[k] = (errorClasses[k] ?? 0) + 1;
   }
-  const largest = [...calls]
+  // Only answers that came back fine: a failed call's size is just its error text.
+  const largest = calls
+    .filter(c => c.ok !== false)
     .sort((a, b) => (Number(b.size) || 0) - (Number(a.size) || 0))
     .slice(0, 3)
     .map(c => ({ t: c.t, tool: c.tool, size: Number(c.size) || 0 }));

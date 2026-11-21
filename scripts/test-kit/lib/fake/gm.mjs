@@ -464,6 +464,8 @@ const ACTIONS = {
     return { ended: 1 };
   },
 
+  targetToken: (w, args) => ({ targeted: args.tokenId ? [args.tokenId] : [] }),
+
   spendLegendary: (w, args) => {
     const token = w.tokens.get(args.tokenId);
     if (!token || token.sceneId !== args.sceneId) {

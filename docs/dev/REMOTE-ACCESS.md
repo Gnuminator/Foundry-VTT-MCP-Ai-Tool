@@ -25,14 +25,14 @@ month.
 
 What goes through the tunnel, and nothing else:
 
-| Public name              | Goes to on the Pi                            | Access application and policies                                                                                                              |
-| ------------------------ | -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `play.<domain>`          | Foundry, `localhost:30000`                   | Self-hosted application, 730 h session. Policies: allow by email (the players, the GM and you) and one service token (the game-night watch)  |
-| `cogm.<domain>`          | Dashboard, `localhost:3000`                  | Self-hosted, 730 h. Allow by email (GMs and players; the players see `/player`) and one service token (the Obsidian plugin)                  |
-| `mcp.<domain>`           | Bridge control port, `tcp://localhost:31414` | Self-hosted, one-hour session. Allow by email (the GMs) and service tokens (the GM's and your Claude Desktop). See "The GM's Claude Desktop" |
-| `player-ai.<domain>`     | Dashboard, `localhost:3000` (`/mcp/player`)  | Self-hosted, Service Auth only: one service token per player, never an email login                                                           |
-| `player-remote.<domain>` | Dashboard, `localhost:3000`                  | Self-hosted with Managed OAuth and the players' email policy (the Claude custom connector)                                                   |
-| `board.<domain>`         | The PM board, on the Pi                      | Self-hosted. Allow by email (the board owner, the GMs, the players) and service tokens (board MCP, Pi status); one path has its own policy   |
+| Public name              | Goes to on the Pi                                      | Access application and policies                                                                                                              |
+| ------------------------ | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `play.<domain>`          | Foundry, `localhost:30000`                             | Self-hosted application, 730 h session. Policies: allow by email (the players, the GM and you) and one service token (the game-night watch)  |
+| `cogm.<domain>`          | Dashboard, `localhost:3000`                            | Self-hosted, 730 h. Allow by email (GMs and players; the players see `/player`) and one service token (the Obsidian plugin)                  |
+| `mcp.<domain>`           | Bridge control port, `tcp://localhost:31414`           | Self-hosted, one-hour session. Allow by email (the GMs) and service tokens (the GM's and your Claude Desktop). See "The GM's Claude Desktop" |
+| `player-ai.<domain>`     | Dashboard, `localhost:3000` (`/mcp/player`)            | Self-hosted, Service Auth only: one service token per player, never an email login                                                           |
+| `player-remote.<domain>` | Dashboard, `localhost:3000`                            | Self-hosted with Managed OAuth and the players' email policy (the Claude custom connector)                                                   |
+| `board.<domain>`         | Not on the tunnel: the PM board is on Cloudflare Pages | Self-hosted. Allow by email (the board owner, the GMs, the players) and service tokens (board MCP, Pi status); one path has its own policy   |
 
 The five GM web connectors, when deployed, add one more application with Managed OAuth and the GM
 email policy only (see "The GM remote connector"). The live state is checked against a saved copy
@@ -40,7 +40,7 @@ with the `cloudflare-work` skill's drift check.
 
 ### Edge rules (Cloudflare Transform Rules)
 
-Two rules on the `play.<domain>` host let the dashboard show Foundry inside its Live window. Foundry
+Two rules on the `play.<domain>` host let the GM page (`/gm`) show Foundry inside a frame. Foundry
 14 sends `X-Frame-Options: DENY`, so a browser refuses to put it in a frame.
 
 1. **Modify Response Header:** removes `X-Frame-Options` and sets `Content-Security-Policy` to

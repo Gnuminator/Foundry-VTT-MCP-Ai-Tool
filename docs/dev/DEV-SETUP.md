@@ -34,7 +34,7 @@ npm run green -- --quick  # what you touched, against aitool/main
 ```
 
 `npm run green -- --quick` is the check to run before a pull request. It diffs your branch against
-`aitool/main` and runs the build, typecheck, unit tests, ESLint, markdownlint and link checks for the
+`aitool/main` and runs the typecheck, unit tests, ESLint, markdownlint and link checks for the
 packages and docs you changed. The full `npm run green` runs everything CI's `build-test` job runs,
 in the same order, and takes a long time; use it only when CI cannot tell you (Windows-only
 behaviour, CI down). `npm run green -- --list` prints the step names, `--only a,b` runs some of them,

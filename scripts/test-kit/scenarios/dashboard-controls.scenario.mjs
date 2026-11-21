@@ -50,7 +50,7 @@ export default {
   tags: ['dashboard', 'player'],
   needs: [],
   tools: [],
-  gmActions: ['worldStatus', 'startCombat','endCombats', 'spendLegendary', 'restoreLegendary'],
+  gmActions: ['worldStatus', 'startCombat', 'endCombats', 'spendLegendary', 'restoreLegendary'],
   timeoutMs: 600000,
 
   async run(t) {
@@ -70,19 +70,20 @@ export default {
       await t.step('open the dashboard', async () => {
         // Old oversized logs in the world's vault make get-prep-digest outlast the dashboard's 15
         // second limit and drop the bridge link (the Undo window then never opens): move them aside.
-        let archived = [];
         let tidyNote = '';
         try {
           const world = (await t.gm('worldStatus'))?.worldId;
           if (world) {
-            archived = archiveOldBigLogs({
+            const { moved, failed } = archiveOldBigLogs({
               vaultRoot: path.join(path.dirname(foundryDataDir()), 'vault'),
               world,
             });
+            if (moved.length) tidyNote += `; ${moved.length} old big vault log(s) archived`;
+            if (failed.length) tidyNote += `; could not archive ${failed.join(', ')}`;
           }
         } catch (error) {
           // no local vault to tidy (fake run, other target): the sweep runs as it is
-          tidyNote = `; vault logs not tidied (${error instanceof Error ? error.message : error})`;
+          tidyNote += `; vault logs not tidied (${error instanceof Error ? error.message : error})`;
         }
         page = await browser.open('/', { viewport: VIEWPORT });
         await waitReady(page).catch(() => {
@@ -113,10 +114,7 @@ export default {
             { timeout: 10000 }
           );
         }
-        const tidied = archived.length
-          ? `; ${archived.length} old big vault log(s) archived`
-          : tidyNote;
-        return `${CONTROLS.length} controls in the table; GM Actions ${gmWasOn ? 'were on' : 'turned on (put back at the end)'}${tidied}`;
+        return `${CONTROLS.length} controls in the table; GM Actions ${gmWasOn ? 'were on' : 'turned on (put back at the end)'}${tidyNote}`;
       });
 
       /** @type {string | null} */

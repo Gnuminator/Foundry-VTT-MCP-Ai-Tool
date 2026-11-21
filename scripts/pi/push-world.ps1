@@ -58,8 +58,9 @@
                        (its newest file is newer than that time), or -FirstInstall is given. Written into MANIFEST.txt as
                        "based-on-snapshot:"; stage 11 then runs its change check when REPLACE_WORLD=1 replaces the Pi's world
                        and refuses REPLACE_WORLD=1 for a bundle without the line.
-.PARAMETER FirstInstall  The Pi has no campaign world yet, so there is nothing to lose. Stage 11 without REPLACE_WORLD=1 keeps an
-                       existing world, and refuses REPLACE_WORLD=1 for this bundle (it names no snapshot).
+.PARAMETER FirstInstall  The Pi has no campaign world yet, so there is nothing to lose.
+.PARAMETER KeepPiWorld  The bundle only refreshes modules and images: stage 11 without REPLACE_WORLD=1 keeps the Pi's world, and refuses
+                       REPLACE_WORLD=1 for this bundle (it names no snapshot). The routine way to update aitool-content and the like.
 .PARAMETER LevelModule  classic-level for world-refs (default the test server's, C:\FoundryTest\app\node_modules\classic-level).
 .PARAMETER SkipRefs    FOR TESTS ONLY: skip the asset scan (the script's own test uses a fake Data folder with no
                        LevelDB). The real run never uses it, because the scan is what proves nothing is left behind.
@@ -82,6 +83,7 @@ param(
   [string]$BasedOnSnapshot = '',
   [string]$NewerThanSnapshot = '',
   [switch]$FirstInstall,
+  [switch]$KeepPiWorld,
   [string]$LevelModule = '',
   [switch]$SkipRefs
 )
@@ -141,7 +143,8 @@ if ($PushBack) {
 # push-back, or as a copy taken from a named Pi snapshot that has been played or prepared on since. A copy that is
 # not newer than the snapshot it came from could overwrite what was done on the Pi in between.
 if ($NewerThanSnapshot -and $PushBack) { Fail '-NewerThanSnapshot is for a plain campaign copy; a push-back names its snapshot with -BasedOnSnapshot' }
-if ($FirstInstall -and ($PushBack -or $NewerThanSnapshot)) { Fail '-FirstInstall (the Pi has no campaign world yet) does not go with -PushBack or -NewerThanSnapshot' }
+if ($FirstInstall -and $KeepPiWorld) { Fail '-FirstInstall and -KeepPiWorld both say the bundle never replaces the Pi''s world: give one' }
+if (($FirstInstall -or $KeepPiWorld) -and ($PushBack -or $NewerThanSnapshot)) { Fail '-FirstInstall and -KeepPiWorld (the Pi''s world is not replaced) do not go with -PushBack or -NewerThanSnapshot' }
 if ($NewerThanSnapshot) {
   $snap = [datetimeoffset]::MinValue
   if (-not [datetimeoffset]::TryParse($NewerThanSnapshot, [CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::AssumeUniversal, [ref]$snap)) {
@@ -149,10 +152,10 @@ if ($NewerThanSnapshot) {
   }
   $basedOn = $snap.UtcDateTime.ToString('yyyy-MM-ddTHH:mm:ss.fffZ', [CultureInfo]::InvariantCulture)
 }
-if ($World -eq 'curse-of-strahd' -and -not $PushBack -and -not $NewerThanSnapshot -and -not $FirstInstall) {
+if ($World -eq 'curse-of-strahd' -and -not $PushBack -and -not $NewerThanSnapshot -and -not $FirstInstall -and -not $KeepPiWorld) {
   Fail ("refusing to push the campaign world: the Pi's copy is the truth, and nothing here says this PC copy grew from it. " +
     "Pass -NewerThanSnapshot <the time of the Pi backup this copy was taken from> (a copy played or prepared since), " +
-    "use scripts/plan-b/push-back.ps1 for a Plan B night, or -FirstInstall when the Pi has no campaign world yet")
+    "use scripts/plan-b/push-back.ps1 for a Plan B night, -KeepPiWorld to refresh only the modules and images (stage 11 keeps the Pi's world), or -FirstInstall when the Pi has no campaign world yet")
 }
 if ($LevelModule -and -not (Test-Path -LiteralPath $LevelModule -PathType Container)) { Fail "no classic-level folder at $LevelModule" }
 $worldSrc = Join-Path $DataPath "worlds\$World"
@@ -161,7 +164,7 @@ foreach ($id in $Modules) {
   if (-not (Test-Path -LiteralPath (Join-Path $DataPath "modules\$id\module.json"))) { Fail "no module.json for module $id under $DataPath\modules" }
 }
 if ($NewerThanSnapshot) {
-  # The copy must have been written to after the snapshot it names (LevelDB files change when the world is played or edited).
+  # The copy must have been written to after the snapshot it names (LevelDB files change whenever the world is opened, so this only proves the copy was opened since, not that it was played).
   $newest = Get-ChildItem -LiteralPath $worldSrc -Recurse -File -Force | Where-Object { $_.Name -ne 'LOCK' -and $_.Name -notlike '*.lock' } |
     Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
   if (-not $newest) { Fail "no files in $worldSrc" }

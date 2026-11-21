@@ -12,6 +12,8 @@ import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const probe = spawnSync('pwsh', ['-NoProfile', '-Command', '$PSVersionTable.PSVersion.Major']);
 const hasPwsh = probe.status === 0 && Number(String(probe.stdout).trim()) >= 7;
+// The cases that build a bundle need robocopy and Windows' tar.exe; the refusals stop before that.
+const buildSkip = process.platform !== 'win32' && 'building the bundle needs Windows';
 
 let tmp;
 let data;
@@ -72,31 +74,44 @@ describe('push-world.ps1: the Pi is the truth', { skip: !hasPwsh && 'no pwsh' },
     assert.match(r.text, /Nothing was built/);
   });
 
-  test('a copy newer than the snapshot gets past the check and names it in MANIFEST.txt', () => {
-    setNewestFile('2026-11-20T10:00:00Z');
-    const out = path.join(tmp, 'out');
-    const r = run('-NewerThanSnapshot', '2026-11-15T04:30:00Z', '-OutDir', out);
-    assert.equal(r.status, 0, r.text);
-    assert.match(r.text, /this PC copy is newer than the Pi snapshot of 2026-11-15T04:30:00\.000Z/);
-    const manifest = spawnSync(
-      'pwsh',
-      ['-NoProfile', '-Command', `Get-Content -Raw '${path.join(out, 'stage', 'MANIFEST.txt')}'`],
-      { encoding: 'utf8' }
-    ).stdout;
-    assert.match(manifest, /^based-on-snapshot: 2026-11-15T04:30:00\.000Z$/m);
-    assert.ok(!/gm-password/.test(manifest), 'a plain copy is not a push-back');
-  });
+  test(
+    'a copy newer than the snapshot gets past the check and names it in MANIFEST.txt',
+    { skip: buildSkip },
+    () => {
+      setNewestFile('2026-11-20T10:00:00Z');
+      const out = path.join(tmp, 'out');
+      const r = run('-NewerThanSnapshot', '2026-11-15T04:30:00Z', '-OutDir', out);
+      assert.equal(r.status, 0, r.text);
+      assert.match(
+        r.text,
+        /this PC copy is newer than the Pi snapshot of 2026-11-15T04:30:00\.000Z/
+      );
+      const manifest = spawnSync(
+        'pwsh',
+        ['-NoProfile', '-Command', `Get-Content -Raw '${path.join(out, 'stage', 'MANIFEST.txt')}'`],
+        { encoding: 'utf8' }
+      ).stdout;
+      assert.match(manifest, /^based-on-snapshot: 2026-11-15T04:30:00\.000Z$/m);
+      assert.ok(!/gm-password/.test(manifest), 'a plain copy is not a push-back');
+    }
+  );
 
-  test('-FirstInstall passes and writes no snapshot line; it does not mix with -NewerThanSnapshot', () => {
-    const out = path.join(tmp, 'out-first');
-    const r = run('-FirstInstall', '-OutDir', out);
-    assert.equal(r.status, 0, r.text);
-    const mixed = run('-FirstInstall', '-NewerThanSnapshot', '2026-11-15T04:30:00Z');
-    assert.notEqual(mixed.status, 0);
-    assert.match(mixed.text, /does not go with/);
-  });
+  test(
+    '-FirstInstall and -KeepPiWorld pass and write no snapshot line; they do not mix with -NewerThanSnapshot',
+    { skip: buildSkip },
+    () => {
+      const out = path.join(tmp, 'out-first');
+      const r = run('-FirstInstall', '-OutDir', out);
+      assert.equal(r.status, 0, r.text);
+      const keep = run('-KeepPiWorld', '-OutDir', path.join(tmp, 'out-keep'));
+      assert.equal(keep.status, 0, keep.text);
+      const mixed = run('-FirstInstall', '-NewerThanSnapshot', '2026-11-15T04:30:00Z');
+      assert.notEqual(mixed.status, 0);
+      assert.match(mixed.text, /do not go with -PushBack or -NewerThanSnapshot/);
+    }
+  );
 
-  test('another world is not held to the rule', () => {
+  test('another world is not held to the rule', { skip: buildSkip }, () => {
     mkdirSync(path.join(data, 'worlds', 'frostmaiden-training'), { recursive: true });
     writeFileSync(path.join(data, 'worlds', 'frostmaiden-training', 'world.json'), '{}');
     const r = run('-World', 'frostmaiden-training', '-OutDir', path.join(tmp, 'out-frost'));

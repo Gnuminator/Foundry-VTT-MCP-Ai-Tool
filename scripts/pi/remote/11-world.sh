@@ -11,8 +11,8 @@
 #   WORLD, KIT_WORLD or a world that is already installed; default WORLD for curse-of-strahd, but another WORLD
 #   must set LAUNCH to a non-empty id, so a forgotten or empty LAUNCH can never switch the Pi to the new world;
 #   KIT_WORLD may not name curse-of-strahd, strahd-kit (the campaign's test copy) or LAUNCH for another WORLD), REPLACE_WORLD (1 replaces an existing WORLD; default 0 keeps
-#   it), GM_USER (the world's GM, default Gamemaster), REPLACE_NEWER (push-back only: 1 replaces the Pi's world
-#   even when it changed after the Plan B snapshot), EXTRA_GM_USER (a second GM user, for example Claude, with its
+#   it), GM_USER (the world's GM, default Gamemaster), REPLACE_NEWER (a push-back, or REPLACE_WORLD=1 on a world the Pi has: 1 replaces the Pi's world
+#   even when it changed after the named Pi snapshot), EXTRA_GM_USER (a second GM user, for example Claude, with its
 #   own generated password; default none; letters, digits, . _ - and inner spaces), SHIP_MODULES (1 lets a bundle
 #   for a WORLD other than curse-of-strahd replace the Pi's modules; default 0 refuses such a bundle, because the
 #   campaign owns the modules: build it with push-world.ps1 -PiModules instead).
@@ -48,7 +48,8 @@
 # on the old world) unless REPLACE_NEWER=1. A document that is the same in the bundle (same key and times, so
 # an earlier run of this push-back installed it) does not count. A module the Pi updated after the snapshot
 # (its module.json version is newer than the bundle's, or either version cannot be read as numbers) is kept, not
-# downgraded. A plain bundle runs as before.
+# downgraded. A plain bundle without REPLACE_WORLD=1 runs as before; REPLACE_WORLD=1 on a world the Pi has needs a based-on-snapshot: line
+# and runs the same change check.
 # What it does: checks the tar before it extracts (no links or devices, no paths outside Data/, no env or cookie
 # files, no ddb-importer or bridge module), checks every checksum, moves the old copies to
 # /var/lib/foundry-import/prev-<stamp> (never deleted), installs, gives the worlds a generated GM password in a
@@ -347,7 +348,7 @@ if [ -f MANIFEST.txt ] && grep -q '^gm-password:' MANIFEST.txt; then
 elif [ "$REPLACE_WORLD" = 1 ] && [ -d "$data/worlds/$WORLD" ]; then
   # The Pi is the truth (the user, 2026-11-20): replacing a world that exists on the Pi needs a named snapshot the
   # PC's copy grew from, and the change check below stops the run when the Pi's world changed after it.
-  based_on="$(sed -n 's/^based-on-snapshot: //p' MANIFEST.txt 2>/dev/null | head -n1)"
+  based_on="$({ sed -n 's/^based-on-snapshot: //p' MANIFEST.txt 2>/dev/null || true; } | head -n1)"
   [[ "$based_on" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?Z$ ]] ||
     die "REPLACE_WORLD=1 replaces the Pi's $WORLD, and this bundle names no Pi snapshot it grew from (no based-on-snapshot: line in MANIFEST.txt), so the Pi's newer play could be lost. Build the bundle with push-world.ps1 -NewerThanSnapshot <the Pi backup the PC copy was taken from>. Nothing was changed"
   case "$REPLACE_NEWER" in 0 | 1) ;; *) die "REPLACE_NEWER must be 0 or 1" ;; esac
@@ -533,7 +534,7 @@ if have_systemd; then
   stopped=1
 fi
 
-# The push-back's change check (docs/dev/PLAN-B.md, "After the night", the rule for the push-back): the Pi's
+# The change check for a push-back and for REPLACE_WORLD=1 on an existing world (docs/dev/PLAN-B.md, "After the night", the rule for the push-back): the Pi's
 # world must not hold a document created or changed after the Pi backup Plan B restored, or that work would be
 # lost; REPLACE_NEWER=1 replaces it anyway (the old copy still goes to prev). Foundry is stopped, so the LevelDB
 # is not in use; copies are scanned (opening a LevelDB writes to it) with Foundry's own classic-level. Only
@@ -662,7 +663,7 @@ NODE
         if [ "$REPLACE_NEWER" = 1 ]; then
           warn "REPLACE_NEWER=1: the Pi's $WORLD is replaced anyway; its copy goes to $prev"
         else
-          die "the Pi's $WORLD changed after the Pi backup Plan B restored: someone played or prepared on the Pi, and a push-back would lose that. Nothing was replaced. Ask the user; only with their OK to lose those changes run again with REPLACE_NEWER=1 (the Pi's copy is kept in $IMPORT/prev-<time> either way)"
+          die "the Pi's $WORLD changed after the Pi backup $based_on (the push-back's Plan B backup, or the snapshot the bundle names): someone played or prepared on the Pi, and replacing it would lose that. Nothing was replaced. Ask the user; only with their OK to lose those changes run again with REPLACE_NEWER=1 (the Pi's copy is kept in $IMPORT/prev-<time> either way)"
         fi
         ;;
       *)

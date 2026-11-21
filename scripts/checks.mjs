@@ -197,6 +197,7 @@ export const CHECKS = [
   nodeTest('pi-gamenight-watch-stage', 'pi', 'scripts/pi/gamenight-watch-stage.test.mjs'),
   nodeTest('pi-space-check', 'pi', 'scripts/pi/space-check.test.mjs'),
   nodeTest('pi-backup-record', 'pi', 'scripts/pi/backup-pull-record.test.mjs'),
+  nodeTest('pi-push-world', 'pi', 'scripts/pi/push-world.test.mjs'),
   nodeTest('pi-world-refs', 'pi', 'scripts/pi/world-refs.test.mjs'),
   nodeTest('pi-assistant-gm', 'pi', 'scripts/pi/assistant-gm.test.mjs'),
   nodeTest('pi-gm-passwords', 'pi', 'scripts/pi/gm-passwords.test.mjs'),

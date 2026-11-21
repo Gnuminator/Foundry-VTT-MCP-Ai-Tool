@@ -1,12 +1,12 @@
-// Pi stage 35, the Who uses what note written by the Pi (scripts/pi/remote/35-who-uses-what.sh and scripts/pi/who-uses-what-push.sh):
+// Pi stage 35, the Who uses what reading sent to the PM board (scripts/pi/remote/35-who-uses-what.sh and
+// scripts/pi/who-uses-what-push.sh):
 //   node --test scripts/pi/who-uses-what-stage.test.mjs
-// Text checks and the job against a local bare repo (real git, a stand-in dashboard) always run when bash and git exist; the
-// stage scenarios (real lib.sh, runuser, ssh-keygen, cmp and install in a Debian 13 ARM64 container) run with
-// PI_STAGE35_CONTAINER=1 (needs Docker).
+// Text checks and the job against stand-in dashboard and board servers always run when bash and curl exist; the stage
+// scenarios (real lib.sh, cmp and install in a Debian 13 ARM64 container) run with PI_STAGE35_CONTAINER=1 (needs Docker).
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
@@ -17,6 +17,11 @@ import { runStageContainer } from './container-test/run-stage-container.mjs';
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const stage = readFileSync(path.join(repo, 'scripts/pi/remote/35-who-uses-what.sh'), 'utf8');
 const job = readFileSync(path.join(repo, 'scripts/pi/who-uses-what-push.sh'), 'utf8');
+const code = text =>
+  text
+    .split('\n')
+    .filter(l => !l.trim().startsWith('#'))
+    .join('\n');
 
 describe('stage 35 as text', () => {
   test('the snapshot check comes before the first write and DRY_RUN, CHECK and UNDO exist', () => {
@@ -28,40 +33,30 @@ describe('stage 35 as text', () => {
 
   test('it restarts and stops only its own units: no require_quiet, no other service touched', () => {
     assert.doesNotMatch(stage, /require_quiet|enable_unit/);
-    const code = stage
-      .split('\n')
-      .filter(l => !l.startsWith('#'))
-      .join('\n');
-    const acts = code.match(/systemctl (restart|stop|start|enable|disable)[^\n]*/g) ?? [];
+    const acts = code(stage).match(/systemctl (restart|stop|start|enable|disable)[^\n]*/g) ?? [];
     assert.ok(acts.length > 0);
     for (const r of acts) assert.match(r, /"\$unit_name\.(service|timer)"/, r);
   });
 
-  test('every rm -rf has a guarded variable and the state folder (key, clone) is never removed', () => {
+  test('every rm -rf has a guarded variable', () => {
     for (const m of stage.matchAll(/rm -(rf|f) ("[^"]*")/g))
       assert.match(m[2], /\$\{[a-z_]+:\?\}/, m[0]);
-    assert.doesNotMatch(stage, /rm [^\n]*\$state/);
-    assert.doesNotMatch(stage, /rm [^\n]*\$key/);
   });
 
-  test('the private key is made by the foundry user, kept 0600, and never printed', () => {
-    assert.match(stage, /as_foundry\(\) \{ runuser -u "\$FOUNDRY_USER" -- "\$@"; \}/);
-    assert.match(stage, /as_foundry ssh-keygen -q -t ed25519 -N ''/);
-    // root writes nothing inside the foundry-owned state folder: no redirect into $state, no root chown or chmod of its files
-    const code = stage.split('\n').filter(l => !l.trim().startsWith('#'));
-    for (const l of code) {
-      if (/as_foundry|runuser/.test(l)) continue;
-      assert.doesNotMatch(l, />\s*"?\$(state|key)/, l);
-      assert.doesNotMatch(l, /(chown|chmod|printf[^\n]*>)[^\n]*\$(state|key)/, l);
+  test('no key to the vault repo: no ssh-keygen, no deploy key, no git, no GitHub host key', () => {
+    for (const text of [code(stage), code(job)]) {
+      assert.doesNotMatch(text, /ssh-keygen|id_ed25519|known_hosts|github_hostkey|git@github/);
+      assert.doesNotMatch(text, /\bgit\b/);
+      assert.doesNotMatch(text, /obsidian-vault\.git/);
     }
-    assert.match(stage, /\[ ! -L "\$state" \]/);
-    assert.match(stage, /chmod 0600 "\$key"/);
-    assert.match(stage, /install -d -m 0700 -o "\$FOUNDRY_USER"/);
-    assert.doesNotMatch(stage, /(cat|sed|echo|printf)[^\n]*"\$key"(?!\.pub)/);
-    assert.doesNotMatch(stage, /GM_DASHBOARD_TOKEN=\$/);
   });
 
-  test('the timer is enabled only after a reading was pushed', () => {
+  test('the old deploy key folder is removed, never followed through a link', () => {
+    assert.match(stage, /\[ ! -L "\$legacy_state" \]/);
+    assert.match(stage, /rm -rf "\$\{legacy_state:\?\}"/);
+  });
+
+  test('the timer is enabled only after a reading was sent', () => {
     const start = stage.indexOf('systemctl start "$unit_name.service"');
     const enable = stage.indexOf('systemctl enable --now "$unit_name.timer"');
     assert.ok(start > 0 && enable > start);
@@ -74,107 +69,105 @@ describe('stage 35 as text', () => {
     assert.match(stage, /^Persistent=false$/m);
   });
 
-  test('the unit is a hardened foundry-user oneshot with one writable folder', () => {
+  test('the unit is a sandboxed oneshot with no writable path and no secret in it', () => {
     assert.match(stage, /^Type=oneshot$/m);
-    assert.match(stage, /^User=\$FOUNDRY_USER$/m);
     assert.match(stage, /^NoNewPrivileges=true$/m);
     assert.match(stage, /^ProtectSystem=strict$/m);
-    assert.match(stage, /^ReadWritePaths=\$state$/m);
+    assert.doesNotMatch(stage, /^ReadWritePaths=/m);
     assert.doesNotMatch(stage, /^(Requires|BindsTo)=/m);
     assert.doesNotMatch(stage, /^(Environment|ExecStart)=[^\n]*(TOKEN|SECRET)/m);
   });
 
-  test('the GitHub host key is pinned and matches the published fingerprint', () => {
-    const line = stage.match(/^github_hostkey='([^']+)'$/m)?.[1];
-    assert.ok(line);
-    const [, type, b64] = line.split(' ');
-    assert.equal(type, 'ssh-ed25519');
-    const fp = createHash('sha256')
-      .update(Buffer.from(b64, 'base64'))
-      .digest('base64')
-      .replace(/=+$/, '');
-    // https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints
-    assert.equal(fp, '+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU');
+  test('the token file gets the stage 16 checks: root-only, no link, header lines only', () => {
+    assert.match(stage, /"\$\(stat -c '%u %a' "\$board_conf"\)" = "0 600"/);
+    assert.match(stage, /\[ ! -L "\$board_conf" \]/);
+    assert.match(stage, /CF-Access-Client-\(Id\|Secret\)/);
+    const check = stage.indexOf('check_board_conf\nok ');
+    assert.ok(check > 0 && check < stage.indexOf('install -d -m 0755'));
   });
 });
 
 describe('the job as text', () => {
-  test('it checks the host key strictly, uses only the deploy key and never prompts', () => {
-    assert.match(job, /StrictHostKeyChecking=yes/);
-    assert.match(job, /IdentitiesOnly=yes/);
-    assert.match(job, /BatchMode=yes/);
-    assert.match(job, /GIT_TERMINAL_PROMPT=0/);
+  test('it posts over https only to the board, with the token file read by curl -K', () => {
+    assert.match(job, /url="\$\{WUW_URL:-https:\/\/board\.spennerit\.com\/api\/who-uses-what\}"/);
+    assert.match(job, /proto='=https'/);
+    assert.match(job, /-K "\$conf"/);
+    assert.match(job, /curl -q /);
   });
 
-  test('the token goes to the report script only, and nothing prints it', () => {
+  test('the dashboard token goes to the report script only, and nothing prints a token', () => {
     assert.match(job, /COGM_TOKEN="\$\{GM_DASHBOARD_TOKEN:-\}" "\$node_bin"/);
     assert.doesNotMatch(job, /(echo|say|printf)[^\n]*(GM_DASHBOARD_TOKEN|COGM_TOKEN)/);
     assert.doesNotMatch(job, /set -x|bash -x/);
-  });
-
-  test('it keeps a one-file sparse clone and never force-pushes', () => {
-    assert.match(job, /core\.sparseCheckout true/);
-    assert.match(job, /--depth 1/);
-    assert.doesNotMatch(job, /push[^\n]*(--force|-f\b|\+)/);
+    assert.doesNotMatch(job, /-H [^\n]*CF-Access/);
   });
 });
 
-const haveBash = spawnSync('bash', ['-c', 'git --version'], { encoding: 'utf8' }).status === 0;
+const haveBash = spawnSync('bash', ['-c', 'curl --version'], { encoding: 'utf8' }).status === 0;
 
-describe('the job against a local bare repo', { skip: !haveBash }, () => {
+describe('the job against stand-in servers', { skip: !haveBash }, () => {
   const root = mkdtempSync(path.join(os.tmpdir(), 'wuw-job-'));
   const fwd = p => p.replace(/\\/g, '/');
   const report = {
+    schema: 1,
     days: 7,
-    current: 3,
-    generatedAt: '2026-11-19T20:00:00.000Z',
+    current: '0.31.0',
+    generatedAt: '2026-11-21T20:00:00.000Z',
     people: [],
     tools: { used: 0, neverCalled: [], errorRates: [] },
   };
-  let seenToken = null;
-  let status = 200;
-  const server = http.createServer((req, res) => {
-    seenToken = req.headers['x-cogm-token'] ?? null;
-    res.writeHead(status, { 'content-type': 'application/json' });
-    res.end(status === 200 ? JSON.stringify(report) : '{}');
+  let dashStatus = 200;
+  let seenDashToken = null;
+  let boardStatus = 200;
+  const posts = [];
+  const dashboard = http.createServer((req, res) => {
+    seenDashToken = req.headers['x-cogm-token'] ?? null;
+    res.writeHead(dashStatus, { 'content-type': 'application/json' });
+    res.end(dashStatus === 200 ? JSON.stringify(report) : '{}');
   });
-  let port = 0;
-  const git = (cwd, ...a) =>
-    spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...a], {
-      cwd,
-      encoding: 'utf8',
+  const board = http.createServer((req, res) => {
+    let body = '';
+    req.on('data', d => (body += d));
+    req.on('end', () => {
+      posts.push({
+        method: req.method,
+        url: req.url,
+        type: req.headers['content-type'],
+        id: req.headers['cf-access-client-id'] ?? null,
+        secret: req.headers['cf-access-client-secret'] ?? null,
+        body,
+      });
+      res.writeHead(boardStatus, { 'content-type': 'application/json' });
+      res.end('{"ok":true}');
     });
-  const bare = path.join(root, 'vault.git');
-  const work = path.join(root, 'state');
+  });
+  let dashPort = 0;
+  let boardPort = 0;
+  const conf = path.join(root, 'board-status.conf');
 
   test('setup', async () => {
-    await new Promise(r => server.listen(0, '127.0.0.1', r));
-    port = server.address().port;
-    spawnSync('git', ['init', '-q', '--bare', '-b', 'main', bare]);
-    git(bare, 'config', 'uploadpack.allowFilter', 'true');
-    git(bare, 'config', 'uploadpack.allowAnySHA1InWant', 'true');
-    const seed = path.join(root, 'seed');
-    mkdirSync(path.join(seed, 'Dev/Foundry AI Tool'), { recursive: true });
-    writeFileSync(path.join(seed, 'Dev/Foundry AI Tool/Backlog.md'), 'backlog\n');
-    writeFileSync(path.join(seed, 'Secret.md'), 'private\n');
-    git(seed, 'init', '-q', '-b', 'main');
-    git(seed, 'add', '.');
-    git(seed, 'commit', '-q', '-m', 'seed');
-    assert.equal(git(seed, 'push', '-q', bare, 'main').status, 0);
+    await new Promise(r => dashboard.listen(0, '127.0.0.1', r));
+    await new Promise(r => board.listen(0, '127.0.0.1', r));
+    dashPort = dashboard.address().port;
+    boardPort = board.address().port;
+    writeFileSync(
+      conf,
+      '# test token\nheader = "CF-Access-Client-Id: id123.access"\nheader = "CF-Access-Client-Secret: secret456"\n'
+    );
   });
 
-  // Async: the stand-in dashboard lives in this process, so a blocking spawn would starve it.
+  // Async: the stand-in servers live in this process, so a blocking spawn would starve them.
   const run = (extra = {}) =>
     new Promise(resolve => {
       const child = spawn('bash', [fwd(path.join(repo, 'scripts/pi/who-uses-what-push.sh'))], {
         env: {
           ...process.env,
-          WUW_DIR: fwd(work),
           WUW_NODE: fwd(process.execPath),
           WUW_SCRIPT: fwd(path.join(repo, 'scripts/who-uses-what.mjs')),
-          WUW_DASHBOARD: `http://127.0.0.1:${port}`,
-          WUW_REMOTE: fwd(bare),
-          WUW_SSH_PLAIN: '1',
+          WUW_DASHBOARD: `http://127.0.0.1:${dashPort}`,
+          WUW_URL: `http://127.0.0.1:${boardPort}/api/who-uses-what`,
+          WUW_CONF: fwd(conf),
+          WUW_TEST: '1',
           GM_DASHBOARD_TOKEN: 'sekrit-token-123',
           ...extra,
         },
@@ -185,100 +178,80 @@ describe('the job against a local bare repo', { skip: !haveBash }, () => {
       child.stderr.on('data', d => (stderr += d));
       child.on('close', status => resolve({ status, stdout, stderr }));
     });
-  const show = p => git(bare, 'show', `main:${p}`).stdout;
-  const count = () => Number(git(bare, 'rev-list', '--count', 'main').stdout.trim());
 
-  test('a first run pushes the note, sends the token, leaves the rest of the vault out of the clone, prints no token', async () => {
+  test('a run posts the report JSON with the Access headers and sends the GM token to the dashboard only', async () => {
+    posts.length = 0;
     const r = await run();
     assert.equal(r.status, 0, r.stdout + r.stderr);
-    assert.match(show('Dev/Foundry AI Tool/Who uses what.md'), /^# Who uses what/);
-    assert.equal(seenToken, 'sekrit-token-123');
-    const clone = path.join(work, 'repo');
-    assert.ok(existsSync(path.join(clone, 'Dev/Foundry AI Tool/Who uses what.md')));
-    assert.ok(!existsSync(path.join(clone, 'Secret.md')), 'the sparse clone holds only the note');
-    // Not only the working tree: the object store must not hold the other notes' content either (blobless fetch).
-    const blob = git(bare, 'rev-parse', 'main:Secret.md').stdout.trim();
-    const have = spawnSync('git', ['-C', clone, 'cat-file', '-e', blob], {
-      env: { ...process.env, GIT_NO_LAZY_FETCH: '1' },
-    });
-    assert.notEqual(have.status, 0, 'the clone holds the content of another note');
-    assert.ok(!(r.stdout + r.stderr).includes('sekrit-token-123'));
-    assert.equal(git(bare, 'log', '-1', '--format=%an', 'main').stdout.trim(), 'foundry-pi');
+    assert.equal(posts.length, 1);
+    const [p] = posts;
+    assert.equal(p.method, 'POST');
+    assert.equal(p.url, '/api/who-uses-what');
+    assert.match(p.type, /^application\/json/);
+    assert.equal(p.id, 'id123.access');
+    assert.equal(p.secret, 'secret456');
+    assert.deepEqual(JSON.parse(p.body), report);
+    assert.equal(seenDashToken, 'sekrit-token-123');
+    assert.ok(!p.body.includes('sekrit-token-123'));
+    assert.match(r.stdout, /posted the reading to the board/);
+    const all = r.stdout + r.stderr;
+    assert.ok(!all.includes('sekrit-token-123') && !all.includes('secret456'));
   });
 
-  test('an unchanged note makes no commit; a changed report makes one', async () => {
-    const n = count();
+  test('a board that refuses fails the run without printing the token', async () => {
+    boardStatus = 403;
     const r = await run();
-    assert.equal(r.status, 0, r.stdout + r.stderr);
-    assert.match(r.stdout, /unchanged/);
-    assert.equal(count(), n);
-    report.generatedAt = '2026-11-20T00:00:00.000Z';
-    const r2 = await run();
-    assert.equal(r2.status, 0, r2.stdout + r2.stderr);
-    assert.equal(count(), n + 1);
-    assert.match(show('Dev/Foundry AI Tool/Who uses what.md'), /2026-11-20 00:00/);
-    assert.equal(show('Secret.md'), 'private\n');
+    boardStatus = 200;
+    assert.notEqual(r.status, 0);
+    assert.match(r.stderr, /board answered HTTP 403/);
+    assert.ok(!(r.stdout + r.stderr).includes('secret456'));
   });
 
-  test('the vault moving between runs is fetched, not overwritten', async () => {
-    const other = path.join(root, 'other');
-    spawnSync('git', ['clone', '-q', bare, other]);
-    writeFileSync(path.join(other, 'Waiting.md'), 'waiting\n');
-    git(other, 'add', '.');
-    git(other, 'commit', '-q', '-m', 'pc');
-    git(other, 'push', '-q', 'origin', 'main');
-    report.generatedAt = '2026-11-20T04:00:00.000Z';
+  test('a dashboard that refuses posts nothing and fails', async () => {
+    posts.length = 0;
+    dashStatus = 401;
     const r = await run();
-    assert.equal(r.status, 0, r.stdout + r.stderr);
-    assert.equal(show('Waiting.md'), 'waiting\n');
-    assert.match(show('Dev/Foundry AI Tool/Who uses what.md'), /2026-11-20 04:00/);
-  });
-
-  test('a refused first push is retried once; two refusals fail the run', async () => {
-    const hook = path.join(bare, 'hooks/pre-receive');
-    const flag = fwd(path.join(root, 'refuse-once'));
-    writeFileSync(
-      hook,
-      `#!/bin/sh\nif [ -f "${flag}" ]; then rm -f "${flag}"; echo no >&2; exit 1; fi\n`,
-      { mode: 0o755 }
-    );
-    writeFileSync(path.join(root, 'refuse-once'), '');
-    report.generatedAt = '2026-11-20T08:00:00.000Z';
-    const r = await run();
-    assert.equal(r.status, 0, r.stdout + r.stderr);
-    assert.match(r.stdout, /trying once more/);
-    assert.match(show('Dev/Foundry AI Tool/Who uses what.md'), /2026-11-20 08:00/);
-    writeFileSync(hook, '#!/bin/sh\nexit 1\n', { mode: 0o755 });
-    report.generatedAt = '2026-11-20T12:00:00.000Z';
-    const r2 = await run();
-    assert.notEqual(r2.status, 0);
-    assert.match(r2.stderr, /refused twice/);
-    rmSync(hook);
-  });
-
-  test('a dashboard that refuses pushes nothing and fails', async () => {
-    const n = count();
-    status = 401;
-    const r = await run();
-    status = 200;
+    dashStatus = 200;
     assert.notEqual(r.status, 0);
     assert.match(r.stderr, /no report/);
-    assert.equal(count(), n);
+    assert.equal(posts.length, 0);
   });
 
-  test('WUW_MODE=check reads and lists, and writes nothing', async () => {
-    const n = count();
-    report.generatedAt = '2026-11-20T16:00:00.000Z';
+  test('a token file that holds anything but Access headers is refused before anything is sent', async () => {
+    posts.length = 0;
+    const bad = path.join(root, 'bad.conf');
+    writeFileSync(bad, 'header = "CF-Access-Client-Id: a"\noutput = "/etc/passwd"\n');
+    const r = await run({ WUW_CONF: fwd(bad) });
+    assert.notEqual(r.status, 0);
+    assert.match(r.stderr, /not an Access header/);
+    assert.ok(!r.stderr.includes('/etc/passwd'));
+    assert.equal(posts.length, 0);
+  });
+
+  test('an unreachable board fails', async () => {
+    const r = await run({ WUW_URL: 'http://127.0.0.1:9/api/who-uses-what' });
+    assert.notEqual(r.status, 0);
+    assert.match(r.stderr, /could not reach the board/);
+  });
+
+  test('http is refused without the test switch', async () => {
+    posts.length = 0;
+    const r = await run({ WUW_TEST: '0' });
+    assert.notEqual(r.status, 0);
+    assert.equal(posts.length, 0);
+  });
+
+  test('WUW_MODE=check reads the report and posts nothing', async () => {
+    posts.length = 0;
     const r = await run({ WUW_MODE: 'check' });
     assert.equal(r.status, 0, r.stdout + r.stderr);
-    assert.match(r.stdout, /vault repo answers/);
-    assert.equal(count(), n);
-    const bad = await run({ WUW_MODE: 'check', WUW_REMOTE: fwd(path.join(root, 'nope.git')) });
-    assert.notEqual(bad.status, 0);
+    assert.match(r.stdout, /nothing posted/);
+    assert.equal(posts.length, 0);
   });
 
   after(() => {
-    server.close();
+    dashboard.close();
+    board.close();
     rmSync(root, { recursive: true, force: true });
   });
 });

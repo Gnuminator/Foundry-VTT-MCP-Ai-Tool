@@ -124,7 +124,9 @@ function fakes(o) {
         const head = args[at + 1].split('@')[1];
         current = current
           .split('\n')
-          .map(l => (l.startsWith('- progress:') && l.includes(`head ${head}`) ? `- progress: ${args[2]}` : l))
+          .map(l =>
+            l.startsWith('- progress:') && l.includes(`head ${head}`) ? `- progress: ${args[2]}` : l
+          )
           .join('\n');
       }
       return { status: 0, stdout: '', stderr: '' };
@@ -869,6 +871,32 @@ test('main: loops until a round stops, then exits 3 and releases the lock', asyn
     assert.equal(code, 3);
     assert.equal(slept, 0);
     assert.equal(fs.existsSync(file), false);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('main: heartbeat while it lives, exit reason at the end; a repeated red stop posts once', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'merge-runner-beat-'));
+  try {
+    const file = path.join(dir, 'merge-runner.lock');
+    const beat = path.join(dir, 'merge-runner.heartbeat.json');
+    const mk = () =>
+      fakes({
+        text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+        prs: { 5: open() },
+        main: RED,
+      });
+    const first = mk();
+    assert.equal(await main([], { deps: first.deps, lockFile: file, sleep: async () => {} }), 3);
+    const hb = JSON.parse(fs.readFileSync(beat, 'utf8'));
+    assert.match(hb.exit, /^main is red/);
+    assert.equal(hb.pid, process.pid);
+    assert.equal(first.calls.post.length, 1);
+    // The scheduled repeat starts it again: main is still red, same stop, no second #pr-log post.
+    const second = mk();
+    assert.equal(await main([], { deps: second.deps, lockFile: file, sleep: async () => {} }), 3);
+    assert.equal(second.calls.post.length, 0);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

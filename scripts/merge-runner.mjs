@@ -98,6 +98,7 @@ import { makeBaseDeps, runningInfo, skipMainWait } from './merge-runner/base-cur
 import { openLeft } from './merge-runner/open-steps.mjs';
 import { makeRefresh, refreshStep } from './merge-runner/refresh.mjs';
 import { EXIT_RESTART, makeSelfCheck, reexec } from './merge-runner/self-check.mjs';
+import { startLiveness } from './merge-runner/liveness.mjs';
 import { isRunnerProcess, takeRunnerLock } from './merge-runner/runner-lock.mjs';
 import { makeTrainDeps, makeTrainRun, trainTick } from './merge-runner/train-run.mjs';
 import { makeReleaseDeps, makeReleaseRun, releaseTick } from './merge-runner/release-ready.mjs';
@@ -991,16 +992,17 @@ export async function main(argv, inject = {}) {
     console.error(`merge-runner: ${e instanceof Error ? e.message : e}`);
     return 2;
   }
-  const d = inject.deps ?? realDeps(o);
+  const base = inject.deps ?? realDeps(o);
   const lockFile =
     inject.lockFile ?? path.join(os.homedir(), '.foundry-ai-tool', 'merge-runner.lock');
   const lock = takeRunnerLock(lockFile, process.pid, inject.isRunner);
   if (!lock.ok) {
     const why = `another merge runner runs (pid ${lock.holder || 'unknown'}, ${lockFile})`;
-    d.log(`${why}; exiting`);
-    d.post(`merge runner not started: ${why}`);
+    base.log(`${why}; exiting`);
+    base.post(`merge runner not started: ${why}`);
     return 1;
   }
+  const { deps: d, stop } = startLiveness(lockFile, base, o.once); // heartbeat, exit reason
   const sleep = inject.sleep ?? (ms => new Promise(res => setTimeout(res, ms)));
   try {
     d.log(`started (pid ${process.pid}, vault ${o.vault}, gate checkout ${o.checkout})`);
@@ -1041,6 +1043,7 @@ export async function main(argv, inject = {}) {
     d.trainRun?.leave();
     d.releaseRun?.leave();
     lock.release();
+    stop();
   }
 }
 

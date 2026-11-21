@@ -1,6 +1,6 @@
 # Registers (or removes) the merge runner as a Windows scheduled task at logon (D-140, D-141).
 #
-#   pwsh scripts/register-merge-runner.ps1            start the runner at every logon
+#   pwsh scripts/register-merge-runner.ps1            start the runner at every logon and every 10 minutes after
 #   pwsh scripts/register-merge-runner.ps1 -WhatIf    show what it would register
 #   pwsh scripts/register-merge-runner.ps1 -Remove
 #
@@ -10,7 +10,9 @@
 # %USERPROFILE%\.foundry-ai-tool\merge-runner.log. It has no time limit: the runner watches the
 # Backlog all day and exits only at the merge train limit, on a red main, on a gate checkout
 # problem, or when its own code changed on main and the checkout cannot be updated (each posts one
-# #pr-log line). When its code changes and the checkout can be updated it restarts itself (the
+# #pr-log line; the repeat trigger starts it again, a repeated identical stop posts nothing new).
+# It writes ~/.foundry-ai-tool/merge-runner.heartbeat.json every minute; `backlog.mjs status
+# --planner` and the start hook flag a dead or stale runner from it. When its code changes and the checkout can be updated it restarts itself (the
 # task has no restart count, so the first process stays as the parent of each new child). Start it
 # again by hand with
 #   Start-ScheduledTask -TaskName 'Foundry AI Tool merge runner'
@@ -59,6 +61,11 @@ $command = "`"$node`" `"$script`" >> `"$log`" 2>&1"
 $action = New-ScheduledTaskAction -Execute 'conhost.exe' `
   -Argument "--headless cmd.exe /d /s /c `"$command`"" -WorkingDirectory $repo
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\$env:USERNAME"
+# Repeat every 10 minutes for as long as you are logged on: a killed runner, or one that stopped on a
+# red main, comes back by itself. A live runner makes the repeat a no-op (-MultipleInstances
+# IgnoreNew, and the lock file).
+$repeat = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 10)
+$trigger.Repetition = $repeat.Repetition
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
   -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew
 $principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive

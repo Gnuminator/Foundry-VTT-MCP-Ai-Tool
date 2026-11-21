@@ -1,6 +1,6 @@
 ---
 source: gm/dashboard-drawers.md
-sourceHash: 2c24a2d67963
+sourceHash: c7a818453cc5
 title: 'Dashboardet: confirm-vindue, Tool Runner og skuffer'
 description: 'Confirm-vinduet, Tool Runner og skufferne Tarokka, Handouts, Prep og Party.'
 ---

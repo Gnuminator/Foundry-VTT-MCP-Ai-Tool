@@ -47,16 +47,25 @@ const MODERN_META = {
 type Frame = {
   jsonrpc: '2.0';
   id?: number;
+  method?: string;
   result?: unknown;
   error?: { code: number; message: string };
 };
 
 /** Newline-delimited control channel the wrapper dials: answers list_tools and call_tool. */
-const bridgeState = { emptyTools: false };
+const bridgeState = {
+  emptyTools: false,
+  /** Replaces the served list (a backend restarted on another build). */
+  tools: null as typeof FAKE_TOOLS | null,
+};
+
+const openSockets = new Set<net.Socket>();
 
 function startFakeBridge(): Promise<{ server: net.Server; port: number }> {
   return new Promise(resolve => {
     const server = net.createServer(sock => {
+      openSockets.add(sock);
+      sock.on('close', () => openSockets.delete(sock));
       let buf = '';
       sock.setEncoding('utf8');
       sock.on('error', () => {});
@@ -80,7 +89,7 @@ function startFakeBridge(): Promise<{ server: net.Server; port: number }> {
           }
           const result =
             req.method === 'list_tools'
-              ? { tools: bridgeState.emptyTools ? [] : FAKE_TOOLS }
+              ? { tools: bridgeState.emptyTools ? [] : (bridgeState.tools ?? FAKE_TOOLS) }
               : { content: [{ type: 'text', text: 'fake result' }] };
           sock.write(`${JSON.stringify({ id: req.id, result })}\n`);
         }
@@ -159,6 +168,16 @@ class Wrapper {
         });
       });
     }
+  }
+
+  /** Whether a notification with this method has arrived, waiting up to the reply timeout. */
+  async notified(method: string): Promise<boolean> {
+    const deadline = Date.now() + REPLY_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+      if (this.frames.some(f => f.id === undefined && f.method === method)) return true;
+      await new Promise<void>(resolve => setTimeout(resolve, 50));
+    }
+    return false;
   }
 
   async request(method: string, params?: unknown): Promise<Frame> {
@@ -306,6 +325,35 @@ describe('MCP 2026-07-28 probe against dist/index.js', () => {
     expect((res.result as { protocolVersion: string }).protocolVersion).toBe(
       LATEST_PROTOCOL_VERSION
     );
+  });
+
+  it('reconnects after the bridge drops and says tools/list_changed only when the list moved', async () => {
+    const w = start();
+    await w.initialize();
+    expect(await w.toolNames()).toEqual(FAKE_TOOLS.map(t => t.name));
+    // Same list after a reconnect: no notification, and the call still works.
+    for (const s of openSockets) s.destroy();
+    await new Promise<void>(resolve => setTimeout(resolve, 300)); // the wrapper sees the close
+    const same = await w.request('tools/call', { name: 'get-world-info', arguments: {} });
+    expect(JSON.stringify(same.result)).toContain('fake result');
+    await new Promise<void>(resolve => setTimeout(resolve, 500));
+    expect(await w.notified('notifications/tools/list_changed')).toBe(false);
+    // A different list on the next backend: the client is told.
+    bridgeState.tools = FAKE_TOOLS.slice(0, 2);
+    try {
+      for (const s of openSockets) s.destroy();
+      await new Promise<void>(resolve => setTimeout(resolve, 300));
+      // Concurrent calls share one reconnect (single flight).
+      const calls = await Promise.all([
+        w.request('tools/call', { name: 'get-world-info', arguments: {} }),
+        w.request('tools/call', { name: 'get-world-info', arguments: {} }),
+      ]);
+      for (const c of calls) expect(c.error).toBeUndefined();
+      expect(await w.notified('notifications/tools/list_changed')).toBe(true);
+      expect(await w.toolNames()).toEqual(FAKE_TOOLS.slice(0, 2).map(t => t.name));
+    } finally {
+      bridgeState.tools = null;
+    }
   });
 
   it('calls a tool after a modern probe and the legacy handshake', async () => {

@@ -207,14 +207,32 @@ export function write(outDir, skillName, files) {
 }
 
 /**
- * Build the thin stub skill (what the GM uploads to claude.ai): SKILL.md from `stub/` only. The
+ * Pages that travel inside the stub (zip and plugin) so the coach can still answer on game night
+ * when the table's server is down: published path in the skill folder -> source in the repo.
+ */
+export const OFFLINE_PAGES = {
+  'references/game-night-runbook.md': 'docs/gm/game-night-runbook.md',
+  'references/troubleshooting.md': 'docs/gm/troubleshooting.md',
+};
+
+/** The stub's files: SKILL.md plus the offline pages, published path -> text. */
+export function stubFiles() {
+  const files = new Map([['SKILL.md', readFileSync(path.join(here, 'stub', 'SKILL.md'), 'utf8')]]);
+  for (const [to, from] of Object.entries(OFFLINE_PAGES)) {
+    files.set(to, readFileSync(path.join(repo, from), 'utf8'));
+  }
+  return files;
+}
+
+/**
+ * Build the thin stub skill (what the GM uploads to claude.ai): SKILL.md from `stub/` plus the
+ * offline pages (game night runbook and troubleshooting, for when the server is down). The
  * coaching rules and reference pages are served by the backend's `get-skill-guide` tool, built
  * from `collectFiles()` (scripts/skill-guides.mjs), so a deploy updates them.
  * @param {string} outDir
  */
 export function buildStub(outDir) {
-  const files = new Map([['SKILL.md', readFileSync(path.join(here, 'stub', 'SKILL.md'), 'utf8')]]);
-  return write(outDir, SKILL_NAME, files);
+  return write(outDir, SKILL_NAME, stubFiles());
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

@@ -6,12 +6,13 @@
  *   node scripts/sync-skill-plugins.mjs <marketplace-repo-dir>   write the plugins and marketplace.json
  *   node scripts/sync-skill-plugins.mjs <dir> --check            exit 1 if <dir> differs, write nothing
  *
- * Only stub SKILL.md files go in (no book or campaign text, D-065): the changing content comes
+ * Only stub SKILL.md files go in, plus the GM coach's two offline pages from docs/gm (no book or campaign text, D-065): the changing content comes
  * from the table's server through get-skill-guide.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { OFFLINE_PAGES } from '../tools/gm-coach/build.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -64,6 +65,15 @@ export function plan() {
       `plugins/${p.name}/skills/${p.skill}/SKILL.md`,
       readFileSync(path.join(repo, p.stub), 'utf8')
     );
+    // The GM coach also carries the offline pages, for a night when the server is down.
+    if (p.skill === 'foundry-gm-coach') {
+      for (const [to, from] of Object.entries(OFFLINE_PAGES)) {
+        files.set(
+          `plugins/${p.name}/skills/${p.skill}/${to}`,
+          readFileSync(path.join(repo, from), 'utf8')
+        );
+      }
+    }
   }
   return files;
 }

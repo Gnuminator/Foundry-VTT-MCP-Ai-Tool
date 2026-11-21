@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
+import { OFFLINE_PAGES } from '../tools/gm-coach/build.mjs';
 import { PLUGINS, plan } from './sync-skill-plugins.mjs';
 
 test('each plugin carries exactly its stub SKILL.md', () => {
@@ -12,7 +13,17 @@ test('each plugin carries exactly its stub SKILL.md', () => {
     assert.match(skill, new RegExp(`^name: ${p.skill}$`, 'm'));
     assert.ok(skill.length < 3000, 'a stub stays small');
   }
-  assert.equal(files.size, 1 + PLUGINS.length * 2);
+  assert.equal(files.size, 1 + PLUGINS.length * 2 + Object.keys(OFFLINE_PAGES).length);
+});
+
+test('the GM coach plugin carries the offline runbook and troubleshooting pages', () => {
+  const files = plan();
+  for (const [to, from] of Object.entries(OFFLINE_PAGES)) {
+    assert.equal(
+      files.get(`plugins/foundry-gm-coach/skills/foundry-gm-coach/${to}`),
+      readFileSync(new URL(`../${from}`, import.meta.url), 'utf8')
+    );
+  }
 });
 
 test('the marketplace lists every plugin', () => {

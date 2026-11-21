@@ -54,6 +54,7 @@ import {
 /** The read tools that find a document by name, for the "not found" next step. */
 const DOCUMENT_LOOKUP_TOOLS = 'list-characters, list-scenes or list-journals';
 
+import { isLostAnswerMessage } from '../direct-write-timeout.js';
 import type { FoundryClient } from '../foundry-client.js';
 import type { Logger } from '../logger.js';
 import { removedRiderLines, riderUndoOps, type BatchRiderSource } from './rider-undo.js';
@@ -299,8 +300,7 @@ export type UndoGuard = (worldId: string, entry: AuditEntry) => Promise<string |
 
 /** Errors that mean "no answer arrived", as opposed to Foundry refusing the change. */
 function isLostAnswer(error: unknown): boolean {
-  const message = errorMessage(error);
-  return /query timeout|connection closed/i.test(message);
+  return isLostAnswerMessage(errorMessage(error));
 }
 
 /**

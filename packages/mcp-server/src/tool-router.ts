@@ -6,7 +6,8 @@
  * no tool instance and imports no tool class itself. The stdio wrapper loads it for
  * `capToolResult`, and so loads the tool modules (not their instances) through tool-hints.ts.
  */
-import { type ToolAnnotations, withToolHints } from './tool-hints.js';
+import { isDirectWriteTool, runDirectWrite } from './direct-write-timeout.js';
+import { TOOL_HINTS, type ToolAnnotations, withToolHints } from './tool-hints.js';
 import { RENAMED_TOOLS, actorToolNames, applyParamAliases } from './param-aliases.js';
 import { type ToolInstances, instanceOf } from './tools/tool-module.js';
 
@@ -48,8 +49,12 @@ export function buildToolRouter(deps: ToolRouterDeps): Record<string, ToolHandle
       if (Object.hasOwn(routes, name)) {
         throw new Error(`Tool route "${name}" is claimed twice (module ${module.id})`);
       }
-      routes[name] = (args, context): Promise<unknown> =>
-        route(tools, applyParamAliases(name, args, actorTools), context);
+      const direct = isDirectWriteTool(name, TOOL_HINTS[name]?.kind);
+      routes[name] = (args, context): Promise<unknown> => {
+        const call = (): Promise<unknown> =>
+          route(tools, applyParamAliases(name, args, actorTools), context);
+        return direct ? runDirectWrite(name, call) : call();
+      };
     }
   }
   for (const [old, { to, params }] of Object.entries(RENAMED_TOOLS)) {

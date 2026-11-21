@@ -167,22 +167,43 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
     return clientNoticeText('player-extension', seen.version, TOOL_VERSION);
   }
 
+  /**
+   * The user this request's key belongs to, or null after answering. With no live world a key we
+   * know says the table is closed (503), not that the link is bad; only an unknown key gets 401.
+   * The page keeps what it showed on a 503.
+   */
+  function keyedUser(req: Request, res: Response): string | null {
+    const world = worldId();
+    const raw = req.headers[ME_KEY_HEADER];
+    const key = Array.isArray(raw) ? raw[0] : raw;
+    if (!world) {
+      if (links.worldFor(key) !== null) {
+        res.status(503).json({ error: 'The table is not open right now. Try again later.' });
+      } else {
+        res
+          .status(401)
+          .json({ code: 'no-link', error: 'This link is not valid. Ask your GM for a new one.' });
+      }
+      return null;
+    }
+    const userId = links.userFor(world, key);
+    if (!userId) {
+      res
+        .status(401)
+        .json({ code: 'no-link', error: 'This link is not valid. Ask your GM for a new one.' });
+      return null;
+    }
+    return userId;
+  }
+
   app.get('/me', (_req: Request, res: Response) => {
     options.pageHeaders(res);
     res.sendFile('me.html', { root: options.publicDir });
   });
 
   app.get('/api/me', (req: Request, res: Response) => {
-    const world = worldId();
-    const raw = req.headers[ME_KEY_HEADER];
-    const key = Array.isArray(raw) ? raw[0] : raw;
-    const userId = world ? links.userFor(world, key) : null;
-    if (!userId) {
-      res
-        .status(401)
-        .json({ code: 'no-link', error: 'This link is not valid. Ask your GM for a new one.' });
-      return;
-    }
+    const userId = keyedUser(req, res);
+    if (!userId) return;
     if (typeof client.characterSheet !== 'function') {
       res.status(501).json({ error: 'Your sheet is not available here. Ask your GM.' });
       return;
@@ -215,16 +236,8 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
   // reduced to "Unidentified item" (party-stash.ts).
   app.get('/api/me/stash', (req: Request, res: Response) => {
     res.set('Cache-Control', 'no-store');
-    const world = worldId();
-    const raw = req.headers[ME_KEY_HEADER];
-    const key = Array.isArray(raw) ? raw[0] : raw;
-    const userId = world ? links.userFor(world, key) : null;
-    if (!userId) {
-      res
-        .status(401)
-        .json({ code: 'no-link', error: 'This link is not valid. Ask your GM for a new one.' });
-      return;
-    }
+    const userId = keyedUser(req, res);
+    if (!userId) return;
     if (typeof client.characterSheet !== 'function') {
       res.status(501).json({ error: 'The party stash is not available here. Ask your GM.' });
       return;
@@ -254,16 +267,8 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
   // The pair is chosen by the user the private key maps to; there is no way to name another.
   app.get('/api/me/connector', (req: Request, res: Response) => {
     res.set('Cache-Control', 'no-store');
-    const world = worldId();
-    const raw = req.headers[ME_KEY_HEADER];
-    const key = Array.isArray(raw) ? raw[0] : raw;
-    const userId = world ? links.userFor(world, key) : null;
-    if (!userId) {
-      res
-        .status(401)
-        .json({ code: 'no-link', error: 'This link is not valid. Ask your GM for a new one.' });
-      return;
-    }
+    const userId = keyedUser(req, res);
+    if (!userId) return;
     const own = options.connector?.credentialsFor(userId) ?? null;
     // The remote connector needs no pair: the player's own email is the login.
     const remoteUrl = options.connector?.remoteFor(userId) ?? null;
@@ -285,16 +290,8 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
   // every /me call, so the page fetches it and saves the bytes; nothing is stored or logged here.
   app.get('/api/me/helper.mcpb', (req: Request, res: Response) => {
     res.set('Cache-Control', 'no-store');
-    const world = worldId();
-    const raw = req.headers[ME_KEY_HEADER];
-    const key = Array.isArray(raw) ? raw[0] : raw;
-    const userId = world ? links.userFor(world, key) : null;
-    if (!userId) {
-      res
-        .status(401)
-        .json({ code: 'no-link', error: 'This link is not valid. Ask your GM for a new one.' });
-      return;
-    }
+    const userId = keyedUser(req, res);
+    if (!userId) return;
     const own = options.connector?.credentialsFor(userId) ?? null;
     if (!own) {
       res.status(404).json({ error: 'There is no helper set up for you yet. Ask your GM.' });
@@ -341,16 +338,8 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
   // One roll at a time per player: a second press while the first is rolling is refused.
   const rolling = new Set<string>();
   app.post('/api/me/roll', (req: Request, res: Response) => {
-    const world = worldId();
-    const raw = req.headers[ME_KEY_HEADER];
-    const key = Array.isArray(raw) ? raw[0] : raw;
-    const userId = world ? links.userFor(world, key) : null;
-    if (!userId) {
-      res
-        .status(401)
-        .json({ code: 'no-link', error: 'This link is not valid. Ask your GM for a new one.' });
-      return;
-    }
+    const userId = keyedUser(req, res);
+    if (!userId) return;
     const buttonId = (req.body as { buttonId?: unknown } | undefined)?.buttonId;
     if (typeof buttonId !== 'string' || !BUTTON_ID.test(buttonId)) {
       res.status(400).json({ error: 'Not a roll request.' });
@@ -405,16 +394,9 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
   };
   function diaryUser(req: Request, res: Response): { world: string; userId: string } | null {
     res.set('Cache-Control', 'no-store');
+    const userId = keyedUser(req, res);
     const world = worldId();
-    const raw = req.headers[ME_KEY_HEADER];
-    const key = Array.isArray(raw) ? raw[0] : raw;
-    const userId = world ? links.userFor(world, key) : null;
-    if (!world || !userId) {
-      res
-        .status(401)
-        .json({ code: 'no-link', error: 'This link is not valid. Ask your GM for a new one.' });
-      return null;
-    }
+    if (!world || !userId) return null;
     if (!diary) {
       res.status(501).json({ error: 'The diary is not available here.' });
       return null;
@@ -461,16 +443,8 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
   const uploading = new Set<string>();
   const portraitBody = express.raw({ type: () => true, limit: PORTRAIT_MAX_BYTES });
   app.post('/api/me/portrait', (req: Request, res: Response, next: NextFunction) => {
-    const world = worldId();
-    const raw = req.headers[ME_KEY_HEADER];
-    const key = Array.isArray(raw) ? raw[0] : raw;
-    const userId = world ? links.userFor(world, key) : null;
-    if (!userId) {
-      res
-        .status(401)
-        .json({ code: 'no-link', error: 'This link is not valid. Ask your GM for a new one.' });
-      return;
-    }
+    const userId = keyedUser(req, res);
+    if (!userId) return;
     portraitBody(req, res, (err?: unknown) => {
       if (err) {
         const tooBig = (err as { type?: string }).type === 'entity.too.large';

@@ -851,6 +851,66 @@ describe('seven-books-baseline.js', () => {
     assert.match((await run(check, world, true)).lines.join('\n'), /NOT OURS.*: 1/);
   });
 
+  test('the three superseded 2014 MotM species are not copied and an existing copy is removed; Changeling stays', async () => {
+    const motm = (_id, name, rules = '2014') => ({
+      ...mk(0, name, 'race'),
+      _id,
+      system: { description: { value: '' }, source: { rules } },
+    });
+    const withSpecies = () => {
+      const world = worlds();
+      world.packs.set(
+        'aitool-content.species',
+        makePack('aitool-content.species', 'Item', [
+          motm('iT8VhyVlZlWdAnHn', 'Orc (MotM)'),
+          motm('d2bLqBHqlmOFt4m8', 'Aasimar (MotM)'),
+          motm('I7AP6K8xuCDQBmIH', 'Goliath (MotM)'),
+          motm('a8SozVCiEBxNbqOi', 'Changeling (MotM)'),
+        ])
+      );
+      return world;
+    };
+    const world = withSpecies();
+    const first = await run(baselineSource, world, false);
+    assert.match(first.lines.join('\n'), /SKIPPED superseded 2014 species Orc \(MotM\)/);
+    const wanted = names(player(world, 'species'));
+    assert.ok(wanted.includes('Changeling (MotM)'));
+    assert.ok(!wanted.some(n => /Orc|Aasimar|Goliath/.test(n)));
+    // a copy made before this rule is removed as an orphan, the source entry stays
+    const old = withSpecies();
+    const SRC = baselineSource.replace(
+      /const SUPERSEDED_SPECIES = new Set\(\[[^\]]*\]\);/,
+      'const SUPERSEDED_SPECIES = new Set([]);'
+    );
+    await run(SRC, old, false);
+    assert.equal(names(player(old, 'species')).length, 5); // Elf and the four MotM
+    const real = await run(baselineSource, old, false);
+    assert.match(real.lines.join('\n'), /REMOVED 3 orphan copies from world\.player-species/);
+    assert.deepEqual(names(player(old, 'species')), ['Changeling (MotM)', 'Elf']);
+    assert.equal(old.packs.get('aitool-content.species').docs.size, 4);
+    // a second run changes nothing, and a 2024 entry with one of those ids is never skipped
+    const again = await run(`const BASELINE_MODE = 'check';\n${baselineSource}`, old, true);
+    assert.match(again.lines.join('\n'), /no drift: the world matches the seven-book baseline/);
+    // a link to a skipped species is not rewritten to the players' pack
+    const linked = withSpecies();
+    linked.packs
+      .get('aitool-content.species')
+      .docs.get('a8SozVCiEBxNbqOi').system.description.value = link(
+      'aitool-content.species',
+      'iT8VhyVlZlWdAnHn'
+    );
+    await run(baselineSource, linked, false);
+    assert.doesNotMatch(
+      JSON.stringify(player(linked, 'species').docs.get('a8SozVCiEBxNbqOi')),
+      /world\.player-species/
+    );
+    const mod = withSpecies();
+    mod.packs.get('aitool-content.species').docs.get('iT8VhyVlZlWdAnHn').system.source.rules =
+      '2024';
+    await run(baselineSource, mod, false);
+    assert.ok(names(player(mod, 'species')).includes('Orc (MotM)'));
+  });
+
   test('a trimmed and baselined world passes the combined check of stage 22', async () => {
     const trimSrc = readFileSync(path.join(remote, 'seven-books-trim.js'), 'utf8');
     const world = worlds();

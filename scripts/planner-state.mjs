@@ -20,6 +20,8 @@ import { isRunnerProcess } from './merge-runner/runner-lock.mjs';
 
 /** The repo gh must ask: never whatever remote the current folder happens to have. */
 export const REPO = 'Gnuminator/Foundry-VTT-MCP-Ai-Tool';
+/** The PM board's repository: its PRs are merged by the planner or the user, not the merge runner. */
+export const BOARD_REPO = 'Gnuminator/foundry-ai-tool-pm-board';
 
 export const UNCLAIMED_DAYS = 3;
 export const WAITING_LEAD_DAYS = 7;
@@ -71,12 +73,13 @@ export function unclaimedAccepted(backlogText, today) {
  * Newest = highest round number in the name (`-round2`), the plain name being round 1.
  * @param {{ file: string, text: string }[]} notes @param {number} pr @param {string} [head]
  */
-export function newestNote(notes, pr, head) {
+export function newestNote(notes, pr, head, prefix = '') {
   const mine = notes
     .map(n => {
       const m = /^(\d+)-(opus-)?review(?:-round(\d+))?(?:-delta(\d*))?\.md$/.exec(
-        n.file.split(/[\\/]/).pop() ?? ''
+        (n.file.split(/[\\/]/).pop() ?? '').replace(new RegExp(`^${prefix}`), '')
       );
+      if (prefix && !(n.file.split(/[\\/]/).pop() ?? '').startsWith(prefix)) return null;
       if (!m || Number(m[1]) !== pr) return null;
       const delta = m[4] === undefined ? 0 : Number(m[4] || 1);
       return { ...n, round: Number(m[3] ?? 1), delta, opus: !!m[2] };
@@ -130,15 +133,18 @@ export function ciState(rollup) {
 /**
  * @param {any[] | null} prs `gh pr list --json number,title,headRefOid,isDraft,statusCheckRollup`
  * @param {{ file: string, text: string }[]} notes
+ * @param {{ label?: string, prefix?: string }} [o] board PRs: label `Open board PRs`, notes `board-<n>-review.md`
  */
-export function prTable(prs, notes) {
-  if (prs === null) return ['Open PRs: gh not available'];
-  const out = [`Open PRs (${prs.length}):`];
+export function prTable(prs, notes, o = {}) {
+  const label = o.label ?? 'Open PRs';
+  const prefix = o.prefix ?? '';
+  if (prs === null) return [`${label}: gh not available`];
+  const out = [`${label} (${prs.length}):`];
   for (const pr of prs) {
     const title = String(pr.title).split(/\s+/).slice(0, 8).join(' ');
     const draft = pr.isDraft ? ' draft,' : '';
     out.push(
-      `- #${pr.number} ${title}:${draft} CI ${ciState(pr.statusCheckRollup)}, review ${verdictFor(newestNote(notes, pr.number, pr.headRefOid), pr.headRefOid)}`
+      `- #${pr.number} ${title}:${draft} CI ${ciState(pr.statusCheckRollup)}, review ${verdictFor(newestNote(notes, pr.number, pr.headRefOid, prefix), pr.headRefOid)}`
     );
   }
   return out;
@@ -182,7 +188,7 @@ export function dueWaiting(waitingText, today) {
  * Only the chosen note per PR is read.
  * @param {string} devDir vault `Dev/Foundry AI Tool` @param {number[]} prs
  */
-export function gatherNotes(devDir, prs) {
+export function gatherNotes(devDir, prs, prefix = '') {
   const handoff = path.join(devDir, 'Handoff');
   /** @type {{ file: string, text: string, full: string }[]} */
   const names = [];
@@ -197,7 +203,7 @@ export function gatherNotes(devDir, prs) {
   for (const pr of prs) {
     // Every note of the PR is read (a handful): the one for the head may be a delta note.
     for (const n of names)
-      if (new RegExp(`^${pr}-.*review.*\\.md$`).test(n.file))
+      if (new RegExp(`^${prefix}${pr}-.*review.*\\.md$`).test(n.file))
         out.push({ file: n.file, text: fs.readFileSync(n.full, 'utf8') });
   }
   return out;
@@ -312,6 +318,7 @@ export function plannerSections(o) {
     }
   };
   const prs = gh(['pr', 'list', '-R', REPO, '--json', UNREADY_PR_FIELDS]);
+  const boardPrs = gh(['pr', 'list', '-R', BOARD_REPO, '--json', UNREADY_PR_FIELDS]);
   const runs = gh([
     'run',
     'list',
@@ -337,6 +344,15 @@ export function plannerSections(o) {
         o.devDir,
         (prs ?? []).map((/** @type {any} */ p) => p.number)
       )
+    ).join('\n'),
+    prTable(
+      boardPrs,
+      gatherNotes(
+        o.devDir,
+        (boardPrs ?? []).map((/** @type {any} */ p) => p.number),
+        'board-'
+      ),
+      { label: 'Open board PRs', prefix: 'board-' }
     ).join('\n'),
     unreadySection(prs, o.backlog, path.resolve(o.devDir, '..', '..')),
     trainLine(read('Merge train.md') ?? ''),

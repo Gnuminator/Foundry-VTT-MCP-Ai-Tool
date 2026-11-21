@@ -116,7 +116,9 @@ describe('direct write timeout truth', () => {
       runDirectWrite('use-item', async () => {
         throw new Error('Connection closed');
       })
-    ).rejects.toThrow(/link closed before an answer.*may or may not have happened/);
+    ).rejects.toThrow(
+      /no answer from Foundry, the link closed first.*may or may not have happened/
+    );
   });
 
   it('words the message with the seconds waited', () => {

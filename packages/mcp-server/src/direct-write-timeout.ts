@@ -42,6 +42,11 @@ export function directWriteLostAnswerMessage(tool: string, timeoutMs: number): s
   );
 }
 
+/** The honest answer when the link closed before the answer came (the call log reads "no answer from"). */
+export function directWriteLinkClosedMessage(tool: string): string {
+  return `${tool}: no answer from Foundry, the link closed first. The change may or may not have happened: check the chat log or the change list before trying again.`;
+}
+
 /**
  * Run a direct write with the longer timeout; a lost answer becomes the honest message, any other
  * error passes through unchanged.
@@ -61,7 +66,7 @@ export async function runDirectWrite<T>(
         const closed = !/query timeout/i.test(message);
         throw new Error(
           closed
-            ? `${tool}: the Foundry link closed before an answer came. The change may or may not have happened: check the chat log or the change list before trying again.`
+            ? directWriteLinkClosedMessage(tool)
             : directWriteLostAnswerMessage(tool, timeoutMs),
           { cause: error }
         );

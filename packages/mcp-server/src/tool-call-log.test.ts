@@ -47,6 +47,16 @@ describe('tool call log', () => {
     expect(fail('Error: something odd').err).toBe('other');
     expect(fail('Query getWorldInfo failed: Query timeout: getWorldInfo').err).toBe('timeout');
     expect(fail('Error: Connection closed').err).toBe('timeout');
+    expect(
+      fail(
+        'Error: send-chat-message: no answer from Foundry in 30 s. The change may or may not have happened'
+      ).err
+    ).toBe('timeout');
+    expect(
+      fail(
+        'Error: use-item: no answer from Foundry, the link closed first. The change may or may not have happened'
+      ).err
+    ).toBe('timeout');
     expect(fail('Foundry is not connected, so this request was not sent').err).toBe(
       'not-connected'
     );

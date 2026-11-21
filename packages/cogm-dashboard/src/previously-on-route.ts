@@ -364,10 +364,15 @@ export function mountPreviouslyOnRoute(app: Express, options: PreviouslyOnOption
       options.logger?.warn('Previously on chat post failed', {
         error: error instanceof Error ? error.message : String(error),
       });
+      // Not connected or switched off: nothing was posted. Anything else may have landed.
+      const sent = !/not connected|switched off|disabled|control client closed/i.test(
+        error instanceof Error ? error.message : String(error)
+      );
       res.status(502).json({
         error: {
-          message:
-            'Could not post to chat. It may or may not have posted: check the chat log before trying again.',
+          message: sent
+            ? 'Could not post to chat. It may or may not have posted: check the chat log before trying again.'
+            : 'Could not post to chat. Is Foundry open?',
           code: 'bridge-unreachable',
         },
       });

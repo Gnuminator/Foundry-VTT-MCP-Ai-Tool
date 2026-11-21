@@ -246,7 +246,8 @@ export function doneEdit(text, doneText, o) {
   const item = findItem(p, o.id);
   const pr = /^#?(\d+)$/.exec(o.pr.trim())?.[1];
   if (!pr) throw new Usage(`the PR must be a number, got "${o.pr}"`);
-  const board = field(item, 'board') || field(item, 'area') || 'unsorted';
+  // the board line only: `area:` is free text and can name an area Board.md does not know
+  const board = field(item, 'board') || 'Unsorted';
   let line = `- ${o.date} ${o.id}: PR #${pr} merged`;
   if (o.sha) line += ` at ${oneLine(o.sha).slice(0, 7)}`;
   if (o.summary) line += `; ${oneLine(o.summary)}`;

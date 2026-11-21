@@ -88,6 +88,7 @@ export class PlayerViewSource {
   private lastEndedMs: number | null = null;
   private sessionOpenValue: boolean | null = null;
   private sessionPolledAt = 0;
+  private sessionStartedValue: number | null = null;
   private timer: NodeJS.Timeout | null = null;
   private inFlight = false;
 
@@ -124,6 +125,11 @@ export class PlayerViewSource {
    */
   get sessionSinceMs(): number | null {
     return this.sessionSinceValue;
+  }
+
+  /** When the open play session started (ms); null while none is open or none has been read. */
+  get sessionStartedMs(): number | null {
+    return this.sessionStartedValue;
   }
 
   /** Whether a session is open per the marker; null until the marker has been read. */
@@ -183,6 +189,9 @@ export class PlayerViewSource {
         if (marker) {
           changed ||= marker.open !== this.sessionOpenValue;
           this.sessionOpenValue = marker.open;
+          const started = marker.open ? marker.startedAtMs : null;
+          changed ||= started !== this.sessionStartedValue;
+          this.sessionStartedValue = started;
         }
         const since = sessionSince(session, this.lastEndedMs);
         changed ||= since !== this.sessionSinceValue;

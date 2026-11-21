@@ -56,7 +56,7 @@ export async function runDirectWrite<T>(
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (isLostAnswerMessage(message)) {
-      throw new Error(directWriteLostAnswerMessage(tool, timeoutMs));
+      throw new Error(directWriteLostAnswerMessage(tool, timeoutMs), { cause: error });
     }
     throw error;
   }

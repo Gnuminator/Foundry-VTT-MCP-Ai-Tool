@@ -288,18 +288,31 @@ export function kitLine(json, nowMs) {
     const t = Date.parse(e?.finishedAt || e?.at || '');
     return Number.isFinite(t) ? (nowMs - t) / 3600000 : null;
   };
-  const ran = doc.lastRun;
+  // Only the scheduled task's runs (the nightly flag) count; a lane's kit run is named apart.
+  // An older last-run.json without lastNightly falls back to the flag on lastRun or last.
+  const night =
+    doc.lastNightly ?? [doc.lastRun, doc.last].find((/** @type {any} */ e) => e?.nightly);
   const parts = [];
-  if (ran) {
-    const fail = ran.failing?.length ? `; failing: ${ran.failing.slice(0, 5).join(', ')}` : '';
-    parts.push(`last run ${ran.text ?? ran.state}, ${age(ran)}, on ${ran.git}${fail}`);
-    const h = hours(ran);
+  if (night) {
+    const done = night.state === 'passed' || night.state === 'failed';
+    const fail = night.failing?.length ? `; failing: ${night.failing.slice(0, 5).join(', ')}` : '';
+    parts.push(
+      done
+        ? `last nightly ${night.text ?? night.state}, ${age(night)}, on ${night.git}${fail}`
+        : `last nightly attempt ${night.text ?? night.state} (${age(night)})`
+    );
+    const h = hours(night);
     if (h !== null && h > KIT_STALE_HOURS) parts.push(`STALE (over ${KIT_STALE_HOURS} h)`);
   } else {
-    parts.push('no run has finished yet');
+    parts.push(
+      'NO NIGHTLY RUN RECORDED (the task has not run, or register-nightly.ps1 is not registered)'
+    );
   }
-  if (doc.last.state !== 'passed' && doc.last.state !== 'failed')
-    parts.push(`latest attempt: ${doc.last.text ?? doc.last.state} (${age(doc.last)})`);
+  const lane = doc.last;
+  if (lane && !lane.nightly)
+    parts.push(
+      `latest kit run was a lane's, not the nightly: ${lane.text ?? lane.state} on ${lane.git} (${age(lane)})`
+    );
   return `Nightly kit: ${parts.join('; ')}`;
 }
 

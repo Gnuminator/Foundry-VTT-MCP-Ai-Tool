@@ -153,7 +153,10 @@ test('ledgerLines skips a folder named *.md and a malformed date', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ledgers-'));
   fs.mkdirSync(path.join(dir, 'Odd.md'));
   const good = Array.from({ length: 10 }, (_, i) => `- 2026-11-10 PR 1 L${i}: x, y`).join('\n');
-  fs.writeFileSync(path.join(dir, 'Big.md'), `# Lows: Big\n\n${good}\n- 2026-13-45 PR 2 L1: x, y\n`);
+  fs.writeFileSync(
+    path.join(dir, 'Big.md'),
+    `# Lows: Big\n\n${good}\n- 2026-13-45 PR 2 L1: x, y\n`
+  );
   assert.equal(ledgerLines(dir, '2026-11-13'), 'Lows ledgers over 10 lines: none');
 });
 
@@ -194,16 +197,16 @@ test('plannerSections assembles every section from a vault dir and a fake gh', (
           },
         ]
       : args[0] === 'pr'
-      ? [
-          {
-            number: 5,
-            title: 'Thing',
-            headRefOid: H1,
-            isDraft: false,
-            statusCheckRollup: [{ conclusion: 'SUCCESS', status: 'COMPLETED' }],
-          },
-        ]
-      : [{ status: 'completed', conclusion: 'success', headSha: H1 }];
+        ? [
+            {
+              number: 5,
+              title: 'Thing',
+              headRefOid: H1,
+              isDraft: false,
+              statusCheckRollup: [{ conclusion: 'SUCCESS', status: 'COMPLETED' }],
+            },
+          ]
+        : [{ status: 'completed', conclusion: 'success', headSha: H1 }];
   fs.writeFileSync(
     path.join(dev, 'last-run.json'),
     JSON.stringify({ version: 1, last: { state: 'passed', at: '2026-11-12T01:00:00Z' } })
@@ -226,7 +229,7 @@ test('plannerSections assembles every section from a vault dir and a fake gh', (
   assert.match(s, /Merge train: 1 of 4/);
   assert.match(s, /Main's CI: success/);
   assert.match(s, /W9 Do it/);
-  assert.match(s, /Nightly kit: no run has finished yet/);
+  assert.match(s, /Nightly kit: NO NIGHTLY RUN RECORDED/);
   const dark = plannerSections({
     devDir: dev,
     kitHome: dev,
@@ -254,21 +257,42 @@ test('kitLine reports the last run, its age, failures, staleness and a later ski
     git: 'abc1234',
     text: 'FAILED: 1 of 25 failed, 24 passed (26 min)',
     state: 'failed',
+    nightly: true,
     failing: ['bridge-health'],
   };
-  const doc = { version: 1, last: ran, lastRun: ran };
+  const doc = { version: 1, last: ran, lastRun: ran, lastNightly: ran };
   const line = kitLine(JSON.stringify(doc), now);
-  assert.match(line, /last run FAILED: 1 of 25.*, 3 h ago, on abc1234; failing: bridge-health/);
+  assert.match(line, /last nightly FAILED: 1 of 25.*, 3 h ago, on abc1234; failing: bridge-health/);
+  assert.doesNotMatch(line, /lane's/);
+  // A lane's later run is named as a lane's and does not replace the nightly.
+  const lane = {
+    at: '2026-11-17T10:00:00Z',
+    state: 'passed',
+    text: 'passed: 30 of 30',
+    git: 'def5678',
+  };
+  const mixed = kitLine(
+    JSON.stringify({ version: 1, last: lane, lastRun: lane, lastNightly: ran }),
+    now
+  );
+  assert.match(mixed, /last nightly FAILED/);
+  assert.match(mixed, /latest kit run was a lane's, not the nightly: passed: 30 of 30 on def5678/);
+  // Only a lane's runs on file: no nightly is recorded.
+  assert.match(
+    kitLine(JSON.stringify({ version: 1, last: lane, lastRun: lane }), now),
+    /NO NIGHTLY RUN RECORDED.*lane's/
+  );
   assert.doesNotMatch(line, /STALE/);
   assert.match(kitLine(JSON.stringify(doc), now + 40 * 3600000), /STALE/);
   const skipped = {
     at: '2026-11-17T11:00:00Z',
     state: 'skipped',
+    nightly: true,
     text: 'skipped: the lock was not free',
   };
   assert.match(
-    kitLine(JSON.stringify({ version: 1, last: skipped, lastRun: ran }), now),
-    /latest attempt: skipped: the lock was not free \(1 h ago\)/
+    kitLine(JSON.stringify({ version: 1, last: skipped, lastRun: ran, lastNightly: skipped }), now),
+    /last nightly attempt skipped: the lock was not free \(1 h ago\)/
   );
   assert.match(kitLine(null, now), /no last-run\.json yet/);
   assert.match(kitLine('{bad', now), /unreadable/);

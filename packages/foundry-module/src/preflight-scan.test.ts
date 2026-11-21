@@ -8,6 +8,7 @@ import {
   collectPlayerVisibleNames,
   getPreflightScan,
   maskSecret,
+  scanCharacterBuilding,
   scanModules,
   scanSettings,
 } from './preflight-scan.js';
@@ -212,6 +213,68 @@ describe('collectPlayerVisibleNames', () => {
     world.setActiveScene('arena');
     const tokens = collectPlayerVisibleNames().filter(n => n.kind === 'token');
     expect(tokens.map(t => t.name)).toEqual(['Wolf 1']);
+  });
+});
+
+describe('scanCharacterBuilding', () => {
+  type G = { game: Record<string, unknown> };
+  function setStudio(opts: {
+    active: boolean;
+    roles?: number[];
+    settings?: Record<string, boolean>;
+  }): void {
+    const g = (globalThis as unknown as G).game;
+    g.modules = {
+      get: (id: string): unknown => (id === 'foundryvtt-actor-studio' ? opts : undefined),
+    };
+    g.permissions = { ACTOR_CREATE: opts.roles ?? [] };
+    g.settings = {
+      ...(g.settings as object),
+      get: (ns: string, key: string): unknown => {
+        if (ns !== 'foundryvtt-actor-studio' || !(opts.settings && key in opts.settings)) {
+          throw new Error('not registered');
+        }
+        return opts.settings[key];
+      },
+    };
+  }
+
+  it('is null (quiet) when Actor Studio is not active', () => {
+    setStudio({ active: false });
+    expect(scanCharacterBuilding()).toBeNull();
+    expect(getPreflightScan().characterBuilding).toBeNull();
+  });
+
+  it('reads the Player role right and the two Actor Studio settings', () => {
+    setStudio({
+      active: true,
+      roles: [1, 2, 3, 4],
+      settings: { enableLevelUp: true, milestoneLeveling: true },
+    });
+    expect(scanCharacterBuilding()).toEqual({
+      playerCanCreateActors: true,
+      levelUpEnabled: true,
+      milestoneLeveling: true,
+    });
+    setStudio({
+      active: true,
+      roles: [3, 4],
+      settings: { enableLevelUp: false, milestoneLeveling: false },
+    });
+    expect(scanCharacterBuilding()).toEqual({
+      playerCanCreateActors: false,
+      levelUpEnabled: false,
+      milestoneLeveling: false,
+    });
+  });
+
+  it('falls back to the module defaults when a setting is not registered', () => {
+    setStudio({ active: true, roles: [1] });
+    expect(scanCharacterBuilding()).toEqual({
+      playerCanCreateActors: true,
+      levelUpEnabled: true,
+      milestoneLeveling: false,
+    });
   });
 });
 

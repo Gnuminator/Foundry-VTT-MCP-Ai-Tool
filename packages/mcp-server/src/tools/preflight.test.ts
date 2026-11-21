@@ -393,6 +393,28 @@ describe('get-preflight', () => {
     expect(query).not.toHaveBeenCalled();
   });
 
+  it('adds no character-building row without Actor Studio, and says one line with it', async () => {
+    const quiet = (await tools().tools.handleGetPreflight({})) as PreflightChecksResult;
+    expect(byId(quiet)['character-building']).toBeUndefined();
+
+    const withStudio = (building: PreflightScan['characterBuilding']): Setup => ({
+      scan: { ...SCAN, characterBuilding: building },
+    });
+    const ok = (await tools(
+      withStudio({ playerCanCreateActors: true, levelUpEnabled: true, milestoneLeveling: true })
+    ).tools.handleGetPreflight({})) as PreflightChecksResult;
+    expect(byId(ok)['character-building']).toMatchObject({ status: 'ok' });
+    expect(byId(ok)['character-building']?.detail).toContain('milestone levelling is on');
+
+    const bad = (await tools(
+      withStudio({ playerCanCreateActors: false, levelUpEnabled: false, milestoneLeveling: false })
+    ).tools.handleGetPreflight({})) as PreflightChecksResult;
+    expect(byId(bad)['character-building']).toMatchObject({ status: 'warn' });
+    expect(byId(bad)['character-building']?.detail).toContain('cannot create actors');
+    expect(byId(bad)['character-building']?.detail).toContain('Level Up is off');
+    expect(bad.ready).toBe(true);
+  });
+
   it('fails when a name players can see matches a secret term', async () => {
     const result = (await tools({ terms: ['Sunsword'] }).tools.handleGetPreflight(
       {}

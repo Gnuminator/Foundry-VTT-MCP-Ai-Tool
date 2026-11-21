@@ -144,7 +144,7 @@ side, each only after a `dietpi-backup` snapshot and the user's OK; nothing here
 | Board status report (stage 16): script, token file, timer      | `/opt/foundry-ai-tool/status/board-status.sh`, `/etc/foundry-ai-tool/board-status.conf`, `foundry-board-status.timer`                       |
 | GitHub runners for the PM board (stage 17): runners, gate      | `/opt/gh-runner/{vault,board}`, `/opt/gh-runner/gate.sh`, `foundry-ai-tool-gh-runner-{vault,board}.service`, `-gate.timer`                  |
 | Game-night watch (stage 29): files, settings, service          | `/opt/foundry-ai-tool/gamenight-watch`, `/etc/foundry-ai-tool/gamenight-watch.env`, `foundry-ai-tool-gamenight-watch.service`               |
-| Who uses what note (stage 35): files, state, timer             | `/opt/foundry-ai-tool/who-uses-what`, `/var/lib/foundry-ai-tool-who-uses-what` (deploy key, clone), `foundry-ai-tool-who-uses-what.timer`   |
+| Who uses what note (stage 35): files, state, timer             | `/opt/foundry-ai-tool/who-uses-what` (no state folder, no key), `foundry-ai-tool-who-uses-what.timer`                                       |
 | Player connector (stage 30): login table, switch file          | `/etc/foundry-ai-tool/player-connector.json` (foundry, 0600), `/etc/foundry-ai-tool/player-connector.env`                                   |
 | Player connector: unit drop-ins, table waiting to be installed | `/etc/systemd/system/foundry-ai-tool-{dashboard,bridge}.service.d/player-connector.conf`, `/root/player-connector.json.new`                 |
 | Copy of the allowed hosts before stage 30 changed them         | `/etc/foundry-ai-tool/dashboard-access.env.before-player-connector`                                                                         |

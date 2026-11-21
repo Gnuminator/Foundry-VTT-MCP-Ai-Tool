@@ -834,7 +834,12 @@ async function startBackend(): Promise<void> {
           // player's picture for a character they own. Not a tool, never listed to Claude.
           if (msg.method === 'player_portrait') {
             try {
-              const result = await handlePlayerPortrait(foundryClient, guardedWrites, msg.params);
+              const result = await handlePlayerPortrait(
+                foundryClient,
+                guardedWrites,
+                msg.params,
+                logger
+              );
               socket.write(`${JSON.stringify({ id: msg.id, result })}\n`);
             } catch (e: unknown) {
               const message = e instanceof Error ? e.message : 'The picture was not saved.';

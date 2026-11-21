@@ -130,7 +130,7 @@ works without either.
   in-character diary entry about the last session, then pastes it in, edits it and saves it with
   **Save entry**. Only that player sees their entries: not you, not the other players, not the
   player page. Nothing switches it on, but entries are kept on the table's server: if the page
-  says "This table keeps diaries in memory only", they are lost when the dashboard restarts, so
+  says "This table keeps diaries in memory only: they are lost when the dashboard restarts", so
   tell players to copy what matters somewhere safe.
 
 ## Open in Obsidian (📓)

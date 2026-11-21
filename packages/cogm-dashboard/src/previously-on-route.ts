@@ -29,7 +29,11 @@ const PREVIOUSLY_ON_LANGS = ['da', 'en'] as const;
 type PreviouslyOnLang = (typeof PREVIOUSLY_ON_LANGS)[number];
 
 interface PreviouslyOnClient {
-  callTool<T = unknown>(name: string, args?: Record<string, unknown>): Promise<T>;
+  callTool<T = unknown>(
+    name: string,
+    args?: Record<string, unknown>,
+    options?: { timeoutMs?: number }
+  ): Promise<T>;
 }
 
 interface PreviouslyOnOptions {

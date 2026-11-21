@@ -234,7 +234,48 @@ rc=$?
 run DIETPI_DIR=/tmp/fakedietpi DIETPI_BACKUP_STATS=/tmp/stats UNDO=1
 rc=$?
 if [ "$rc" -eq 0 ] && [ ! -e "$dest" ] && [ ! -e "$unit_dir/foundry.service.d" ] && [ ! -e "$unit_dir/foundry-ai-tool-alert@.service" ] &&
-  [ ! -e "$unit_dir/foundry-ai-tool-clock-check.timer" ] && [ -f "$unit_dir/foundry.service" ] && [ -f "$bot_env" ]; then
+  [ ! -e "$unit_dir/foundry-ai-tool-clock-check.timer" ] && [ ! -e "$unit_dir/foundry-ai-tool-clock-check.service" ] && [ -f "$unit_dir/foundry.service" ] && [ -f "$bot_env" ]; then
   pass "UNDO removes the guard and leaves the services and the bot env alone"; else fail "undo: rc=$rc $OUT"; fi
+
+# 10. The nightly backup (backup-miss-alert): stage 6's foundry-backup.service gets an OnFailure drop-in, and the alert says
+# "backup failed or skipped" for it whatever the Result is (a oneshot that exits 1 has Result exit-code).
+fresh
+run DRY_RUN=1
+rc=$?
+if [ "$rc" -eq 0 ] && echo "$OUT" | grep -q 'foundry-backup.service: not here'; then pass "no backup unit: the dry run says so and the run still works"; else fail "backup absent dry run: $OUT"; fi
+printf '[Service]\nType=oneshot\n' >"$unit_dir/foundry-backup.service"
+run DRY_RUN=1
+rc=$?
+if [ "$rc" -eq 0 ] && echo "$OUT" | grep -q 'would write .*10-backup-alert.conf' && [ ! -e "$unit_dir/foundry-backup.service.d" ]; then pass "DRY_RUN names the backup drop-in and writes nothing"; else fail "backup dry run: rc=$rc $OUT"; fi
+run
+rc=$?
+b="$unit_dir/foundry-backup.service.d/10-backup-alert.conf"
+if [ "$rc" -eq 0 ] && [ -f "$b" ] && grep -q '^OnFailure=foundry-ai-tool-alert@%n.service$' "$b" && ! grep -qE '^(StartLimit|Restart)' "$b"; then
+  pass "the backup unit gets OnFailure and no start limit or Restart line"; else fail "backup drop-in: rc=$rc $OUT"; fi
+for u in "$unit_dir"/foundry-backup.service.d/*; do [ "$(basename "$u")" = 10-backup-alert.conf ] || fail "stray file $u"; done
+sums="$(find "$unit_dir" "$dest" -type f -exec sha256sum {} + | sort | sha256sum)"
+run
+rc=$?
+if [ "$rc" -eq 0 ] && [ "$(find "$unit_dir" "$dest" -type f -exec sha256sum {} + | sort | sha256sum)" = "$sums" ] && echo "$OUT" | grep -q 'foundry-backup.service: backup alert drop-in already in place'; then pass "a rerun leaves the backup drop-in alone"; else fail "backup rerun: rc=$rc $OUT"; fi
+# A failed night: the alert posts one backup line even though the Result is exit-code; a skipped night is the same exit 1.
+: >/tmp/curl.log
+echo exit-code >/tmp/sc-result
+OUT="$(PATH="/tmp/sc-bin:$PATH" DISCORD_TOKEN=$token GAMENIGHT_WATCH_CHANNEL_ID=1566876401519427755 "$dest/alert.sh" unit foundry-backup.service 2>&1)"
+if echo "$OUT" | grep -q 'alert: posted' && grep -q "backup failed, was skipped" /tmp/curl.log && [ "$(grep -c '^ARGS' /tmp/curl.log)" = 1 ]; then pass "a failed or skipped backup posts one line to #gm-bot"; else fail "backup alert: $OUT $(cat /tmp/curl.log)"; fi
+if ! grep -q "$token" <(grep '^ARGS' /tmp/curl.log) && ! echo "$OUT" | grep -q "$token"; then pass "the backup line carries no token"; else fail "token leaked in the backup alert"; fi
+OUT="$(env -u DISCORD_TOKEN "$dest/alert.sh" unit foundry-backup.service 2>&1)"
+if echo "$OUT" | grep -q 'journal only'; then pass "without a token the backup alert writes the journal only"; else fail "backup no token: $OUT"; fi
+mv "$b" /tmp/backup-dropin.bak
+run CHECK=1
+rc=$?
+mv /tmp/backup-dropin.bak "$b"
+if [ "$rc" -eq 1 ] && echo "$OUT" | grep -q 'backup alert drop-in missing'; then pass "CHECK exits 1 when the backup drop-in is missing"; else fail "backup check missing: rc=$rc $OUT"; fi
+run CHECK=1
+rc=$?
+if [ "$rc" -eq 0 ] && echo "$OUT" | grep -q 'backup alert drop-in in place'; then pass "CHECK passes with the backup drop-in in place"; else fail "backup check: rc=$rc $OUT"; fi
+echo "$(date +%F)_09:00:00  Backup completed" >/tmp/stats
+run DIETPI_DIR=/tmp/fakedietpi DIETPI_BACKUP_STATS=/tmp/stats UNDO=1
+rc=$?
+if [ "$rc" -eq 0 ] && [ ! -e "$unit_dir/foundry-backup.service.d" ] && [ -f "$unit_dir/foundry-backup.service" ]; then pass "UNDO removes the backup drop-in and leaves the backup unit"; else fail "backup undo: rc=$rc $OUT"; fi
 
 if [ "$fails" -eq 0 ]; then echo "ALL SCENARIOS OK"; else echo "$fails scenario check(s) FAILED"; exit 1; fi

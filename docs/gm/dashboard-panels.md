@@ -191,6 +191,27 @@ scene changes and more. Each line shows its type and the time.
 - A line starting "Applied:" or "Undid:" appears when a guarded change is applied or undone. Its
   chip names what made it, such as **actor change** or **page reveal**.
 
+### Spotlight balance
+
+A small card under the Live Feed on the During screen, for you only. It shows one bar per player
+character for what they did since the dashboard started: dice rolls, damage rolls and item uses,
+counted from the play log. While the Discord recorder runs, a second bar shows how long each
+player has spoken. It is a nudge, not a score: a line under the bars names a character who has had
+little of the spotlight.
+
+- **Switch it on:** nothing to switch on. It is there on During. The speaking bars need the
+  Discord recorder running (whoever runs the Discord bot starts it); without it you see action
+  bars only.
+- **Hint after:** the number box at the bottom sets how many actions the party must have taken
+  before the hint speaks (20 by default; 0 turns the hint off). The hint stays quiet early in a
+  session, when a low count means nothing.
+- **Hide:** **Hide** removes the card, and **Show spotlight balance** brings it back. Each choice
+  is remembered on that browser.
+- **Reset:** the count starts over when the dashboard starts or another world opens, so on a table that leaves it running
+  it adds up across nights. Restart the dashboard for a clean count.
+- **What players see:** nothing. The card is GM only and none of it reaches the player page. It
+  is also only an extra: you can read the same table by eye in Foundry.
+
 ### Module Diagnostics
 
 Errors and warnings from Foundry modules, caught in the GM's browser. Hover a line for details.

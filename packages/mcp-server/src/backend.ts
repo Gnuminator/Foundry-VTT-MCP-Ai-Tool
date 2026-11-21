@@ -46,6 +46,7 @@ import { WrapperRegistry } from './wrapper-registry.js';
 import {
   ToolCallLog,
   buildCallLine,
+  errorText,
   recordedCallLine,
   gmCaller,
   skillFields,
@@ -183,9 +184,16 @@ async function startBackend(): Promise<void> {
     caller: CallCaller
   ): void => {
     try {
-      void callLog
-        .record(buildCallLine(tool, startedAt, result, Date.now(), caller))
-        .catch(() => undefined);
+      const line = buildCallLine(tool, startedAt, result, Date.now(), caller);
+      // The call log keeps only the class; the message goes to the backend log once.
+      if (!line.ok) {
+        logger.warn('Tool call failed', {
+          tool: line.tool,
+          class: line.err,
+          message: errorText(result).slice(0, 500),
+        });
+      }
+      void callLog.record(line).catch(() => undefined);
     } catch {
       // logging never breaks a tool call
     }
@@ -612,7 +620,12 @@ async function startBackend(): Promise<void> {
                 recordCall(String(name), startedAt, payload, caller);
               } catch (e: unknown) {
                 const errorMessage = e instanceof Error ? e.message : 'Unknown error occurred';
-                recordCall(String(name), startedAt, { content: [], isError: true }, caller);
+                recordCall(
+                  String(name),
+                  startedAt,
+                  { content: [{ type: 'text', text: `Error: ${errorMessage}` }], isError: true },
+                  caller
+                );
 
                 if (!socket.destroyed) {
                   socket.write(

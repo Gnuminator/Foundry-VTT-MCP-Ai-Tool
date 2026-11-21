@@ -14,6 +14,7 @@ import {
   readHintAfter,
   readSpotlight,
   spotlightHint,
+  spotlightScope,
   speakingText,
 } from '../lib/spotlight';
 import { useRecordingHealth, useSpotlight } from '../lib/stream';
@@ -71,9 +72,7 @@ export function Spotlight(): JSX.Element {
         <h2 id="spotlight-title" className={styles.title}>
           Spotlight balance
         </h2>
-        <span className={styles.sub}>
-          GM only. Actions from the play log since the dashboard started.
-        </span>
+        <span className={styles.sub}>{spotlightScope(snapshot.session)}</span>
         <button type="button" className={styles.link} onClick={() => setHiddenSaved(true)}>
           Hide
         </button>

@@ -157,6 +157,18 @@ to a player who picked that name ("Playing as ...") at the top of the page.
 
 > **Not sure? Ask Claude.** Ask the GM coach: "How do I queue a handout during prep and reveal it at the table?"
 
+**Handout press.** If you want a handout to look like a letter on aged paper with a wax seal, a
+notice or a card, ask Claude to press one: give it the text and it uses `plan-handout-press` (in
+the Play connector). It draws the picture on the computer the dashboard's backend runs on, with
+the Edge, Chrome or Chromium already installed there (the Pi may have none, so ask from a PC session),
+without any image AI. Applying the plan adds a hidden image page to the
+"Handouts" journal. Players see nothing yet: queue and reveal it as above. Undo in Recent Changes
+removes the page. Text that names a secret term is refused.
+
+- **Switch it on:** in Foundry, Game Settings, category **Foundry AI Tool**, tick "AI Tool:
+  Handouts (writes)" (the same switch as for revealing handouts).
+- **What players see:** only the finished picture, once you reveal it.
+
 ## The prep drawer (📋 Prep)
 
 The facts for preparing your next session, in one place and without AI. **Refresh** reloads them.
@@ -180,6 +192,31 @@ The facts for preparing your next session, in one place and without AI. **Refres
 
 Claude reads the same facts with `get-prep-digest`, which the prompt `prep-next-session` uses
 first. Without Foundry connected, the drawer still shows last session and says what is missing.
+
+**Omens by post.** Between sessions you can send each player one short private text as a hint of
+what is coming. Claude drafts them (ask "Draft an omen for each player"; it uses `draft-omens` in
+the Prep connector) but cannot approve or send. The drawer's **Omens by post** list shows each
+draft with the player's name:
+
+- **Approve** or **Reject** each one. A text that names a secret term (a Tarokka card name, say)
+  shows a warning and asks you to confirm before it counts as approved. **Back to draft** takes an
+  approved or rejected one back.
+- **Discord ids for omens:** a player with no Discord user id yet shows "it cannot be sent". Open
+  that fold-out, type their Discord user id (digits only) and link it.
+- **Switch it on:** whoever runs the Discord bot sets `DISCORD_OMENS=1` in the bot's `.env`. It is
+  off by default, and with it off an approved text stays where it is. If the dashboard splits GM
+  and player tokens, the bot also needs `FOUNDRY_AI_GM_TOKEN`.
+- **What players see:** one private Discord message each, sent once within a few minutes of your
+  approval, only to that player's own account. Nobody sees another player's text, and nothing
+  shows on the player page. A failed send is retried on its own a few times; if it still fails, the list says why and you can approve it again.
+
+You can always read a hint aloud or write it in chat instead; this is an extra.
+
+**Downtime from players.** On My character, a player can write what their character does between
+sessions (see [My character](dashboard-player-pages.md)). The prep digest lists every player's
+entries, each marked "from player": they are wishes, not things that happened. While you prepare,
+ask Claude "What did the players ask to do in their downtime?" and it reads them with
+`get-prep-digest`. The drawer itself does not list them.
 
 **Previously on.** `get-prep-digest` (not the drawer yet) opens with a short "Previously on": the
 GM summary of the newest recorded session that has one. It reads only

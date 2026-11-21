@@ -5,6 +5,8 @@
 /** What the server tallied from the log (src/spotlight.ts). */
 interface SpotlightSnapshot {
   players: { name: string; actions: number }[];
+  /** True when the counts are for a play session (they start at its start). */
+  session: boolean;
 }
 
 /** One person's speaking time from the Discord recorder (src/recording-health.ts). */
@@ -23,7 +25,7 @@ export interface SpotlightRow {
   speakingBar: number;
 }
 
-const EMPTY_SPOTLIGHT: SpotlightSnapshot = { players: [] };
+const EMPTY_SPOTLIGHT: SpotlightSnapshot = { players: [], session: false };
 
 /** Reads the stream's payload; anything unexpected is an empty tally. */
 export function readSpotlight(raw: unknown): SpotlightSnapshot {
@@ -36,7 +38,14 @@ export function readSpotlight(raw: unknown): SpotlightSnapshot {
       players.push({ name: o['name'], actions: o['actions'] });
     }
   }
-  return { players };
+  return { players, session: (raw as { session?: unknown }).session === true };
+}
+
+/** The card's small print: which stretch of play the numbers cover. */
+export function spotlightScope(session: boolean): string {
+  return session
+    ? 'GM only. Actions from the play log this session.'
+    : 'GM only. Actions from the play log since the dashboard started.';
 }
 
 const norm = (s: string): string => s.trim().toLowerCase();
@@ -66,7 +75,7 @@ function rosterName(name: string, roster: readonly string[]): string {
 
 /** One row per character: the party roster plus anyone the log counted; busiest first. */
 export function buildSpotlight(
-  snapshot: SpotlightSnapshot,
+  snapshot: Pick<SpotlightSnapshot, 'players'>,
   roster: readonly string[],
   speakers: readonly SpeakerTime[]
 ): SpotlightRow[] {

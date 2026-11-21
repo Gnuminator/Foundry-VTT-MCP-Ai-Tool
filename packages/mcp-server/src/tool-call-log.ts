@@ -37,6 +37,31 @@ export interface CallCaller {
   stub?: number;
 }
 
+/** Why a call failed: a fixed list, never the message text (the backend logs that once). */
+type ErrorClass = 'not-connected' | 'timeout' | 'switch-off' | 'validation' | 'other';
+
+/** The text of an error result (what Claude receives), empty when there is none. */
+export function errorText(result: ToolResultLike | undefined): string {
+  if (!result || !Array.isArray(result.content)) return '';
+  return result.content.map(p => (typeof p?.text === 'string' ? p.text : '')).join(' ');
+}
+
+/** Sort an error message into one of the fixed classes. */
+function classifyError(text: string): ErrorClass {
+  // Switches first: "event log is off ... or the Foundry link is disabled" is a switch, not a link.
+  if (/switched off|\bis off\b|turned off|allow write operations/i.test(text)) return 'switch-off';
+  if (/not connected|no foundry connection|link is disabled/i.test(text)) return 'not-connected';
+  if (/timed? ?out|no answer in|did not answer|connection closed/i.test(text)) return 'timeout';
+  if (
+    /invalid (arguments?|parameters?|input|option|type|value)|zoderror|validation|expected (string|number|boolean|object|array)|too_(small|big)|invalid_(type|value)/i.test(
+      text
+    )
+  ) {
+    return 'validation';
+  }
+  return 'other';
+}
+
 export interface ToolCallLine {
   t: string;
   tool: string;
@@ -44,6 +69,8 @@ export interface ToolCallLine {
   ms: number;
   size: number;
   ok: boolean;
+  /** Only on a failed call: the class of the error. */
+  err?: ErrorClass;
   who?: 'gm' | 'player';
   userId?: string;
   via?: 'connector' | 'dashboard';
@@ -143,6 +170,7 @@ export function buildCallLine(
     if (caller.skill) who.skill = caller.skill;
     if (caller.stub !== undefined) who.stub = caller.stub;
   }
+  const ok = !!result && result.isError !== true;
   return {
     t: new Date(now).toISOString(),
     tool: tool.slice(0, MAX_TOOL_NAME),
@@ -150,7 +178,8 @@ export function buildCallLine(
     set: toolSetOf(RENAMED_TOOLS[tool]?.to ?? tool) ?? 'unknown',
     ms: Math.max(0, Math.round(now - startedAt)),
     size: resultSize(result),
-    ok: !!result && result.isError !== true,
+    ok,
+    ...(ok ? {} : { err: classifyError(errorText(result)) }),
     ...who,
   };
 }

@@ -6,7 +6,10 @@ import type { SessionEvent } from './feed/types.js';
  * (`spotlight`), never on the player stream or `/player`. Speaking time comes from the Discord
  * recorder's status (recording-health.ts) and is joined by the page.
  *
- * The count starts when the dashboard starts or a different world opens; it is not stored.
+ * The count is for the play session: it starts at the session's start (`mark-play-session`), so a
+ * dashboard restart mid-session counts the same events again and a new session starts from zero.
+ * With no session known it counts from when the dashboard started or a different world opened.
+ * It is not stored.
  */
 
 /** Event types that count as a character acting: a roll, a whispered roll, damage, an item used. */
@@ -19,12 +22,22 @@ interface SpotlightPlayer {
 
 interface SpotlightSnapshot {
   players: SpotlightPlayer[];
+  /** True when the counts are for a play session, false when they run from the dashboard start. */
+  session: boolean;
+}
+
+interface Counted {
+  name: string;
+  at: number;
 }
 
 export class SpotlightTally {
-  private readonly counts = new Map<string, number>();
-  /** Event ids already counted: the same events come again on a reconnect. */
+  /** Every action seen (a small tuple each), so a session start can recount without a re-read. */
+  private counted: Counted[] = [];
+  /** Event ids already seen: the same events come again on a reconnect. */
   private readonly seen = new Set<string>();
+  /** The session's start (ms); earlier events do not count. Null: no session known yet. */
+  private since: number | null = null;
 
   /** Counts the new events; returns true when a number changed. */
   add(events: readonly SessionEvent[]): boolean {
@@ -34,22 +47,37 @@ export class SpotlightTally {
       this.seen.add(e.id);
       if (!ACTION_TYPES.has(e.eventType)) continue;
       if (e.visibility?.subject !== 'pc' || !e.actorName) continue;
-      this.counts.set(e.actorName, (this.counts.get(e.actorName) ?? 0) + 1);
-      changed = true;
+      this.counted.push({ name: e.actorName, at: e.timestampMs });
+      if (this.since === null || e.timestampMs >= this.since) changed = true;
     }
     return changed;
   }
 
+  /** A play session started at `startedAtMs`: count only from then. True when the snapshot changed. */
+  setSessionStart(startedAtMs: number): boolean {
+    if (this.since === startedAtMs) return false;
+    const before = JSON.stringify(this.snapshot());
+    this.since = startedAtMs;
+    return JSON.stringify(this.snapshot()) !== before;
+  }
+
   reset(): void {
-    this.counts.clear();
+    this.counted = [];
     this.seen.clear();
+    this.since = null;
   }
 
   snapshot(): SpotlightSnapshot {
+    const counts = new Map<string, number>();
+    for (const c of this.counted) {
+      if (this.since !== null && c.at < this.since) continue;
+      counts.set(c.name, (counts.get(c.name) ?? 0) + 1);
+    }
     return {
-      players: [...this.counts.entries()]
+      players: [...counts.entries()]
         .map(([name, actions]) => ({ name, actions }))
         .sort((a, b) => b.actions - a.actions || a.name.localeCompare(b.name)),
+      session: this.since !== null,
     };
   }
 }

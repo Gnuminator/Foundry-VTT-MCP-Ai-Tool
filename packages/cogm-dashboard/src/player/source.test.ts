@@ -194,6 +194,25 @@ describe('sessionSince', () => {
     expect(changes).toBe(1);
   });
 
+  it('keeps the session start after the session closes', async () => {
+    const start = '2026-10-20T19:00:00.000Z';
+    const answers: Record<string, unknown> = {
+      'get-play-session': { open: true, startedAt: start, endedAt: null },
+      'get-player-handouts': { revealedUuids: [], handouts: [] },
+    };
+    const source = new PlayerViewSource(clientWith(answers), new Logger('error', 'test'), () => {});
+    await source.refresh();
+    expect(source.sessionStartedMs).toBe(Date.parse(start));
+    answers['get-play-session'] = {
+      open: false,
+      startedAt: null,
+      endedAt: '2026-10-20T22:00:00.000Z',
+    };
+    (source as unknown as { sessionPolledAt: number }).sessionPolledAt = 0;
+    await source.refresh();
+    expect(source.sessionStartedMs).toBe(Date.parse(start));
+  });
+
   it('keeps the open flag and reports an open-to-closed flip as a change', async () => {
     const answers: Record<string, unknown> = {
       'get-play-session': { open: true, startedAt: '2026-10-20T19:00:00.000Z', endedAt: null },

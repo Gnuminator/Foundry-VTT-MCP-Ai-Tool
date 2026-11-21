@@ -11,6 +11,12 @@ text, so it stays on your PC. The players get vaults of their own without the se
 
 ## What is in it
 
+**Always there:** Home, the session notes and stats, and your Prep folder. **After you switch the
+mirror on:** the world's NPCs, scenes, journals, quests, characters, the Library and the day notes
+under `Everyone`. The mirror is off until you ask. Ask Claude: "Turn on the Obsidian mirror" (it
+needs the Admin set switched on, and it shows you the change before it happens). Until then those
+folders are empty or missing, which is normal.
+
 - **Home:** your start page for the campaign, `Home.md` in the world's folder. It is sorted by what
   you are doing (before, during and after a session) with links and live tables to NPCs, scenes,
   quests, story items and the session notes. The tool creates it once and never rewrites it after

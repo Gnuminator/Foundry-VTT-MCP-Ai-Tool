@@ -4,7 +4,7 @@
 
 ## v0.31.0 (released 2026-11-20): timed conditions, GM tool sets as web connectors, a downtime inbox and the last build before session 0
 
-**Wire contracts:** additive only. New tools `plan-macro` (build set) and `get-read-aloud` (play set), a new `ends` field on the condition change in `plan-actor-change`, and the dashboard's `/mcp/<set>` connector paths. The old tool name `get-compendium-entry-full` is gone: the router no longer answers it, so a saved prompt that still uses it must say `get-compendium-item` (with `itemId` for the old `entryId`).
+**Wire contracts:** additive only. New tools `plan-macro` (build set), `get-read-aloud` and `plan-handout-press` (play set) and `draft-omens` (prep set), a new bridge handler for the handout press image upload (`uploadHandoutImage`), new control-link messages `record_call` (the tool call log) and `remote_gm_list` and `remote_gm_call` (the dashboard's GM connectors), a new `ends` field on the condition change in `plan-actor-change`, and the dashboard's `/mcp/<set>` connector paths. The old tool name `get-compendium-entry-full` is gone: the router no longer answers it, so a saved prompt that still uses it must say `get-compendium-item` (with `itemId` for the old `entryId`).
 
 ### Process and tooling
 

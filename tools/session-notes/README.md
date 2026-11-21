@@ -34,7 +34,8 @@ hotwords) helps Claude spell names right.
 | `--scene-gap`      | `90`     | seconds of silence that start a new scene                            |
 | `--only-scene N`   |          | process one scene (for trying prompt changes)                        |
 
-Exit codes: 0 done, 1 error, 75 paused by a usage limit. After a pause, run the same command
+Exit codes: 0 done, 1 error, 75 paused by a usage limit, 76 incomplete (some scenes could not be
+written or have no in-depth notes yet). After a pause or an incomplete run, run the same command
 again later; finished scenes are kept in `notes/.work/` and are not redone.
 
 ## Automatic runs

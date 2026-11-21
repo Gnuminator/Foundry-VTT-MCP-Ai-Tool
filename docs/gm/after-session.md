@@ -31,6 +31,10 @@ is one action.
 - [ ] In Claude Desktop, run the prompt `session-recap` (`audience` gm) for your own summary.
 - [ ] If you share a recap with the players, run `session-recap` with `audience` players, and read
       it before you send it on.
+- [ ] If the evening was recorded on Discord, the notes and a draft player recap come from the
+      recording, not from the `session-recap` prompt. Read them under **Session notes** in the
+      After view ([Session notes (After)](dashboard-panels.md#session-notes-after)) before you
+      approve them.
 - [ ] In Obsidian, open this session's note (`Campaigns/<world id>/AI Tool/Sessions/`) and check it
       has the evening's events and stats.
 - [ ] Write your own notes in your own files (for example in `Campaigns/<world id>/Prep/`), not in

@@ -48,7 +48,7 @@ Two small things that save trouble:
 1. In the sidebar on the right, click the **Actors** tab (the person icon).
 2. At the top of that tab, click the **Actor Studio** button (its logo, under **Create Actor**).
 
-![The Actors tab with the Actor Studio logo button under Create Actor](../images/guides/studio-button.png)
+![The Actor Studio logo button under Create Actor](../images/guides/studio-button.png)
 
 The first time you log in, Foundry's **User Configuration** may open by itself. Close it: Actor
 Studio makes your new character yours when you click Create Character (see

@@ -1,6 +1,6 @@
 ---
 source: gm/after-session.md
-sourceHash: 709b03d4eb28
+sourceHash: 8d91fd145bf0
 title: Efter hver session
 description: En kort tjekliste til GM'en, når en spilsession er slut.
 ---
@@ -33,6 +33,9 @@ er én handling.
 - [ ] I Claude Desktop: kør prompten `session-recap` (`audience` gm) for din egen opsummering.
 - [ ] Hvis du deler en recap med spillerne, så kør `session-recap` med `audience` players, og læs
       den igennem, før du sender den videre.
+- [ ] Hvis aftenen blev optaget på Discord, kommer noterne og et udkast til spillernes recap fra
+      optagelsen, ikke fra prompten `session-recap`. Læs dem under **Session notes** i After-visningen
+      ([Session notes (After)](dashboard-panels.md#session-notes-after)), før du godkender dem.
 - [ ] Åbn denne sessions note i Obsidian (`Campaigns/<world id>/AI Tool/Sessions/`), og tjek, at den
       har aftenens begivenheder og statistik.
 - [ ] Skriv dine egne noter i dine egne filer (for eksempel i `Campaigns/<world id>/Prep/`), ikke i

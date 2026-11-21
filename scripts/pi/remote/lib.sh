@@ -133,6 +133,156 @@ refuse_when_cut_over() {
   [ -z "$ids" ] || die "the stack runs as containers (compose project $COMPOSE_LIVE_PROJECT): $what would start a second copy of a systemd unit next to them. Go back first: stage 24 with MODE=rollback (deploy/pi/README.md, Cutover and rollback). Nothing was changed"
 }
 
+# ---- Day two on the stack: units or containers (backlog pi-compose-day-two, D-149) ----------------------------------------
+# A stage that has to start, stop or restart Foundry, the bridge, the dashboard or the Assistant GM browser calls
+# `use_stack "<what>"` right after require_root (instead of refuse_when_cut_over) and then drives the four services only
+# through the svc_* helpers below. use_stack sets STACK to "units" (no container of the live project exists: the systemd
+# units run them, exactly as before) or "containers" (the stack was cut over: the containers run them and the units are
+# off). The units path of every helper runs the very systemctl commands the stages ran before, so a Pi on systemd behaves
+# as it did. Never overridden by FORCE=1. A silent Docker daemon is "unknown" and refuses (fail closed), as before.
+# A unit and a container running together (a mixed state) refuses too: two copies of one service.
+STACK=units
+STACK_SERVICES="foundry bridge dashboard gm-browser"
+
+# svc_unit SERVICE: the systemd unit of a stack service.
+svc_unit() {
+  case "$1" in
+    foundry) echo foundry.service ;;
+    bridge) echo foundry-ai-tool-bridge.service ;;
+    dashboard) echo foundry-ai-tool-dashboard.service ;;
+    gm-browser) echo foundry-ai-tool-gm-browser.service ;;
+    *) return 1 ;;
+  esac
+}
+
+use_stack() {
+  local what="$1" ids s
+  STACK=units
+  command -v docker >/dev/null 2>&1 || return 0
+  if ! ids="$(containers_of "$COMPOSE_LIVE_PROJECT" "" -a)"; then
+    docker_cannot_return && return 0
+    die "the Docker daemon does not answer, so whether the stack runs as containers is unknown: $what is refused (it could start a systemd unit next to a container). Look at: systemctl status docker. Nothing was changed"
+  fi
+  [ -n "$ids" ] || return 0
+  if have_systemd; then
+    for s in $STACK_SERVICES; do
+      ! systemctl is-active --quiet "$(svc_unit "$s")" 2>/dev/null ||
+        die "$(svc_unit "$s") runs next to the containers of $COMPOSE_LIVE_PROJECT (a mixed state, two copies of one service): $what is refused. Look: deploy/pi/deployed-state.sh; then stage 24 MODE=rollback. Nothing was changed"
+    done
+  fi
+  STACK=containers
+}
+
+# svc_cid SERVICE [-a]: the container id of a stack service (-a: a stopped one too); empty when none or unknown.
+svc_cid() {
+  containers_of "$COMPOSE_LIVE_PROJECT" "$1" "${2:-}" 2>/dev/null | head -n 1 || true
+}
+# svc_active SERVICE: runs now.
+svc_active() {
+  if [ "$STACK" = containers ]; then [ -n "$(svc_cid "$1")" ]; else systemctl is-active --quiet "$(svc_unit "$1")"; fi
+}
+# svc_wanted SERVICE: runs now, or is set up to run (enabled unit, existing container): "it was part of the stack".
+svc_wanted() {
+  if [ "$STACK" = containers ]; then
+    [ -n "$(svc_cid "$1" -a)" ]
+  else
+    systemctl is-active --quiet "$(svc_unit "$1")" || systemctl is-enabled --quiet "$(svc_unit "$1")" 2>/dev/null
+  fi
+}
+# svc_stop SERVICE: stops it (a stopped one is fine). Containers: docker stop on the existing container, which keeps the
+# 90 s grace of the compose file; nothing is recreated or removed.
+svc_stop() {
+  local cid
+  if [ "$STACK" = containers ]; then
+    cid="$(svc_cid "$1")"
+    [ -z "$cid" ] || docker stop "$cid" >/dev/null
+  else
+    systemctl stop "$(svc_unit "$1")"
+  fi
+}
+# svc_start SERVICE: starts it. Containers: docker start on the existing container (a missing container is an error).
+svc_start() {
+  local cid
+  if [ "$STACK" = containers ]; then
+    cid="$(svc_cid "$1" -a)"
+    [ -n "$cid" ] || {
+      warn "no container of the service $1 in $COMPOSE_LIVE_PROJECT"
+      return 1
+    }
+    docker start "$cid" >/dev/null
+  else
+    systemctl start "$(svc_unit "$1")"
+  fi
+}
+# svc_restart SERVICE: restarts it, starts it when stopped.
+svc_restart() {
+  local cid
+  if [ "$STACK" = containers ]; then
+    cid="$(svc_cid "$1" -a)"
+    [ -n "$cid" ] || {
+      warn "no container of the service $1 in $COMPOSE_LIVE_PROJECT"
+      return 1
+    }
+    docker restart "$cid" >/dev/null
+  else
+    systemctl restart "$(svc_unit "$1")"
+  fi
+}
+# svc_try_restart SERVICE: restarts it only when it runs (a stopped one stays stopped).
+svc_try_restart() {
+  if [ "$STACK" = containers ]; then
+    ! svc_active "$1" || svc_restart "$1"
+  else
+    systemctl try-restart "$(svc_unit "$1")"
+  fi
+}
+# svc_logs_hint SERVICE: the command to read its log, for messages.
+svc_logs_hint() {
+  if [ "$STACK" = containers ]; then
+    echo "docker logs --tail 50 \$(docker ps -aq --filter label=com.docker.compose.project=$COMPOSE_LIVE_PROJECT --filter label=com.docker.compose.service=$1)"
+  else
+    echo "journalctl -u $(svc_unit "$1") -n 50"
+  fi
+}
+# svc_gm_log SINCE: the Assistant GM browser's log lines since SINCE (a "YYYY-MM-DD HH:MM:SS" time); nothing when unknown.
+svc_gm_log() {
+  local cid
+  if [ "$STACK" = containers ]; then
+    cid="$(svc_cid gm-browser -a)"
+    [ -z "$cid" ] || docker logs --since "$(date -d "$1" +%s 2>/dev/null || echo 0)" "$cid" 2>&1 || true
+  else
+    journalctl -u "$(svc_unit gm-browser)" --since "$1" --no-pager -o cat 2>/dev/null || true
+  fi
+}
+# svc_gm_joined SINCE [WORLD]: the Assistant GM browser logged "joined world [WORLD]" since SINCE.
+svc_gm_joined() {
+  [ "$(svc_gm_log "$1" | grep -c "\[assistant-gm\] joined world${2:+ $2 }" || true)" -gt 0 ]
+}
+
+# stack_dir: the deployed checkout's deploy/pi folder (compose.yml and .env). Tests set TOOL_CHECKOUT.
+stack_dir() { printf '%s' "${TOOL_CHECKOUT:-$TOOL_DIR/app}/deploy/pi"; }
+# stack_compose ARGS...: docker compose on the live project from the deployed checkout (its .env is read by compose itself).
+stack_compose() {
+  (cd "$(stack_dir)" && docker compose -p "$COMPOSE_LIVE_PROJECT" -f compose.yml "$@")
+}
+# stack_env_set NAME VALUE: sets NAME=VALUE in deploy/pi/.env (the compose switches; stage 23 writes the file). Replaces the last
+# NAME= line or appends one, through a temp file and a rename, mode kept; returns 0 when the file changed, 1 when it already
+# had that value. NAME is upper case letters, digits and _; VALUE is plain path/host characters (no $, quote, space or #), so
+# compose and env_file_value read it the same way. Nothing is printed except through ok().
+stack_env_set() {
+  local name="$1" value="$2" f tmp
+  f="$(stack_dir)/.env"
+  [[ "$name" =~ ^[A-Z][A-Z0-9_]*$ ]] || die "stack_env_set: bad name '$name'"
+  [[ "$value" =~ ^[A-Za-z0-9/._,:@+-]*$ ]] || die "stack_env_set: $name has a character compose would read differently (only letters, digits and /._,:@+- are written)"
+  [ -f "$f" ] || die "$f is missing: run stage 23 first (it writes the compose settings). Nothing was changed"
+  if grep -qE "^[[:space:]]*$name[[:space:]]*=" "$f" && [ "$(env_file_value "$f" "$name")" = "$value" ]; then return 1; fi
+  tmp="$(mktemp "$f.XXXXXX")"
+  { grep -vE "^[[:space:]]*$name[[:space:]]*=" "$f" || true; printf '%s=%s\n' "$name" "$value"; } >"$tmp"
+  chmod --reference="$f" "$tmp"
+  mv -f "$tmp" "$f"
+  ok "$f: $name set"
+}
+
 # env_file_value FILE NAME: the value a compose .env FILE gives NAME, read the way compose reads it ("" when the file or the
 # name is absent): the last assignment wins, whitespace around the name and the value is dropped, an unquoted value ends at a
 # whitespace-then-# comment, one pair of matching quotes is removed (what is inside them is kept as it is). The one reader

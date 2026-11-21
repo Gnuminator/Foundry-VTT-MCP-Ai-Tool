@@ -286,7 +286,7 @@ export class PlayerTools {
       {
         name: 'get-player-skill-guide',
         description:
-          'Call this first, with no arguments, and follow it: the current guide of the D&D helper, its rules and pages, always up to date. A skill calls it itself with stubRevision; again with page for one page. Read-only.',
+          'Call this first, with no arguments, and follow it: the current guide of the D&D helper, its rules and pages, always up to date. A skill that names a stubRevision passes it instead; again with page for one page. Read-only.',
         inputSchema: {
           type: 'object',
           properties: {

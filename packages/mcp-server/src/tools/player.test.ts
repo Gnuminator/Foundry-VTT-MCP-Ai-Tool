@@ -67,6 +67,7 @@ describe('the guide tool tells a chat to open it first', () => {
       .tools.getToolDefinitions()
       .find(d => d.name === 'get-player-skill-guide');
     expect(def?.description).toContain('Call this first, with no arguments, and follow it');
+    expect(def?.description).toContain('A skill that names a stubRevision passes it instead');
   });
 });
 

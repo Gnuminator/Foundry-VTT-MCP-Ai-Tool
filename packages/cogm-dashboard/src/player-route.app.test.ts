@@ -574,7 +574,7 @@ describe('/mcp/player: what it runs', () => {
         protocolVersion: '2025-06-18',
         capabilities: { tools: {} },
         instructions: expect.stringContaining(
-          'call get-player-skill-guide first, with no arguments, and follow it'
+          'call get-player-skill-guide first, with no arguments, and follow it; a skill that names a stubRevision passes it instead'
         ),
       },
     });

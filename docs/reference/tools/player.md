@@ -84,7 +84,7 @@ No parameters.
 
 ## get-player-skill-guide
 
-Call this first, with no arguments, and follow it: the current guide of the D&D helper, its rules and pages, always up to date. A skill calls it itself with stubRevision; again with page for one page. Read-only.
+Call this first, with no arguments, and follow it: the current guide of the D&D helper, its rules and pages, always up to date. A skill that names a stubRevision passes it instead; again with page for one page. Read-only.
 
 Kind: read-only. Title: Get the helper skill guide.
 

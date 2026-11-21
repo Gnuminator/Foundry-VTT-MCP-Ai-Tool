@@ -154,7 +154,7 @@ The bridge and the dashboard are decoupled, so they can run where it suits the t
 ## MCP tools
 
 The tools come in five sets. Each set is its own entry in Claude Desktop, with its own switch in the
-**Search and tools** menu, so Claude does not read every tool definition at the start of every chat.
+**+** menu, then **Plugins**, so Claude does not read every tool definition at the start of every chat.
 The dashboard always has every tool. Tool counts, sizes and the full lists are generated:
 [docs/reference/TOOL-SETS.md](docs/reference/TOOL-SETS.md) and
 [docs/reference/tools.md](docs/reference/tools.md).

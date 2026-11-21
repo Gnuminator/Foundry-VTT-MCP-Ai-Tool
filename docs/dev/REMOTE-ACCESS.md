@@ -279,7 +279,7 @@ Managed OAuth and the `Foundry players` email policy. Its AUD tag goes into `pla
 ### The GM remote connector (not deployed yet)
 
 The five GM tool sets can be served as Claude custom connectors: `/mcp/core`, `/mcp/play`, `/mcp/prep`,
-`/mcp/build` and `/mcp/admin` on the dashboard, one per set, so the Search and tools switches and the
+`/mcp/build` and `/mcp/admin` on the dashboard, one per set, so the switches in the **+** menu, then **Plugins**, and the
 per-set budgets stay as with the local installer. It needs its own Access application, `Dashboard GMs
 remote`, with Managed OAuth and the `Dashboard GMs` email policy, **never** `Foundry players`. Its AUD
 tag goes into the file named by `FOUNDRY_AI_GM_CONNECTOR_CONFIG` as `appAudience`. Who counts as a GM is

@@ -1,7 +1,7 @@
 /**
  * `POST /mcp/core`, `/mcp/play`, `/mcp/prep`, `/mcp/build` and `/mcp/admin` (item
  * remote-gm-connector): the GM's tool sets as Claude custom connectors, one path per set, so the
- * Search and tools switches and the per-set token budgets stay as they are with the local
+ * connector switches and the per-set token budgets stay as they are with the local
  * installer. Plan, confirm and undo live in the backend's tool routes and are unchanged.
  *
  * - Off unless `FOUNDRY_AI_GM_CONNECTOR=on`: nothing is mounted.

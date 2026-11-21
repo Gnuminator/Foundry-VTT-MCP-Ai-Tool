@@ -29,8 +29,8 @@ own words, once.
 
 ## If the tool is missing or fails
 
-- The tool is not there: ask the GM to switch the Foundry connector on in this chat (Search and
-  tools menu, **foundry-mcp**), then try again.
+- The tool is not there: ask the GM to switch the Foundry connector on in this chat (the **+**
+  menu, then **Plugins**, **foundry-mcp**), then try again.
 - The table's server does not answer: say so plainly. Without the table's guide you only have
   general knowledge: say "not from the reference pages" before any answer, never invent a button
   or menu, and tell the GM to ask again once the server is back. For a game-night emergency, the

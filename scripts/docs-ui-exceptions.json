@@ -25,7 +25,6 @@
     },
     { "name": "Plugins", "reason": "Claude Desktop menu" },
     { "name": "Quit", "reason": "Claude Desktop tray menu" },
-    { "name": "Search and tools", "reason": "Claude Desktop chat box menu" },
     { "name": "foundry-mcp-admin", "reason": "Claude Desktop connector name" },
     { "name": "Basics", "reason": "Foundry scene configuration tab" },
     { "name": "Save Changes", "reason": "Foundry configuration dialog button" },

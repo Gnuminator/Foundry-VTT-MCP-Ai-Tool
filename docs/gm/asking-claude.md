@@ -60,7 +60,7 @@ Requests that go wrong:
 ## Tool sets: which switches to turn on
 
 Claude Desktop shows the tool as five entries, one per tool set, each with its own switch in the
-**+** menu under the message box, then **Connectors** (the exact place can move between Claude
+**+** menu under the message box, then **Plugins** (the exact place can move between Claude
 Desktop versions). Claude reads every tool that is switched on at the start of a chat, so fewer switches
 means more room for your conversation and fewer wrong picks. The switches stay as you left them for
 new chats.

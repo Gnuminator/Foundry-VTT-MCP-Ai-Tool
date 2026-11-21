@@ -79,7 +79,7 @@ VIAddVersionKey "LegalCopyright" "(c) 2024 Foundry MCP Bridge"
 
 ; Finish page
 !define MUI_FINISHPAGE_TITLE "Installation Complete"
-!define MUI_FINISHPAGE_TEXT "The client is installed and Claude Desktop has five Foundry AI Tool connectors (Core, Play, Prep, Build, Admin).$\r$\n$\r$\nNext steps:$\r$\n$\r$\n1. Start Claude Desktop (it must have been closed while this ran)$\r$\n2. Make sure your private network (for example Tailscale) is connected. With the Cloudflare tunnel there is nothing to do: it starts by itself when you sign in to Windows$\r$\n3. Open the Search and tools menu and switch the connectors on$\r$\n$\r$\nFor help, see the GitHub repository."
+!define MUI_FINISHPAGE_TEXT "The client is installed and Claude Desktop has five Foundry AI Tool connectors (Core, Play, Prep, Build, Admin).$\r$\n$\r$\nNext steps:$\r$\n$\r$\n1. Start Claude Desktop (it must have been closed while this ran)$\r$\n2. Make sure your private network (for example Tailscale) is connected. With the Cloudflare tunnel there is nothing to do: it starts by itself when you sign in to Windows$\r$\n3. Click the + in the chat box, choose Plugins, and switch the connectors on$\r$\n$\r$\nFor help, see the GitHub repository."
 !define MUI_FINISHPAGE_RUN
 !define MUI_FINISHPAGE_RUN_TEXT "Open the Foundry AI Tool GitHub page"
 !define MUI_FINISHPAGE_RUN_FUNCTION "OpenGitHub"

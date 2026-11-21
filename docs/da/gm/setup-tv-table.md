@@ -1,6 +1,6 @@
 ---
 source: gm/setup-tv-table.md
-sourceHash: 2177e689f762
+sourceHash: 216f8522031e
 title: "Engangsopsætning: tv'et ved bordet"
 description: Lav Table-spilleren og log tv'ets computer ind, én gang. Kun til sessioner, hvor I sidder i samme rum.
 ---
@@ -19,7 +19,7 @@ Cloudflare bruger til tv'et. Værktøjets admin sætter pc'en og mappen op.
 
 ## 1. Lav Table-spilleren
 
-1. Klik på **+** i chatfeltet i Claude Desktop, **Connectors**, og slå **foundry-mcp-admin** til.
+1. Klik på **+** i chatfeltet i Claude Desktop, **Plugins**, og slå **foundry-mcp-admin** til.
 2. Spørg: _Plan a Table user for the TV._ Claude viser en plan: én ny spiller ved navn Table, uden password.
 3. Læs den, og bekræft så. Den står i **Recent Changes** med en **Undo**.
 

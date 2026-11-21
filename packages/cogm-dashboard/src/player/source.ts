@@ -88,6 +88,7 @@ export class PlayerViewSource {
   private lastEndedMs: number | null = null;
   private sessionOpenValue: boolean | null = null;
   private sessionPolledAt = 0;
+  private sessionStartedValue: number | null = null;
   private timer: NodeJS.Timeout | null = null;
   private inFlight = false;
 
@@ -124,6 +125,11 @@ export class PlayerViewSource {
    */
   get sessionSinceMs(): number | null {
     return this.sessionSinceValue;
+  }
+
+  /** When the open or last play session started (ms); null until one has been read. */
+  get sessionStartedMs(): number | null {
+    return this.sessionStartedValue;
   }
 
   /** Whether a session is open per the marker; null until the marker has been read. */
@@ -183,6 +189,11 @@ export class PlayerViewSource {
         if (marker) {
           changed ||= marker.open !== this.sessionOpenValue;
           this.sessionOpenValue = marker.open;
+          // The last start seen stays after the session closes, so the spotlight keeps showing
+          // that session until the next one starts.
+          const started = marker.startedAtMs ?? this.sessionStartedValue;
+          changed ||= started !== this.sessionStartedValue;
+          this.sessionStartedValue = started;
         }
         const since = sessionSince(session, this.lastEndedMs);
         changed ||= since !== this.sessionSinceValue;

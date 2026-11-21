@@ -7,6 +7,7 @@ import {
   readSpotlight,
   speakingText,
   spotlightHint,
+  spotlightScope,
   type SpotlightRow,
 } from './spotlight';
 
@@ -77,6 +78,9 @@ describe('spotlightHint', () => {
 describe('helpers', () => {
   it('reads payloads and settings defensively', () => {
     expect(readSpotlight(null).players).toEqual([]);
+    expect(spotlightScope(true)).toContain('this session');
+    expect(spotlightScope(false)).toContain('since the dashboard started');
+    expect(readSpotlight({ players: [], session: true }).session).toBe(true);
     expect(readSpotlight({ players: [{ name: 'A', actions: 2 }, { x: 1 }] }).players).toHaveLength(
       1
     );

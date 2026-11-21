@@ -889,7 +889,21 @@ describe('seven-books-baseline.js', () => {
     assert.deepEqual(names(player(old, 'species')), ['Changeling (MotM)', 'Elf']);
     assert.equal(old.packs.get('aitool-content.species').docs.size, 4);
     // a second run changes nothing, and a 2024 entry with one of those ids is never skipped
-    assert.equal((await run(baselineSource, old, true)).result.copy, 0);
+    const again = await run(`const BASELINE_MODE = 'check';\n${baselineSource}`, old, true);
+    assert.match(again.lines.join('\n'), /no drift: the world matches the seven-book baseline/);
+    // a link to a skipped species is not rewritten to the players' pack
+    const linked = withSpecies();
+    linked.packs
+      .get('aitool-content.species')
+      .docs.get('a8SozVCiEBxNbqOi').system.description.value = link(
+      'aitool-content.species',
+      'iT8VhyVlZlWdAnHn'
+    );
+    await run(baselineSource, linked, false);
+    assert.doesNotMatch(
+      JSON.stringify(player(linked, 'species').docs.get('a8SozVCiEBxNbqOi')),
+      /world\.player-species/
+    );
     const mod = withSpecies();
     mod.packs.get('aitool-content.species').docs.get('iT8VhyVlZlWdAnHn').system.source.rules =
       '2024';

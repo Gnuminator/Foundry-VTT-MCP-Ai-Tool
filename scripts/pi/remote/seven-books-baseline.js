@@ -62,6 +62,7 @@ const targetFor = (type, subtype) => {
   if (type === 'spell') return targetPackOf('spells');
   return targetPackOf('items');
 };
+// (Header exception: the species in SUPERSEDED_SPECIES are in the kept packs but are not copied, and a copy is removed.)
 // 2014 (MotM) species the 2024 Player's Handbook replaces (the user, 2026-11-21; Backlog studio-species-dupes-g0): Actor
 // Studio listed Aasimar, Goliath and Orc twice because the old copy is named "X (MotM)" and Actor Studio's edition filter
 // only hides a 2014 entry whose name or identifier matches a 2024 one. Their copies are not made, so the orphan step
@@ -330,6 +331,8 @@ for (const id of sourcePacks) {
     if (first && first.pack !== id)
       collisions.push(`${e._id}: ${first.pack} ${first.name} and ${id} ${e.name}`);
     typeOf.set(e._id, { pack: id, name: e.name, target });
+    // No copy is made, so links to it stay on the kept (hidden) pack and still resolve for the GM.
+    if (isSuperseded(e)) continue;
     to.set(`${id}|${e._id}`, target);
   }
 }

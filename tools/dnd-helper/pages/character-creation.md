@@ -59,51 +59,75 @@ to click. The card matches the sheet when every line above is true on the sheet.
 
 ## Level 3 level-up snags
 
-Tell the player before they hit them:
+Rechecked on 2026-11-21 as Player on test server B: Foundry 14.370, dnd5e 6.1.1, Actor Studio
+`2.10.5-aitool.13`, PHB module 3.0.0 (a Cleric built at level 1, then levelled to 2 and 3 with
+Milestone Levelling on). Status per line: **kept**, **fixed** (in this build) or **changed**.
+Tell the player about the kept and changed ones before they hit them:
 
-- **No Level Up button.** It shows only when Milestone Levelling is on (a GM setting) or the sheet
-  has enough XP. Without it, the player asks the GM.
-- **Click the "+" at the right end of the class row**, not the row. At level 3 the **Choose
-  Subclass** list appears under it; it may need a second click to open.
-- **Take Average** must be ticked (or HP rolled) before Next moves on from the Hit Points step.
-- **Two Completes at level 3.** After the last step's **Complete**, a second window lists the
-  subclass's features (e.g. "Champion, Level 2 -> 3, Step 1 of 1"); its **Complete** is what adds
-  the subclass to the sheet. Skipped, the sheet says level 3 with no subclass.
-- **Counters:** a skipped choice (the wizard's Scholar Expertise) is silently lost, because Next lets the player through.
-- **Spells learned** at levels 2 and 3 are not asked for (see the build card, point 8).
+- **No Level Up button** (kept, not retested with Milestone off). It shows only when Milestone
+  Levelling is on (a GM setting) or the sheet has enough XP. Without it, the player asks the GM.
+  With it on, a small Actor Studio logo sits in the sheet header, beside dnd5e's own "Level Up" text.
+- **Click the "+" at the right end of the class row**, not the row (kept). At level 3 the **Choose
+  Subclass** list appears under it at once; one click opened it both times (changed: no second click
+  needed).
+- **Hit Points** (fixed): **Take Average** is already applied, FINAL shows the sum, and Next moves
+  on with nothing to tick.
+- **More than two Completes at level 3** (changed). After the class steps' **Complete**, the same
+  window shows **Subclass Features** (Complete), then the subclass's spell step (for the Life Domain:
+  "Life Domain Spells", Complete), then a **Spells** screen that says "No spell updates needed" with
+  a **Finalize Spells** button. Click all of them; the subclass is on the sheet at the end. Stopping
+  early leaves level 3 without a subclass (the sheet then offers **Add the subclass**).
+- **Counters** (fixed, with a flaw): Next on a step whose counter is not full now opens **Choices
+  still open** (**Go back** or **Continue anyway**), so a skipped choice is no longer silent. The box
+  wrongly said "Chosen: 0 of 2" for the Magic Initiate cantrips although both showed as chosen;
+  **Continue anyway** was safe there (the spells arrived). Check the counter on screen, not the box.
+- **Spells learned** at levels 2 and 3 are not asked for (not retested: a Cleric prepares, it does not
+  learn). For a wizard or other learner, add them on the Spells tab.
+- **A red toast "User Kit Player lacks permission to update Actor"** (new) shows at the end of the
+  build and of every Finalize Spells. The sheet is complete anyway; ignore it.
+- **The Level Up window can fail to appear** (new, seen once after clicking the logo twice: the
+  window stayed invisible). Reload the page (F5) and click the logo once.
 
 ## The ten level-1 snags (checklist for you and the player)
 
-Seen on Foundry 14 with dnd5e 6 and the Actor Studio module; the words on screen may differ a little in other versions. Mention the ones that apply
-before they hit them, and re-check after:
+Rechecked on 2026-11-21 on the same build as above (`2.10.5-aitool.13`, dnd5e 6.1.1, an Elf, Acolyte,
+Cleric build as Kit Player). The words on screen may differ a little in other versions. Mention the
+ones that still apply before the player hits them:
 
-1. **Character Name starts as the player's own name**, and the bar says 100% before any name is
-   typed. Replace it before **Create Character**.
-2. **Two windows at first join** (the Actor Studio welcome and Foundry's User Configuration). Close
-   both; User Configuration returns each join until a Player Character is chosen (right-click your
-   name in the Players list, **User Configuration**, **Player Character**).
-3. **A blank panel for about 5 seconds** after **Complete** in the species, background feat and
-   class steps. Wait, don't click again.
-4. **Magic Initiate spell picker** is Foundry's compendium browser: every spell appears up to four
-   times (SRD 5.1, SRD 5.2, PHB, **PHB 2024**; pick PHB 2024), and Cleric, Druid and Wizard lists
-   are mixed (pick only the class named after Magic Initiate). The class Spells tab still offers
-   cantrips already given by the feat: avoid doubles.
-5. **Equipment tab:** the items turn green by themselves, but some tiles are choices you must
-   click: the dark gold tile at the bottom of the left pane (the background's "8 GP" or similar),
-   the class gold tile ("7 GP"), and the **Select focus** list for "any holy focus" (pick Amulet,
-   Emblem or Reliquary). Never stop at 75%: the bar reaches 100% only when every one is done, and
-   then a **Confirm** button appears. Closing before Confirm drops the equipment picks (Studio now
-   asks first). After Confirm, body armor and a shield are equipped; other gear is not.
-6. **Wizards have no Spellbook** in the starting kit. The GM adds one from the item compendium.
-7. **Cosmetic only:** the raw key `GAS.Spells.Cantrip` under chosen cantrips, class steps headed
-   "Level 1 -> 2", a spell card lingering at the bottom right.
-8. **Ability method:** with only one method on, there is no list to open; only the chevrons move
-   scores (standard array).
-9. **A skill picked twice loses a proficiency.** Species steps come before the background's, and
-   the background's fixed skills are not offered again. Tell an Elf (Keen Senses) to pick a skill
-   the background does not give.
-10. **Permission wording:** the GM's setting is **Create Actors**; the refusal says "Create New
-    Actors". If a player cannot open Actor Studio, the GM must tick it for the Player role.
+1. **Character Name starts as the player's own name** (kept: "Kit Player"). The bar does not say
+   100% at the start any more (it begins at 25%); it reaches 100% after the class pick whether or
+   not the name changed. Replace the name before **Create Character**.
+2. **Two windows at first join** (kept in part). A fresh Player gets Foundry's User Configuration
+   at join and again after each reload until a Player Character exists. Studio sets it when
+   **Create Character** is clicked ("Kit Player [Snag Cleric]" in the Players list), and the window
+   then stops. No Studio welcome window appeared on the kit world (its welcome is switched off).
+3. **A blank panel for about 5 seconds** after **Complete** (not reproduced). Species, background,
+   feat and class steps all moved on in under 2 seconds; the class step to the Equipment tab took
+   about 3. The guide keeps one line "wait, don't click again" as a hedge.
+4. **Magic Initiate spell picker** (fixed): a **Select Spells** window of only the feat's class,
+   each spell once. The class Cantrips list no longer offers cantrips the feat already gave (7 of 9
+   Cleric cantrips shown). Still check the class, since a wrong class is not blocked (not retested).
+5. **Equipment tab** (kept, reworded): first click the **Equipment + gp** or **gp only** tile of
+   the background and of the class (bar 50%), then the dark **8 GP** and **7 GP** tiles at the
+   bottom of each pane, and for each "any holy focus" tile the **Select focus** list at the top of
+   the right pane (Amulet, Emblem or Reliquary). The bar goes 50, 75, 100% and **Confirm** appears at
+   100%; a hint under the bar says so. After Confirm the chain shirt and the shield were equipped
+   (the mace was not). Closing before Confirm drops the picks (a confirm box now asks first).
+6. **Wizards have no Spellbook** (kept): the PHB equipment pack has no Spellbook item and the
+   Wizard's kit has none either. A Wizard was not built in this run.
+7. **Cosmetic** (mostly fixed): class steps are now headed "Cleric • Level 1", not "Level 1 -> 2".
+   The raw key `GAS.Spells.Cantrip` is still not translated in the language file (kept, not seen on
+   screen this run); the lingering spell card was not seen.
+8. **Ability method** (changed, depends on the GM's settings): the kit world offers only **Manual
+   Entry**, as plain number boxes you type in, not chevrons. With standard array or point buy on, the
+   old chevron or list behaviour applies (not retested).
+9. **A skill picked twice loses a proficiency** (softened): a skill the background already gives
+   is now listed as "Insight (already given by your background)" and the class skill list leaves such
+   skills out. Pick another skill anyway: the label does not stop the pick.
+10. **Permission wording** (kept): the GM's setting is **Create Actors**; the refusal reads "User
+    requires the 'Create New Actors' permission". Seen on the kit world until the GM role ticked it.
 
 Also: a player cannot delete their own actor; the GM removes a wrong one. After the GM changes
-Actor Studio settings, the player reloads the page (F5).
+Actor Studio settings, the player reloads the page (F5). Closing Studio with Escape in the middle
+of the Advancements steps left a bare level-0 actor; after a reload the **Resume your character**
+box appeared, **Resume** restarted the steps from the first, and the build finished (verified).

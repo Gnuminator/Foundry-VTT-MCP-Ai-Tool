@@ -17,7 +17,7 @@
 import { KIT_PLAYER_USER } from '../lib/contract.mjs';
 import { SkipError } from '../lib/errors.mjs';
 import { listOf, tokenHeroes, waitFor } from '../lib/helpers.mjs';
-import { confirmModal, markToasts, settleWrite, squash } from '../lib/dashboard-page.mjs';
+import { confirmModal, markToasts, squash } from '../lib/dashboard-page.mjs';
 
 const VIEWPORT = { width: 1440, height: 1000 };
 const HANDOUT_JOURNAL = 'Kit dashboard handout test (safe to delete)';
@@ -62,7 +62,7 @@ export default {
     const boss = t.kit?.monsters?.find(m => m.cell === 'legendary' && m.tokenId);
     // The player's own hero: the strip only treats a character a player owns as a PC (a roll can be asked).
     const heroes = t.kit ? tokenHeroes(t.kit) : [];
-    const hero = heroes.find(h => h.owner) ?? heroes[0];
+    const hero = heroes.find(h => h.owner);
     const sceneId = t.kit?.scene?.sceneId;
     if (!boss || !hero || !sceneId) {
       await t.step('the boss combat needs a kit scene', async () =>
@@ -99,14 +99,13 @@ export default {
     const press = async (/** @type {import('playwright-core').Locator} */ control) => {
       await markToasts(page);
       await control.click();
-      const settled = await Promise.race([
-        page
-          .locator('#modal-backdrop')
-          .waitFor({ state: 'visible', timeout: 4000 })
-          .then(() => 'modal'),
-        page.waitForTimeout(4000).then(() => 'none'),
-      ]).catch(() => 'none');
-      if (settled === 'modal') await confirmModal(page);
+      // A control that plans first opens a confirm window; the rest write at once and open none.
+      const opened = await page
+        .locator('#modal-backdrop')
+        .waitFor({ state: 'visible', timeout: 8000 })
+        .then(() => true)
+        .catch(() => false);
+      if (opened) await confirmModal(page);
     };
     const pickBoss = () => page.getByRole('button', { name: boss.name, exact: true });
     const pickHero = () => page.getByRole('button', { name: hero.name, exact: true });
@@ -162,22 +161,29 @@ export default {
           .map(h => h.actorId);
         await t.gm('ensurePartyGroup', { name: 'Kit Party', memberIds });
       }
-      // Undo everything the flows applied, newest first, once the combat is gone.
+      // Cleanups run last in, first out: the combat ends last, so the undo below still has it.
       t.cleanup(async () => {
+        await t.gm('endCombats');
+      });
+      // The handout queue and reveal clean-ups the handout flow registers.
+      t.cleanup(async () => {
+        for (const fn of [...late].reverse()) await fn();
+      });
+      // Undo everything the flows applied, newest first; a change already taken back is skipped.
+      t.cleanup(async () => {
+        const skipped = new Set();
         for (let i = 0; i < PUT_BACK_CAP; i++) {
-          const change = (await changesSince())[0];
+          const change = (await changesSince()).find(c => !skipped.has(c.changeId));
           if (!change) break;
           try {
             await t.guarded.undo(change.changeId);
           } catch (e) {
             if (!/Conflict, nothing was written/.test(String(e?.message ?? e))) throw e;
-            break;
+            skipped.add(change.changeId);
           }
         }
-        for (const fn of late.reverse()) await fn();
-      });
-      t.cleanup(async () => {
-        await t.gm('endCombats');
+        const left = await conditionsOf(hero.name).catch(() => []);
+        t.check(!left.includes('prone'), 'the hero is not left prone', left);
       });
       // The roll status under the quick roll bar is built from the play session's events.
       const marked = await t.tool('mark-play-session', {
@@ -266,7 +272,8 @@ export default {
       await actions.first().waitFor({ timeout: 20000 });
       const name = (await actions.first().getAttribute('data-action')) ?? '';
       // The action rolls against the creature the GM targets in Foundry (T on the map).
-      await t.gm('targetToken', { sceneId, tokenId: hero.tokenId });
+      const targeted = await t.gm('targetToken', { sceneId, tokenId: hero.tokenId });
+      t.equal(targeted.targeted, [hero.tokenId], 'Foundry targets the hero');
       t.cleanup(async () => {
         await t.gm('targetToken', { sceneId });
       });

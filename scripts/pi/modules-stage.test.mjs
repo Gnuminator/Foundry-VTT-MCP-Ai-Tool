@@ -7,6 +7,10 @@
 //   changes nothing, the real run, a rerun, UNDO=1 with its read-back, a failed start, a browser that never joins, a
 //   failed move and a version mismatch putting the old folders back, a crashed run refusing a new one, and the
 //   refusals (a wrong sha256, a "../" entry, a link, a wrong id or version in the zip, an unsafe pin, players online).
+//   The container-* scenarios run the stage on a simulated cut-over Pi (fake docker, units off): a dry run that changes
+//   nothing, an APPLY that stops the browser then Foundry container, moves the folders, restarts Foundry, starts the
+//   browser and reads the versions back without any systemctl start/restart, a failed stop, start or read-back that puts the
+//   old folders and the containers back as they were, UNDO=1 (also after a killed run), players online and a mixed state refused.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -56,6 +60,26 @@ describe('stage 25 as text', () => {
   test('never downloads and never switches a module on', () => {
     assert.doesNotMatch(code, /\bwget\b|\bcurl\b[^\n]*\s-o\s|https?:\/\/(?!127\.0\.0\.1)/);
     assert.doesNotMatch(code, /moduleConfiguration/);
+  });
+
+  test('works on units and containers: use_stack, and the four services only through svc_*', () => {
+    assert.match(code, /^use_stack "stage 25 \(modules\)"/m);
+    assert.doesNotMatch(code, /refuse_when_cut_over/);
+    // no direct systemctl start/stop/restart/is-active and no journalctl -u of the stack: svc_* runs them on units
+    assert.doesNotMatch(code, /systemctl\s+(start|stop|restart|try-restart|is-active|is-enabled)/);
+    assert.doesNotMatch(code, /journalctl\s+-u\s+foundry-ai-tool/);
+    assert.match(code, /svc_stop gm-browser[^\n]*\n\s*svc_stop foundry/);
+    assert.match(code, /svc_restart foundry/);
+    assert.match(code, /svc_gm_joined "\$gm_since"/);
+    assert.match(code, /svc_logs_hint foundry/);
+    // units mode keeps its enable_unit for the browser; containers mode starts the existing container
+    assert.match(code, /enable_unit "\$GM_UNIT"/);
+    assert.match(code, /svc_start gm-browser/);
+    assert.match(code, /can_drive\(\) \{ \[ "\$STACK" = containers \] \|\| have_systemd; \}/);
+  });
+
+  test('the containers are never recreated', () => {
+    assert.doesNotMatch(code, /docker compose|stack_compose|docker (rm|run|create)/);
   });
 
   test('a dry run (no APPLY) stops before the real run', () => {

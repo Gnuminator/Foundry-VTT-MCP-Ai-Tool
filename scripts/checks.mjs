@@ -495,6 +495,7 @@ export const PI_SCENARIOS_ELSEWHERE = {
   'stage23-scenarios.sh': 'pi-images.yml (docker-compose.test.mjs)',
   'stage24-scenarios.sh': 'pi-images.yml (docker-compose.test.mjs)',
   'cutover-guard-scenarios.sh': 'the ARM job, check pi-cutover-guard-container',
+  'stage5-compose-scenarios.sh': 'plain bash, no container (stage5-compose.test.mjs)',
 };
 
 /**

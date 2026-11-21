@@ -14,8 +14,15 @@
 # too) after it. The install goes into the one modules folder every world on the Pi shares, so it applies to all worlds at
 # once, and Foundry restarts into whichever world launches: test the versions on the PC test server and its kit first,
 # then run this stage once on the Pi (a kit session must be down, see the refusal below). A snapshot before it. Stage 22
-# (seven books) runs after the content modules changed. On a cut-over Pi (stage 24) this stage
-# refuses, first thing (refuse_when_cut_over in lib.sh): MODE=rollback there first.
+# (seven books) runs after the content modules changed.
+#
+# Containers (day two): after the Docker cutover (stage 24) the stage works on the stack as it stands (use_stack in lib.sh).
+# The module folders sit in $FOUNDRY_DATA/Data/modules, which the foundry container mounts, so the folder moves are the same.
+# Only the service handling changes: the Assistant GM browser container and then the foundry container are stopped with
+# docker stop, Foundry is brought back with docker restart and the browser with docker start (the existing containers: nothing
+# is recreated, no compose down), the browser's "joined world" line is read from its container log since the start, and the
+# "module problem" check reads docker logs of the foundry container since the run began. A failed run puts the old folders back
+# and starts the containers as they were. On systemd the commands are the ones it always ran.
 #
 # Nothing changes before the checks pass, and the checks are the whole of a dry run (no APPLY): the pins and the
 # mirror, every zip's sha256 (of a copy), its entry names (no absolute path, no "..", no link or device in what is
@@ -38,7 +45,7 @@
 # or UNDO=1. The one run at a time is a lock in $IMPORT; in a real run or UNDO every line also goes to $STAGE_LOG.
 
 require_root
-refuse_when_cut_over "stage 25 (modules)"
+use_stack "stage 25 (modules)"
 MIRROR="${MIRROR:-/home/dietpi/module-archive}"
 ONLY="${ONLY:-}"
 APPLY="${APPLY:-}"
@@ -82,12 +89,25 @@ world_up() { # the join page of a running world; curl's output is captured first
   [[ "$page" == *'id="join-game"'* ]]
 }
 GM_UNIT=foundry-ai-tool-gm-browser.service
+can_drive() { [ "$STACK" = containers ] || have_systemd; } # the services can be driven: containers, or systemd (tests run without it)
+gm_since="" # "YYYY-MM-DD HH:MM:SS" just before the services were last started: the browser's join line must come after it (containers)
+mark_start() { gm_since="$(date '+%F %T')"; }
+foundry_log() { # $1 since: Foundry's log lines since then (the journal, or the foundry container's log)
+  local cid
+  if [ "$STACK" = containers ]; then
+    cid="$(svc_cid foundry -a)"
+    [ -z "$cid" ] || docker logs --since "$(date -d "$1" +%s 2>/dev/null || echo 0)" "$cid" 2>&1 || true
+  else
+    journalctl -u foundry --since "$1" --no-pager 2>/dev/null || true
+  fi
+}
 # wait_back_up: after Foundry was started, wait for its world and (when it ran before) the Assistant GM browser to join it
-# in its current run (lib.sh browser_joined: the systemd invocation id or main PID of this boot, so a line from before the restart does not count).
+# in its current run (units: lib.sh browser_joined, the systemd invocation id or main PID of this boot; containers: the
+# "joined world" line in the container log since mark_start; so a line from before the restart does not count).
 # Returns 1 when the world did not come back, 2 when the browser did not join.
 wait_back_up() {
   local _
-  have_systemd || return 0
+  can_drive || return 0
   if [ "${expect_world:-1}" != 1 ]; then
     warn "no world answered before the restart, so none is awaited now (an UNDO of a run that left Foundry without a world)"
     return 0
@@ -100,7 +120,12 @@ wait_back_up() {
   ok "Foundry is up"
   [ "$was_gm_browser" = 1 ] || return 0
   for _ in $(seq 1 45); do
-    if browser_joined "$GM_UNIT"; then
+    if [ "$STACK" = containers ]; then
+      if svc_gm_joined "$gm_since"; then
+        ok "the Assistant GM browser joined the world"
+        return 0
+      fi
+    elif browser_joined "$GM_UNIT"; then
       ok "the Assistant GM browser joined the world"
       return 0
     fi
@@ -109,8 +134,13 @@ wait_back_up() {
   return 2
 }
 require_world_running() { # a stage that restarts Foundry needs it running with a world now: a stopped one has nothing to come back to
-  have_systemd || return 0
-  systemctl is-active --quiet foundry.service || die "foundry.service is not running (start it, with the world, first). Nothing was changed"
+  can_drive || return 0
+  if ! svc_active foundry; then
+    if [ "$STACK" = containers ]; then
+      die "the foundry container is not running (start it, with the world, first). Nothing was changed"
+    fi
+    die "foundry.service is not running (start it, with the world, first). Nothing was changed"
+  fi
   world_up || die "Foundry runs, but no world answers on port 30000 (launch the world first). Nothing was changed"
 }
 free_path() { # $1, or $1.2, $1.3 ... when it exists
@@ -196,31 +226,32 @@ work=""
 undo=""
 undo_failed="" # 1 when UNDO could not put every folder back (undo is cleared then, so the trap needs this)
 stop_services() {
-  have_systemd || {
+  can_drive || {
     warn "no systemd here (a test container?): nothing to stop"
     return 0
   }
-  systemctl is-active --quiet foundry.service && was_foundry=1
-  systemctl is-active --quiet foundry-ai-tool-gm-browser.service && was_gm_browser=1
+  svc_active foundry && was_foundry=1
+  svc_active gm-browser && was_gm_browser=1
   say "stopping the Assistant GM browser and Foundry"
   stopped=1
-  systemctl stop foundry-ai-tool-gm-browser.service 2>/dev/null || true
-  systemctl stop foundry.service
+  svc_stop gm-browser 2>/dev/null || true
+  svc_stop foundry
 }
 start_services() { # as they were before the run
-  have_systemd || return 0
-  if [ "$was_foundry" = 1 ]; then systemctl restart foundry.service || return 1; fi
+  can_drive || return 0
+  mark_start
+  if [ "$was_foundry" = 1 ]; then svc_restart foundry || return 1; fi
   if [ "$was_gm_browser" = 1 ]; then
-    systemctl is-active --quiet foundry-ai-tool-gm-browser.service || systemctl start foundry-ai-tool-gm-browser.service || return 1
+    svc_active gm-browser || svc_start gm-browser || return 1
   fi
 }
 on_exit() {
   set +e # errexit is off in the trap: every step below runs, whatever an earlier one did
   local restored=1 folders_back=0 # folders_back: undo_state ran and put every old folder back (not just "undo was set")
-  if [ "$stopped" = 1 ] && have_systemd; then
+  if [ "$stopped" = 1 ] && can_drive; then
     # Foundry may have been started again by the failed run (the read-back): stop it before folders move.
-    systemctl stop foundry-ai-tool-gm-browser.service 2>/dev/null
-    systemctl stop foundry.service 2>/dev/null
+    svc_stop gm-browser 2>/dev/null
+    svc_stop foundry 2>/dev/null
     if [ "$undo" = 1 ]; then
       if undo_state; then
         folders_back=1
@@ -231,7 +262,7 @@ on_exit() {
         warn "putting the folders back did not finish (see above); the state in $STATE stays at phase=installing: run UNDO=1"
       fi
     fi
-    start_services || warn "Foundry or the Assistant GM browser did not come back: see journalctl -u foundry -n 50"
+    start_services || warn "Foundry or the Assistant GM browser did not come back: see $(svc_logs_hint foundry)"
     [ -z "$undo_failed" ] || restored=0
     if [ "$restored" = 1 ] && [ "$run_word" = UNDO ]; then
       warn "the UNDO did not finish (see above): Foundry and the Assistant GM browser were started again, not left as they were before it"
@@ -258,10 +289,10 @@ if [ -n "$UNDO" ]; then
   # the world from launching) has none to wait for after the restart, and waiting 120 s for it would end in a failure.
   # A Foundry that is down (a killed run stopped it) had a world: it is awaited. Only a running Foundry with no world is not.
   expect_world=1
-  if have_systemd && systemctl is-active --quiet foundry.service && ! world_up; then expect_world=0; fi
+  if can_drive && svc_active foundry && ! world_up; then expect_world=0; fi
   stop_services
   was_foundry=1
-  if have_systemd && systemctl is-enabled --quiet "$GM_UNIT" 2>/dev/null; then was_gm_browser=1; fi
+  if can_drive && svc_wanted gm-browser; then was_gm_browser=1; fi
   undo=1
   # A failed restore marks the run unfinished (a new APPLY=1 is refused) and clears undo, so the exit trap does not retry it
   # on its own: the next UNDO=1 then does the whole job, with its read-back.
@@ -273,9 +304,9 @@ if [ -n "$UNDO" ]; then
   }
   state_phase undone
   undo=""
-  start_services || die "the old folders are back, but Foundry did not start: journalctl -u foundry -n 50"
+  start_services || die "the old folders are back, but Foundry did not start: $(svc_logs_hint foundry)"
   stopped=0 # started again: a later failure (the read-back) must not run the exit trap's stop and restart a second time
-  wait_back_up || die "the old folders are back, but Foundry or the Assistant GM browser did not come up again: journalctl -u foundry -n 50 and journalctl -u foundry-ai-tool-gm-browser -n 30"
+  wait_back_up || die "the old folders are back, but Foundry or the Assistant GM browser did not come up again: $(svc_logs_hint foundry) and $(svc_logs_hint gm-browser)"
   say "reading the old versions back"
   mismatch=0
   while IFS='|' read -r id old new; do
@@ -498,16 +529,19 @@ for row in "${plan[@]}"; do
 done
 
 # ---- start and read back --------------------------------------------------------------------------------------
-if have_systemd; then
+if can_drive; then
   say "starting Foundry again"
-  systemctl restart foundry.service
-  [ "$was_gm_browser" != 1 ] || enable_unit "$GM_UNIT"
+  mark_start
+  svc_restart foundry
+  if [ "$was_gm_browser" = 1 ]; then
+    if [ "$STACK" = containers ]; then svc_start gm-browser; else enable_unit "$GM_UNIT"; fi
+  fi
   rc=0
   wait_back_up || rc=$?
   case "$rc" in
     0) ;;
-    1) die "Foundry's world did not come back on port 30000 (the old folders are put back; see: journalctl -u foundry -n 50)" ;;
-    *) die "the Assistant GM browser did not join the world again (the old folders are put back; see: journalctl -u foundry-ai-tool-gm-browser -n 30)" ;;
+    1) die "Foundry's world did not come back on port 30000 (the old folders are put back; see: $(svc_logs_hint foundry))" ;;
+    *) die "the Assistant GM browser did not join the world again (the old folders are put back; see: $(svc_logs_hint gm-browser))" ;;
   esac
 else
   warn "no systemd here (a test container?): Foundry and the Assistant GM browser were not started"
@@ -521,8 +555,8 @@ for row in "${plan[@]}"; do
   ok "$id $now"
 done
 # Foundry reads the module folders at start; the journal since the restart names a module it could not read.
-if have_systemd; then
-  bad="$(journalctl -u foundry --since "$since" --no-pager 2>/dev/null | grep -iE 'module.*(failed|error|invalid)' | head -n 5 || true)"
+if can_drive; then
+  bad="$(foundry_log "$since" | grep -iE 'module.*(failed|error|invalid)' | head -n 5 || true)"
   [ -z "$bad" ] || warn "Foundry's log since the start mentions a module problem:"$'\n'"$bad"
 fi
 

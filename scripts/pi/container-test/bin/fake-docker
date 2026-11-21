@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+# Stand-in for docker on a cut-over Pi (stage 25 scenarios; installed as /usr/local/sbin/docker only for them). Every call is
+# logged to /tmp/calls, next to the systemctl stand-in's. State is files under /tmp/dk:
+#   c/<service>          "running" or "exited" (a service with no file has no container)
+#   started-<service>    epoch seconds of its last start or restart (default 0)
+#   log-<service>        log lines, "<epoch> <text>"
+# Services: foundry, bridge, dashboard, gm-browser; the container id of a service is cid-<service>. Switches (files):
+#   /tmp/stopfail        "docker stop" of the foundry container fails
+#   /tmp/gm-nojoin       a started gm-browser container logs no "joined world" line
+#   /tmp/dk/badline      a started foundry container logs a module problem
+#   /tmp/restart-hook    an executable run when the foundry container is (re)started
+# A stopped foundry container sets /tmp/foundry-container-down (the curl stand-in then answers nothing on /join).
+D=/tmp/dk
+echo "docker $*" >>/tmp/calls
+svcs="foundry bridge dashboard gm-browser"
+state() { cat "$D/c/$1" 2>/dev/null; }
+case "${1:-}" in
+  info) exit 0 ;;
+  ps)
+    shift
+    all=0 proj="" want=""
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        -aq) all=1 ;;
+        --filter)
+          shift
+          case "$1" in
+            label=com.docker.compose.project=*) proj="${1#label=com.docker.compose.project=}" ;;
+            label=com.docker.compose.service=*) want="${1#label=com.docker.compose.service=}" ;;
+          esac
+          ;;
+      esac
+      shift
+    done
+    [ "$proj" = foundry-ai-tool-pi ] || exit 0
+    for s in $svcs; do
+      [ -f "$D/c/$s" ] || continue
+      [ -z "$want" ] || [ "$want" = "$s" ] || continue
+      [ "$all" = 1 ] || [ "$(state "$s")" = running ] || continue
+      echo "cid-$s"
+    done
+    ;;
+  stop)
+    s="${2#cid-}"
+    if [ "$s" = foundry ] && [ -f /tmp/stopfail ]; then exit 1; fi
+    [ -f "$D/c/$s" ] || exit 1
+    echo exited >"$D/c/$s"
+    [ "$s" != foundry ] || touch /tmp/foundry-container-down
+    ;;
+  start | restart)
+    s="${2#cid-}"
+    [ -f "$D/c/$s" ] || exit 1
+    echo running >"$D/c/$s"
+    date +%s >"$D/started-$s"
+    now="$(date +%s)"
+    if [ "$s" = foundry ]; then
+      rm -f /tmp/foundry-container-down
+      if [ -x /tmp/restart-hook ]; then /tmp/restart-hook; fi
+      if [ -f "$D/badline" ]; then echo "$now module foo failed to load" >>"$D/log-foundry"; fi
+    fi
+    if [ "$s" = gm-browser ] && [ ! -f /tmp/gm-nojoin ]; then
+      echo "$now [assistant-gm] joined world curse-of-strahd as Assistant GM (GM: true, module active: true)" >>"$D/log-gm-browser"
+    fi
+    ;;
+  inspect)
+    last="${*: -1}"
+    s="${last#cid-}"
+    [ "$s" != "$last" ] && [ -f "$D/c/$s" ] || exit 1
+    case "$*" in
+      *State.Running*) [ "$(state "$s")" = running ] && echo true || echo false ;;
+      *StartedAt*) date -u -d "@$(cat "$D/started-$s" 2>/dev/null || echo 0)" +%Y-%m-%dT%H:%M:%SZ ;;
+    esac
+    ;;
+  logs)
+    since=0
+    last="${*: -1}"
+    while [ $# -gt 0 ]; do
+      if [ "$1" = --since ]; then
+        shift
+        case "$1" in
+          *[!0-9]*) since="$(date -d "$1" +%s 2>/dev/null || echo 0)" ;;
+          *) since="$1" ;;
+        esac
+      fi
+      shift
+    done
+    awk -v s="$since" '$1 >= s { sub(/^[0-9]+ /, ""); print }' "$D/log-${last#cid-}" 2>/dev/null
+    exit 0
+    ;;
+esac
+exit 0

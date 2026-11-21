@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Stage 25 (scripts/pi/remote/25-modules.sh) in a Debian 13 ARM64 container with no systemd: stand-ins for systemctl,
 # curl (/api/status and /join), journalctl and sleep make it take its systemd path. The zips are made by make-zip.mjs
-# and pinned in a pinned.json the way `rehearse.mjs archive` writes it. Each scenario prints PASS or FAIL lines:
+# and pinned in a pinned.json the way `rehearse.mjs archive` writes it. The container-* scenarios simulate a cut-over Pi
+# (stage 24: the stack runs as containers, the units are off) with bin/fake-docker. Each scenario prints PASS or FAIL lines:
 #   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" <IMAGE> bash /repo/scripts/pi/container-test/stage25-scenarios.sh [name ...]
 # DESTRUCTIVE: it wipes the Foundry data folder, the import folder and the module mirror and installs the fakes into
 # /usr/local/sbin. It refuses to run anywhere but a container.
@@ -45,8 +46,11 @@ same() { # $1 name, $2 what, $3 the value before, $4 the value after
   fi
 }
 
+DK=/tmp/dk # the fake docker's state (bin/fake-docker): installed as docker only by cut_over_pi
+
 fresh_pi() {
-  rm -rf "${FOUNDRY_DATA:?}" "${FOUNDRY_APP:?}" "${TOOL_DIR:?}" "${TOOL_ETC:?}" "${TOOL_DATA:?}" "${IMPORT:?}" "${MIRROR:?}" "${SRC:?}"
+  rm -rf "${FOUNDRY_DATA:?}" "${FOUNDRY_APP:?}" "${TOOL_DIR:?}" "${TOOL_ETC:?}" "${TOOL_DATA:?}" "${IMPORT:?}" "${MIRROR:?}" "${SRC:?}" "${DK:?}"
+  rm -f /usr/local/sbin/docker /tmp/units-off /tmp/foundry-container-down /tmp/stopfail
   rm -f /tmp/stopped-* /tmp/disabled-* /tmp/calls /tmp/status /tmp/status_rc /tmp/joinfail /tmp/join_fail /tmp/gm-counts /tmp/pins /tmp/mv_fail /tmp/mv_fail_keep /tmp/restart-hook /tmp/gm-nojoin /tmp/gm-stale /tmp/hook-done
   mkdir -p "$MODS" "$FOUNDRY_APP" "$TOOL_DIR/gm-browser" "$TOOL_ETC" "$TOOL_DATA" "$MIRROR/modules" "$SRC"
   chown -R "$FOUNDRY_USER" "$FOUNDRY_DATA"
@@ -651,6 +655,240 @@ if want old-driver; then
   echo 'await name.selectOption({ label: user });' >"$TOOL_DIR/gm-browser/assistant-gm.mjs"
   out="$(run_stage '')"
   check new-driver 'dry run: nothing was changed' "$out"
+fi
+
+# ---- a cut-over Pi (stage 24): the stack runs as containers, the units are off ------------------------------------------
+# bin/fake-docker answers ps by label and records stop, start, restart, inspect and logs in /tmp/calls next to systemctl's.
+# The stage must never start, restart, stop or enable a unit there, and must put the containers back as they were.
+cut_over_pi() {
+  base_setup
+  install -m 755 "$H/bin/fake-docker" /usr/local/sbin/docker
+  mkdir -p "$DK/c"
+  local s
+  for s in foundry bridge dashboard gm-browser; do echo running >"$DK/c/$s"; done
+  echo "1 [assistant-gm] joined world curse-of-strahd as Assistant GM (GM: true, module active: true)" >"$DK/log-gm-browser"
+  : >"$DK/log-foundry"
+  touch /tmp/units-off
+}
+cstate() { cat "$DK/c/$1" 2>/dev/null || echo none; }
+line_of() { grep -n -- "$1" /tmp/calls | head -n1 | cut -d: -f1; }
+unit_changes() { grep -E '^(start|restart|stop|enable|try-restart|daemon-reload) ' /tmp/calls || true; }
+container_changes() { grep -E '^docker (stop|start|restart|rm|compose|update|kill|run)' /tmp/calls || true; }
+
+if want container-dry-run; then
+  cut_over_pi
+  before="$(tree_hash)"
+  out="$(run_stage '')"
+  check container-dry-run 'alpha: 1.0.0 -> 1.1.0' "$out"
+  check container-dry-run 'dry run: nothing was changed' "$out"
+  check container-dry-run 'exit 0' "$out"
+  same container-dry-run 'the module folders' "$before" "$(tree_hash)"
+  absent container-dry-run 'docker (stop|start|restart)' "$(cat /tmp/calls)"
+  absent container-dry-run '.' "$(unit_changes)"
+  [ ! -e "$IMPORT/modules-stage.state" ] && echo "PASS container-dry-run: no state file" || { echo "FAIL container-dry-run: state file written"; fail=1; }
+fi
+
+if want container-apply; then
+  cut_over_pi
+  out="$(run_stage 'APPLY=1')"
+  check container-apply 'alpha: 1.0.0 -> 1.1.0' "$out"
+  check container-apply 'Foundry is up' "$out"
+  check container-apply 'the Assistant GM browser joined the world' "$out"
+  check container-apply 'alpha 1.1.0' "$out"
+  check container-apply 'done: 3 module\(s\) installed' "$out"
+  check container-apply 'exit 0' "$out"
+  check container-apply 'new 1.1.0' "$(marker alpha)"
+  check container-apply 'new 0.5.0' "$(marker gamma)"
+  check container-apply 'phase=installed' "$(cat "$IMPORT/modules-stage.state")"
+  check container-apply 'docker stop cid-gm-browser' "$(cat /tmp/calls)"
+  check container-apply 'docker stop cid-foundry' "$(cat /tmp/calls)"
+  check container-apply 'docker restart cid-foundry' "$(cat /tmp/calls)"
+  check container-apply 'docker start cid-gm-browser' "$(cat /tmp/calls)"
+  [ "$(line_of 'docker stop cid-gm-browser')" -lt "$(line_of 'docker stop cid-foundry')" ] && echo "PASS container-apply: the browser stops before Foundry" || { echo "FAIL container-apply: stop order"; fail=1; }
+  [ "$(line_of 'docker stop cid-foundry')" -lt "$(line_of 'docker restart cid-foundry')" ] && echo "PASS container-apply: Foundry restarts after it stopped" || { echo "FAIL container-apply: restart order"; fail=1; }
+  [ "$(line_of 'docker restart cid-foundry')" -lt "$(line_of 'docker start cid-gm-browser')" ] && echo "PASS container-apply: the browser starts after Foundry" || { echo "FAIL container-apply: start order"; fail=1; }
+  absent container-apply '.' "$(unit_changes)"
+  absent container-apply 'docker (rm|compose|update|kill|run)' "$(container_changes)"
+  absent container-apply 'cid-(bridge|dashboard)' "$(container_changes)"
+  same container-apply 'the foundry container' running "$(cstate foundry)"
+  same container-apply 'the gm-browser container' running "$(cstate gm-browser)"
+  # a rerun changes nothing and leaves the containers alone
+  : >/tmp/calls
+  out="$(run_stage 'APPLY=1')"
+  check container-apply-rerun 'nothing to do' "$out"
+  absent container-apply-rerun '.' "$(container_changes)"
+fi
+
+if want container-gm-stopped; then
+  # the Assistant GM browser container was stopped before the run: the run leaves it stopped and does not wait for its join
+  cut_over_pi
+  echo exited >"$DK/c/gm-browser"
+  out="$(run_stage 'APPLY=1')"
+  check container-gm-stopped 'done: 3 module\(s\) installed' "$out"
+  check container-gm-stopped 'exit 0' "$out"
+  absent container-gm-stopped 'the Assistant GM browser joined' "$out"
+  absent container-gm-stopped 'docker start' "$(cat /tmp/calls)"
+  same container-gm-stopped 'the gm-browser container' exited "$(cstate gm-browser)"
+fi
+
+if want container-join-fails; then
+  # Foundry's world does not come back: the old folders return and both containers are started as they were
+  cut_over_pi
+  before="$(tree_hash)"
+  touch /tmp/joinfail
+  out="$(run_stage 'APPLY=1')"
+  check container-join-fails "Foundry's world did not come back" "$out"
+  check container-join-fails 'the old folders are back, Foundry and the Assistant GM browser are as they were' "$out"
+  check container-join-fails 'alpha: 1.0.0 is back' "$out"
+  check container-join-fails 'docker logs --tail 50' "$out"
+  check container-join-fails 'exit 1' "$out"
+  same container-join-fails 'the module folders (old ones restored)' "$before" "$(tree_hash)"
+  check container-join-fails 'phase=undone' "$(cat "$IMPORT/modules-stage.state")"
+  [ "$(grep -c '^docker restart cid-foundry' /tmp/calls)" = 2 ] && echo "PASS container-join-fails: Foundry restarted twice (the run, the trap)" || { echo "FAIL container-join-fails: restarts"; fail=1; }
+  last_restart="$(grep -n '^docker restart cid-foundry' /tmp/calls | tail -n1 | cut -d: -f1)"
+  last_back="$(grep -n '^mv .*prev-.*/alpha ' /tmp/calls | tail -n1 | cut -d: -f1)"
+  [ -n "$last_back" ] && [ "$last_restart" -gt "$last_back" ] && echo "PASS container-join-fails: the last restart is after the folders went back" || { echo "FAIL container-join-fails: restart order ($last_restart, $last_back)"; fail=1; }
+  [ "$(cstate foundry)" = running ] && [ "$(cstate gm-browser)" = running ] && echo "PASS container-join-fails: both containers run again" || { echo "FAIL container-join-fails: container states"; fail=1; }
+  absent container-join-fails '.' "$(unit_changes)"
+  absent container-join-fails 'docker (rm|compose|update|kill|run)' "$(container_changes)"
+fi
+
+if want container-readback-fails; then
+  # a module.json that changed while Foundry started: the read-back refuses, the old folders and both containers come back
+  cut_over_pi
+  before="$(tree_hash)"
+  cat >/tmp/restart-hook <<'HOOK'
+#!/usr/bin/env bash
+if grep -q 'new 1.1.0' /var/lib/foundry/Data/modules/alpha/marker.txt 2>/dev/null; then
+  echo '{"id":"alpha","version":"9.9.9"}' >/var/lib/foundry/Data/modules/alpha/module.json
+fi
+HOOK
+  chmod +x /tmp/restart-hook
+  out="$(run_stage 'APPLY=1')"
+  check container-readback-fails "alpha: .*module.json says '9.9.9', not the pinned 1.1.0" "$out"
+  check container-readback-fails 'alpha: 1.0.0 is back' "$out"
+  check container-readback-fails 'as they were' "$out"
+  check container-readback-fails 'exit 1' "$out"
+  same container-readback-fails 'the module folders (old ones restored)' "$before" "$(tree_hash)"
+  [ "$(grep -c '^docker restart cid-foundry' /tmp/calls)" = 2 ] && echo "PASS container-readback-fails: Foundry restarted again by the trap" || { echo "FAIL container-readback-fails: restarts"; fail=1; }
+  [ "$(cstate foundry)" = running ] && [ "$(cstate gm-browser)" = running ] && echo "PASS container-readback-fails: both containers run again" || { echo "FAIL container-readback-fails: container states"; fail=1; }
+  absent container-readback-fails '.' "$(unit_changes)"
+fi
+
+if want container-stop-fails; then
+  # Foundry's container cannot be stopped: nothing moved, the trap starts the containers as they were
+  cut_over_pi
+  before="$(tree_hash)"
+  touch /tmp/stopfail
+  out="$(run_stage 'APPLY=1')"
+  rm -f /tmp/stopfail
+  check container-stop-fails 'the run did not finish: Foundry and the Assistant GM browser are as they were' "$out"
+  check container-stop-fails 'exit 1' "$out"
+  same container-stop-fails 'the module folders' "$before" "$(tree_hash)"
+  absent container-stop-fails '.' "$(unit_changes)"
+  [ "$(cstate foundry)" = running ] && [ "$(cstate gm-browser)" = running ] && echo "PASS container-stop-fails: both containers run again" || { echo "FAIL container-stop-fails: container states"; fail=1; }
+fi
+
+if want container-gm-nojoin; then
+  cut_over_pi
+  before="$(tree_hash)"
+  touch /tmp/gm-nojoin
+  out="$(run_stage 'APPLY=1')"
+  check container-gm-nojoin 'the Assistant GM browser did not join the world again' "$out"
+  check container-gm-nojoin 'docker logs --tail 50' "$out"
+  check container-gm-nojoin 'alpha: 1.0.0 is back' "$out"
+  check container-gm-nojoin 'exit 1' "$out"
+  same container-gm-nojoin 'the module folders (old ones restored)' "$before" "$(tree_hash)"
+fi
+
+if want container-undo; then
+  cut_over_pi
+  out="$(run_stage 'APPLY=1')"
+  check container-undo-setup 'exit 0' "$out"
+  : >/tmp/calls
+  out="$(run_stage 'UNDO=1')"
+  check container-undo 'alpha: 1.0.0 is back' "$out"
+  check container-undo 'gamma: was not installed before' "$out"
+  check container-undo 'Foundry is up' "$out"
+  check container-undo 'the Assistant GM browser joined the world' "$out"
+  check container-undo 'alpha 1.0.0' "$out"
+  check container-undo 'exit 0' "$out"
+  check container-undo 'old 1.0.0' "$(marker alpha)"
+  check container-undo 'phase=undone' "$(cat "$IMPORT/modules-stage.state")"
+  check container-undo 'docker stop cid-gm-browser' "$(cat /tmp/calls)"
+  check container-undo 'docker stop cid-foundry' "$(cat /tmp/calls)"
+  check container-undo 'docker restart cid-foundry' "$(cat /tmp/calls)"
+  [ "$(line_of 'docker stop cid-foundry')" -lt "$(line_of 'docker restart cid-foundry')" ] && echo "PASS container-undo: Foundry restarts after the folders went back" || { echo "FAIL container-undo: order"; fail=1; }
+  absent container-undo '.' "$(unit_changes)"
+  absent container-undo 'docker (rm|compose|update|kill|run)' "$(container_changes)"
+  # a killed run left both containers down (phase=installing): UNDO starts them again
+  out="$(run_stage 'APPLY=1')"
+  check container-undo-killed-setup 'exit 0' "$out"
+  sed -i 's/^phase=.*/phase=installing/' "$IMPORT/modules-stage.state"
+  echo exited >"$DK/c/foundry"
+  echo exited >"$DK/c/gm-browser"
+  touch /tmp/foundry-container-down
+  : >/tmp/calls
+  out="$(run_stage 'UNDO=1')"
+  check container-undo-killed 'alpha: 1.0.0 is back' "$out"
+  check container-undo-killed 'Foundry is up' "$out"
+  check container-undo-killed 'the Assistant GM browser joined the world' "$out"
+  check container-undo-killed 'exit 0' "$out"
+  check container-undo-killed 'docker restart cid-foundry' "$(cat /tmp/calls)"
+  check container-undo-killed 'docker start cid-gm-browser' "$(cat /tmp/calls)"
+  absent container-undo-killed '.' "$(unit_changes)"
+fi
+
+if want container-players-online; then
+  cut_over_pi
+  printf '{"active":true,"world":"curse-of-strahd","users":3}' >/tmp/status # the joined Assistant GM browser is one of them
+  before="$(tree_hash)"
+  out="$(run_stage 'APPLY=1')"
+  check container-players-online '2 player\(s\) are online' "$out"
+  check container-players-online 'exit 1' "$out"
+  same container-players-online 'the module folders' "$before" "$(tree_hash)"
+  absent container-players-online 'docker (stop|start|restart)' "$(cat /tmp/calls)"
+  # UNDO is refused the same way, before anything stops
+  printf '{"active":true,"world":"curse-of-strahd","users":0}' >/tmp/status
+  out="$(run_stage 'APPLY=1')"
+  check container-players-online-undo-setup 'exit 0' "$out"
+  printf '{"active":true,"world":"curse-of-strahd","users":3}' >/tmp/status
+  : >/tmp/calls
+  out="$(run_stage 'UNDO=1')"
+  check container-players-online-undo '2 player\(s\) are online' "$out"
+  check container-players-online-undo 'exit 1' "$out"
+  absent container-players-online-undo 'docker (stop|start|restart)' "$(cat /tmp/calls)"
+fi
+
+if want container-foundry-stopped; then
+  cut_over_pi
+  echo exited >"$DK/c/foundry"
+  touch /tmp/foundry-container-down
+  out="$(run_stage 'APPLY=1')"
+  check container-foundry-stopped 'the foundry container is not running' "$out"
+  check container-foundry-stopped 'exit 1' "$out"
+  absent container-foundry-stopped 'docker (stop|start|restart)' "$(cat /tmp/calls)"
+fi
+
+if want container-module-problem; then
+  cut_over_pi
+  touch "$DK/badline"
+  out="$(run_stage 'APPLY=1')"
+  check container-module-problem "Foundry's log since the start mentions a module problem" "$out"
+  check container-module-problem 'module foo failed to load' "$out"
+  check container-module-problem 'exit 0' "$out"
+fi
+
+if want container-mixed; then
+  # a unit running next to the containers (a mixed state) is refused first thing
+  cut_over_pi
+  rm -f /tmp/units-off
+  before="$(tree_hash)"
+  out="$(run_stage 'APPLY=1')"
+  check container-mixed 'runs next to the containers' "$out"
+  check container-mixed 'exit 1' "$out"
+  same container-mixed 'the module folders' "$before" "$(tree_hash)"
+  absent container-mixed 'docker (stop|start|restart)' "$(cat /tmp/calls)"
 fi
 
 [ "$fail" = 0 ] && echo "ALL PASSED" || echo "FAIL: see above"

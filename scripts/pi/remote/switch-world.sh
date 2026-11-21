@@ -31,9 +31,16 @@
 # Claude Desktop connectors, the dashboard and the Discord/session logs see WORLD, including strahd-kit: switch back to
 # curse-of-strahd before game night, and never on a game-night day.
 # Tests only: OPTIONS_FILE, WORLDS_DIR and FOUNDRY_URL point at stand-ins; KIT_STATE_FILE at the kit session's state file.
+# Containers (day two, D-149): after the cutover (stage 24) the stack runs as the containers of compose project
+#   foundry-ai-tool-pi and lib.sh use_stack sets STACK=containers. The stage then does the same steps through the svc_*
+#   helpers: docker stop on the Assistant GM browser and Foundry containers (they are never recreated), options.json set as
+#   above, docker start on Foundry, the join page awaited, docker start on the Assistant GM browser when its container exists
+#   ("joined world WORLD" is read from its docker logs since a time taken just before it starts, not from a journal), and the
+#   same rollback when Foundry does not come up. The kit refusal also notices the Kit GM browser container
+#   (foundry-ai-tool-kit-gm-browser). No systemctl start, restart or enable is used. The bridge link check is unchanged.
 
 require_root
-refuse_when_cut_over "switch-world"
+use_stack "switch-world"
 
 dry="${DRY_RUN:-0}"
 world="${WORLD:-}"
@@ -42,7 +49,22 @@ worlds_dir="${WORLDS_DIR:-$FOUNDRY_DATA/Data/worlds}"
 base_url="${FOUNDRY_URL:-http://127.0.0.1:30000}"
 kit_state="${KIT_STATE_FILE:-$TOOL_DATA/kit-session.env}"
 gm_unit=foundry-ai-tool-gm-browser.service
+kit_gm_name=foundry-ai-tool-kit-gm-browser # the Kit GM browser: a transient unit (units) or a plain container (containers)
 node="$NODE_DIR/bin/node"
+# live: the stage really stops and starts services (systemd here, or the stack's containers); a test container without
+# either only sets options.json.
+live=0
+if [ "$STACK" = containers ] || have_systemd; then live=1; fi
+# logs_of SERVICE N: the command that reads the last N log lines of Foundry (foundry) or the Assistant GM browser, for messages.
+logs_of() {
+  if [ "$STACK" = containers ]; then
+    svc_logs_hint "$1"
+  elif [ "$1" = foundry ]; then
+    echo "journalctl -u foundry -n $2"
+  else
+    echo "journalctl -u $gm_unit -n $2"
+  fi
+}
 
 case "$world" in
 curse-of-strahd | frostmaiden-training | strahd-kit) ;;
@@ -55,9 +77,16 @@ dir="$worlds_dir/$world"
 [ -x "$node" ] || die "no $node. Nothing was changed"
 [ -f "$options" ] && [ ! -L "$options" ] || die "no $options. Nothing was changed"
 
-if have_systemd; then
+if [ "$live" = 1 ]; then
   refuse_during_system_trial "switch-world" "$world"
-  ! systemctl is-active --quiet foundry-ai-tool-kit-gm-browser.service || die "a kit session is running (the kit GM browser): finish it first (kit-session.sh, MODE=down). Nothing was changed"
+  if [ "$STACK" = containers ]; then
+    # The Kit GM browser container has no compose label, so only its name finds it.
+    case "$(docker inspect -f '{{.State.Status}}' "$kit_gm_name" 2>/dev/null || true)" in
+      running | restarting) die "a kit session is running (the kit GM browser container $kit_gm_name): finish it first (kit-session.sh, MODE=down). Nothing was changed" ;;
+    esac
+  else
+    ! systemctl is-active --quiet foundry-ai-tool-kit-gm-browser.service || die "a kit session is running (the kit GM browser): finish it first (kit-session.sh, MODE=down). Nothing was changed"
+  fi
 fi
 [ ! -e "$kit_state" ] || die "a kit session is open ($kit_state): finish it first (kit-session.sh, MODE=down). Nothing was changed"
 foundry_can_write "${options%/*}" || die "the $FOUNDRY_USER user cannot write in ${options%/*}, where options.json is changed. Nothing was changed"
@@ -81,7 +110,7 @@ if [ "$orig_world" = "$world" ] && [ "$run_before" = "$world" ]; then
 fi
 
 if [ "$dry" = 1 ]; then
-  if have_systemd; then say "dry run: people online in Foundry: $(users_online) (the Assistant GM browser counts as one)"; fi
+  if [ "$live" = 1 ]; then say "dry run: people online in Foundry: $(users_online) (the Assistant GM browser counts as one)"; fi
   if (require_recent_snapshot) >/dev/null 2>&1; then say "dry run: a dietpi-backup snapshot from today exists"; else say "dry run: NO dietpi-backup snapshot from today: a real run would refuse (take one: /boot/dietpi/dietpi-backup 1)"; fi
   say "dry run: would stop the Assistant GM browser and Foundry, set options.json to $world, start Foundry, start the Assistant GM browser and wait for it to join $world; nothing changed"
   exit 0
@@ -91,18 +120,18 @@ require_recent_snapshot
 require_quiet "switching the world to $world"
 
 was_foundry=0 was_gm=0 stopped=0 set_done=0
-if have_systemd; then
-  systemctl is-active --quiet foundry.service && was_foundry=1
-  if systemctl is-active --quiet "$gm_unit" || systemctl is-enabled --quiet "$gm_unit" 2>/dev/null; then was_gm=1; fi
+if [ "$live" = 1 ]; then
+  svc_active foundry && was_foundry=1
+  if svc_wanted gm-browser; then was_gm=1; fi
 fi
 
 restore() {
   [ "$stopped" = 1 ] || return 0
   warn "the switch did not finish: options.json is put back to '${orig_world:-no world}' and the services start again"
-  systemctl stop foundry.service || true
+  svc_stop foundry || true
   if [ "$set_done" = 1 ]; then foundry_edit_json "$options" 'o.world = a[0] || null' "$orig_world" || warn "could not put options.json back: set \"world\" to '$orig_world' in $options"; fi
-  [ "$was_foundry" = 1 ] && { systemctl start foundry.service || true; }
-  [ "$was_gm" = 1 ] && { systemctl start "$gm_unit" || true; }
+  [ "$was_foundry" = 1 ] && { svc_start foundry || true; }
+  [ "$was_gm" = 1 ] && { svc_start gm-browser || true; }
   if [ "$was_foundry" = 1 ]; then
     local back=0
     for _ in $(seq 1 60); do
@@ -112,7 +141,7 @@ restore() {
     if [ "$back" = 1 ]; then
       warn "Foundry runs '$(running)' again (options.json launches '$(launched)')"
     else
-      warn "Foundry did not come back on '${orig_world:-no world}': journalctl -u foundry -n 50"
+      warn "Foundry did not come back on '${orig_world:-no world}': $(logs_of foundry 50)"
     fi
   fi
   return 0
@@ -121,31 +150,31 @@ restore() {
 trap '' HUP PIPE
 trap restore EXIT
 
-if have_systemd; then
+if [ "$live" = 1 ]; then
   say "stopping the Assistant GM browser and Foundry"
   stopped=1
-  systemctl stop "$gm_unit" 2>/dev/null || true
-  systemctl stop foundry.service
+  svc_stop gm-browser 2>/dev/null || true
+  svc_stop foundry
 fi
 foundry_edit_json "$options" 'o.world = a[0] || null' "$world"
 set_done=1
 [ "$(launched)" = "$world" ] || die "options.json does not name $world after the edit"
 ok "options.json launches $world"
 
-if ! have_systemd; then
+if [ "$live" != 1 ]; then
   warn "no systemd here (a test container?): options.json is set, nothing was started"
   trap - EXIT
   exit 0
 fi
 
 say "starting Foundry on $world"
-systemctl start foundry.service
+svc_start foundry
 up=0
 for _ in $(seq 1 60); do
   if world_up; then up=1; break; fi
   sleep 2
 done
-[ "$up" = 1 ] || die "$world does not answer on $base_url (journalctl -u foundry -n 50); options.json is put back to '${orig_world:-no world}'"
+[ "$up" = 1 ] || die "$world does not answer on $base_url ($(logs_of foundry 50)); options.json is put back to '${orig_world:-no world}'"
 now="$(running)"
 if [ -n "$now" ] && [ "$now" != "$world" ]; then
   die "Foundry runs '$now', not $world; options.json is put back to '${orig_world:-no world}'"
@@ -157,18 +186,29 @@ ok "Foundry runs ${now:-$world}"
 joined=0
 if [ "$was_gm" = 1 ]; then
   say "starting the Assistant GM browser"
-  systemctl start "$gm_unit" || warn "the Assistant GM browser did not start: journalctl -u $gm_unit -n 50"
+  # The time before the start: a container's log is read since it, so the line of an earlier run does not count.
+  gm_since="$(date '+%Y-%m-%d %H:%M:%S')"
+  svc_start gm-browser || warn "the Assistant GM browser did not start: $(logs_of gm 50)"
   for _ in $(seq 1 45); do
-    id="$(systemctl show -p InvocationID --value "$gm_unit" 2>/dev/null || true)"
-    # grep -c reads everything: with pipefail, grep -q could stop early and make journalctl's failed write fail the pipeline.
-    if [ -n "$id" ] && [ "$(journalctl "_SYSTEMD_INVOCATION_ID=$id" --no-pager -o cat 2>/dev/null | grep -c "\[assistant-gm\] joined world $world " || true)" -gt 0 ]; then
-      joined=1
-      break
+    if [ "$STACK" = containers ]; then
+      if svc_gm_joined "$gm_since" "$world"; then
+        joined=1
+        break
+      fi
+    else
+      id="$(systemctl show -p InvocationID --value "$gm_unit" 2>/dev/null || true)"
+      # grep -c reads everything: with pipefail, grep -q could stop early and make journalctl's failed write fail the pipeline.
+      if [ -n "$id" ] && [ "$(journalctl "_SYSTEMD_INVOCATION_ID=$id" --no-pager -o cat 2>/dev/null | grep -c "\[assistant-gm\] joined world $world " || true)" -gt 0 ]; then
+        joined=1
+        break
+      fi
     fi
     sleep 2
   done
   if [ "$joined" = 1 ]; then
     ok "the Assistant GM browser joined $world"
+  elif [ "$STACK" = containers ]; then
+    svc_gm_log "$gm_since" | grep 'assistant-gm' | tail -n 5 || true
   else
     journalctl -u "$gm_unit" -n 5 --no-pager 2>/dev/null | grep 'assistant-gm' || true
   fi
@@ -177,7 +217,7 @@ if [ "$was_gm" = 1 ]; then
     if [ -n "$(ss -Htn state established '( sport = :31415 )' 2>/dev/null)" ]; then linked=1; break; fi
     sleep 2
   done
-  if [ "$linked" = 1 ]; then ok "a Foundry connection is established on the bridge's port 31415"; else warn "no established connection on the bridge's port 31415 yet; see: journalctl -u $gm_unit -n 30"; fi
+  if [ "$linked" = 1 ]; then ok "a Foundry connection is established on the bridge's port 31415"; else warn "no established connection on the bridge's port 31415 yet; see: $(logs_of gm 30)"; fi
 else
   warn "the Assistant GM browser was not running or enabled before: it is left stopped, so the bridge and the dashboard have no Foundry link"
 fi
@@ -185,6 +225,6 @@ fi
 after_run="$(running)"
 say "world after: running ${after_run:-not read from /api/status}, launch choice $(launched)"
 if [ "$was_gm" = 1 ] && [ "$joined" != 1 ]; then
-  die "the Assistant GM browser did not report 'joined world $world' in time. $world runs and options.json launches it; the bridge and the dashboard follow once the browser joins (journalctl -u $gm_unit -n 50; its login must exist in $world)"
+  die "the Assistant GM browser did not report 'joined world $world' in time. $world runs and options.json launches it; the bridge and the dashboard follow once the browser joins ($(logs_of gm 50); its login must exist in $world)"
 fi
 ok "done"

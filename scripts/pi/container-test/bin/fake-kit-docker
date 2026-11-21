@@ -1,0 +1,127 @@
+#!/usr/bin/env bash
+# Stand-in for docker on a Pi after the cutover (kit-session scenarios with the "cutover" switch, installed as
+# /usr/local/sbin/docker only for them; the test container has no docker otherwise, so the stage takes its systemd path; the
+# scenarios also make /tmp/units-off, which the systemctl stand-in reads as "every unit is off"). It keeps the stack's four containers (compose project
+# foundry-ai-tool-pi: foundry, bridge, dashboard, gm-browser) in the same files the systemctl stand-in uses for the units:
+# a container runs until /tmp/stopped-<its unit> exists, and "docker stop|start|restart" makes and removes that file. The
+# Kit GM browser is a plain container named foundry-ai-tool-kit-gm-browser: it runs while /tmp/started-kit exists (what the
+# systemd-run stand-in makes for the unit). Every call is logged to /tmp/calls as "docker <args>".
+# Switches (files, set by a scenario): /tmp/dockerdown (the daemon does not answer), /tmp/noimage (no gm-browser image),
+# /tmp/kitrunfail (docker run fails), /tmp/kitstopfail (docker rm -f leaves the Kit GM container), /tmp/kit-activating (a Kit GM
+# container that is restarting), /tmp/kit-exited (a stopped one), /tmp/kitnojoin (it never logs "joined world"),
+# /tmp/gmbroken (the Assistant GM container does not come back), /tmp/stopfail (docker stop of the Foundry container fails).
+echo "docker $*" >>/tmp/calls
+KIT=foundry-ai-tool-kit-gm-browser
+unit_of() {
+  case "$1" in
+    foundry | cid-foundry) echo foundry.service ;;
+    bridge | cid-bridge) echo foundry-ai-tool-bridge.service ;;
+    dashboard | cid-dashboard) echo foundry-ai-tool-dashboard.service ;;
+    gm-browser | cid-gm-browser) echo foundry-ai-tool-gm-browser.service ;;
+  esac
+}
+case "${1:-}" in
+  info)
+    [ ! -f /tmp/dockerdown ] || exit 1
+    ;;
+  ps)
+    all=0 proj="" want=""
+    for a in "$@"; do
+      case "$a" in
+        -aq) all=1 ;;
+        label=com.docker.compose.project=*) proj="${a#label=com.docker.compose.project=}" ;;
+        label=com.docker.compose.service=*) want="${a#label=com.docker.compose.service=}" ;;
+      esac
+    done
+    [ "$proj" = foundry-ai-tool-pi ] || exit 0
+    for s in foundry bridge dashboard gm-browser; do
+      [ -z "$want" ] || [ "$want" = "$s" ] || continue
+      if [ "$all" = 0 ] && [ -f "/tmp/stopped-$(unit_of "$s")" ]; then continue; fi
+      echo "cid-$s"
+    done
+    ;;
+  stop)
+    u="$(unit_of "${2:-}")"
+    if [ "$u" = foundry.service ] && [ -f /tmp/stopfail ]; then exit 1; fi
+    [ -z "$u" ] || touch "/tmp/stopped-$u"
+    ;;
+  start | restart)
+    u="$(unit_of "${2:-}")"
+    if [ "$u" = foundry-ai-tool-gm-browser.service ] && [ -f /tmp/gmbroken ]; then
+      touch "/tmp/stopped-$u"
+      exit 0
+    fi
+    [ -z "$u" ] || rm -f "/tmp/stopped-$u"
+    ;;
+  inspect)
+    # docker inspect -f '{{.State.<Field>}}' NAME_OR_ID
+    name="${*: -1}"
+    case "$name" in
+      "$KIT")
+        if [ -f /tmp/started-kit ]; then st=running run=true
+        elif [ -f /tmp/kit-activating ]; then st=restarting run=true
+        elif [ -f /tmp/kit-exited ]; then st=exited run=false
+        else
+          echo "Error: No such object: $name" >&2
+          exit 1
+        fi
+        case "$*" in
+          *State.Running*) echo "$run" ;;
+          *) echo "$st" ;;
+        esac
+        ;;
+      cid-*) echo "2026-11-21T10:00:00.000000000Z" ;;
+      *)
+        echo "Error: No such object: $name" >&2
+        exit 1
+        ;;
+    esac
+    ;;
+  image)
+    [ "${2:-}" != inspect ] || [ ! -f /tmp/noimage ] || exit 1
+    ;;
+  run)
+    # The password file the container reads is only checked for its mode (the content is never read here).
+    prev=""
+    for a in "$@"; do
+      if [ "$prev" = --env-file ]; then
+        if [ -f "$a" ]; then echo "mode $(stat -c %a "$a")" >/tmp/kit-env-seen; else echo missing >/tmp/kit-env-seen; fi
+      fi
+      prev="$a"
+    done
+    [ ! -f /tmp/kitrunfail ] || exit 1
+    if [ -f /tmp/started-kit ] || [ -f /tmp/kit-activating ] || [ -f /tmp/kit-exited ]; then
+      echo "docker: Error response from daemon: Conflict. The container name \"/$KIT\" is already in use." >&2
+      exit 125
+    fi
+    touch /tmp/started-kit
+    echo fake-kit-container-id
+    ;;
+  rm)
+    # docker rm -f NAME: removes a container whatever its state; fails when there is none.
+    name="${*: -1}"
+    if [ "$name" = "$KIT" ]; then
+      if [ ! -f /tmp/started-kit ] && [ ! -f /tmp/kit-activating ] && [ ! -f /tmp/kit-exited ]; then
+        echo "Error response from daemon: No such container: $name" >&2
+        exit 1
+      fi
+      [ -f /tmp/kitstopfail ] || rm -f /tmp/started-kit /tmp/kit-activating /tmp/kit-exited
+    fi
+    ;;
+  logs)
+    name="${*: -1}"
+    case "$name" in
+      "$KIT")
+        if [ -f /tmp/started-kit ] && [ ! -f /tmp/kitnojoin ]; then
+          echo "[assistant-gm] joined world strahd-kit as Kit GM (GM: true, module active: true)"
+        fi
+        ;;
+      cid-gm-browser)
+        if [ ! -f /tmp/stopped-foundry-ai-tool-gm-browser.service ]; then
+          echo "[assistant-gm] joined world curse-of-strahd as Assistant GM (GM: true, module active: true)"
+        fi
+        ;;
+    esac
+    ;;
+esac
+exit 0

@@ -208,7 +208,7 @@ if [ "$rc" -eq 0 ] && [ ! -e "$dest" ] && [ ! -e "$service_file" ] && [ ! -e "$t
 
 # 8. What the first version of the stage left: a deploy key and a clone in the state folder.
 legacy_make() {
-  install -d -m 0700 -o "$FOUNDRY_USER" -g "$FOUNDRY_USER" "$state/repo/objects"
+  install -d -m 0700 -o "$FOUNDRY_USER" -g "$FOUNDRY_USER" "$state/repo"
   runuser -u "$FOUNDRY_USER" -- ssh-keygen -q -t ed25519 -N '' -f "$state/id_ed25519" 2>/dev/null || printf 'KEY\n' >"$state/id_ed25519"
   echo "github.com ssh-ed25519 AAAA" >"$state/known_hosts"
 }

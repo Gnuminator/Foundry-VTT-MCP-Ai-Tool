@@ -83,6 +83,9 @@ const TOOL_SET_SELECTION = resolveToolSets(process.env[TOOL_SETS_ENV]);
 
 // Control-channel frame shapes come from the shared contract (§3a).
 
+/** Longer than any tool waits on purpose (wait-for-game-event, a long import); only a hung backend hits it. */
+const SEND_TIMEOUT_MS = 10 * 60_000;
+
 class BackendClient {
   private socket: net.Socket | null = null;
 
@@ -112,12 +115,27 @@ class BackendClient {
     } catch {}
   }
 
+  /** The connect attempt in flight: callers that arrive meanwhile wait for it, none starts a second. */
+  private connecting: Promise<void> | null = null;
+
+  /** Whether this wrapper has been connected before, so the next connect is a reconnect. */
+  private hadConnection = false;
+
+  /** Called after a reconnect: the backend may have restarted with a different tool list. */
+  onReconnect: (() => void) | null = null;
+
   async ensure(): Promise<void> {
     if (this.socket && !this.socket.destroyed) return;
 
-    this.log('ensure(): connecting to backend');
+    if (!this.connecting) {
+      this.log('ensure(): connecting to backend');
 
-    await this.connectWithRetry();
+      this.connecting = this.connectWithRetry().finally(() => {
+        this.connecting = null;
+      });
+    }
+
+    await this.connecting;
   }
 
   private connect(): Promise<void> {
@@ -150,7 +168,16 @@ class BackendClient {
         };
         sock.write(`${JSON.stringify(hello)}\n`, 'utf8');
 
+        const reconnected = this.hadConnection;
+        this.hadConnection = true;
+
         resolve();
+
+        if (reconnected) {
+          try {
+            this.onReconnect?.();
+          } catch {}
+        }
       });
 
       sock.on('error', e => {
@@ -350,7 +377,27 @@ class BackendClient {
 
         const req: ControlRequest = { id, method, params };
 
-        this.pending.set(id, { resolve, reject });
+        // A backend that never answers must not hold the call forever.
+        const timer = setTimeout(() => {
+          if (this.pending.delete(id)) {
+            this.log('send(): timed out', { method });
+
+            reject(new Error(`The Foundry AI Tool backend did not answer ${method} in time`));
+          }
+        }, SEND_TIMEOUT_MS);
+
+        timer.unref();
+
+        this.pending.set(id, {
+          resolve: v => {
+            clearTimeout(timer);
+            resolve(v);
+          },
+          reject: e => {
+            clearTimeout(timer);
+            reject(e instanceof Error ? e : new Error(String(e)));
+          },
+        });
 
         try {
           this.log('send(): write', { method });
@@ -358,6 +405,8 @@ class BackendClient {
           this.socket!.write(`${JSON.stringify(req)}\n`, 'utf8');
         } catch (e) {
           this.pending.delete(id);
+
+          clearTimeout(timer);
 
           this.log('send(): write error', { error: messageOf(e) });
 
@@ -415,7 +464,11 @@ async function startWrapper(): Promise<void> {
   const mcp = new Server(
     { name: config.server.name, version: config.server.version },
     {
-      capabilities: { tools: {}, ...PROMPTS_CAPABILITY, ...RESOURCES_CAPABILITY },
+      capabilities: {
+        tools: { listChanged: true },
+        ...PROMPTS_CAPABILITY,
+        ...RESOURCES_CAPABILITY,
+      },
       instructions: toolSetInstructions(TOOL_SET_SELECTION),
     }
   );
@@ -469,30 +522,51 @@ async function startWrapper(): Promise<void> {
   // when it cuts a result.
   const listedTools = new Map<string, ToolDefinitionLike>();
 
+  /** What the last tools/list served, so a reconnect can tell whether the list moved. */
+  let servedSignature: string | null = null;
+
+  const fetchServedTools = async (): Promise<ReturnType<typeof stripToolRefs>> => {
+    const res = (await backend.send('list_tools', {})) as ListToolsReply;
+    // An empty list is a failed list, not "no tools": Claude must see an error, not {tools: []}.
+    if (!res.tools || res.tools.length === 0) {
+      throw new Error('The Foundry AI Tool backend returned no tools');
+    }
+
+    try {
+      backend.log('ListTools handler: received from backend', {
+        hasTools: !!res.tools,
+        toolCount: res.tools?.length || 0,
+      });
+    } catch {}
+
+    // Picker annotations (x-foundry-ref) are for the dashboard only, and this entry lists only
+    // its tool sets (the dashboard reads the control channel and sees every tool).
+    const listed = filterToolsBySets(
+      (res.tools ?? []) as Parameters<typeof stripToolRefs>[0],
+      TOOL_SET_SELECTION
+    );
+    const served = stripToolRefs(listed).map(withChangeCardMeta);
+    for (const tool of served as ToolDefinitionLike[]) listedTools.set(tool.name, tool);
+    servedSignature = JSON.stringify(served);
+    return served;
+  };
+
+  // A backend that restarted may serve another tool list (a new build, other switches): read it
+  // again and tell the client when it differs, so Claude lists the tools anew.
+  backend.onReconnect = (): void => {
+    if (servedSignature === null) return;
+    const before = servedSignature;
+    void fetchServedTools()
+      .then(() => {
+        if (servedSignature !== before) return mcp.sendToolListChanged();
+        return undefined;
+      })
+      .catch(() => undefined);
+  };
+
   mcp.setRequestHandler(ListToolsRequestSchema, async () => {
     try {
-      const res = (await backend.send('list_tools', {})) as ListToolsReply;
-      // An empty list is a failed list, not "no tools": Claude must see an error, not {tools: []}.
-      if (!res.tools || res.tools.length === 0) {
-        throw new Error('The Foundry AI Tool backend returned no tools');
-      }
-
-      try {
-        backend.log('ListTools handler: received from backend', {
-          hasTools: !!res.tools,
-          toolCount: res.tools?.length || 0,
-        });
-      } catch {}
-
-      // Picker annotations (x-foundry-ref) are for the dashboard only, and this entry lists only
-      // its tool sets (the dashboard reads the control channel and sees every tool).
-      const listed = filterToolsBySets(
-        (res.tools ?? []) as Parameters<typeof stripToolRefs>[0],
-        TOOL_SET_SELECTION
-      );
-      const served = stripToolRefs(listed).map(withChangeCardMeta);
-      for (const tool of served as ToolDefinitionLike[]) listedTools.set(tool.name, tool);
-      return { tools: served };
+      return { tools: await fetchServedTools() };
     } catch (e) {
       try {
         backend.log('ListTools failed', { error: messageOf(e) });

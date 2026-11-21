@@ -112,6 +112,20 @@
       "match": "Tokenizer",
       "max": 5,
       "why": "Missing Tokenizer images from old-world data; a fresh kit world has none (walkthrough 2026-10-04). Unseen is normal."
+    },
+    {
+      "id": "core-dice-sound-load",
+      "module": "*",
+      "match": "Failed to load audio element \"sounds/dice.wav\"",
+      "max": 5,
+      "why": "Foundry core logs this when a roll fires before the headless kit browser has decoded the dice sound (an audio race). It failed monsters-odd and module-load in one smoke run on 1f9a037ba (2026-11-21) while an identical second run on the same sha passed. Not ours."
+    },
+    {
+      "id": "dnd5e-blindsight-statuses-deafened",
+      "module": "*",
+      "match": "failed to resolve: Unable to replace all data references in \"1 - @statuses.deafened\"",
+      "max": 40,
+      "why": "dnd5e 6.0.x stock monster effect (a 'multiply' change on senses.ranges.blindsight that reads @statuses.deafened) logs one error per instance whenever the srd kit world instantiates compendium monsters (monsters-every, scripted-fight). Seen 25 times in each of the srd full runs of 2026-11-20 and 2026-11-21, which made module-load a repeat failure; the modules-all runs do not log it. System content, not ours; remove it when a dnd5e release fixes the effect (Backlog: dnd5e-61-update)."
     }
   ]
 }

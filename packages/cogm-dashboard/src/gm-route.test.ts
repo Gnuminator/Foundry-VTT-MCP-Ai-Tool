@@ -47,7 +47,8 @@ interface Seen {
 async function start(
   file: GmConnectorFile = { appAudiences: [GM_AUD], gmEmails: [], gmEmailsBroken: false },
   over: Partial<GmConnectorOptions> = {},
-  client: Record<string, unknown> = {}
+  client: Record<string, unknown> = {},
+  slowCallMs?: number
 ): Promise<{ base: string; seen: Seen }> {
   const seen: Seen = { lists: [], calls: [] };
   const app = express();
@@ -70,6 +71,7 @@ async function start(
       ...client,
     },
     logger: new Logger('error', 'gm-route'),
+    slowCallMs,
     accessFetch: () => Promise.resolve({ ok: true, json: () => Promise.resolve({ keys }) }),
   });
   const server = app.listen(0, '127.0.0.1');
@@ -207,6 +209,26 @@ describe('gm connector protocol', () => {
     expect(seen.calls).toEqual([
       { set: 'build', name: 'plan-room-setup', args: { set: 'admin', x: 1 } },
     ]);
+  });
+
+  it('answers with a may-have-landed note when a call outlasts the Cloudflare limit', async () => {
+    const { base } = await start(
+      undefined,
+      {},
+      { remoteGmCall: () => new Promise(() => undefined) },
+      20
+    );
+    const res = await rpc(
+      base,
+      'play',
+      { jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'slow-tool' } },
+      token
+    );
+    const body = (await res.json()) as {
+      result: { isError: boolean; content: Array<{ text: string }> };
+    };
+    expect(body.result.isError).toBe(true);
+    expect(body.result.content[0]?.text).toMatch(/may still land/);
   });
 
   it('503 when the bridge is off; notifications get 202; unknown method an error', async () => {

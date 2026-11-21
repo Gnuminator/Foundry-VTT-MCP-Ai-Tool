@@ -173,7 +173,7 @@ test('no separate drift run when the gate judged the wrong tree (local: failure)
   assert.ok(!f.calls.some(c => c.join(' ').includes('drift')));
 });
 
-test('drift-check failing with no FAIL lines gives the by-hand command', () => {
+test('drift-check passing after a skip adds no drift line', () => {
   const gateOut =
     'lane:merge: drift-check not run: x\nlane:merge: refused because (1) review: no review note';
   const f = fake(gateOut, 1);

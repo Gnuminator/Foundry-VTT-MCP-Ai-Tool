@@ -46,15 +46,19 @@ export function writeHistory(home, runs) {
  * One history entry from a report.json document: {at, sha, world, size, dir, scenarios}. Skipped
  * scenarios are left out. Null when the report has no scenarios.
  */
-export function entryFromReport(report, dir = '') {
+export function entryFromReport(report, dir = '', dirty = false) {
   const run = report?.run || {};
   const scenarios = {};
   for (const s of report?.scenarios || []) {
     if (s.status === 'pass') scenarios[s.id] = 'pass';
     else if (FAIL.has(s.status)) scenarios[s.id] = 'fail';
   }
-  if (!Object.keys(scenarios).length) return null;
+  const ids = Object.keys(scenarios);
+  if (!ids.length) return null;
+  // A run where nothing passed is the environment or the bridge, not a scenario flaking.
+  if (ids.length > 3 && !ids.some(id => scenarios[id] === 'pass')) return null;
   return {
+    ...(dirty ? { dirty: true } : {}),
     at: run.finishedAt || run.startedAt || '',
     sha: String(run.gitSha || 'unknown'),
     world: String(run.target?.world || ''),
@@ -65,8 +69,8 @@ export function entryFromReport(report, dir = '') {
 }
 
 /** Appends a run's entry (same dir twice replaces it). Returns the new history. */
-export function recordRun(home, report, dir = '') {
-  const entry = entryFromReport(report, dir);
+export function recordRun(home, report, dir = '', dirty = false) {
+  const entry = entryFromReport(report, dir, dirty);
   const runs = readHistory(home);
   if (!entry) return runs;
   const next = runs.filter(r => !dir || r.dir !== dir);
@@ -76,14 +80,27 @@ export function recordRun(home, report, dir = '') {
   return next;
 }
 
-/** Flaky scenarios: passed and failed on the same sha and world. Newest first. */
+/**
+ * Flaky scenarios: passed and failed on the same sha, world and kit size. Newest first. Runs from
+ * a tree with uncommitted changes (the fix-and-rerun loop) and runs with no sha are left out: a
+ * real failure fixed without a commit would otherwise look flaky.
+ */
 export function findFlaky(runs) {
-  /** @type {Map<string, {id:string, sha:string, world:string, pass:number, fail:number, last:string}>} */
+  /** @type {Map<string, {id:string, sha:string, world:string, size:string, pass:number, fail:number, last:string}>} */
   const m = new Map();
   for (const run of runs) {
+    if (run.dirty || !run.sha || run.sha === 'unknown') continue;
     for (const [id, st] of Object.entries(run.scenarios || {})) {
-      const key = `${id}\u0000${run.sha}\u0000${run.world}`;
-      const e = m.get(key) || { id, sha: run.sha, world: run.world, pass: 0, fail: 0, last: '' };
+      const key = `${id}\u0000${run.sha}\u0000${run.world}\u0000${run.size}`;
+      const e = m.get(key) || {
+        id,
+        sha: run.sha,
+        world: run.world,
+        size: run.size,
+        pass: 0,
+        fail: 0,
+        last: '',
+      };
       e[st === 'pass' ? 'pass' : 'fail'] += 1;
       if (String(run.at) > e.last) e.last = String(run.at);
       m.set(key, e);
@@ -95,10 +112,10 @@ export function findFlaky(runs) {
 }
 
 /** Scenario ids flaky on this sha and world, for marking the failing list of a run. */
-export function flakyIds(runs, sha, world) {
+export function flakyIds(runs, sha, world, size) {
   return new Set(
     findFlaky(runs)
-      .filter(e => e.sha === sha && e.world === world)
+      .filter(e => e.sha === sha && e.world === world && (size === undefined || e.size === size))
       .map(e => e.id)
   );
 }

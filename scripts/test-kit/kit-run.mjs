@@ -12,7 +12,7 @@
  * Exit codes: 0 all passed, 1 a scenario failed (or the run broke), 2 environment not ready,
  * 3 the lock was not free.
  */
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
@@ -383,19 +383,38 @@ export function writeLastRun(home, r) {
   return file;
 }
 
+/** True when the repo has uncommitted changes (the run did not test exactly its git sha). */
+function treeIsDirty() {
+  try {
+    return (
+      execFileSync('git', ['status', '--porcelain'], {
+        cwd: REPO_ROOT,
+        encoding: 'utf8',
+      }).trim() !== ''
+    );
+  } catch {
+    return true;
+  }
+}
+
 /**
  * Adds the run to the per-scenario history (<kit home>/scenario-history.json) and puts the flaky
  * marking on the result: `flaky` (ids flaky on this sha and world) and `flakyRows` (the note's
  * table rows for this PC). Never fails a run.
  */
-export function recordFlakes(home, dir, r) {
+export function recordFlakes(home, dir, r, dirty = treeIsDirty()) {
   try {
     const report = JSON.parse(readFileSync(path.join(dir, 'report.json'), 'utf8'));
     if (report?.run?.fake) return r;
-    const runs = recordRun(home, report, dir);
+    const runs = recordRun(home, report, dir, dirty);
     const sha = String(report.run?.gitSha || 'unknown');
     const world = String(report.run?.target?.world || '');
-    return { ...r, flaky: [...flakyIds(runs, sha, world)], flakyRows: flakyRows(runs, r.pc) };
+    const size = String(report.run?.size || '');
+    return {
+      ...r,
+      flaky: [...flakyIds(runs, sha, world, size)],
+      flakyRows: flakyRows(runs, r.pc),
+    };
   } catch {
     return r;
   }

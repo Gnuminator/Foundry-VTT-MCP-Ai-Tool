@@ -5,6 +5,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 import {
   backfill,
+  entryFromReport,
   findFlaky,
   flakyIds,
   flakyRows,
@@ -33,6 +34,24 @@ test('same sha and world with a pass and a fail is flaky; another sha is not', (
   );
   assert.deepEqual([...flakyIds(runs, 'aaa', 'w')], ['x']);
   assert.match(flakyRows(runs, 'PC1')[0], /^\| x \| aaa \| w \| 1 \| 1 \| PC1 \|/);
+});
+
+test('dirty-tree runs, unknown shas, other sizes and all-fail runs never make a flake', () => {
+  const base = { at: '1', sha: 'a', world: 'w', size: 'smoke' };
+  const runs = [
+    { ...base, scenarios: { x: 'pass', y: 'pass', z: 'pass' } },
+    { ...base, dirty: true, scenarios: { x: 'fail' } },
+    { ...base, size: 'full', scenarios: { y: 'fail' } },
+    { ...base, sha: 'unknown', scenarios: { z: 'fail' } },
+    { ...base, sha: 'unknown', scenarios: { z: 'pass' } },
+  ];
+  assert.deepEqual(findFlaky(runs), []);
+  const dead = {
+    run: { gitSha: 'a', target: { world: 'w' } },
+    scenarios: ['a', 'b', 'c', 'd'].map(id => ({ id, status: 'error' })),
+  };
+  assert.equal(entryFromReport(dead), null);
+  assert.equal(entryFromReport(report('a', 'w', { x: 'pass' }), 'd', true).dirty, true);
 });
 
 test('recordRun keeps history, skips skipped scenarios, replaces the same report folder', () => {
@@ -97,18 +116,23 @@ test('recordFlakes marks the failing list and never throws', () => {
         JSON.stringify(report('a', 'w', { x: st }, `2026-11-21T1${d === 'd1' ? 0 : 1}:00:00Z`))
       );
     }
-    recordFlakes(home, path.join(home, 'reports', 'd1'), { pc: 'PC1' });
-    const r = recordFlakes(home, path.join(home, 'reports', 'd2'), {
-      pc: 'PC1',
-      failing: ['x'],
-      at: '2026-11-21T11:00:00Z',
-      size: 'smoke',
-      profile: 'srd',
-      git: 'a',
-    });
+    recordFlakes(home, path.join(home, 'reports', 'd1'), { pc: 'PC1' }, false);
+    const r = recordFlakes(
+      home,
+      path.join(home, 'reports', 'd2'),
+      {
+        pc: 'PC1',
+        failing: ['x'],
+        at: '2026-11-21T11:00:00Z',
+        size: 'smoke',
+        profile: 'srd',
+        git: 'a',
+      },
+      false
+    );
     assert.deepEqual(r.flaky, ['x']);
     assert.match(noteRow(r), /x \(flaky\)/);
-    assert.deepEqual(recordFlakes(home, '/nope', { pc: 'P' }), { pc: 'P' });
+    assert.deepEqual(recordFlakes(home, '/nope', { pc: 'P' }, false), { pc: 'P' });
   } finally {
     rmSync(home, { recursive: true, force: true });
   }

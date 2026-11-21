@@ -1,6 +1,6 @@
 ---
 source: gm/dashboard-player-pages.md
-sourceHash: 1c0b791dcb6f
+sourceHash: fa8d947af2b1
 title: 'Dashboardet: spillersider og Obsidian'
 description: 'Spillersiden, afsløring af et handout, spillerlinks, My character og Open in Obsidian.'
 ---
@@ -134,7 +134,8 @@ virker uden dem.
   diary-indlæg i karakterens stemme om sidste session, indsætter det, retter det og gemmer det med
   **Save entry**. Kun den spiller ser sine indlæg: ikke dig, ikke de andre spillere, ikke player
   page. Intet slår det til, men indlæggene gemmes på bordets server: siger siden "This table keeps
-  diaries in memory only", går de tabt, når dashboardet genstarter, så bed spillerne kopiere det
+  diaries in memory only: they are lost when the dashboard restarts", går de tabt, når
+  dashboardet genstarter, så bed spillerne kopiere det
   vigtige et sikkert sted hen.
 
 ## Open in Obsidian (📓)

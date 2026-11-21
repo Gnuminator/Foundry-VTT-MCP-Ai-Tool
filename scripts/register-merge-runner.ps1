@@ -10,7 +10,8 @@
 # %USERPROFILE%\.foundry-ai-tool\merge-runner.log. It has no time limit: the runner watches the
 # Backlog all day and exits only at the merge train limit, on a red main, on a gate checkout
 # problem, or when its own code changed on main and the checkout cannot be updated (each posts one
-# #pr-log line; the repeat trigger starts it again, a repeated identical stop posts nothing new).
+# #pr-log line; the repeat trigger starts it again, a repeated identical stop posts nothing new;
+# after a killed gate or a gate checkout problem it does not start until you delete the heartbeat file).
 # It writes ~/.foundry-ai-tool/merge-runner.heartbeat.json every minute; `backlog.mjs status
 # --planner` and the start hook flag a dead or stale runner from it. When its code changes and the checkout can be updated it restarts itself (the
 # task has no restart count, so the first process stays as the parent of each new child). Start it

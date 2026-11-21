@@ -1002,7 +1002,12 @@ export async function main(argv, inject = {}) {
     base.post(`merge runner not started: ${why}`);
     return 1;
   }
-  const { deps: d, stop } = startLiveness(lockFile, base, o.once); // heartbeat, exit reason
+  const { deps: d, stop, blocked } = startLiveness(lockFile, base, o.once); // heartbeat, exit reason
+  if (blocked) {
+    base.log(blocked);
+    lock.release();
+    return EXIT_STOPPED;
+  }
   const sleep = inject.sleep ?? (ms => new Promise(res => setTimeout(res, ms)));
   try {
     d.log(`started (pid ${process.pid}, vault ${o.vault}, gate checkout ${o.checkout})`);
@@ -1043,7 +1048,7 @@ export async function main(argv, inject = {}) {
     d.trainRun?.leave();
     d.releaseRun?.leave();
     lock.release();
-    stop();
+    await stop();
   }
 }
 

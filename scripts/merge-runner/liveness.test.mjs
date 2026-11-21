@@ -7,6 +7,7 @@ import {
   HEARTBEAT_STALE_MS,
   runnerFiles,
   runnerLivenessLine,
+  startLiveness,
   writeHeartbeat,
 } from './liveness.mjs';
 
@@ -62,6 +63,42 @@ test('a live pid with a heartbeat older than 15 minutes looks stuck', () => {
   assert.match(l ?? '', /pid 4242\) looks stuck: heartbeat 16 min old/);
   const missing = line(f => fs.writeFileSync(f.lock, '4242\n'));
   assert.match(missing ?? '', /looks stuck: no heartbeat/);
+});
+
+test('startLiveness: the beat survives a blocked main thread; a stop that needs a person is not restarted', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'runner-start-'));
+  try {
+    const lock = path.join(dir, 'merge-runner.lock');
+    const hb = runnerFiles(dir).heartbeat;
+    const posts = [];
+    const base = { post: t => posts.push(t), log: () => {} };
+    const live = startLiveness(lock, base, false, 40);
+    const first = JSON.parse(fs.readFileSync(hb, 'utf8')).at;
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 400); // like a spawnSync gate
+    assert.ok(JSON.parse(fs.readFileSync(hb, 'utf8')).at > first, 'worker kept beating');
+    live.deps.log('exiting: gate killed at the time limit');
+    live.deps.post('stopped');
+    await live.stop();
+    const done = JSON.parse(fs.readFileSync(hb, 'utf8'));
+    assert.equal(done.exit, 'gate killed at the time limit');
+    // The repeat trigger starts it again: it refuses and leaves the heartbeat file alone.
+    const again = startLiveness(lock, base, false, 40);
+    assert.match(again.blocked, /needs a person.*delete /);
+    assert.deepEqual(JSON.parse(fs.readFileSync(hb, 'utf8')), done);
+    // A red stop restarts, and the identical stop post goes once.
+    fs.writeFileSync(
+      hb,
+      JSON.stringify({ pid: 1, at: Date.now(), exit: 'main is red at a', exitPost: 'red!' })
+    );
+    const red = startLiveness(lock, base, false, 40);
+    assert.equal(red.blocked, '');
+    red.deps.post('red!');
+    red.deps.post('other');
+    assert.deepEqual(posts, ['stopped', 'other']);
+    await red.stop();
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('the last exit was a red main: its own line', () => {

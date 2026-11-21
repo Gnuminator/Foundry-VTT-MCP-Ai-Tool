@@ -8,6 +8,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { Worker } from 'node:worker_threads';
 
 export const HEARTBEAT_EVERY_MS = 60_000;
 export const HEARTBEAT_STALE_MS = 15 * 60 * 1000;
@@ -40,12 +41,25 @@ export function writeHeartbeat(file, o, nowMs = Date.now()) {
   }
 }
 
+/** Stops that wait for a person: the repeat trigger must not rerun the same gate or checkout. */
+const NEEDS_HUMAN = /^(gate killed|gate checkout)/;
+/** A repeated identical exit post is only held back for this long. */
+const POST_HOLD_MS = 6 * 60 * 60 * 1000;
+
+/** The beat runs in a worker: the runner's gate and git calls block its own event loop for up to 2 h. */
+const BEAT_WORKER = `const fs = require('fs'), path = require('path');
+const { workerData: w } = require('worker_threads');
+const beat = () => { try { fs.mkdirSync(path.dirname(w.file), { recursive: true });
+  fs.writeFileSync(w.file, JSON.stringify({ pid: w.pid, at: Date.now() })); } catch {} };
+setInterval(beat, w.every);`;
+
 /**
  * The runner's side: read the previous heartbeat, wrap `post` so a repeated identical exit post
- * (a repeat trigger restarting a runner that stopped on a red main) reaches Discord once, and
- * beat every `everyMs` until `stop(exit)` writes the exit line.
- * The exit reason is the runner's last "exiting: <why>" log line (a clean --once end says so; no such
- * line means it crashed).
+ * (a repeat trigger restarting a runner that stopped on a red main) reaches Discord once, beat every
+ * `everyMs` from a worker thread, and `stop()` writes the exit line. The exit reason is the last
+ * "exiting: <why>" log line (a clean --once end says so; no such line means it crashed). `blocked`
+ * is set (and nothing is written) when the previous exit needs a person (NEEDS_HUMAN): delete the
+ * heartbeat file to start again.
  * @template {{ post: (t: string) => void, log: (t: string) => void }} D
  * @param {string} lockFile the runner lock; the heartbeat file lies beside it
  * @param {D} base @param {boolean} once @param {number} [everyMs]
@@ -53,17 +67,24 @@ export function writeHeartbeat(file, o, nowMs = Date.now()) {
 export function startLiveness(lockFile, base, once, everyMs = HEARTBEAT_EVERY_MS) {
   const file = runnerFiles(path.dirname(lockFile)).heartbeat;
   const prev = readJson(file);
+  if (!once && NEEDS_HUMAN.test(prev?.exit ?? '')) {
+    const blocked = `not started: the last stop needs a person (${prev.exit}); fix it, then delete ${file}`;
+    return { deps: base, blocked, stop: async () => {} };
+  }
   let lastPost = '';
   let exit = once ? 'finished (--once)' : 'crashed';
-  const beat = () => writeHeartbeat(file, { pid: process.pid });
-  beat();
-  const timer = setInterval(beat, everyMs);
-  timer.unref();
+  writeHeartbeat(file, { pid: process.pid });
+  const worker = new Worker(BEAT_WORKER, {
+    eval: true,
+    workerData: { file, pid: process.pid, every: everyMs },
+  });
+  worker.unref();
+  const held = prev?.exitPost && Date.now() - (prev.at ?? 0) < POST_HOLD_MS ? prev.exitPost : null;
   const deps = {
     ...base,
     post: (/** @type {string} */ t) => {
       lastPost = t;
-      if (prev?.exitPost !== t) base.post(t);
+      if (held !== t) base.post(t);
     },
     log: (/** @type {string} */ t) => {
       if (t.startsWith('exiting: ')) exit = t.slice(9);
@@ -72,8 +93,9 @@ export function startLiveness(lockFile, base, once, everyMs = HEARTBEAT_EVERY_MS
   };
   return {
     deps,
-    stop: () => {
-      clearInterval(timer);
+    blocked: '',
+    stop: async () => {
+      await worker.terminate();
       writeHeartbeat(file, { pid: process.pid, exit, exitPost: lastPost });
     },
   };

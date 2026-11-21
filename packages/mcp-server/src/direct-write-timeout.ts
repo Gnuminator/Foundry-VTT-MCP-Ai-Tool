@@ -54,9 +54,19 @@ export async function runDirectWrite<T>(
   try {
     return await queryTimeoutContext.run({ timeoutMs }, run);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (isLostAnswerMessage(message)) {
-      throw new Error(directWriteLostAnswerMessage(tool, timeoutMs), { cause: error });
+    // Some tools wrap the bridge error (ErrorHandler keeps it as `cause`): look down the chain.
+    for (let e: unknown = error, depth = 0; e !== undefined && depth < 5; depth++) {
+      const message = e instanceof Error ? e.message : String(e);
+      if (isLostAnswerMessage(message)) {
+        const closed = !/query timeout/i.test(message);
+        throw new Error(
+          closed
+            ? `${tool}: the Foundry link closed before an answer came. The change may or may not have happened: check the chat log or the change list before trying again.`
+            : directWriteLostAnswerMessage(tool, timeoutMs),
+          { cause: error }
+        );
+      }
+      e = e instanceof Error ? e.cause : undefined;
     }
     throw error;
   }

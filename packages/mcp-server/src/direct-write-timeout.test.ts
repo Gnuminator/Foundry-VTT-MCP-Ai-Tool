@@ -11,6 +11,7 @@ import {
 } from './direct-write-timeout.js';
 import { FoundryConnector } from './foundry-connector.js';
 import { makeLogger } from './test-support/stub-tool-deps.js';
+import { ErrorHandler } from './utils/error-handler.js';
 
 class FakeSocket extends EventEmitter {
   readyState: number = WebSocket.OPEN;
@@ -95,6 +96,27 @@ describe('direct write timeout truth', () => {
         throw new Error('Actor not found');
       })
     ).rejects.toThrow('Actor not found');
+  });
+
+  it('finds a lost answer a tool wrapped with ErrorHandler and keeps the honest text', async () => {
+    const handler = new ErrorHandler(makeLogger());
+    await expect(
+      runDirectWrite('create-quest-journal', async () => {
+        try {
+          throw new Error('Query timeout: foundry-mcp-bridge.createJournal');
+        } catch (e) {
+          handler.handleToolError(e, 'create-quest-journal');
+        }
+      })
+    ).rejects.toThrow(/no answer from Foundry in 30 s.*may or may not have happened/);
+  });
+
+  it('words a closed link without claiming 30 s passed', async () => {
+    await expect(
+      runDirectWrite('use-item', async () => {
+        throw new Error('Connection closed');
+      })
+    ).rejects.toThrow(/link closed before an answer.*may or may not have happened/);
   });
 
   it('words the message with the seconds waited', () => {

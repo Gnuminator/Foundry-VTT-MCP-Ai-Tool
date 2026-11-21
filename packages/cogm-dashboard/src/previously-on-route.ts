@@ -346,17 +346,26 @@ export function mountPreviouslyOnRoute(app: Express, options: PreviouslyOnOption
         });
         return;
       }
-      await client.callTool('send-chat-message', {
-        message: chatHtml(text),
-        messageType: 'ooc',
-      });
+      await client.callTool(
+        'send-chat-message',
+        {
+          message: chatHtml(text),
+          messageType: 'ooc',
+        },
+        // Above the backend's 30 s direct-write wait, so the backend answers first and the control channel stays up.
+        { timeoutMs: 45_000 }
+      );
       res.json({ ok: true, session: recap.session, lang });
     })().catch((error: unknown) => {
       options.logger?.warn('Previously on chat post failed', {
         error: error instanceof Error ? error.message : String(error),
       });
       res.status(502).json({
-        error: { message: 'Could not post to chat. Is Foundry open?', code: 'bridge-unreachable' },
+        error: {
+          message:
+            'Could not post to chat. It may or may not have posted: check the chat log before trying again.',
+          code: 'bridge-unreachable',
+        },
       });
     });
   });

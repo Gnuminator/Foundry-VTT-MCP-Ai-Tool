@@ -111,6 +111,8 @@ Stage 20 (`scripts/pi/remote/20-vault-sync.sh`, Obsidian O8) is the check that i
 - **Conflicts:** every `.sync-conflict-*` file, listed with its date. Syncthing makes one when the same note was changed on
   two PCs before they met; both versions are kept. The GM opens both in Obsidian, keeps what is wanted and deletes the extra
   file. The stage never moves, merges or deletes a vault file.
+- **The trash:** how many files Obsidian's `.trash` in the GM vault holds, how large it is and the date of the oldest one.
+  Only reported; a later mode may drop old entries, with the user's OK.
 - **The time zone:** must be `Europe/Copenhagen` (`TIMEZONE=<zone>` for another), because the session log, the change log and
   the play stats stamp their notes with the Pi's local time. Today's Pi is already on it.
 

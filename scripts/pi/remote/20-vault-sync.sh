@@ -108,6 +108,22 @@ else
   problems=$((problems + 1))
 fi
 
+say "trash"
+# Obsidian's own .trash in the GM vault (deleted notes). Read only: count, size and the oldest file; nothing is removed here.
+trash="$vault/.trash"
+if [ -d "$trash" ] && [ ! -L "$trash" ]; then
+  trash_files="$(find "$trash" -type f 2>/dev/null | wc -l || true)"
+  trash_kb="$(du -sk "$trash" 2>/dev/null | cut -f1 || true)"
+  trash_oldest="$(find "$trash" -type f -printf '%TY-%Tm-%Td %P\n' 2>/dev/null | sort | head -n 1 || true)"
+  if [ "${trash_files:-0}" -eq 0 ]; then
+    ok ".trash is empty"
+  else
+    echo "    .trash holds ${trash_files} file(s), about $((${trash_kb:-0} / 1024)) MB; oldest: ${trash_oldest:-unknown}"
+  fi
+else
+  ok "no .trash folder"
+fi
+
 say "time zone"
 # The Pi has no /etc/timezone (checked 2026-10-29); timedatectl and the /etc/localtime link are the sources, the file the last.
 have_tz="$(timedatectl show -p Timezone --value 2>/dev/null || true)"

@@ -27,8 +27,9 @@ export function runnerFiles(home = path.join(os.homedir(), '.foundry-ai-tool')) 
 export function writeHeartbeat(file, o, nowMs = Date.now()) {
   try {
     fs.mkdirSync(path.dirname(file), { recursive: true });
+    // temp file, then rename: a reader never sees half a file
     fs.writeFileSync(
-      file,
+      `${file}.m.tmp`,
       JSON.stringify({
         pid: o.pid,
         at: nowMs,
@@ -36,13 +37,15 @@ export function writeHeartbeat(file, o, nowMs = Date.now()) {
         ...(o.exitPost ? { exitPost: o.exitPost } : {}),
       })
     );
+    fs.renameSync(`${file}.m.tmp`, file);
   } catch {
     // liveness is information only; never stop the runner for it
   }
 }
 
 /** Stops that wait for a person: the repeat trigger must not rerun the same gate or checkout. */
-const NEEDS_HUMAN = /^(gate killed|gate checkout)/;
+const NEEDS_HUMAN =
+  /^(gate killed|gate checkout|train roundtrip|the train reset|its code changed .*(could not be updated|still differs))/;
 /** A repeated identical exit post is only held back for this long. */
 const POST_HOLD_MS = 6 * 60 * 60 * 1000;
 
@@ -50,7 +53,8 @@ const POST_HOLD_MS = 6 * 60 * 60 * 1000;
 const BEAT_WORKER = `const fs = require('fs'), path = require('path');
 const { workerData: w } = require('worker_threads');
 const beat = () => { try { fs.mkdirSync(path.dirname(w.file), { recursive: true });
-  fs.writeFileSync(w.file, JSON.stringify({ pid: w.pid, at: Date.now() })); } catch {} };
+  fs.writeFileSync(w.file + '.w.tmp', JSON.stringify({ pid: w.pid, at: Date.now() }));
+  fs.renameSync(w.file + '.w.tmp', w.file); } catch {} };
 setInterval(beat, w.every);`;
 
 /**
@@ -78,6 +82,7 @@ export function startLiveness(lockFile, base, once, everyMs = HEARTBEAT_EVERY_MS
     eval: true,
     workerData: { file, pid: process.pid, every: everyMs },
   });
+  worker.on('error', () => {});
   worker.unref();
   const held = prev?.exitPost && Date.now() - (prev.at ?? 0) < POST_HOLD_MS ? prev.exitPost : null;
   const deps = {

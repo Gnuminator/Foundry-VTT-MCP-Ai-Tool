@@ -271,18 +271,21 @@ scenario() {
   shift 3
   if [ -n "$only" ] && [[ " $only " != *" $name "* ]]; then return 0; fi
   # "RERUN:KEY=VALUE" words apply to the second run only (they come after the others, so they win).
+  # "based" adds a based-on-snapshot line to every bundle of the scenario (a campaign copy built with -NewerThanSnapshot).
   # "pushback2" makes the second bundle a Plan B push-back (a gm-password and a based-on-snapshot line in MANIFEST.txt).
-  local rerun=0 pushback2=0 env_words=() rerun_words=() w
+  local rerun=0 pushback2=0 based=0 env_words=() rerun_words=() w
   for w in "$@"; do
     case "$w" in
       rerun) rerun=1 ;;
       pushback2) pushback2=1 ;;
+      based) based=1 ;;
       RERUN:*) rerun_words+=("${w#RERUN:}") ;;
       *) env_words+=("$w") ;;
     esac
   done
   fresh_pi
   [ "$setup" = - ] || "$setup"
+  [ "$based" = 0 ] || manifest_extra="${manifest_extra:+$manifest_extra$'\n'}based-on-snapshot: 2026-10-30T12:00:00Z"
   echo "=== SCENARIO $name"
   echo "--- env before"
   env_state
@@ -398,9 +401,13 @@ scenario pi-modules-unsure frostmaiden-training pimod_unsure WORLD=frostmaiden-t
 scenario pi-modules-legacy frostmaiden-training pimod_legacy WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd
 scenario ship-campaign-launch-kit curse-of-strahd ship_module LAUNCH=strahd-kit
 scenario ship-second-launch-self frostmaiden-training ship_module WORLD=frostmaiden-training KIT_WORLD= LAUNCH=frostmaiden-training
-scenario provision-fails-campaign curse-of-strahd provision_fails_once REPLACE_WORLD=1 RERUN:REPLACE_WORLD=0 rerun
+scenario provision-fails-campaign curse-of-strahd provision_fails_once REPLACE_WORLD=1 RERUN:REPLACE_WORLD=0 rerun based
 scenario provision-fails-then-rerun frostmaiden-training provision_fails_once WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd EXTRA_GM_USER=Claude rerun
-scenario campaign-default curse-of-strahd - REPLACE_WORLD=1
+scenario campaign-default curse-of-strahd - REPLACE_WORLD=1 based
+# The Pi is the truth: replacing a world that exists on the Pi needs a based-on-snapshot line, and the change check
+# then checks the Pi's world for documents newer than it (the fake worlds hold none, so the check is clean here).
+scenario replace-needs-snapshot curse-of-strahd - REPLACE_WORLD=1
+scenario replace-clean frostmaiden-training - WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd rerun based RERUN:REPLACE_WORLD=1
 # The world switches: only in worlds the run installs or resets, a kept world only with WORLD_SWITCHES=1 (settings
 # copied to prev first), none with 0, never in a push-back, a driver from /root installed and the upload removed,
 # a missing driver refused up front, a failing driver stops the run.

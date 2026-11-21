@@ -17,8 +17,17 @@ scripts move the result to the Pi, in two steps so that you can look in between:
 1. **On this PC, with the world stopped in Foundry** (its database files are in use while it runs):
 
    ```powershell
-   .\scripts\pi\push-world.ps1 -World curse-of-strahd
+   .\scripts\pi\push-world.ps1 -World curse-of-strahd -NewerThanSnapshot 2026-11-15T04:30:00Z
    ```
+
+   **The Pi is the truth.** Once the campaign runs on the Pi, the Pi's world is the real one, so
+   `push-world.ps1` refuses the campaign world unless it is a Plan B push-back (`plan-b/push-back.ps1`),
+   or you name the Pi backup this PC copy was taken from with `-NewerThanSnapshot <ISO time>` and the
+   copy has been written to since, or you pass `-KeepPiWorld` (a modules and images refresh; stage 11 keeps the Pi's world and refuses `REPLACE_WORLD=1` for it), or `-FirstInstall` because the Pi has no campaign world yet.
+   The file time only proves the copy was opened since the snapshot, not that it was played.
+   Stage 11 backs this up: `REPLACE_WORLD=1` on a world the Pi already has needs the bundle's
+   `based-on-snapshot:` line, and the run stops (replacing nothing) when the Pi's world holds a document
+   changed after that time. Only with the user's OK to lose those changes add `REPLACE_NEWER=1`.
 
    It scans the world and the compendium packs of the modules for every image and sound path
    (`scripts/pi/world-refs.mjs`, which reads copies of the databases and never touches a running
@@ -181,7 +190,7 @@ Build each bundle while the PC's Foundry does not have the world open; the bundl
 checked even though the kept world is not replaced from it.
 
 Because the world is kept, anything changed in it during a call stays for the next one. To start over,
-add `REPLACE_WORLD=1` to the command of step 3.
+add `REPLACE_WORLD=1` to the command of step 3. Build the bundle with `-NewerThanSnapshot` naming a time older than the PC copy's newest file (the Pi backup from before the call works), and add `REPLACE_NEWER=1` with the user's OK, because dropping what the call changed on the Pi is the point; the Pi's old copy is kept in `prev-<time>`.
 
 If a proxy ever has to run elsewhere, it is our patched copy (it reads the cookie from a file and
 keeps it out of its logs), bound to `127.0.0.1`, never the upstream one (which logs the cookie).

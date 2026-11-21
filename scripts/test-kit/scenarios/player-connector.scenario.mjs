@@ -65,6 +65,8 @@ export default {
     'get-my-play-stats',
     'get-player-skill-guide',
   ],
+  // Last, like the login split: its dashboard restart clears the dashboard's in-memory state.
+  order: 1000,
   timeoutMs: 300000,
 
   async run(t) {
@@ -110,7 +112,12 @@ export default {
     let restored = false;
     const restoreNormal = async () => {
       if (restored) return;
-      await restartDashboard(null, { repoRoot, port });
+      // Back to the normal mode: no connector variable of the operator's shell comes along.
+      const env = { ...process.env };
+      for (const key of Object.keys(env)) {
+        if (key.startsWith('FOUNDRY_AI_PLAYER_CONNECTOR')) delete env[key];
+      }
+      await restartDashboard(null, { repoRoot, port, env });
       restored = true;
       for (let i = 0; i < 30; i++) {
         const h = await health('/api/health');
@@ -126,61 +133,71 @@ export default {
     };
     t.cleanup(restoreNormal);
 
-    /** @type {string | null} */
-    let journalId = null;
-    await t.step('make a GM-only journal with a canary word', async () => {
-      journalId = await page.evaluate(async canary => {
-        const g = /** @type {any} */ (globalThis);
-        const doc = await g.JournalEntry.create({
-          name: `${canary} entry`,
-          ownership: { default: 0 },
-          pages: [
-            { name: `${canary} page`, type: 'text', text: { content: `<p>${canary} secret</p>` } },
-          ],
-        });
-        return doc.id;
-      }, CANARY);
-      t.cleanup(async () => {
-        if (!journalId) return;
-        await page.evaluate(async id => {
-          await /** @type {any} */ (globalThis).game.journal.get(id)?.delete();
-        }, journalId);
-      });
-      return 'journal made (default ownership none)';
-    });
-
-    // The dnd5e system packs are never readable to a player, so the book hit comes from a world pack made
-    // here: one entry, readable by players, removed again afterwards.
-    /** @type {string | null} */
-    let bookPackId = null;
-    await t.step('make a small world book the players can read', async () => {
-      bookPackId = await page.evaluate(
-        async ({ word, lineText }) => {
-          const g = /** @type {any} */ (globalThis);
-          const pack = await g.foundry.documents.collections.CompendiumCollection.createCompendium({
-            label: 'Kit Player Book',
-            name: 'kit-player-book',
-            type: 'JournalEntry',
-            ownership: { PLAYER: 'OBSERVER', ASSISTANT: 'OWNER' },
-          });
-          await g.JournalEntry.create(
-            {
-              name: `Kit ${word} rule`,
-              pages: [{ name: `Kit ${word} page`, type: 'text', text: { content: lineText } }],
-            },
-            { pack: pack.collection }
-          );
-          return pack.collection;
-        },
-        { word: BOOK_WORD, lineText: `<p>A ${BOOK_WORD} is a made-up rule for the kit.</p>` }
-      );
-      t.cleanup(async () => {
-        if (!bookPackId) return;
-        await page.evaluate(async id => {
+    // The dnd5e system packs are never readable to a player, so both the book hit and the GM-only journal live
+    // in world packs made here (the player gate works on packs): one readable by players, one only for the GM.
+    // The clean-up is registered before the pack is made and deletes by name, and a leftover of an earlier
+    // failed run is removed first.
+    /** @param {string} name @param {string} label @param {{PLAYER: string, ASSISTANT: string}} ownership @param {string} entryName @param {string} text */
+    const makePack = (name, label, ownership, entryName, text) => {
+      const collection = `world.${name}`;
+      const drop = () =>
+        page.evaluate(async id => {
           await /** @type {any} */ (globalThis).game.packs.get(id)?.deleteCompendium();
-        }, bookPackId);
-      });
-      return `${bookPackId} made`;
+        }, collection);
+      t.cleanup(drop);
+      return page
+        .evaluate(
+          async args => {
+            const g = /** @type {any} */ (globalThis);
+            await g.game.packs.get(args.collection)?.deleteCompendium();
+            const pack =
+              await g.foundry.documents.collections.CompendiumCollection.createCompendium({
+                label: args.label,
+                name: args.name,
+                type: 'JournalEntry',
+                ownership: args.ownership,
+              });
+            const doc = await g.JournalEntry.create(
+              {
+                name: args.entryName,
+                pages: [
+                  { name: `${args.entryName} page`, type: 'text', text: { content: args.text } },
+                ],
+              },
+              { pack: pack.collection }
+            );
+            return { packId: pack.collection, entryId: doc.id };
+          },
+          { collection, name, label, ownership, entryName, text }
+        )
+        .then(r => /** @type {{packId: string, entryId: string}} */ (r));
+    };
+
+    /** @type {{packId: string, entryId: string} | null} */
+    let secret = null;
+    await t.step(
+      'make a GM-only journal with a canary word, in a pack players cannot read',
+      async () => {
+        secret = await makePack(
+          'kit-gm-book',
+          'Kit GM Book',
+          { PLAYER: 'NONE', ASSISTANT: 'OWNER' },
+          `${CANARY} entry`,
+          `<p>${CANARY} secret</p>`
+        );
+        return `${secret.packId} made (players: no access)`;
+      }
+    );
+
+    await t.step('make a small world book the players can read', async () => {
+      const book = await makePack(
+        'kit-player-book',
+        'Kit Player Book',
+        { PLAYER: 'OBSERVER', ASSISTANT: 'OWNER' },
+        `Kit ${BOOK_WORD} rule`,
+        `<p>A ${BOOK_WORD} is a made-up rule for the kit.</p>`
+      );
+      return `${book.packId} made`;
     });
 
     await t.step('restart the dashboard with the player connector on', async () => {
@@ -217,6 +234,7 @@ export default {
     const call = async (name, args = {}) => {
       const r = await rpc('tools/call', { name, arguments: args });
       t.check(r.status === 200, `${name}: /mcp/player answered ${r.status}`);
+      t.check(!r.body?.error, `${name}: JSON-RPC error`, r.body?.error);
       const result = r.body?.result;
       return { text: textOf(result), isError: result?.isError === true, rpcError: r.body?.error };
     };
@@ -306,9 +324,15 @@ export default {
 
     await t.step('get-my-handouts and get-my-play-stats answer', async () => {
       const handouts = await call('get-my-handouts');
-      t.check(!handouts.isError, `get-my-handouts failed: ${handouts.text.slice(0, 200)}`);
+      t.check(
+        !handouts.isError && handouts.text.length > 0,
+        `get-my-handouts failed: ${handouts.text.slice(0, 200)}`
+      );
       const stats = await call('get-my-play-stats');
-      t.check(!stats.isError, `get-my-play-stats failed: ${stats.text.slice(0, 200)}`);
+      t.check(
+        !stats.isError && stats.text.length > 0,
+        `get-my-play-stats failed: ${stats.text.slice(0, 200)}`
+      );
       return 'both answered';
     });
 
@@ -346,10 +370,12 @@ export default {
         'find-book-entries returns the GM journal',
         find.text.slice(0, 300)
       );
-      const entry = await call('get-book-entry', { packId: 'world', entryId: journalId ?? 'none' });
+      // The real pack and entry ids: the entry exists, so only the player gate can refuse it.
+      t.check(secret, 'the GM-only pack was not made');
+      const entry = await call('get-book-entry', secret);
       t.check(
-        entry.isError || !entry.text.includes(CANARY),
-        'get-book-entry opens the GM journal',
+        entry.isError && !entry.text.includes(CANARY),
+        'get-book-entry opens the GM journal (or answers without refusing)',
         entry.text.slice(0, 300)
       );
       return 'no trace of the canary';

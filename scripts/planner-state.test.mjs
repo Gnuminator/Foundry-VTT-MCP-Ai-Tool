@@ -260,7 +260,7 @@ test('kitLine reports the last run, its age, failures, staleness and a later ski
     nightly: true,
     failing: ['bridge-health'],
   };
-  const doc = { version: 1, last: ran, lastRun: ran, lastNightly: ran };
+  const doc = { version: 1, last: ran, lastRun: ran, lastNightly: ran, lastNightlyRun: ran };
   const line = kitLine(JSON.stringify(doc), now);
   assert.match(line, /last nightly FAILED: 1 of 25.*, 3 h ago, on abc1234; failing: bridge-health/);
   assert.doesNotMatch(line, /lane's/);
@@ -272,7 +272,13 @@ test('kitLine reports the last run, its age, failures, staleness and a later ski
     git: 'def5678',
   };
   const mixed = kitLine(
-    JSON.stringify({ version: 1, last: lane, lastRun: lane, lastNightly: ran }),
+    JSON.stringify({
+      version: 1,
+      last: lane,
+      lastRun: lane,
+      lastNightly: ran,
+      lastNightlyRun: ran,
+    }),
     now
   );
   assert.match(mixed, /last nightly FAILED/);
@@ -290,9 +296,23 @@ test('kitLine reports the last run, its age, failures, staleness and a later ski
     nightly: true,
     text: 'skipped: the lock was not free',
   };
+  const withSkip = JSON.stringify({
+    version: 1,
+    last: skipped,
+    lastRun: ran,
+    lastNightly: skipped,
+    lastNightlyRun: ran,
+  });
   assert.match(
-    kitLine(JSON.stringify({ version: 1, last: skipped, lastRun: ran, lastNightly: skipped }), now),
-    /last nightly attempt skipped: the lock was not free \(1 h ago\)/
+    kitLine(withSkip, now),
+    /last nightly FAILED.*latest nightly attempt skipped: the lock was not free \(1 h ago\)/
+  );
+  // A skipped nightly must not hide staleness of the last finished one.
+  assert.match(kitLine(withSkip, now + 40 * 3600000), /STALE/);
+  // An older file without lastNightly/lastNightlyRun falls back to the flag on lastRun.
+  assert.match(
+    kitLine(JSON.stringify({ version: 1, last: skipped, lastRun: ran }), now),
+    /last nightly FAILED/
   );
   assert.match(kitLine(null, now), /no last-run\.json yet/);
   assert.match(kitLine('{bad', now), /unreadable/);

@@ -316,6 +316,7 @@ test('lock taken, nightly: queues, waits, leaves the queue, records the skip, ke
     const after = lastRun(t.home);
     assert.equal(after.last.state, 'passed');
     assert.equal(after.lastNightly.state, 'skipped');
+    assert.equal(after.lastNightlyRun, null);
     assert.equal(t.vault[0].state, 'skipped');
   } finally {
     t.cleanup();

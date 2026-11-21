@@ -59,6 +59,16 @@ describe('stage 32 as text', () => {
     assert.match(stage, /\[ -n "\$result" \] && \[ "\$result" != start-limit-hit \]/);
   });
 
+  test('the nightly backup unit gets an OnFailure drop-in, and its alert is not gated on start-limit-hit', () => {
+    assert.match(stage, /backup_unit=foundry-backup\.service/);
+    assert.match(stage, /10-backup-alert\.conf/);
+    assert.match(stage, /\[Unit\]\\nOnFailure=foundry-ai-tool-alert@%%n\.service\\n/);
+    const backupBranch = stage.indexOf('elif [ "$name" = foundry-backup.service ]');
+    const resultGate = stage.indexOf('result="$(systemctl show -p Result');
+    assert.ok(backupBranch > 0 && resultGate > backupBranch, 'the backup case comes before the Result check');
+    assert.match(stage, /last night's backup failed or was skipped/);
+  });
+
   test('the install read-back stops on a failed test post before it accepts "no token" as a warning', () => {
     const failed = stage.indexOf('*"post failed"*');
     const noToken = stage.indexOf('*"no Discord token"*');

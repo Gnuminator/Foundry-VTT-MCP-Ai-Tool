@@ -19,6 +19,11 @@
 #   3. foundry-ai-tool-clock-check.service and .timer: every 15 minutes, checks that systemd-timesyncd is on and the clock is
 #      synchronized (timedatectl). Two bad checks in a row post "clock not synchronized" once, the first good check after
 #      that posts "clock back"; while bad the service shows as failed in systemctl.
+#   4. a drop-in  foundry-backup.service.d/10-backup-alert.conf (when stage 6 has written that unit): OnFailure=foundry-ai-tool-alert@%n.service.
+#      The nightly restic backup (04:30) exits 1 when it fails and when it skips the night (players still online after the waits,
+#      critical disk space), so a failed or skipped night posts one line to #gm-bot the same morning (the last wait ends about 07:30)
+#      (backlog backup-miss-alert). The line says to look at the journal and to run `systemctl start foundry-backup.service` when quiet.
+#      The backup unit is a oneshot with no restart, so this drop-in has no start limit and no Restart line.
 # It restarts nothing: the daemon is reloaded (the new limits apply to running units at once), no service stops, so it needs
 # no quiet check and drops no player. It does not touch a world or a Foundry setting. A snapshot first.
 # RestartMode=direct in every drop-in keeps automatic restarts from firing OnFailure (systemd 254 and newer); the alert also
@@ -50,6 +55,7 @@ clock_service=foundry-ai-tool-clock-check.service
 clock_timer=foundry-ai-tool-clock-check.timer
 state_name=foundry-ai-tool-crash-guard
 guarded="foundry.service foundry-ai-tool-bridge.service foundry-ai-tool-dashboard.service foundry-ai-tool-gm-browser.service"
+backup_unit=foundry-backup.service
 
 require_root
 # Over a non-login ssh the sbin folders may not be on PATH.
@@ -74,6 +80,9 @@ case "$kind" in
     [[ "$name" =~ ^[A-Za-z0-9@:._-]{1,100}$ ]] || { echo "alert: refusing odd unit name"; exit 0; }
     if [ "$name" = crash-guard-test ]; then
       text="Pi: the crash guard is installed; alerts reach this channel."
+    elif [ "$name" = foundry-backup.service ]; then
+      # A failed or skipped night of the restic backup: a oneshot, so its Result is exit-code, never start-limit-hit.
+      text="Pi: last night's backup failed or was skipped (the nightly restic backup, foundry-backup.service). Look at journalctl -u foundry-backup -n 50; when it is quiet, run: systemctl start foundry-backup.service"
     else
       # RestartMode=direct keeps the automatic restarts from firing OnFailure; still post only for a real start-limit trip
       # (not for a stop that timed out, say).
@@ -226,6 +235,15 @@ done
 
 dropin_file() { printf '%s/%s.d/10-crash-guard.conf' "$unit_dir" "$1"; }
 
+# The nightly backup unit (stage 6): a oneshot that stays "static", so it has no enabled check; its file is enough.
+backup_dropin_file="$unit_dir/$backup_unit.d/10-backup-alert.conf"
+backup_dropin_text() {
+  printf '%s\n' "# Written by stage 32 (scripts/pi/remote/32-crash-guard.sh): a failed or skipped nightly backup is announced in #gm-bot."
+  printf '[Unit]\nOnFailure=foundry-ai-tool-alert@%%n.service\n'
+}
+backup_present=0
+[ -f "$unit_dir/$backup_unit" ] && backup_present=1
+
 # ---- CHECK -----------------------------------------------------------------------------------------------------
 if [ "$check" = 1 ]; then
   say "check: the guard, read back"
@@ -251,6 +269,20 @@ if [ "$check" = 1 ]; then
     fi
   done
   for u in $absent; do ok "$u: not here or disabled, skipped"; done
+  if [ "$backup_present" = 1 ]; then
+    if [ -f "$backup_dropin_file" ] && [ "$(cat "$backup_dropin_file")" = "$(backup_dropin_text)" ]; then
+      ok "$backup_unit: backup alert drop-in in place"
+      if have_systemd; then
+        got="$(systemctl show -p OnFailure --value "$backup_unit" 2>/dev/null || true)"
+        case "$got" in *"foundry-ai-tool-alert@"*) ;; *) warn "$backup_unit: OnFailure is not set (the drop-in is not loaded: systemctl daemon-reload)"; bad=1 ;; esac
+      fi
+    else
+      warn "$backup_unit: backup alert drop-in missing or changed"
+      bad=1
+    fi
+  else
+    ok "$backup_unit: not here (stage 6 has not run), skipped"
+  fi
   [ -x "$dest/alert.sh" ] && [ -x "$dest/clock-check.sh" ] || { warn "the scripts in $dest are missing"; bad=1; }
   [ -f "$unit_dir/$alert_unit" ] && [ -f "$unit_dir/$clock_service" ] && [ -f "$unit_dir/$clock_timer" ] || { warn "the alert or clock units are missing in $unit_dir"; bad=1; }
   if have_systemd; then
@@ -283,7 +315,9 @@ if [ "$undo" = 1 ]; then
     rm -f "${unit_dir:?}/$u.d/10-crash-guard.conf"
     rmdir "${unit_dir:?}/$u.d" 2>/dev/null || true
   done
-  rm -f "${unit_dir:?}/$alert_unit" "${unit_dir:?}/$clock_service" "${unit_dir:?}/$clock_timer"
+  rm -f "${backup_dropin_file:?}"
+  rmdir "${unit_dir:?}/$backup_unit.d" 2>/dev/null || true
+  rm -f "${unit_dir:?}/$alert_unit""${unit_dir:?}/$clock_service" "${unit_dir:?}/$clock_timer"
   rm -rf "${dest:?}" "/var/lib/${state_name:?}"
   have_systemd && systemctl daemon-reload
   ok "removed the drop-ins, the units, $dest and the state folder"
@@ -310,6 +344,11 @@ for u in $present; do
   if [ -f "$f" ] && [ "$(cat "$f")" = "$(dropin_text "$u")" ]; then ok "$u: drop-in already in place"; else ok "$u: would write $f"; fi
 done
 for u in $absent; do ok "$u: not here (or disabled): skipped"; done
+if [ "$backup_present" = 1 ]; then
+  if [ -f "$backup_dropin_file" ] && [ "$(cat "$backup_dropin_file")" = "$(backup_dropin_text)" ]; then ok "$backup_unit: backup alert drop-in already in place"; else ok "$backup_unit: would write $backup_dropin_file"; fi
+else
+  ok "$backup_unit: not here (stage 6 has not run): no backup alert yet; run this stage again after stage 6"
+fi
 ok "would write $alert_unit, $clock_service, $clock_timer and the scripts in $dest; nothing is restarted"
 if [ "$dry" = 1 ]; then
   say "DRY_RUN=1: nothing changed"
@@ -340,6 +379,12 @@ for u in $present; do
   write_file "$(dropin_file "$u")" 0644 "$(dropin_text "$u")" || true
 done
 
+if [ "$backup_present" = 1 ]; then
+  say "the backup alert"
+  install -d -m 0755 "$unit_dir/$backup_unit.d"
+  write_file "$backup_dropin_file" 0644 "$(backup_dropin_text)" || true
+fi
+
 say "start"
 if have_systemd; then
   systemctl daemon-reload
@@ -352,6 +397,13 @@ if have_systemd; then
       *) die "$u: the drop-in did not load (OnFailure='$got'): systemctl status $u" ;;
     esac
   done
+  if [ "$backup_present" = 1 ]; then
+    got="$(systemctl show -p OnFailure --value "$backup_unit" 2>/dev/null || true)"
+    case "$got" in
+      *foundry-ai-tool-alert@*) ok "$backup_unit: OnFailure is $got" ;;
+      *) die "$backup_unit: the drop-in did not load (OnFailure='$got'): systemctl status $backup_unit" ;;
+    esac
+  fi
   systemd-analyze verify "$unit_dir/$alert_unit" "$unit_dir/$clock_service" "$unit_dir/$clock_timer" 2>&1 | sed 's/^/    /' || true
   ok "$clock_timer active"
   # Run both units once under systemd, as $FOUNDRY_USER, so a sandbox or permission problem shows now and not in a crash loop.

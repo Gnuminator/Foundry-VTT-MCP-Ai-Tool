@@ -71,7 +71,6 @@
     { "name": "[+] Cantrips", "reason": "Actor Studio spell step button" },
     { "name": "Finalize Spells", "reason": "Actor Studio button" },
     { "name": "Add Character Level", "reason": "Actor Studio button" },
-    { "name": "Take Average", "reason": "Actor Studio hit point button" },
     { "name": "User Configuration", "reason": "Foundry player configuration window" },
     { "name": "Save Player Configuration", "reason": "Foundry player configuration button" },
     {

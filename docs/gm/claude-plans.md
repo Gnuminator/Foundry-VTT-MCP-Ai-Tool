@@ -13,15 +13,15 @@ here looks wrong, check those pages.
 
 ## What works on Free
 
-| What                                                                    | On Free                                                                                     |
-| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| The Claude Desktop app                                                  | Yes.                                                                                        |
-| Asking Claude about rules, prep and your notes                          | Yes.                                                                                        |
-| Claude reading and changing the game (the tool's connection to Foundry) | Expected to work; Anthropic sets no plan limit on it (see [Not clear yet](#not-clear-yet)). |
-| Skills, including the **Foundry GM coach** skill made for you           | Yes. You add your own skills under **Settings**, **Plugins**, **Skills**.                   |
-| Projects (a chat space with your own files and instructions)            | Up to 5.                                                                                    |
-| Models                                                                  | Sonnet and Haiku. Not Opus.                                                                 |
-| Claude Code (the developer tool)                                        | No. You don't need it: the session notes are made on the tool admin's PC.                   |
+| What                                                                    | On Free                                                                                |
+| ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| The Claude Desktop app                                                  | Yes.                                                                                   |
+| Asking Claude about rules, prep and your notes                          | Yes.                                                                                   |
+| Claude reading and changing the game (the tool's connection to Foundry) | Expected to work; Anthropic names no plan limit (see [Not clear yet](#not-clear-yet)). |
+| Skills, including the **Foundry GM coach** skill made for you           | Yes. You add your own skills under **Settings**, **Plugins**, **Skills**.              |
+| Projects (a chat space with your own files and instructions)            | Up to 5.                                                                               |
+| Models                                                                  | Sonnet and Haiku. Not Opus.                                                            |
+| Claude Code (the developer tool)                                        | No. You don't need it: the session notes are made on the tool admin's PC.              |
 
 For skills, one setting must be on: **Settings**, **Capabilities**, **Code execution and file
 creation** (newer versions of the app call it **Create and edit files**). If you don't see a way to
@@ -59,7 +59,7 @@ night runs out, play on without it: everything can be done by hand in Foundry
 | Research, Claude Code | Included. Not needed for this tool.                                   |
 | Price                 | 20 USD a month, or 200 USD a year (17 USD a month billed yearly).     |
 
-Skills, desktop extensions (the local kind of connection the GM's five Foundry connectors use), the
+Skills, desktop extensions (local connections like the ones the GM's five Foundry connectors use), the
 desktop app and memory are the same on both plans. Custom connectors (remote, by web address) are
 limited to one on Free. A player uses exactly that one for the
 [D&D helper](../player/dnd-helper.md#the-simple-way-add-the-connector-by-its-web-address), so a

@@ -1,6 +1,6 @@
 ---
 source: gm/claude-plans.md
-sourceHash: 528fbb3de806
+sourceHash: 2fd74bab4a23
 title: Claude Free eller Pro
 description: Hvad der virker med den gratis Claude-plan, og hvad Claude Pro giver dig, når du kører et spil med Foundry AI Tool, med kilder og datoer.
 ---
@@ -15,15 +15,15 @@ ser forkert ud, så tjek de sider.
 
 ## Hvad der virker på Free
 
-| Hvad                                                                     | På Free                                                                                                        |
-| ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
-| Claude Desktop-appen                                                     | Ja.                                                                                                            |
-| At spørge Claude om regler, forberedelse og dine noter                   | Ja.                                                                                                            |
-| Claude, der læser og ændrer spillet (værktøjets forbindelse til Foundry) | Forventes at virke; Anthropic sætter ingen plangrænse på det (se [Ikke afklaret endnu](#ikke-afklaret-endnu)). |
-| Skills, inklusive **Foundry GM coach**-skillen, der er lavet til dig     | Ja. Du lægger dine egne skills ind under **Settings**, **Plugins**, **Skills**.                                |
-| Projects (et chatrum med dine egne filer og instruktioner)               | Op til 5.                                                                                                      |
-| Modeller                                                                 | Sonnet og Haiku. Ikke Opus.                                                                                    |
-| Claude Code (udviklerværktøjet)                                          | Nej. Du behøver det ikke: session notes bliver lavet på værktøjsadministratorens PC.                           |
+| Hvad                                                                     | På Free                                                                                                 |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
+| Claude Desktop-appen                                                     | Ja.                                                                                                     |
+| At spørge Claude om regler, forberedelse og dine noter                   | Ja.                                                                                                     |
+| Claude, der læser og ændrer spillet (værktøjets forbindelse til Foundry) | Forventes at virke; Anthropic nævner ingen plangrænse (se [Ikke afklaret endnu](#ikke-afklaret-endnu)). |
+| Skills, inklusive **Foundry GM coach**-skillen, der er lavet til dig     | Ja. Du lægger dine egne skills ind under **Settings**, **Plugins**, **Skills**.                         |
+| Projects (et chatrum med dine egne filer og instruktioner)               | Op til 5.                                                                                               |
+| Modeller                                                                 | Sonnet og Haiku. Ikke Opus.                                                                             |
+| Claude Code (udviklerværktøjet)                                          | Nej. Du behøver det ikke: session notes bliver lavet på værktøjsadministratorens PC.                    |
 
 Til skills skal én indstilling være slået til: **Settings**, **Capabilities**, **Code execution and
 file creation** (nyere versioner af appen kalder den **Create and edit files**). Hvis du ikke kan se en
@@ -61,7 +61,7 @@ en spilaften løber tør, så spil videre uden den: alt kan gøres i hånden i F
 | Research, Claude Code | Inkluderet. Bruges ikke til dette værktøj.                                   |
 | Pris                  | 20 USD om måneden eller 200 USD om året (17 USD om måneden ved årsbetaling). |
 
-Skills, desktop extensions (den lokale slags forbindelse, som GM'ens fem Foundry-connectors bruger),
+Skills, desktop extensions (lokale forbindelser som dem, GM'ens fem Foundry-connectors bruger),
 desktop-appen og memory er ens på begge planer. Custom connectors (eksterne, via webadresse) er
 begrænset til én på Free. En spiller bruger netop den til
 [D&D-hjælperen](../player/dnd-helper.md#den-enkle-vej-tilføj-connectoren-med-dens-webadresse), så en

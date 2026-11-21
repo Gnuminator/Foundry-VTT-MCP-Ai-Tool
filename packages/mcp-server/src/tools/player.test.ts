@@ -61,6 +61,15 @@ function make(
   return { tools, query };
 }
 
+describe('the guide tool tells a chat to open it first', () => {
+  it('says call this first, with no arguments, and follow it', () => {
+    const def = make({})
+      .tools.getToolDefinitions()
+      .find(d => d.name === 'get-player-skill-guide');
+    expect(def?.description).toContain('Call this first, with no arguments, and follow it');
+  });
+});
+
 describe('the player set is never served on stdio and has no call_tool route', () => {
   const deps = stubToolRouterDeps();
   const names = TOOL_SETS[PLAYER_TOOL_SET].tools;

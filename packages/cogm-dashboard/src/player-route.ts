@@ -368,7 +368,7 @@ export function mountPlayerRoute(app: Express, options: PlayerRouteOptions): voi
           capabilities: { tools: {} },
           serverInfo: { name: 'foundry-ai-tool-player', version: SERVER_VERSION },
           instructions:
-            'Read-only. Your own characters and the rulebooks your Foundry login can read.',
+            'Read-only. Your own characters and the rulebooks your Foundry login can read. Before your first answer, call get-player-skill-guide first, with no arguments, and follow it.',
         },
       });
       return;

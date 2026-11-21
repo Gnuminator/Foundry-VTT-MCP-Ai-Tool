@@ -570,7 +570,13 @@ describe('/mcp/player: what it runs', () => {
     );
     expect(await init.json()).toMatchObject({
       id: 1,
-      result: { protocolVersion: '2025-06-18', capabilities: { tools: {} } },
+      result: {
+        protocolVersion: '2025-06-18',
+        capabilities: { tools: {} },
+        instructions: expect.stringContaining(
+          'call get-player-skill-guide first, with no arguments, and follow it'
+        ),
+      },
     });
     expect((await rpc(base, { jsonrpc: '2.0', id: 2, method: 'ping' }, asA)).status).toBe(200);
     expect(

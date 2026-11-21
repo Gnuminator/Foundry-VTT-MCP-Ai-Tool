@@ -46,6 +46,7 @@ describe('GuardedChangeTools definitions', () => {
       .tools.getToolDefinitions()
       .find(d => d.name === 'apply-planned-change');
     expect(apply?.description).toContain('apply a "write" plan in the same turn');
+    expect(apply?.description).toContain('asking for a change is not a yes');
     expect(apply?.description).toContain('a "destructive" plan waits for the GM to say yes');
   });
 });

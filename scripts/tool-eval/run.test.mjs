@@ -30,7 +30,7 @@ test('planChats runs a chained case with the cases before it, once', () => {
   const chats = planChats([4, 2]);
   assert.equal(chats.length, 1);
   assert.deepEqual(chats[0].map(c => c.id), [2, 3, 4]);
-  assert.equal(planChats().length, 20);
+  assert.equal(planChats().length, 28);
   assert.throws(() => planChats([99]));
 });
 

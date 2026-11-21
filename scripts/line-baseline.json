@@ -23,7 +23,7 @@
     "packages/mcp-server/src/tools/quest-creation.ts": 1346,
     "scripts/green.mjs": 1210,
     "scripts/live-write-sweep.mjs": 1690,
-    "scripts/merge-runner.mjs": 1064,
+    "scripts/merge-runner.mjs": 1069,
     "scripts/test-kit/lib/dashboard-controls.mjs": 1305,
     "scripts/test-kit/lib/fake/origins.mjs": 1051,
     "scripts/test-kit/lib/features.mjs": 1387,
@@ -110,6 +110,12 @@
       "lines": 1296,
       "reason": "planPressedPage needs the service's private load, snapshot and plan helpers (I-184); a split is a later refactor",
       "pr": ""
+    },
+    {
+      "file": "scripts/merge-runner.mjs",
+      "lines": 1069,
+      "reason": "runner liveness: the blocked-restart guard in main() (5 lines); the rest lives in merge-runner/liveness.mjs",
+      "pr": "1226"
     }
   ]
 }

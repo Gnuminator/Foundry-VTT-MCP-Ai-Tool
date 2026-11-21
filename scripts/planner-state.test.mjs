@@ -211,10 +211,12 @@ test('plannerSections assembles every section from a vault dir and a fake gh', (
   const s = plannerSections({
     devDir: dev,
     kitHome: dev,
+    runnerHome: dev,
     backlog: BACKLOG,
     today: '2026-11-12',
     gh,
   }).join('\n');
+  assert.match(s, /Merge runner is not running \(no heartbeat\)/);
   assert.equal(seen.length, 3);
   for (const a of seen.filter(x => !x.includes(BOARD_REPO)))
     assert.deepEqual(a.slice(a.indexOf('-R'), a.indexOf('-R') + 2), ['-R', REPO]);

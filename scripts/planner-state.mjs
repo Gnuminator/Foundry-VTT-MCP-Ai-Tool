@@ -15,6 +15,8 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { itemRefs, parseBacklog } from './backlog-items.mjs';
 import { UNREADY_PR_FIELDS, unreadySection } from './merge-runner/unready.mjs';
+import { runnerFiles, runnerLivenessLine } from './merge-runner/liveness.mjs';
+import { isRunnerProcess } from './merge-runner/runner-lock.mjs';
 
 /** The repo gh must ask: never whatever remote the current folder happens to have. */
 export const REPO = 'Gnuminator/Foundry-VTT-MCP-Ai-Tool';
@@ -278,7 +280,9 @@ export function kitLine(json, nowMs) {
   if (!doc?.last) return 'Nightly kit: last-run.json is unreadable';
   const age = (/** @type {any} */ e) => {
     const t = Date.parse(e?.finishedAt || e?.at || '');
-    return Number.isFinite(t) ? `${Math.max(0, Math.round((nowMs - t) / 3600000))} h ago` : 'age unknown';
+    return Number.isFinite(t)
+      ? `${Math.max(0, Math.round((nowMs - t) / 3600000))} h ago`
+      : 'age unknown';
   };
   const hours = (/** @type {any} */ e) => {
     const t = Date.parse(e?.finishedAt || e?.at || '');
@@ -301,7 +305,8 @@ export function kitLine(json, nowMs) {
 
 /**
  * The extra sections of `status --planner`.
- * @param {{ devDir: string, backlog: string, today: string, gh?: (a: string[]) => any, kitHome?: string, nowMs?: number }} o
+ * @param {{ devDir: string, backlog: string, today: string, gh?: (a: string[]) => any, kitHome?: string, nowMs?: number,
+ *   runnerHome?: string, isRunner?: (pid: number) => boolean }} o
  */
 export function plannerSections(o) {
   const gh = o.gh ?? ghJson;
@@ -352,12 +357,21 @@ export function plannerSections(o) {
     unreadySection(prs, o.backlog, path.resolve(o.devDir, '..', '..')),
     trainLine(read('Merge train.md') ?? ''),
     mainLine(runs?.[0] ?? null),
+    runnerLivenessLine({
+      lockFile: runnerFiles(o.runnerHome).lock,
+      heartbeatFile: runnerFiles(o.runnerHome).heartbeat,
+      nowMs: o.nowMs,
+      isRunner: o.isRunner ?? isRunnerProcess,
+    }) ?? 'Merge runner: running, heartbeat fresh',
     ledgerLines(path.join(o.devDir, 'Lows'), o.today),
     kitLine(
       (() => {
         try {
           return fs.readFileSync(
-            path.join(o.kitHome ?? process.env.TEST_KIT_HOME ?? 'C:\\FoundryTest\\test-kit', 'last-run.json'),
+            path.join(
+              o.kitHome ?? process.env.TEST_KIT_HOME ?? 'C:\\FoundryTest\\test-kit',
+              'last-run.json'
+            ),
             'utf8'
           );
         } catch {

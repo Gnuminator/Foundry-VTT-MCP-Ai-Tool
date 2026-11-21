@@ -38,9 +38,10 @@
 #
 # Not touched in any mode: Syncthing, cloudflared, Tailscale (serve), the Discord bot, the GitHub runner, the env files,
 # Foundry's and the tool's data folders, the images. Nothing is deleted except the containers of `down` and `rollback`.
-# Stages 3, 5 and the others that start or enable one of the four units refuse while the live project has containers (they
-# would start a second copy): MODE=rollback first. deploy/pi/deployed-state.sh reports a unit and a container running
-# together as FAIL. A new stage 5 build replaces the checkout and its .env, so after a rollback and a new stage 5 run stage 23
+# Stages 3, 7 and the others that start or enable one of the four units refuse while the live project has containers (they
+# would start a second copy): MODE=rollback first. Stages 5, 21, 25, switch-world and kit-session work on the containers
+# (day two, D-149: use_stack in lib.sh). deploy/pi/deployed-state.sh reports a unit and a container running together as
+# FAIL. A stage 5 build on the units replaces the checkout and its .env, so after a rollback and a new stage 5 run stage 23
 # again before the next cutover.
 #
 # Tunable: WAIT_TIMEOUT (seconds to wait for healthy, default 300; raise it for a big world on the Pi), PORT_WAIT.

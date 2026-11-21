@@ -1,7 +1,7 @@
 {
   "limit": 1000,
   "files": {
-    ".claude/hooks/guard-remote-commands.mjs": 1020,
+    ".claude/hooks/guard-remote-commands.mjs": 1034,
     "packages/foundry-module/src/data-access/actor-builder.ts": 1418,
     "packages/foundry-module/src/data-access/guarded-write.ts": 1100,
     "packages/foundry-module/src/data-access/player-rolls.ts": 1252,
@@ -116,6 +116,12 @@
       "lines": 1069,
       "reason": "runner liveness: the blocked-restart guard in main() (5 lines); the rest lives in merge-runner/liveness.mjs",
       "pr": "1226"
+    },
+    {
+      "file": ".claude/hooks/guard-remote-commands.mjs",
+      "lines": 1034,
+      "reason": "the stack_docker/stack_compose rule of PR 1230 (the guard must read the command and non-stage files apart from the reviewed stage scripts); the guard is one rule table",
+      "pr": ""
     }
   ]
 }

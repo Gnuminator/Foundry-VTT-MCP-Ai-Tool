@@ -17,7 +17,7 @@ LIB="$REMOTE/lib.sh"
 
 # stage file => the WHAT text its guard call carries (a fragment is enough)
 STAGES="$(cd "$REMOTE" && grep -l '^refuse_when_cut_over "' ./*.sh | sed 's|^\./||; s|\.sh$||' | grep -v '^lib$' | sort | tr '\n' ' ')"
-[ "$(echo "$STAGES" | wc -w)" -ge 18 ] || { echo "FAIL: found only: $STAGES"; exit 1; }
+[ "$(echo "$STAGES" | wc -w)" -ge 13 ] || { echo "FAIL: found only: $STAGES"; exit 1; }
 
 root="$(mktemp -d)"
 trap 'rm -rf "${root:?}"' EXIT

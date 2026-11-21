@@ -224,6 +224,7 @@ export const CHECKS = [
   nodeTest('pi-runtime-imports', 'scripts', 'scripts/pi/runtime-imports.test.mjs'),
   nodeTest('pi-runuser-helper', 'pi', 'scripts/pi/runuser-helper.test.mjs'),
   nodeTest('pi-stage5-load-check', 'pi', 'scripts/pi/stage5-load-check.test.mjs'),
+  nodeTest('pi-stage5-compose', 'pi', 'scripts/pi/stage5-compose.test.mjs'),
   nodeTest('pi-bridge-logging', 'pi', 'scripts/pi/bridge-logging.test.mjs'),
   nodeTest('pi-ssh-keys-only', 'pi', 'scripts/pi/ssh-keys-only.test.mjs'),
   nodeTest('pi-board-status', 'pi', 'scripts/pi/board-status.test.mjs'),
@@ -497,6 +498,7 @@ export const PI_SCENARIOS_ELSEWHERE = {
   'stage23-scenarios.sh': 'pi-images.yml (docker-compose.test.mjs)',
   'stage24-scenarios.sh': 'pi-images.yml (docker-compose.test.mjs)',
   'cutover-guard-scenarios.sh': 'the ARM job, check pi-cutover-guard-container',
+  'stage5-compose-scenarios.sh': 'plain bash, no container (stage5-compose.test.mjs)',
 };
 
 /**

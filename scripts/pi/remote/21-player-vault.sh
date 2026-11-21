@@ -29,12 +29,22 @@
 #                    vault files stay on the Pi
 # Every mode that changes something needs a dietpi-backup snapshot from today and the user's OK; the dashboard restart goes
 # through require_quiet (no players online, no recording).
+#
+# Containers (day two, D-149): once the stack runs as containers (stage 24 cutover) the same modes work, with the switch kept
+# in deploy/pi/.env of the deployed checkout (compose passes FOUNDRY_AI_PLAYER_VAULTS_DIR to the dashboard container) instead
+# of a systemd drop-in. The report reads that file and what the dashboard container was created with (docker inspect) and warns
+# when the two differ; SETUP and add write the value and recreate ONLY the dashboard container (compose up -d --no-deps), and
+# only when the container does not already have it (nothing changed: nothing restarts); OFF sets the value empty and recreates
+# the dashboard only if it still has it (a stopped one is recreated without starting). The recreate drops the GM link and the
+# players, so it goes through require_quiet before anything is written, and a refusal leaves .env as it was. REMOVE and the
+# Syncthing part never touch the stack. On the units side nothing changed. A drop-in left from before the cutover is removed by
+# OFF in both worlds (a rollback must not bring the setting back).
 # Run from the PC (bash, not PowerShell):
 #   cat scripts/pi/remote/lib.sh scripts/pi/remote/21-player-vault.sh | ssh foundry-pi 'bash -s'
 #   cat scripts/pi/remote/lib.sh scripts/pi/remote/21-player-vault.sh | ssh foundry-pi 'PLAYER="Mira" DEVICE_ID=ABCDEFG-... DEVICE_NAME=mira-pc bash -s'
 
 require_root
-refuse_when_cut_over "stage 21 (player vault)"
+use_stack "stage 21 (player vault)"
 PATH="$PATH:/usr/sbin:/sbin"
 
 players_dir="$TOOL_DATA/obsidian/players"
@@ -142,6 +152,15 @@ check_player_folder() {
 # unit file: a refused or interrupted restart leaves the two apart), and "stopped" when it does not run.
 dashboard_live() {
   local pid
+  if [ "$STACK" = containers ]; then
+    # The container's own environment (what it was created with), not .env: compose reads .env only when it creates it.
+    svc_active dashboard || {
+      echo stopped
+      return 0
+    }
+    if [ -n "$(dashboard_container_value)" ]; then echo yes; else echo no; fi
+    return 0
+  fi
   pid="$(systemctl show -p MainPID --value "$dashboard_unit" 2>/dev/null || true)"
   if [ -z "$pid" ] || [ "$pid" = 0 ]; then
     echo stopped
@@ -151,10 +170,78 @@ dashboard_live() {
     echo no
   fi
 }
+# Containers: the switch as it stands in deploy/pi/.env, and what the dashboard container (running or not) was created with.
+stack_switch() { env_file_value "$(stack_dir)/.env" FOUNDRY_AI_PLAYER_VAULTS_DIR; }
+dashboard_container_value() {
+  local cid
+  cid="$(svc_cid dashboard -a)"
+  [ -n "$cid" ] || return 0
+  docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$cid" 2>/dev/null |
+    sed -n 's/^FOUNDRY_AI_PLAYER_VAULTS_DIR=//p' | tail -n 1 || true
+}
+# stack_dashboard_on: .env gets the value, and the dashboard container is recreated (alone) only when it does not have it.
+stack_dashboard_on() {
+  local running=0 need=0 why="" live="" rc=0
+  if svc_active dashboard; then
+    running=1
+    live="$(dashboard_container_value)"
+  fi
+  if [ "$running" = 0 ]; then
+    need=1 why="the dashboard container is not running"
+  elif [ "$live" != "$players_dir" ]; then
+    need=1 why="the running dashboard container does not have the setting"
+  fi
+  [ -f "$(stack_dir)/.env" ] || die "$(stack_dir)/.env is missing: run stage 23 first (it writes the compose settings). Nothing was changed"
+  # Quiet first: a refusal must leave .env as it was. Starting a stopped container drops no one.
+  if [ "$running" = 1 ] && [ "$need" = 1 ]; then require_quiet "switching player vaults on (recreates the dashboard container)"; fi
+  install -d -m 0750 -o "$FOUNDRY_USER" -g "$FOUNDRY_USER" "$TOOL_DATA/obsidian" "$players_dir"
+  ok "$players_dir"
+  stack_env_set FOUNDRY_AI_PLAYER_VAULTS_DIR "$players_dir" || rc=$?
+  [ "$rc" = 0 ] || ok "$(stack_dir)/.env already has FOUNDRY_AI_PLAYER_VAULTS_DIR"
+  if [ "$need" = 1 ]; then
+    say "recreating only the dashboard container ($why)"
+    stack_compose up -d --no-deps dashboard || die "the dashboard container did not come up; see: $(svc_logs_hint dashboard)"
+    svc_active dashboard || die "the dashboard container is not running after the recreate; see: $(svc_logs_hint dashboard)"
+    [ "$(dashboard_container_value)" = "$players_dir" ] ||
+      die "the new dashboard container does not have FOUNDRY_AI_PLAYER_VAULTS_DIR: check that deploy/pi/compose.yml passes it to the dashboard"
+    ok "dashboard container recreated with the setting"
+  else
+    ok "dashboard container running (not restarted: nothing it uses changed)"
+  fi
+}
+# stack_dashboard_off: .env gets the value empty (when it has one), and the dashboard container is recreated (alone) when it still
+# has the value; a stopped one is recreated without starting, so a later start does not bring the setting back.
+stack_dashboard_off() {
+  local cid
+  if [ -n "$(stack_switch)" ]; then
+    stack_env_set FOUNDRY_AI_PLAYER_VAULTS_DIR "" || true
+  else
+    ok "$(stack_dir)/.env has no setting"
+  fi
+  cid="$(svc_cid dashboard -a)"
+  if [ -z "$cid" ]; then
+    ok "no dashboard container"
+  elif [ -z "$(dashboard_container_value)" ]; then
+    ok "the dashboard container does not have the setting"
+  elif svc_active dashboard; then
+    stack_compose up -d --no-deps dashboard || die "the dashboard container did not come up; see: $(svc_logs_hint dashboard)"
+    svc_active dashboard || die "the dashboard container is not running after the recreate; see: $(svc_logs_hint dashboard)"
+    [ -z "$(dashboard_container_value)" ] || die "the new dashboard container still has FOUNDRY_AI_PLAYER_VAULTS_DIR"
+    ok "dashboard container recreated without the setting"
+  else
+    stack_compose up --no-start --no-deps dashboard || die "could not recreate the stopped dashboard container; see: $(svc_logs_hint dashboard)"
+    [ -z "$(dashboard_container_value)" ] || die "the recreated dashboard container still has FOUNDRY_AI_PLAYER_VAULTS_DIR"
+    ok "the stopped dashboard container was recreated without the setting (it stays stopped)"
+  fi
+}
 ensure_dashboard_switch() {
   say "the dashboard's player vaults"
   # Root creates and chowns below; a link the foundry user left at the folder would send that elsewhere.
   [ ! -L "$players_dir" ] || die "$players_dir is a link: refused"
+  if [ "$STACK" = containers ]; then
+    stack_dashboard_on
+    return 0
+  fi
   install -d -m 0750 -o "$FOUNDRY_USER" -g "$FOUNDRY_USER" "$TOOL_DATA/obsidian" "$players_dir"
   ok "$players_dir"
   if have_systemd; then
@@ -280,7 +367,12 @@ forget_if_unused() {
 switch_off() {
   local f d devices=""
   # Quiet first: a refusal after the drop-in is gone would leave the dashboard writing with nothing a rerun could see.
-  if [ -f "$dropin" ]; then require_quiet_if_active "$dashboard_unit" "switching player vaults off (restarts the dashboard)"; fi
+  if [ "$STACK" = containers ]; then
+    # The container is recreated only when it still has the value, so that is when it must be quiet.
+    if [ "$(dashboard_live)" = yes ]; then require_quiet "switching player vaults off (recreates the dashboard container)"; fi
+  elif [ -f "$dropin" ]; then
+    require_quiet_if_active "$dashboard_unit" "switching player vaults off (restarts the dashboard)"
+  fi
   say "player folders out of Syncthing"
   for f in $(player_folders); do
     devices="$devices $(folder_devices "$f")"
@@ -297,12 +389,14 @@ switch_off() {
     ok "no drop-in"
   fi
   # Also when the drop-in was already gone: an earlier run may have died before the restart (the report shows it).
-  if have_systemd && [ -f "/etc/systemd/system/$dashboard_unit" ]; then
+  if [ "$STACK" = containers ]; then
+    stack_dashboard_off
+  elif have_systemd && [ -f "/etc/systemd/system/$dashboard_unit" ]; then
     if [ "$(dashboard_live)" = yes ]; then
       require_quiet_if_active "$dashboard_unit" "restarting the dashboard to switch player vaults off"
       systemctl daemon-reload
       # try-restart: a stopped dashboard stays stopped.
-      systemctl try-restart "$dashboard_unit" || die "$dashboard_unit did not restart; see journalctl -u $dashboard_unit -n 50"
+      svc_try_restart dashboard || die "$dashboard_unit did not restart; see $(svc_logs_hint dashboard)"
       ok "$dashboard_unit restarted without the setting"
     else
       systemctl daemon-reload
@@ -312,14 +406,46 @@ switch_off() {
   say "stage 21 done: player vaults are off; the files in $players_dir stay"
 }
 
+# report_switch_containers: the switch in deploy/pi/.env against what the dashboard container was created with.
+report_switch_containers() {
+  local want live
+  want="$(stack_switch)"
+  if [ -n "$want" ]; then
+    ok "$(stack_dir)/.env sets FOUNDRY_AI_PLAYER_VAULTS_DIR=$want"
+  else
+    echo "    the dashboard does not write player vaults yet (run with SETUP=1)"
+  fi
+  if [ -z "$(svc_cid dashboard -a)" ]; then
+    echo "    no dashboard container in the stack"
+  elif ! svc_active dashboard; then
+    echo "    the dashboard container: stopped"
+  else
+    live="$(dashboard_container_value)"
+    if [ -n "$want" ] && [ -z "$live" ]; then
+      warn ".env has the setting but the running dashboard container does not have it yet (run SETUP=1 when it is quiet: that recreates the container)"
+    elif [ -n "$want" ] && [ "$live" != "$want" ]; then
+      warn ".env sets $want but the running dashboard container has $live (run SETUP=1 when it is quiet)"
+    elif [ -z "$want" ] && [ -n "$live" ]; then
+      warn ".env has no setting, but the running dashboard container still writes player vaults (run OFF=1 again to recreate it)"
+      problems=$((problems + 1))
+    else
+      ok "the running dashboard container matches .env"
+    fi
+  fi
+}
+
 report() {
   say "the dashboard switch"
-  if [ -f "$dropin" ]; then
+  if [ "$STACK" = containers ]; then
+    report_switch_containers
+  elif [ -f "$dropin" ]; then
     ok "drop-in $dropin sets FOUNDRY_AI_PLAYER_VAULTS_DIR"
   else
     echo "    the dashboard does not write player vaults yet (run with SETUP=1)"
   fi
-  if have_systemd && [ -f "/etc/systemd/system/$dashboard_unit" ]; then
+  if [ "$STACK" = containers ]; then
+    :
+  elif have_systemd && [ -f "/etc/systemd/system/$dashboard_unit" ]; then
     # The running process, not the unit file: a refused restart leaves the two apart.
     local live
     live="$(dashboard_live)"

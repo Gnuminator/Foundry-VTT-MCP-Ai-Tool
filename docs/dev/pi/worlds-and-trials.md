@@ -272,8 +272,11 @@ scp scripts/pi/remote/kit-session.mjs foundry-pi:/root/ && cat scripts/pi/remote
     priority properties of the Assistant GM unit: low priority, no new privileges, its own profile
     folder `/var/lib/foundry-ai-tool/kit-gm-browser`, made as the foundry user) runs `assistant-gm.mjs run` as `Kit GM` with the
     canvas off, exactly like the real Assistant GM. The stage waits for "joined world strahd-kit as
-    Kit GM" and then looks for the bridge link on port 31415 (a warning only). A reboot drops the
-    unit and nothing starts it again. If the browser does not join, the run is rolled back like any
+    Kit GM" and then looks for the bridge link on port 31415 (a warning only). On systemd a reboot drops the
+    unit and nothing starts it again. On the cut-over Docker stack the Kit GM browser is instead a plain container of the same
+    name (the Assistant GM image, outside the compose project, restart policy `unless-stopped`): it survives a reboot and
+    retries joining until `MODE=down` removes it. Read its log with `docker logs --tail 30`, never a bare `docker inspect`
+    (that prints its password). If the browser does not join, the run is rolled back like any
     other failure.
   - The state file gets a line `KIT_GM_BROWSER=1` and a line `ORIG_BRIDGE_USER=<id or empty>`, the
     "AI Tool: Which GM connects" setting the world had before (stage 11 sets the Assistant GM there). `MODE=down` puts that

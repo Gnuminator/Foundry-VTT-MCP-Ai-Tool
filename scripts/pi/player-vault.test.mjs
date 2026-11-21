@@ -122,14 +122,72 @@ describe('21-player-vault.sh as text', () => {
   });
 });
 
+describe('21-player-vault.sh on the container stack (day two)', () => {
+  test('uses use_stack, not the cut-over refusal, and drives no unit of the stack directly', () => {
+    assert.match(stage, /^use_stack "stage 21 \(player vault\)"$/m);
+    assert.doesNotMatch(stage, /refuse_when_cut_over/);
+    // The only systemctl calls left are the unit-side daemon-reload and the read of the running process.
+    const calls = (stage.match(/systemctl [a-z-]+/g) ?? []).filter(
+      c => !['systemctl daemon-reload', 'systemctl show'].includes(c)
+    );
+    assert.deepEqual(calls, []);
+    assert.match(stage, /svc_try_restart dashboard/);
+  });
+
+  test('the containers switch lives in deploy/pi/.env and only the dashboard is recreated', () => {
+    assert.match(stage, /stack_env_set FOUNDRY_AI_PLAYER_VAULTS_DIR "\$players_dir"/);
+    assert.match(stage, /stack_env_set FOUNDRY_AI_PLAYER_VAULTS_DIR ""/);
+    const composes = stage.match(/stack_compose [^|\n]*/g) ?? [];
+    assert.ok(composes.length >= 3);
+    for (const c of composes)
+      assert.match(c, /^stack_compose up (-d|--no-start) --no-deps dashboard /, c);
+    assert.doesNotMatch(stage, /compose (down|restart|rm)|docker (stop|rm|restart)/);
+  });
+
+  test('the quiet check comes before .env is written, and a recreate only when the container differs', () => {
+    const on = stage.slice(
+      stage.indexOf('stack_dashboard_on() {'),
+      stage.indexOf('stack_dashboard_off() {')
+    );
+    assert.ok(on.indexOf('require_quiet') > 0);
+    assert.ok(on.indexOf('require_quiet') < on.indexOf('stack_env_set'));
+    assert.ok(on.indexOf('stack_env_set') < on.indexOf('stack_compose'));
+    assert.match(on, /not restarted: nothing it uses changed/);
+    assert.match(on, /\[ "\$running" = 1 \] && \[ "\$need" = 1 \]/);
+  });
+
+  test('switching off asks for quiet before Syncthing and .env are touched', () => {
+    const off = stage.slice(stage.indexOf('switch_off() {'));
+    const quiet = off.indexOf('require_quiet "switching player vaults off');
+    assert.ok(quiet > 0);
+    assert.ok(quiet < off.indexOf('config folders "$f" delete'));
+    assert.ok(off.indexOf('config folders "$f" delete') < off.indexOf('stack_dashboard_off'));
+  });
+
+  test('the report reads .env and the container, not the unit', () => {
+    const rep = stage.slice(
+      stage.indexOf('report_switch_containers() {'),
+      stage.indexOf('report() {')
+    );
+    assert.match(rep, /stack_switch/);
+    assert.match(rep, /dashboard_container_value/);
+    assert.match(rep, /stopped/);
+    assert.doesNotMatch(rep, /systemctl|dropin/);
+  });
+});
+
 describe(
   'stage 21 in the ARM64 container',
   { skip: process.env.PI_STAGE21_CONTAINER !== '1' },
   () => {
-    test('scenarios', () => {
-      const r = runStageContainer('stage21-scenarios.sh', { timeout: 900000 });
-      assert.equal(r.status, 0, r.stdout + r.stderr);
-      assert.ok(r.stdout.includes('ALL SCENARIOS OK'), r.stdout);
-    });
+    // stage21-stack-scenarios.sh (a cut-over Pi, stand-in docker and Syncthing) also runs without a container in Git Bash:
+    //   REPO=$PWD bash scripts/pi/container-test/stage21-stack-scenarios.sh
+    for (const script of ['stage21-scenarios.sh', 'stage21-stack-scenarios.sh']) {
+      test(script, () => {
+        const r = runStageContainer(script, { timeout: 900000 });
+        assert.equal(r.status, 0, r.stdout + r.stderr);
+        assert.ok(r.stdout.includes('ALL SCENARIOS OK'), r.stdout);
+      });
+    }
   }
 );

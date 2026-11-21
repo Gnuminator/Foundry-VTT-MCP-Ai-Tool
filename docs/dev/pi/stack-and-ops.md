@@ -100,7 +100,7 @@ side, each only after a `dietpi-backup` snapshot and the user's OK; nothing here
   `docker-compose-v2` where the archive has that name) and `docker-buildx`; enables `docker.service`; writes
   `deploy/pi/.env` in the deployed checkout (`/opt/foundry-ai-tool/app`: the foundry user's ids, the tailnet name and the player
   vaults folder from stage 21); builds the three images. Starts nothing. `DRY_RUN=1` prints the plan, `SKIP_BUILD=1` skips the
-  build. Run it again after every stage 5 build (the checkout, and its `.env`, is replaced).
+  build. On the systemd units, run it again after every stage 5 build (the checkout, and its `.env`, is replaced); on the cut-over stack stage 5 carries the `.env` over and builds the images itself.
 - **Stage 24** (`scripts/pi/remote/24-compose.sh`, `MODE=status|up|down|rollback`): `up` and `down` start and stop the stack
   for a rehearsal (`up` is refused next to a running or enabled unit on the live ports or data folders; a rehearsal on other
   ports is its own compose project and never touches the live containers); `rollback` is the one command back (every container
@@ -111,11 +111,18 @@ side, each only after a `dietpi-backup` snapshot and the user's OK; nothing here
   (quiet table), stage 6 again (the cutover refuses while the installed nightly script does not know the containers), `MODE=cutover DRY_RUN=1`,
   `MODE=cutover`, a nightly backup run by hand, `MODE=rollback` at any time. The exact steps are in `deploy/pi/README.md`, "Cutover
   and rollback".
-- **After a cutover every stage that would start, restart or enable `foundry.service`, the bridge, the dashboard or the Assistant
-  GM refuses** (`refuse_when_cut_over` in `lib.sh`: 3, 5, 7, 11, 12, 13, 14, 19, 21, 25, 27, 28, 30, `gm-script`, `kit-session`,
-  `switch-world`, `set-dashboard-access`), also with `FORCE=1`, also when only a stopped container exists, and when the Docker
-  daemon does not answer. The Discord bot stays a unit, so its stages (8, 26, `set-discord-token`) are not guarded. Go back with
-  `MODE=rollback` first. `scripts/pi/cutover-guard.test.mjs` fails for a new stage that starts a unit without the guard.
+- **After a cutover the stages that release, update or test things work on the containers (day two, D-149):** stage 5 (a new
+  release: host build, images built before anything stops, only the changed containers recreated, on a quiet Pi), stage 21
+  (the player vault switch lives in `deploy/pi/.env`; only the dashboard container is recreated, and only when the value
+  changed), stage 25 (modules: stop and start of the existing containers), `switch-world` and `kit-session` (the Kit GM browser is
+  a plain container named `foundry-ai-tool-kit-gm-browser`, not part of the compose project). They call `use_stack` in `lib.sh` and
+  drive the four services through the `svc_*` helpers: the same commands on the units side, `docker stop|start|restart` on the
+  existing containers on the stack side, never a recreate except where written above.
+- **The other stages still refuse after a cutover** (`refuse_when_cut_over`: 3, 7, 11, 12, 13, 14, 19, 27, 28, 30, `gm-script`,
+  `set-dashboard-access`), also with `FORCE=1`, also when only a stopped container exists, and when the Docker daemon does not
+  answer. The Discord bot stays a unit, so its stages (8, 26, `set-discord-token`) are not guarded. Go back with
+  `MODE=rollback` first. `scripts/pi/cutover-guard.test.mjs` fails for a new stage that starts a unit without `refuse_when_cut_over`
+  or `use_stack`, and for a `use_stack` stage that still calls `systemctl` on a stack unit directly.
 - The nightly backup (stage 6) stops and starts the Foundry **container** when the stack runs as containers, verifies it is stopped
   before restic copies the worlds, and reports an error when the daemon is silent and `foundry.service` is not running either. Run
   stage 6 again before the cutover so the Pi has the new script; `MODE=cutover` refuses until it does.

@@ -5,6 +5,8 @@
 # block that scripts/pi/kit-session.test.mjs reads:
 #   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" <IMAGE> bash /repo/scripts/pi/container-test/kit-session-scenarios.sh [name ...]
 # (<IMAGE> is built from container-test/Dockerfile by run-stage-container.mjs.) With names, only those scenarios run.
+# The cut-* scenarios (the "cutover" switch) add a stand-in docker (bin/fake-kit-docker) and switch every unit off: a Pi after the
+# cutover, where the stack is containers and the Kit GM browser is a plain container.
 # Nothing here reaches the network. The stage's node snippets run on Debian 13's own nodejs (20.x)
 # linked as /opt/node24/bin/node, not Node 24 as on the Pi; they use nothing newer than Node 20.
 #
@@ -36,6 +38,8 @@ fresh_pi() {
   rm -rf "${FOUNDRY_DATA:?}" "${TOOL_DIR:?}" "${TOOL_ETC:?}" "${TOOL_DATA:?}" "${IMPORT:?}" /root/kit-session.mjs
   rm -f /tmp/stopped-* /tmp/gmbroken /tmp/calls /tmp/status /tmp/status_rc /tmp/driverfail /tmp/gm-counts /tmp/joinfail /tmp/stopfail
   rm -f /tmp/started-kit /tmp/kitnojoin /tmp/kitstopfail /tmp/kitrunfail /tmp/nolink /tmp/nobridge /tmp/kit-counts /tmp/kit-activating /tmp/fake-orig-bridge /tmp/seen-kit-pw /tmp/kit-env-seen /tmp/stage-out
+  # A Pi after the cutover (the "cutover" switch): the docker stand-in, every unit off, no docker problems.
+  rm -f /usr/local/sbin/docker /tmp/units-off /tmp/noimage /tmp/kit-exited /tmp/foundry-container-down
   mkdir -p "$FOUNDRY_DATA/Config" "$FOUNDRY_DATA/Data/worlds"
   echo '{"world":"'"$1"'"}' >"$FOUNDRY_DATA/Config/options.json"
   for w in curse-of-strahd strahd-kit; do
@@ -133,6 +137,14 @@ write_state() {
 #   kit-counts   /api/status counts the Kit GM browser as a user while it runs
 #   joinfail     the world does not answer on port 30000 once Foundry was stopped
 #   stopfail     "systemctl stop foundry.service" fails
+#   cutover      a Pi after the cutover (D-149, day two): the four stack services are the containers of compose project
+#                foundry-ai-tool-pi (the docker stand-in bin/fake-kit-docker, installed as docker), every unit is off, the Kit GM
+#                browser is a plain container, not a transient unit; "gm" and "foundry" in the inactive list stop those containers.
+#                The calls then hold "docker ..." lines. Never a systemctl start, restart, stop or enable, never systemd-run.
+#   cutover-ports  the same, with FOUNDRY_HTTP_PORT=30100 and BRIDGE_CONTROL_PORT=31614 in deploy/pi/.env
+#   noimage      the gm-browser image is missing (cutover)
+#   kit-exited   a stopped Kit GM container is left from an earlier run (cutover)
+#                (kitrunfail and kitstopfail make docker run and docker rm -f fail; kitnojoin, kit-counts, driverfail ... as above)
 #   closepipe=N  the stage's output is cut off after N lines, as when the ssh session drops (SIGPIPE): the next write
 #                dies. For up (the lines of up-ok): 13 ends at "strahd-kit is running", after options.json was changed;
 #                14 ends at "making the password file", 15 after "wrote ...kit-gm.env" (the driver is next), 21 at
@@ -191,6 +203,15 @@ scenario() {
       origbridge-bad) echo BAD >/tmp/fake-orig-bridge ;;
       origbridge-none) echo NONE >/tmp/fake-orig-bridge ;;
       kit-activating) touch /tmp/kit-activating ;;
+      cutover | cutover-ports)
+        install -m 755 "$H/bin/fake-kit-docker" /usr/local/sbin/docker
+        touch /tmp/units-off
+        mkdir -p "$TOOL_DIR/app/deploy/pi"
+        printf 'FOUNDRY_UID=996\nFOUNDRY_GID=996\n' >"$TOOL_DIR/app/deploy/pi/.env"
+        [ "$w" != cutover-ports ] || printf 'FOUNDRY_HTTP_PORT=30100\nBRIDGE_CONTROL_PORT=31614\n' >>"$TOOL_DIR/app/deploy/pi/.env"
+        ;;
+      noimage) touch /tmp/noimage ;;
+      kit-exited) touch /tmp/kit-exited ;;
       options600) chmod 600 "$FOUNDRY_DATA/Config/options.json" ;;
       options-readonly)
         # The Config folder is root's here: the foundry user cannot write the temp file (set_world fails before any rename).
@@ -373,4 +394,29 @@ scenario down-kit-active-users-online '{"active":true,"users":2}' 0 "gm" down do
 scenario down-kit-stop-fails "$U0" 0 "gm" down down-state kitstopfail
 scenario down-stop-fails "$U0" 0 "gm" down down-state stopfail
 scenario down-gm-browser-fails "$U0" 0 "gm" down down-state gmbroken
+# After the cutover: the stack is containers, the Kit GM browser a plain container (docker stand-in).
+scenario cut-up-ok "$U0" 0 "" up cutover
+scenario cut-up-ports "$U0" 0 "" up cutover-ports
+scenario cut-up-gm-was-off "$U0" 0 "gm" up cutover
+scenario cut-up-foundry-was-off "$U0" 0 "foundry" up cutover
+scenario cut-up-state-exists "$U0" 0 "" up cutover up-state
+scenario cut-up-leftover "$U0" 0 "" up cutover leftover
+scenario cut-up-leftover-exited "$U0" 0 "" up cutover kit-exited
+scenario cut-up-users-online '{"active":true,"users":2}' 0 "" up cutover
+scenario cut-up-driver-fails "$U0" 0 "" up cutover driverfail
+scenario cut-up-driver-fails-gm-off "$U0" 0 "gm" up cutover driverfail
+scenario cut-up-kit-not-joined "$U0" 0 "" up cutover kitnojoin
+scenario cut-up-kit-run-fails "$U0" 0 "" up cutover kitrunfail
+scenario cut-up-no-bridge-link "$U0" 0 "" up cutover nolink
+scenario cut-up-no-image "$U0" 0 "" up cutover noimage
+scenario cut-up-pipe-closed "$U0" 0 "" up cutover closepipe=13
+scenario cut-down-ok "$U0" 0 "gm" down cutover down-state
+scenario cut-down-gm-was-off "$U0" 0 "gm" down cutover down-state-gm0
+scenario cut-down-driver-fails "$U0" 0 "gm" down cutover down-state driverfail
+scenario cut-down-users-online '{"active":true,"users":1}' 0 "gm" down cutover down-state
+scenario cut-down-kit-counts "$U0" 0 "gm" down cutover down-state kit-counts
+scenario cut-down-kit-stop-fails "$U0" 0 "gm" down cutover down-state kitstopfail
+scenario cut-down-foundry-off "$U0" 0 "gm foundry" down cutover down-state
+scenario cut-down-world-not-back "$U0" 0 "gm" down cutover down-state joinfail
+scenario cut-down-old-state "$U0" 0 "gm" down cutover down-state-old
 echo "=== ALL DONE"

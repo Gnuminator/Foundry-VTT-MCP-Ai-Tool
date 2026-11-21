@@ -13,6 +13,7 @@
 #     again turns it back
 #   8 REMOVE with a device: B is unshared and forgotten; REMOVE without one: the folder leaves Syncthing, the files stay
 #   9 OFF=1: no player folder left, the drop-in gone, every vault file still there
+# The units side only: the same stage on a cut-over Pi (containers, the switch in deploy/pi/.env) is stage21-stack-scenarios.sh.
 # The last line is ALL SCENARIOS OK when every one passed:
 #   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" <IMAGE> bash /repo/scripts/pi/container-test/stage21-scenarios.sh
 # (scripts/pi/player-vault.test.mjs runs it with PI_STAGE21_CONTAINER=1.) STAGE=<file> runs the scenarios against another copy

@@ -171,6 +171,16 @@ gm_container_joined() {
   [ "$(docker logs --since "$started" "$cid" 2>&1 | grep -c '\[assistant-gm\] joined world' || true)" -gt 0 ]
 }
 
+# kit_gm_container_joined: 0 when the Kit GM container (a kit session on the cut-over stack) runs and joined the world in its
+# current run (the same rule as kit_container_joined in lib.sh).
+kit_gm_container_joined() {
+  local name=foundry-ai-tool-kit-gm-browser started
+  [ "$(docker inspect -f '{{.State.Running}}' "$name" 2>/dev/null || true)" = true ] || return 1
+  started="$(docker inspect -f '{{.State.StartedAt}}' "$name" 2>/dev/null || true)"
+  [ -n "$started" ] || return 1
+  [ "$(docker logs --since "$started" "$name" 2>&1 | grep -c '\[assistant-gm\] joined world' || true)" -gt 0 ]
+}
+
 # browser_joined UNIT: 0 when the GM browser UNIT runs and has joined the world in its current run (matched on the
 # systemd invocation id or, when that finds nothing, its main PID in this boot; not on a time; the same as browser_joined
 # in lib.sh, and a test keeps the two bodies equal).
@@ -203,6 +213,7 @@ players_online() {
     if [ "$users" -gt 0 ] && browser_joined "$unit"; then users=$((users - 1)); fi
   done
   if [ "$stack" = containers ] && [ "$users" -gt 0 ] && gm_container_joined; then users=$((users - 1)); fi
+  if [ "$stack" = containers ] && [ "$users" -gt 0 ] && kit_gm_container_joined; then users=$((users - 1)); fi
   printf '%s' "$users"
 }
 

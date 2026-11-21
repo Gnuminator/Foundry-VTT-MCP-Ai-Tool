@@ -56,7 +56,7 @@ export async function runDirectWrite<T>(
   } catch (error) {
     // Some tools wrap the bridge error (ErrorHandler keeps it as `cause`): look down the chain.
     for (let e: unknown = error, depth = 0; e !== undefined && depth < 5; depth++) {
-      const message = e instanceof Error ? e.message : String(e);
+      const message = e instanceof Error ? e.message : typeof e === 'string' ? e : '';
       if (isLostAnswerMessage(message)) {
         const closed = !/query timeout/i.test(message);
         throw new Error(

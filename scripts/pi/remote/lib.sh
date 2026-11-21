@@ -173,15 +173,20 @@ use_stack() {
   STACK=containers
 }
 
-# svc_cid SERVICE [-a]: the container id of a stack service (-a: a stopped one too); empty when none or unknown.
+# svc_cid SERVICE [-a]: the container id of a stack service (-a: a stopped one too); empty when there is none. Returns 1
+# when the Docker daemon does not answer (unknown is not "no container": a caller must not read it as "nothing to stop").
 svc_cid() {
-  containers_of "$COMPOSE_LIVE_PROJECT" "$1" "${2:-}" 2>/dev/null | head -n 1 || true
+  local ids
+  ids="$(containers_of "$COMPOSE_LIVE_PROJECT" "$1" "${2:-}" 2>/dev/null)" || return 1
+  printf '%s' "$ids" | head -n 1
 }
 # svc_active SERVICE: runs now.
 svc_active() {
   if [ "$STACK" = containers ]; then [ -n "$(svc_cid "$1")" ]; else systemctl is-active --quiet "$(svc_unit "$1")"; fi
 }
-# svc_wanted SERVICE: runs now, or is set up to run (enabled unit, existing container): "it was part of the stack".
+# svc_wanted SERVICE: runs now, or is set up to run (enabled unit, existing container): "it was part of the stack". On
+# containers it means "the container exists", so an Assistant GM container someone stopped on purpose is started again by
+# a stage that stopped it; the units only restart an enabled one.
 svc_wanted() {
   if [ "$STACK" = containers ]; then
     [ -n "$(svc_cid "$1" -a)" ]
@@ -190,16 +195,27 @@ svc_wanted() {
   fi
 }
 # stack_docker ARGS: plain docker. Every stage bundle carries lib.sh, and the remote-command guard asks for any bundle that
-# spells out a container stop or restart; only the stages that use_stack stop containers (their tests pin that list), so
-# the verbs go through this wrapper instead of making all 20 bundles ask.
+# spells out a container stop, restart or remove. Only the five use_stack stages and this file call stack_docker and
+# stack_compose (cutover-guard.test.mjs pins that list and the verbs), so the verbs go through this wrapper instead of
+# making all 20 bundles ask; the guard asks for stack_docker / stack_compose verbs written in a command or in any file
+# that is not a stage script, so the wrapper is no way around the rule.
 stack_docker() { docker "$@"; }
 # svc_stop SERVICE: stops it (a stopped one is fine). Containers: docker stop on the existing container, which keeps the
 # 90 s grace of the compose file; nothing is recreated or removed.
 svc_stop() {
   local cid
   if [ "$STACK" = containers ]; then
-    cid="$(svc_cid "$1")"
-    [ -z "$cid" ] || stack_docker stop "$cid" >/dev/null
+    cid="$(svc_cid "$1")" || {
+      warn "the Docker daemon does not answer, so whether the $1 container runs is unknown: it was not stopped"
+      return 1
+    }
+    [ -z "$cid" ] && return 0
+    stack_docker stop "$cid" >/dev/null || return 1
+    # Read it back: a stop that returned but left the container running must not pass (a failed stop already returned above).
+    [ "$(timeout 20 docker inspect -f '{{.State.Running}}' "$cid" 2>/dev/null || true)" != true ] || {
+      warn "the $1 container ($cid) is not confirmed stopped"
+      return 1
+    }
   else
     systemctl stop "$(svc_unit "$1")"
   fi

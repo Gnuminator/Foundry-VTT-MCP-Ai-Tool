@@ -805,7 +805,7 @@ function shNames(command) {
 }
 
 /** Local script files the command feeds to the remote side. */
-function fedFiles(command, cwd) {
+function fedFiles(command, cwd, outsideStages = false) {
   const names = new Set();
   for (const m of command.matchAll(/<\s*("[^"]+"|'[^']+'|\S+)/g)) names.add(m[1]);
   for (const t of catPipeWords(command)) names.add(t);
@@ -814,6 +814,8 @@ function fedFiles(command, cwd) {
   for (const name of names) {
     const clean = name.replace(/^["']|["']$/g, '');
     const full = path.isAbsolute(clean) ? clean : path.join(cwd, clean);
+    // outsideStages: only files that are not the reviewed stage scripts (scripts/pi/remote/ of this checkout).
+    if (outsideStages && path.resolve(full).startsWith(path.resolve(cwd, 'scripts/pi/remote') + path.sep)) continue;
     try {
       if (existsSync(full) && statSync(full).isFile() && statSync(full).size < 2_000_000) {
         texts.push(readFileSync(full, 'utf8'));
@@ -931,6 +933,9 @@ export function decide(command, cwd = process.cwd()) {
   return { decision: 'ask', reasons: [...new Set([...(base?.reasons ?? []), CLOUDFLARE_REASON])] };
 }
 
+const STACK_WRAPPER_DESTROYS =
+  /\bstack_docker[ \t]+(?:-\S+[ \t]+)*(?:(?:rm|rmi|kill|stop|restart)\b|(?:system|container|image|volume|network)[ \t]+(?:prune|rm|rmi|kill|stop|restart)\b)|\bstack_compose\b[^\n]*(?:\b(?:down|rm|kill|stop|restart)\b|--force-recreate\b)/;
+
 function decideRemote(command, cwd) {
   if (!REMOTE.test(command)) return null;
   const hosts = remoteHosts(command);
@@ -956,8 +961,17 @@ function decideRemote(command, cwd) {
     ...modes.deny,
   ];
   if (deny.length) return { decision: 'deny', reasons: [...new Set(deny)] };
+  // lib.sh's stack_docker and stack_compose wrap the container verbs for the reviewed stage scripts (so the 20 bundles that
+  // carry lib.sh do not ask). Written in the command itself or in a file that is not a stage script they ask like plain docker.
+  const direct = [command, ...unquotedRemoteCommands(command), ...fedFiles(command, cwd, true)]
+    .flatMap(p => p.split('\n').filter(notComment))
+    .join('\n');
+  const wrapperAsk = STACK_WRAPPER_DESTROYS.test(direct)
+    ? ['stopping, restarting or removing containers (stack_docker, stack_compose: the wrappers of lib.sh)']
+    : [];
   const ask = [
     ...ASK.filter(([rule]) => hit(rule, text)).map(([, why]) => why),
+    ...wrapperAsk,
     ...removal.ask,
     ...modes.ask,
   ];

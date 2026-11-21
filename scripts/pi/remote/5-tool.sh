@@ -122,6 +122,14 @@ containers_prepare_build() {
       die "image $img is missing after the build (log: $build_log); nothing was swapped or stopped"
   done
   ok "the images are built"
+  # The build took minutes: ask for a quiet Pi again now, before the swap, when the apply below will recreate anything, so a
+  # player who joined meanwhile refuses here and not half way (after the swap and the module copy).
+  for img in $STACK_SERVICES; do
+    if containers_stale "$img"; then
+      require_quiet "recreating the changed containers (checked before the swap)"
+      break
+    fi
+  done
 }
 
 # containers_stale SERVICE: 0 when `compose up -d` would recreate the running container of SERVICE (its image is not the one the
@@ -169,6 +177,7 @@ containers_apply() {
       ok "$s: no container (stage 24 makes it)"
     elif [ "$after" != "${before[$s]}" ]; then
       ok "$s: recreated"
+      [ "$s" != foundry ] || foundry_recreated=1
     else
       ok "$s: unchanged"
     fi
@@ -303,9 +312,7 @@ else
   chmod 755 "$module_dir"
   ok "installed the module in $module_dir"
   if [ "$STACK" = containers ]; then
-    if [ -n "$(svc_cid foundry)" ]; then
-      warn "Foundry is running: restart the container $(svc_cid foundry) when no one plays, so it loads the new module"
-    fi
+    module_installed=1 # the warning comes after containers_apply, which may recreate Foundry (then it has the module already)
   elif have_systemd && systemctl is-active --quiet foundry.service; then
     warn "Foundry is running: restart it (systemctl restart foundry) when no one plays, so it loads the new module"
   fi
@@ -343,6 +350,9 @@ say "services"
 if [ "$STACK" = containers ]; then
   ok "the stack runs as containers (project $COMPOSE_LIVE_PROJECT): no unit files, nothing enabled or restarted through systemd"
   containers_apply
+  if [ "${module_installed:-0}" = 1 ] && [ "${foundry_recreated:-0}" != 1 ] && [ -n "$(svc_cid foundry)" ]; then
+    warn "Foundry is running: restart the container $(svc_cid foundry) when no one plays, so it loads the new module"
+  fi
 fi
 common="User=$FOUNDRY_USER
 Group=$FOUNDRY_USER

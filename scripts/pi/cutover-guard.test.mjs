@@ -178,6 +178,7 @@ describe('use_stack and svc_*', { skip: !hasBash && 'no bash here' }, () => {
 echo "docker $*" >>"$CALLS"
 case "$1" in
   info) [ "$DOCKER_MODE" != down ] || exit 1; exit 0 ;;
+  inspect) [ "$DOCKER_MODE" != down ] || exit 1; echo false; exit 0 ;;
   ps)
     [ "$DOCKER_MODE" != down ] || exit 1
     all=0; svc=""
@@ -256,6 +257,13 @@ exit 0
     assert.doesNotMatch(r.stdout, /passed/);
     assert.match(r.stderr, /foundry\.service runs next to the containers.*mixed state/);
   });
+  test('a silent Docker daemon is not "no container": svc_stop on containers fails and says so', () => {
+    const r = run('live', 'use_stack "x"; DOCKER_MODE=down; export DOCKER_MODE; svc_stop foundry || echo "rc=$?"');
+    assert.match(r.stdout, /rc=1/);
+    assert.doesNotMatch(r.calls, /docker stop/);
+    assert.match(r.stderr, /does not answer/);
+  });
+
   test('svc_start of a service with no container is an error, not a silent success', () => {
     const r = run('none', 'use_stack "x"; STACK=containers; svc_start foundry || echo "rc=$?"');
     assert.match(r.stdout, /rc=1/);
@@ -358,6 +366,32 @@ describe('every stage that starts, restarts or enables a unit calls the guard', 
         `${f} calls systemctl on a stack unit directly: use svc_start, svc_stop, svc_restart or svc_try_restart (lib.sh)`
       );
     }
+  });
+
+  test('only the use_stack stages and lib.sh call stack_docker or stack_compose, with the allowed verbs', () => {
+    const allowed = new Set(['lib.sh', '21-player-vault.sh', '25-modules.sh', '5-tool.sh', 'kit-session.sh', 'switch-world.sh']);
+    const files = readdirSync(remote).filter(f => f.endsWith('.sh'));
+    const verbs = /\bstack_docker\s+(\S+)/g;
+    const found = new Map();
+    for (const f of files) {
+      const text = codeLines(readFileSync(path.join(remote, f), 'utf8')).map(l => l.line).join('\n');
+      const hits = [...text.matchAll(/\bstack_(?:docker|compose)\b/g)];
+      if (hits.length && !allowed.has(f)) assert.fail(`${f} uses stack_docker or stack_compose: only the use_stack stages and lib.sh may (the guard hides their verbs)`);
+      for (const m of text.matchAll(verbs)) found.set(m[1], (found.get(m[1]) ?? 0) + 1);
+      assert.doesNotMatch(text, /\bstack_compose\b[^\n]*\b(?:down|kill)\b/, `${f}: stack_compose down or kill is stage 24's, with its own checks`);
+    }
+    for (const verb of found.keys()) assert.ok(['stop', 'start', 'restart', 'rm', 'run', 'logs', 'inspect'].includes(verb) || verb.startsWith('-'), `stack_docker ${verb}`);
+  });
+
+  test('the Kit GM hint never tells the operator to run a bare docker inspect (it prints the password)', () => {
+    const text = readFileSync(path.join(remote, 'kit-session.sh'), 'utf8');
+    assert.doesNotMatch(text, /echo "docker inspect \$KIT_GM_UNIT"/);
+  });
+
+  test('the nightly backup subtracts the Kit GM container like lib.sh does', () => {
+    const backup = readFileSync(path.join(remote, '6-backup.sh'), 'utf8');
+    assert.match(backup, /kit_gm_container_joined/);
+    assert.match(backup, /\$stack" = containers \] && \[ "\$users" -gt 0 \] && kit_gm_container_joined/);
   });
 
   test('NO_GUARD names only files that exist', () => {

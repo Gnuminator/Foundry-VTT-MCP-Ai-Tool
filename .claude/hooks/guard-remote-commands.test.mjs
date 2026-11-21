@@ -81,6 +81,20 @@ test('kit-session.sh (the strahd-kit test run) passes the guard as documented, u
   }
 });
 
+test('lib.sh stack_docker and stack_compose are not a way around the container rule outside the stage scripts', () => {
+  for (const tail of [
+    "stack_docker rm -f foundry-ai-tool-foundry-1'",
+    "stack_docker stop cid1'",
+    "stack_compose down'",
+    "stack_compose up -d --force-recreate dashboard'",
+  ]) {
+    const command = `cat scripts/pi/remote/lib.sh - | ssh foundry-pi 'bash -s; ${tail}`;
+    assert.equal(kind(command), 'ask', command);
+  }
+  // Read-only and start verbs stay free, and a reviewed stage script that uses them still passes.
+  assert.equal(kind("cat scripts/pi/remote/lib.sh - | ssh foundry-pi 'bash -s; stack_compose ps; stack_docker start cid1'"), 'allow');
+});
+
 test('switch-world.sh (the world switch) passes the guard as documented, dry run and real', () => {
   for (const env of ['WORLD=frostmaiden-training DRY_RUN=1', 'WORLD=curse-of-strahd FORCE=1']) {
     const command = `cat scripts/pi/remote/lib.sh scripts/pi/remote/switch-world.sh | ssh foundry-pi '${env} bash -s'`;

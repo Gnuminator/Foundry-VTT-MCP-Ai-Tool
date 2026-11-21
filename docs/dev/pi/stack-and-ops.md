@@ -100,7 +100,7 @@ side, each only after a `dietpi-backup` snapshot and the user's OK; nothing here
   `docker-compose-v2` where the archive has that name) and `docker-buildx`; enables `docker.service`; writes
   `deploy/pi/.env` in the deployed checkout (`/opt/foundry-ai-tool/app`: the foundry user's ids, the tailnet name and the player
   vaults folder from stage 21); builds the three images. Starts nothing. `DRY_RUN=1` prints the plan, `SKIP_BUILD=1` skips the
-  build. Run it again after every stage 5 build (the checkout, and its `.env`, is replaced).
+  build. On the systemd units, run it again after every stage 5 build (the checkout, and its `.env`, is replaced); on the cut-over stack stage 5 carries the `.env` over and builds the images itself.
 - **Stage 24** (`scripts/pi/remote/24-compose.sh`, `MODE=status|up|down|rollback`): `up` and `down` start and stop the stack
   for a rehearsal (`up` is refused next to a running or enabled unit on the live ports or data folders; a rehearsal on other
   ports is its own compose project and never touches the live containers); `rollback` is the one command back (every container

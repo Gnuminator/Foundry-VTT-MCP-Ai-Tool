@@ -666,7 +666,7 @@ ONLINE_NOTE=""
 if [ "$kit_gm_session" = 1 ]; then
   stop_kit_gm_browser
   if kit_gm_active; then
-    die "the Kit GM browser ($KIT_GM_UNIT) did not stop: see $([ "$STACK" = containers ] && echo "docker inspect $KIT_GM_UNIT" || echo "systemctl status $KIT_GM_UNIT"). Nothing else was changed"
+    die "the Kit GM browser ($KIT_GM_UNIT) did not stop: see $([ "$STACK" = containers ] && echo "docker logs --tail 30 $KIT_GM_UNIT (never a bare docker inspect: it prints the container's password)" || echo "systemctl status $KIT_GM_UNIT"). Nothing else was changed"
   fi
   ONLINE_NOTE=" (the Kit GM browser is stopped now and stays stopped; run MODE=down again once the player has left)"
 fi

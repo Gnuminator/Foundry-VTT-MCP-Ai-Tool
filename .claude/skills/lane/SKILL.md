@@ -39,9 +39,7 @@ Not prose, not only the wrap-up ask, never a message asking the planner to get i
   any live check and release it after. Servers A, B, C: check `lock.ps1
 status -Server B`, take a free one with `-Server X` and pass it to start, stop, sync and
   status. None free: wait or ask the user. Standalone bridge: `node packages/mcp-server/dist/standalone.js --port
-31514 --control-only` (B 31524, C 31534). A stopped background task may leave its node child: check PID.
-- **Commands over 2 minutes** run in the background, never polled; logs go to the scratchpad. Never call
-  `python3` (Store stub, hangs); use `python`.
+31514 --control-only` (B 31524, C 31534).- **Commands over 2 minutes** run in the background, never polled; logs go to the scratchpad. Never call `python3`.
 - **GPU lock:** take `lock.ps1 take -Server GPU` before any GPU job (Real-ESRGAN, Blender, audio,
   speech or headless models), release after; one at a time.
 - Review checklist: `review-checklist.md`. For dashboard or player-page UI the reviewer also
@@ -55,8 +53,7 @@ status -Server B`, take a free one with `-Server X` and pass it to start, stop, 
     diffs your branch against `aitool/main` and runs, for what you touched: the shared build,
     typecheck and unit tests per package, ESLint, markdownlint and `docs:links`, the node tests of
     changed scripts and hooks, dashboard e2e specs, and for
-    dashboard or kit paths the catalogue check, bundle budget and `kit.mjs check`. Screenshots
-    (`dashboard-visual`) run on CI only.
+    dashboard or kit paths the catalogue check, bundle budget and `kit.mjs check`.
   - **Push early, never red:** once the quick checks pass, push and open a draft PR before baselines and review; `gh pr ready` before the gate. A failure already on main
     is named in the PR body (`gh run list --branch main -w ci.yml -L 1`), not guessed at.
   - Code comments never contain `#<number>`. After a tool change run `npm run docs:tools`; lower
@@ -124,14 +121,16 @@ scripts/heavy-lock.mjs status`). `SKIP_PREPUSH=1 git push ...` skips the em-dash
   d=$(cygpath -m "$(mktemp -d)") && git fetch -q aitool main && git archive aitool/main scripts/lane-merge.mjs scripts/lane-merge | tar -x -C "$d" && test -s "$d/scripts/lane-merge.mjs" && node "$d/scripts/lane-merge.mjs" <PR> --dry-run
   ```
 
-  (The gate is `lane-merge.mjs` plus `scripts/lane-merge/`.)
-
   Only a `lane:merge: OK #<PR>` line passes; anything else (or nothing) is a refusal. The gate checks CI on the head, a review note for that sha, the changelog fragment,
   `drift:check` and the merge train. Exit codes: 0 ok or merged, 1 refused, 2 usage, 3 a check
   failed, 4 head moved, 5 timed out. **Do not pipe the gate through
-  `tail` or `head`** (it hides the exit code): run it plain and read its last line. A blocking CANCELLED check of an unclassified or mixed CI
+  `tail` or `head`** (it hides the exit code): read its last line. A blocking CANCELLED check of an unclassified or mixed CI
   run (all its jobs cancelled before they started, or both `[dispatch]` and plain names) is not
   cleared by a newer run: rerun it (`gh run rerun <id> --failed`) or push.
+
+- **Board repo PR** (`foundry-ai-tool-pm-board`, CI `test`): the runner never merges it. Save
+  `board-<n>-review.md` with `Head reviewed: <sha>`, then `backlog.mjs progress <id> "board #<n>
+head <sha>, review <note>"`. `status --planner` lists it; the planner merges it.
 
 ## Context and handover
 
@@ -139,8 +138,7 @@ scripts/heavy-lock.mjs status`). `SKIP_PREPUSH=1 git push ...` skips the em-dash
   lane (project dir under `.claude/worktrees/`), fixed at session start (the user, 2026-11-04); the planner and
   other sessions keep 200k and 250k. `get_usage "self"` gives the exact number.
 - **Hard stop:** at or above 300k `context-stop.mjs` denies Edit, Write, Agent and shell commands
-  that write in the repo. Still allowed: reading, git, `gh`, vault and scratchpad writes, wrap_up.
-  Hand over, stop.
+  that write in the repo. Still allowed: reading, git, `gh`, vault and scratchpad writes. Hand over, stop.
 - **Handover:** write it once. Half a page in vault `Handoff/<lane> prompt
   <date>.md` and in the chat in a fenced block: task, state, branch, PR and head sha, done-when, the next command, "follow
   CLAUDE.md". Findings a successor needs go in the vault, not side-session notes (archiving deletes those). No background run of yours may still go. Push the note, then `backlog.mjs progress` (`handed over at <context>, no PR

@@ -20,6 +20,7 @@ import { playerHero, builtHeroes } from '../lib/helpers.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const CANARY = 'KIT-CANARY-GM-JOURNAL';
+const BOOK_WORD = 'wombatgrapple';
 const TOOLS = [
   'get-my-character',
   'get-my-level-up-options',
@@ -83,7 +84,7 @@ export default {
     let userId = '';
     await t.step('find the Foundry id of the kit Player', async () => {
       userId = await page.evaluate(
-        name => (/** @type {any} */ (globalThis).game.users.getName(name)?.id ?? ''),
+        name => /** @type {any} */ (globalThis).game.users.getName(name)?.id ?? '',
         KIT_PLAYER_USER
       );
       t.check(userId, `no Foundry user named "${KIT_PLAYER_USER}" in the kit world`);
@@ -148,6 +149,40 @@ export default {
       return 'journal made (default ownership none)';
     });
 
+    // The dnd5e system packs are never readable to a player, so the book hit comes from a world pack made
+    // here: one entry, readable by players, removed again afterwards.
+    /** @type {string | null} */
+    let bookPackId = null;
+    await t.step('make a small world book the players can read', async () => {
+      bookPackId = await page.evaluate(
+        async ({ word, lineText }) => {
+          const g = /** @type {any} */ (globalThis);
+          const pack = await g.foundry.documents.collections.CompendiumCollection.createCompendium({
+            label: 'Kit Player Book',
+            name: 'kit-player-book',
+            type: 'JournalEntry',
+            ownership: { PLAYER: 'OBSERVER', ASSISTANT: 'OWNER' },
+          });
+          await g.JournalEntry.create(
+            {
+              name: `Kit ${word} rule`,
+              pages: [{ name: `Kit ${word} page`, type: 'text', text: { content: lineText } }],
+            },
+            { pack: pack.collection }
+          );
+          return pack.collection;
+        },
+        { word: BOOK_WORD, lineText: `<p>A ${BOOK_WORD} is a made-up rule for the kit.</p>` }
+      );
+      t.cleanup(async () => {
+        if (!bookPackId) return;
+        await page.evaluate(async id => {
+          await /** @type {any} */ (globalThis).game.packs.get(id)?.deleteCompendium();
+        }, bookPackId);
+      });
+      return `${bookPackId} made`;
+    });
+
     await t.step('restart the dashboard with the player connector on', async () => {
       await restartDashboard(null, {
         repoRoot,
@@ -187,7 +222,10 @@ export default {
     };
 
     await t.step('initialize and list the tools', async () => {
-      const init = await rpc('initialize', { protocolVersion: '2025-03-26', clientInfo: { name: 'kit' } });
+      const init = await rpc('initialize', {
+        protocolVersion: '2025-03-26',
+        clientInfo: { name: 'kit' },
+      });
       t.check(init.status === 200, `initialize answered ${init.status} (is the connector on?)`);
       const list = await rpc('tools/list');
       const names = (list.body?.result?.tools ?? []).map((/** @type {any} */ x) => x.name);
@@ -197,16 +235,27 @@ export default {
 
     await t.step('get-player-skill-guide answers with no arguments', async () => {
       const r = await call('get-player-skill-guide');
-      t.check(!r.isError && r.text.length > 200, 'the skill guide is empty or an error', r.text.slice(0, 200));
+      t.check(
+        !r.isError && r.text.length > 200,
+        'the skill guide is empty or an error',
+        r.text.slice(0, 200)
+      );
       return `${r.text.length} characters`;
     });
 
     await t.step('get-my-character returns the kit Player hero', async () => {
       const r = await call('get-my-character');
       t.check(!r.isError, `get-my-character failed: ${r.text.slice(0, 200)}`);
-      t.check(r.text.includes(hero.name), `the reply does not name ${hero.name}`, r.text.slice(0, 400));
+      t.check(
+        r.text.includes(hero.name),
+        `the reply does not name ${hero.name}`,
+        r.text.slice(0, 400)
+      );
       for (const o of others) {
-        t.check(!r.text.includes(o.name), `the reply names ${o.name}, a hero this player does not own`);
+        t.check(
+          !r.text.includes(o.name),
+          `the reply names ${o.name}, a hero this player does not own`
+        );
       }
       return `${hero.name}, ${r.text.length} characters`;
     });
@@ -221,25 +270,37 @@ export default {
     /** @type {{packId?: string, documentId?: string} | null} */
     let hit = null;
     await t.step('search-books finds a rule', async () => {
-      const r = await call('search-books', { query: 'grappling', limit: 3 });
+      const r = await call('search-books', { query: BOOK_WORD, limit: 3 });
       t.check(!r.isError, `search-books failed: ${r.text.slice(0, 200)}`);
       const data = jsonOf(r.text);
       const results = Array.isArray(data?.results) ? data.results : [];
-      t.check(results.length > 0, 'search-books found nothing for "grappling"', r.text.slice(0, 300));
+      t.check(
+        results.length > 0,
+        `search-books found nothing for "${BOOK_WORD}"`,
+        r.text.slice(0, 300)
+      );
       hit = results[0];
       return `${results.length} hits`;
     });
 
-    await t.step('find-book-entries lists a class and get-book-entry opens it', async () => {
-      const found = await call('find-book-entries', { type: 'class', limit: 3 });
+    await t.step('find-book-entries lists the entry and get-book-entry opens it', async () => {
+      const found = await call('find-book-entries', { query: BOOK_WORD, limit: 3 });
+      t.check(!found.isError, `find-book-entries failed: ${found.text.slice(0, 200)}`);
       const data = jsonOf(found.text);
       const first = Array.isArray(data?.results) ? data.results[0] : null;
-      t.check(first, 'find-book-entries found no class', found.text.slice(0, 300));
+      t.check(
+        first,
+        `find-book-entries found nothing for "${BOOK_WORD}"`,
+        found.text.slice(0, 300)
+      );
       const packId = first.packId ?? hit?.packId;
       const entryId = first.documentId ?? first.entryId ?? first.id ?? hit?.documentId;
-      t.check(packId && entryId, 'a find-book-entries result has no packId and entryId', first);
+      t.check(packId && entryId, 'a result has no packId and entryId', first);
       const entry = await call('get-book-entry', { packId, entryId });
-      t.check(!entry.isError && entry.text.length > 20, `get-book-entry failed: ${entry.text.slice(0, 200)}`);
+      t.check(
+        !entry.isError && entry.text.includes(BOOK_WORD),
+        `get-book-entry failed: ${entry.text.slice(0, 200)}`
+      );
       return `${first.name ?? 'entry'}, ${entry.text.length} characters`;
     });
 
@@ -271,9 +332,20 @@ export default {
 
     await t.step('a GM-only journal comes back empty', async () => {
       const search = await call('search-books', { query: CANARY });
-      t.check(!search.text.includes(CANARY), 'search-books returns the GM journal text', search.text.slice(0, 300));
+      // The reply echoes the query, so only the results are judged.
+      const found = jsonOf(search.text)?.results;
+      t.check(
+        Array.isArray(found) && found.length === 0,
+        'search-books returns the GM journal',
+        search.text.slice(0, 300)
+      );
       const find = await call('find-book-entries', { query: CANARY });
-      t.check(!find.text.includes(CANARY), 'find-book-entries returns the GM journal', find.text.slice(0, 300));
+      const listed = jsonOf(find.text)?.results;
+      t.check(
+        Array.isArray(listed) && listed.length === 0,
+        'find-book-entries returns the GM journal',
+        find.text.slice(0, 300)
+      );
       const entry = await call('get-book-entry', { packId: 'world', entryId: journalId ?? 'none' });
       t.check(
         entry.isError || !entry.text.includes(CANARY),

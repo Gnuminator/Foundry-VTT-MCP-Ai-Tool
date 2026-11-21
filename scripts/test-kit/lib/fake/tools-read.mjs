@@ -35,8 +35,8 @@ export const READ_TOOLS = {
   'get-world-info': w => ({
     id: w.worldId,
     title: w.title,
-    system: { id: 'dnd5e', version: '6.0.5' },
-    foundry: { version: '14.368' },
+    system: { id: 'dnd5e', version: '6.0.6' },
+    foundry: { version: '14.370' },
     users: { total: 3, active: 1, gms: 2, players: 1 },
     activeUsers: [{ id: 'fakeGmUser00001', name: 'Kit GM', isGM: true }],
     playerUsers: [{ id: 'fakePlayerUser01', name: 'Kit Player', active: false }],
@@ -44,8 +44,8 @@ export const READ_TOOLS = {
 
   'get-modules': () => ({
     success: true,
-    foundryVersion: '14.368',
-    system: { id: 'dnd5e', version: '6.0.5' },
+    foundryVersion: '14.370',
+    system: { id: 'dnd5e', version: '6.0.6' },
     modules: [{ id: 'foundry-mcp-bridge', title: 'Foundry AI Tool', version: '0.0.0', active: true }],
   }),
 

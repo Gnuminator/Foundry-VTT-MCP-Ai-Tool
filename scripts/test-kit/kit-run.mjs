@@ -363,7 +363,21 @@ export function writeLastRun(home, r) {
   }
   const entry = { ...r, text: resultText(r) };
   const ran = r.state === 'passed' || r.state === 'failed';
-  const doc = { version: 1, last: entry, lastRun: ran ? entry : (prev?.lastRun ?? null) };
+  // lastNightly: the newest attempt by the scheduled task (nightly flag), so a lane's run on the
+  // same file does not pass for the nightly.
+  const doc = {
+    version: 1,
+    last: entry,
+    lastRun: ran ? entry : (prev?.lastRun ?? null),
+    lastNightly: r.nightly ? entry : (prev?.lastNightly ?? null),
+    // The last nightly that finished, kept through later skips and lane runs (staleness).
+    lastNightlyRun:
+      r.nightly && ran
+        ? entry
+        : (prev?.lastNightlyRun ??
+          [prev?.lastRun].find(e => e?.nightly && (e.state === 'passed' || e.state === 'failed')) ??
+          null),
+  };
   mkdirSync(home, { recursive: true });
   // Temp file plus rename: the control center never reads a half-written file.
   const tmp = `${file}.${process.pid}.tmp`;

@@ -486,3 +486,24 @@ describe('/api/me and the player links', () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe('shared sheet reads (me-poll-load)', () => {
+  it('answers repeated polls and the stash from one read per player', async () => {
+    const { base, asked } = await start({ stash: true });
+    const key = keyOf(await makeLink(base, PLAYER));
+    await Promise.all([me(base, key), me(base, key), me(base, key)]);
+    expect(asked.filter(u => u === PLAYER)).toHaveLength(1);
+    const stash = await fetch(`${base}/api/me/stash`, { headers: { 'X-CoGM-Me': key } });
+    expect(stash.status).toBe(200);
+    expect(asked.filter(u => u === PLAYER)).toHaveLength(1);
+    expect(asked.filter(u => u === TAMSIN)).toHaveLength(1);
+  });
+
+  it('does not remember a failed read', async () => {
+    const { base, asked } = await start({ failFor: PLAYER });
+    const key = keyOf(await makeLink(base, PLAYER));
+    expect((await me(base, key)).status).toBe(502);
+    expect((await me(base, key)).status).toBe(502);
+    expect(asked.filter(u => u === PLAYER)).toHaveLength(2);
+  });
+});

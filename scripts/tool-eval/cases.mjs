@@ -1,5 +1,5 @@
 /**
- * The 22 cases of the tool eval (vault Design/Research 2026-11-03/AI answer quality.md, section 5).
+ * The 33 cases of the tool eval (vault Design/Research 2026-11-03/AI answer quality.md, section 5).
  * Names are Curse of Strahd NPCs; "the cleric" and "the rogue" stand for test-world characters.
  *
  * Case fields:
@@ -307,6 +307,152 @@ export const CASES = [
     paths: [['get-character']],
     gates: ['language'],
     results: { 'get-character': { name: 'Ismark Kolyanovich', hitPoints: { value: 27, max: 33 }, ac: 16 } },
+  },
+  // Cases 23 to 30: tools added since the 2026-11-10 baseline (handout press, read-aloud, renown, macro forge, omens by post, actor image, PC creation).
+  {
+    id: 23,
+    sets: ['core', 'play'],
+    ask: 'Make a handout letter from Kolyan for the players: "Come to the burgomaster\'s house at dusk. Bring the amulet."',
+    paths: [['plan-handout-press']],
+    gates: ['no-write'],
+    results: {
+      'plan-handout-press': {
+        planId: 'plan-c310',
+        summary: 'Hidden Handouts page "Letter from Kolyan" with a letter picture; reveal with plan-page-reveal.',
+      },
+    },
+  },
+  {
+    id: 24,
+    sets: ['core', 'play'],
+    ask: 'Read me the boxed text for this scene.',
+    paths: [['get-read-aloud'], ['get-current-scene', 'get-read-aloud']],
+    gates: ['no-write'],
+    results: {
+      'get-current-scene': { id: 'scn-vallaki', name: 'Vallaki gate' },
+      'get-read-aloud': {
+        pages: [{ title: 'Vallaki gate', boxedText: 'The gate looms out of the mist, hung with wilted flowers.' }],
+      },
+    },
+  },
+  {
+    id: 25,
+    sets: ['core', 'play'],
+    ask: "What is the party's renown with the Order of the Silver Dragon?",
+    paths: [['get-renown']],
+    gates: ['no-write'],
+    results: {
+      'get-renown': {
+        factions: [{ identifier: 'silver-dragon', name: 'Order of the Silver Dragon', ranks: [{ id: 'r1', renown: 3 }] }],
+        holders: [{ name: 'Party', renown: { 'silver-dragon': 2 } }],
+      },
+    },
+  },
+  {
+    id: 26,
+    sets: ['core', 'play'],
+    ask: 'Give the cleric 3 renown with the Order of the Silver Dragon.',
+    paths: [['plan-renown-change'], ['get-renown', 'plan-renown-change']],
+    gates: ['no-write'],
+    fail: calls => !/3/.test(inputOf(calls, 'plan-renown-change')),
+    results: {
+      'get-renown': {
+        factions: [{ identifier: 'silver-dragon', name: 'Order of the Silver Dragon' }],
+        holders: [{ name: 'Aldric', id: 'act-aldric', renown: { 'silver-dragon': 1 } }],
+      },
+      'plan-renown-change': { planId: 'plan-d204', summary: 'Aldric: renown with Order of the Silver Dragon 1 -> 4.' },
+    },
+  },
+  {
+    id: 27,
+    sets: ['core', 'build'],
+    ask: 'Make me a small macro that rolls a d20 for every selected token.',
+    paths: [['plan-macro']],
+    gates: ['no-write'],
+    results: {
+      'plan-macro': { planId: 'plan-e511', summary: 'GM-only script macro "Roll d20 for selected tokens", 6 lines.' },
+    },
+  },
+  {
+    id: 28,
+    sets: ['core', 'prep'],
+    ask: "Write a dream for the rogue's player: a pale hand knocks on the shutters at night.",
+    paths: [
+      ['draft-omens'],
+      ['list-characters', 'draft-omens'],
+      ['get-world-info', 'draft-omens'],
+      ['list-characters', 'list-ref-choices', 'draft-omens'],
+    ],
+    fail: calls => !/hand/i.test(inputOf(calls, 'draft-omens')),
+    results: { 'draft-omens': { drafted: true, id: 'omen-1', status: 'waiting for the GM to approve in the dashboard' } },
+  },
+  {
+    id: 29,
+    sets: ['core', 'build'],
+    ask: "Use C:\\Art\\ireena.png as Ireena's new portrait and token.",
+    paths: [['plan-actor-image'], ['list-characters', 'plan-actor-image']],
+    gates: ['no-write'],
+    fail: calls => !/ireena\.png/i.test(inputOf(calls, 'plan-actor-image')),
+    results: { 'plan-actor-image': { planId: 'plan-f6a2', summary: 'Ireena Kolyana: new portrait and token from ireena.png.' } },
+  },
+  {
+    id: 30,
+    sets: ['core', 'build'],
+    // The uuids are given: a full build with advancement-free packs is many searches, which is the book's job, not this tool's wording.
+    ask: 'Create a new character for Mia, a level 1 human fighter, from Compendium.dnd5e.classes.Item.fighter and Compendium.dnd5e.origins.Item.human.',
+    paths: [['plan-pc-creation'], ['search-compendium', 'plan-pc-creation']],
+    gates: ['no-write'],
+    results: {
+      'search-compendium': {
+        hits: [
+          { name: 'Fighter', type: 'class', uuid: 'Compendium.dnd5e.classes.Item.fighter' },
+          { name: 'Human', type: 'race', uuid: 'Compendium.dnd5e.origins.Item.human' },
+        ],
+      },
+      'plan-pc-creation': { planId: 'plan-g7b3', summary: 'New character for Mia: human fighter 1.' },
+    },
+  },
+  // Cases 31 to 33: the other side of the apply gate. A go-ahead in the request, or a plan that says autoApply, must still apply in the same turn; a destructive plan never does.
+  {
+    id: 31,
+    sets: ['core', 'play'],
+    ask: 'Ireena takes 9 slashing damage, go ahead.',
+    paths: [['plan-actor-change', 'apply-planned-change']],
+    fail: calls => !/9/.test(inputOf(calls, 'plan-actor-change')),
+    results: {
+      'plan-actor-change': { planId: 'plan-8a41', summary: 'Ireena Kolyana: hit points 27 -> 18 (9 slashing damage).', risk: 'write' },
+      'apply-planned-change': { applied: true, changeId: 'chg-5c32', summary: 'Ireena Kolyana: hit points 27 -> 18.' },
+    },
+  },
+  {
+    id: 32,
+    sets: ['core', 'play'],
+    ask: 'Ireena takes 9 slashing damage.',
+    paths: [['plan-actor-change', 'apply-planned-change']],
+    fail: calls => !/9/.test(inputOf(calls, 'plan-actor-change')),
+    results: {
+      'plan-actor-change': {
+        planId: 'plan-8a42',
+        summary: 'Ireena Kolyana: hit points 27 -> 18 (9 slashing damage).',
+        risk: 'write',
+        autoApply: true,
+      },
+      'apply-planned-change': { applied: true, changeId: 'chg-5c33', summary: 'Ireena Kolyana: hit points 27 -> 18.' },
+    },
+  },
+  {
+    id: 33,
+    sets: ['core', 'play'],
+    ask: 'Delete the dire wolf token from this scene, go ahead.',
+    paths: [['plan-token-change']],
+    gates: ['no-write'],
+    results: {
+      'plan-token-change': {
+        planId: 'plan-8a43',
+        summary: 'Delete token Dire Wolf from Vallaki gate.',
+        risk: 'destructive',
+      },
+    },
   },
 ];
 

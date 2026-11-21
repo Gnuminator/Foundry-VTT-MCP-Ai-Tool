@@ -1,6 +1,6 @@
 ---
 source: player/player-page.md
-sourceHash: 4d57da84e6dd
+sourceHash: 759ffe3e2e17
 title: Brug player page
 description: Korte how-tos om den valgfri player page ved siden af Foundry, med at vælge dit navn, følge combaten, handouts til dig, roll-knapper og hvordan du spørger GM'en om det, værktøjet ved.
 ---
@@ -73,8 +73,8 @@ endnu, så sig det til dem. Ingen andre ser din besked, og den står ikke på pl
 ## Se, hvad du kan på din tur
 
 - **Kig på:** **On my turn**-kortet på **My character**. Det grupperer, hvad din karakter kan gøre, som
-  action, bonus action, reaction og free, så du ikke skal huske det. En kontakt under sheetet skjuler
-  det, hvis du ikke vil have det.
+  action, bonus action, reaction og free, så du ikke skal huske det. Kontakten **Show the "On my turn" card** nederst på siden
+  skjuler det, hvis du ikke vil have det.
 
 ## Spørg Discord-botten
 

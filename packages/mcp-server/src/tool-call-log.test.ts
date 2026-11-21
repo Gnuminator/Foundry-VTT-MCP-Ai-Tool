@@ -34,6 +34,45 @@ describe('tool call log', () => {
     expect(Object.keys(line).sort()).toEqual(['ms', 'ok', 'set', 'size', 't', 'tool']);
   });
 
+  it('classes a failed call and keeps the message out of the line', () => {
+    const fail = (text: string): ReturnType<typeof buildCallLine> =>
+      buildCallLine('get-world-info', 0, { content: [{ type: 'text', text }], isError: true }, 5);
+    expect(fail('Error: Foundry VTT module not connected. Open the world.').err).toBe(
+      'not-connected'
+    );
+    expect(fail('Error: Not connected to Foundry VTT module.').err).toBe('not-connected');
+    expect(fail('Error: request timed out after 30000ms').err).toBe('timeout');
+    expect(fail('Handouts are switched off. Ask the GM.').err).toBe('switch-off');
+    expect(fail('Error: Invalid arguments: limit expected number').err).toBe('validation');
+    expect(fail('Error: something odd').err).toBe('other');
+    expect(fail('Query getWorldInfo failed: Query timeout: getWorldInfo').err).toBe('timeout');
+    expect(fail('Error: Connection closed').err).toBe('timeout');
+    expect(fail('Foundry is not connected, so this request was not sent').err).toBe(
+      'not-connected'
+    );
+    expect(
+      fail(
+        'The session event log is off (FOUNDRY_AI_EVENT_LOG=off) or the Foundry link is disabled, so there is nothing to wait on.'
+      ).err
+    ).toBe('switch-off');
+    expect(fail('The switch "Handouts" is off').err).toBe('switch-off');
+    expect(
+      fail('[{"code":"invalid_value","message":"Invalid option: expected one of \\"a\\"|\\"b\\""}]')
+        .err
+    ).toBe('validation');
+    expect(fail('[{"code":"too_small","message":"Too small: expected number"}]').err).toBe(
+      'validation'
+    );
+    // prose that merely says "required" is not a validation error
+    expect(fail('Also turned on, because they require Foo; a plan is required').err).toBe('other');
+    expect(buildCallLine('x', 0, { content: [], isError: true }, 5).err).toBe('other');
+    expect(buildCallLine('x', 0, undefined, 5).err).toBe('other');
+    const line = fail('Error: Foundry VTT module not connected: secret text');
+    expect(JSON.stringify(line)).not.toContain('secret text');
+    // a successful call carries no class
+    expect(buildCallLine('x', 0, { content: [] }, 5)).not.toHaveProperty('err');
+  });
+
   it('marks a missing or error result as not ok and unknown tools as unknown', () => {
     expect(buildCallLine('nope', 0, undefined, 5)).toMatchObject({
       set: 'unknown',

@@ -1,6 +1,6 @@
 ---
 source: gm/dashboard-player-pages.md
-sourceHash: cdca35e81834
+sourceHash: 1c0b791dcb6f
 title: 'Dashboardet: spillersider og Obsidian'
 description: 'Spillersiden, afsløring af et handout, spillerlinks, My character og Open in Obsidian.'
 ---
@@ -130,7 +130,7 @@ virker uden dem.
   kan redigere eller slette sine egne. Intet slår det til. Du ser dem kun gennem prep digest,
   markeret "from player" (se "Prep-skuffen" på [skuffe-siden](dashboard-drawers.md)). Andre spillere
   kan ikke se dem på `/player` eller på deres egen side.
-- **My diary:** spilleren beder sin egen Claude-hjælper (backstory buddy-skillen) om et kort
+- **My diary:** spilleren beder sin egen Claude-hjælper (D&D helper-skillen) om et kort
   diary-indlæg i karakterens stemme om sidste session, indsætter det, retter det og gemmer det med
   **Save entry**. Kun den spiller ser sine indlæg: ikke dig, ikke de andre spillere, ikke player
   page. Intet slår det til, men indlæggene gemmes på bordets server: siger siden "This table keeps

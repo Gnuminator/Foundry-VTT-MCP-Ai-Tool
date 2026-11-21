@@ -160,8 +160,8 @@ to a player who picked that name ("Playing as ...") at the top of the page.
 **Handout press.** If you want a handout to look like a letter on aged paper with a wax seal, a
 notice or a card, ask Claude to press one: give it the text and it uses `plan-handout-press` (in
 the Play connector). It draws the picture on the computer the dashboard's backend runs on, with
-the Edge, Chrome or Chromium already installed there (the Pi has none, so ask from a PC session),
-in about two seconds and without any image AI. Applying the plan adds a hidden image page to the
+the Edge, Chrome or Chromium already installed there (the Pi may have none, so ask from a PC session),
+without any image AI. Applying the plan adds a hidden image page to the
 "Handouts" journal. Players see nothing yet: queue and reveal it as above. Undo in Recent Changes
 removes the page. Text that names a secret term is refused.
 
@@ -204,10 +204,11 @@ draft with the player's name:
 - **Discord ids for omens:** a player with no Discord user id yet shows "it cannot be sent". Open
   that fold-out, type their Discord user id (digits only) and link it.
 - **Switch it on:** whoever runs the Discord bot sets `DISCORD_OMENS=1` in the bot's `.env`. It is
-  off by default, and with it off an approved text stays where it is.
+  off by default, and with it off an approved text stays where it is. If the dashboard splits GM
+  and player tokens, the bot also needs `FOUNDRY_AI_GM_TOKEN`.
 - **What players see:** one private Discord message each, sent once within a few minutes of your
   approval, only to that player's own account. Nobody sees another player's text, and nothing
-  shows on the player page. A failed send says why and can be approved again.
+  shows on the player page. A failed send is retried on its own a few times; if it still fails, the list says why and you can approve it again.
 
 You can always read a hint aloud or write it in chat instead; this is an extra.
 

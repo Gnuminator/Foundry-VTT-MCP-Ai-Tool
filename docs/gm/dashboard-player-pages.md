@@ -126,7 +126,7 @@ works without either.
   prep digest, marked "from player" (see "The prep drawer" in
   [the drawers page](dashboard-drawers.md)). Other players cannot see them on `/player` or on
   their own page.
-- **My diary:** the player asks their own Claude helper (the backstory buddy skill) for a short
+- **My diary:** the player asks their own Claude helper (the D&D helper skill) for a short
   in-character diary entry about the last session, then pastes it in, edits it and saves it with
   **Save entry**. Only that player sees their entries: not you, not the other players, not the
   player page. Nothing switches it on, but entries are kept on the table's server: if the page

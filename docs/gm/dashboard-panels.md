@@ -207,7 +207,7 @@ little of the spotlight.
   session, when a low count means nothing.
 - **Hide:** **Hide** removes the card, and **Show spotlight balance** brings it back. Each choice
   is remembered on that browser.
-- **Reset:** the count starts over when the dashboard starts, so on a table that leaves it running
+- **Reset:** the count starts over when the dashboard starts or another world opens, so on a table that leaves it running
   it adds up across nights. Restart the dashboard for a clean count.
 - **What players see:** nothing. The card is GM only and none of it reaches the player page. It
   is also only an extra: you can read the same table by eye in Foundry.

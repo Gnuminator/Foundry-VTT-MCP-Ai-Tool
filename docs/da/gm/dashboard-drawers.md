@@ -1,6 +1,6 @@
 ---
 source: gm/dashboard-drawers.md
-sourceHash: 076084231621
+sourceHash: 2c24a2d67963
 title: 'Dashboardet: confirm-vindue, Tool Runner og skuffer'
 description: 'Confirm-vinduet, Tool Runner og skufferne Tarokka, Handouts, Prep og Party.'
 ---
@@ -166,7 +166,7 @@ spiller, der valgte det navn ("Playing as ...") øverst på siden.
 opslagstavle-seddel eller et kort, så bed Claude om at presse et: giv den teksten, så bruger den
 `plan-handout-press` (i Play-connectoren). Den tegner billedet på den computer, dashboardets
 backend kører på, med den Edge, Chrome eller Chromium, der allerede er installeret der (Pi har
-ingen, så bed fra en PC-session), på cirka to sekunder og uden billed-AI. Når planen anvendes,
+måske ingen, så bed fra en PC-session) og uden billed-AI. Når planen anvendes,
 lægges en skjult billedside i journalen "Handouts". Spillerne ser intet endnu: sæt den i kø og
 afslør den som ovenfor. Undo i Recent Changes fjerner siden. Tekst, der nævner et hemmeligt
 begreb, afvises.
@@ -210,10 +210,11 @@ post** viser hver kladde med spillerens navn:
 - **Discord ids for omens:** en spiller uden Discord-bruger-id endnu viser "it cannot be sent". Åbn
   det fold-ud, skriv spillerens Discord-bruger-id (kun cifre) og link det.
 - **Slå det til:** den, der kører Discord-botten, sætter `DISCORD_OMENS=1` i botens `.env`. Det er
-  slået fra som standard, og med det slået fra bliver en godkendt tekst liggende.
+  slået fra som standard, og med det slået fra bliver en godkendt tekst liggende. Hvis dashboardet
+  deler GM- og spiller-token, skal botten også have `FOUNDRY_AI_GM_TOKEN`.
 - **Hvad spillerne ser:** én privat Discord-besked hver, sendt én gang inden for få minutter efter
   din godkendelse, kun til den spillers egen konto. Ingen ser en anden spillers tekst, og intet
-  vises på player page. En mislykket afsendelse siger hvorfor og kan godkendes igen.
+  vises på player page. En mislykket afsendelse prøves automatisk igen nogle gange; lykkes den stadig ikke, siger listen hvorfor, og du kan godkende den igen.
 
 Du kan altid læse et hint højt eller skrive det i chatten i stedet; det her er et ekstra.
 

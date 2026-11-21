@@ -1,6 +1,6 @@
 ---
 source: gm/dashboard-panels.md
-sourceHash: 62c6d6c94be7
+sourceHash: e73987f0537d
 title: 'Dashboardet: panelerne'
 description: "During layouts, Combat Tracker, Tonight's stats, Session notes, Live Feed, Module Diagnostics og Recent Changes."
 ---
@@ -210,7 +210,7 @@ karakter, der har haft lidt af spotlightet.
   et lavt tal ikke betyder noget.
 - **Hide:** **Hide** fjerner kortet, og **Show spotlight balance** henter det tilbage. Hvert valg
   huskes i den browser.
-- **Nulstilling:** optællingen begynder forfra, når dashboardet starter, så på et bord, der lader
+- **Nulstilling:** optællingen begynder forfra, når dashboardet starter, eller en anden world åbnes, så på et bord, der lader
   det køre, lægger den sig sammen over flere aftener. Genstart dashboardet for en ren optælling.
 - **Hvad spillerne ser:** ingenting. Kortet er kun for GM, og intet af det når player page. Det er
   også kun et ekstra: du kan aflæse det samme ved bordet i Foundry.

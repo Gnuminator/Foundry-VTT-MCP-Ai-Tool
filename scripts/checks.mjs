@@ -169,6 +169,7 @@ export const CHECKS = [
     'scripts/backlog.test.mjs',
     'scripts/planner-state.test.mjs',
     'scripts/merge-runner.test.mjs',
+    'scripts/merge-runner/liveness.test.mjs',
     'scripts/merge-runner/open-steps.test.mjs',
     'scripts/merge-runner/refresh.test.mjs',
     'scripts/merge-runner/release-ready.test.mjs',

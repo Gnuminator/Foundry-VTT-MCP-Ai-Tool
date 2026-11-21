@@ -4,7 +4,14 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { gateProblems, backlogIds, reviewNotePath, main } from './lane-ready.mjs';
+import {
+  gateProblems,
+  backlogIds,
+  reviewNotePath,
+  driftGuards,
+  driftAdvice,
+  main,
+} from './lane-ready.mjs';
 
 const HEAD = 'a'.repeat(40);
 const refusal = [
@@ -91,6 +98,88 @@ test('usage errors exit 2; a silent gate failure still gives a line', () => {
   assert.equal(main({ argv: ['--vault', '/none'], run: f.run, log: f.log }), 1);
   assert.ok(f.out.some(l => /dry run ended with exit 1/.test(l)));
   assert.ok(f.calls.some(c => c.join(' ').includes('7 --dry-run --vault /none')));
+});
+
+const driftRefusal = [
+  'lane:merge: NOT merged #7',
+  'lane:merge: refused because (1) drift: drift-check failed (guards: line baseline, mcp-server tests (tool counts, tool reference, tool sets), em-dash baseline) (log /tmp/x.log); last lines below',
+].join('\n');
+
+test('driftGuards reads the refusal reason, keeping commas inside parentheses', () => {
+  assert.deepEqual(driftGuards(driftRefusal), [
+    'line baseline',
+    'mcp-server tests (tool counts, tool reference, tool sets)',
+    'em-dash baseline',
+  ]);
+  assert.deepEqual(driftGuards('  ok   x\n  FAIL docs links\n', true), ['docs links']);
+  assert.deepEqual(driftGuards('nothing'), []);
+});
+
+test('driftAdvice gives the exact command per guard and a by-hand line otherwise', () => {
+  const a = driftAdvice(['line baseline', 'mcp-server tests (tool counts)', 'docs links']);
+  assert.ok(a[0].includes('`npm run line:ratchet -- --update`'));
+  assert.ok(a[1].includes('`npm run docs:tools`') && /tool reference test failed/.test(a[1]));
+  assert.match(driftAdvice(['changelog fragments'])[0], /changelog\.d\/README\.md/);
+  assert.doesNotMatch(driftAdvice(['changelog fragments'])[0], /run `npm run changelog:check`/);
+  assert.match(a[2], /fix by hand/);
+  assert.deepEqual(driftAdvice([]), []);
+});
+
+test('a drift refusal tells /ready what to run and writes no ready line', () => {
+  const f = fake(driftRefusal, 1);
+  assert.equal(main({ argv: ['--vault', '/none'], run: f.run, log: f.log }), 1);
+  const text = f.out.join('\n');
+  assert.match(text, /drift \(line baseline\): run `npm run line:ratchet -- --update`/);
+  assert.match(text, /drift \(em-dash baseline\): run `npm run emdash:ratchet -- --update`/);
+  assert.match(text, /run \/ready again/);
+  assert.ok(!f.calls.some(c => c.includes('progress')));
+});
+
+test('when the gate skipped drift-check, /ready runs it and lists its failures', () => {
+  const gateOut = [
+    'lane:merge: drift-check not run: it is slow, so it runs once the other checks pass',
+    'lane:merge: refused because (1) changelog: no added or changed changelog.d/*.md fragment',
+  ].join('\n');
+  /** @type {string[][]} */
+  const calls = [];
+  /** @type {string[]} */
+  const out = [];
+  /** @type {(c: string, a: string[]) => { status: number, stdout: string, stderr: string }} */
+  const run = (cmd, args) => {
+    calls.push([cmd, ...args]);
+    if (cmd === 'gh') {
+      return {
+        status: 0,
+        stdout: JSON.stringify({ number: 7, headRefOid: HEAD, body: 'Backlog: item-x' }),
+        stderr: '',
+      };
+    }
+    if (cmd === 'npm') return { status: 1, stdout: '  FAIL line baseline\n', stderr: '' };
+    return { status: 1, stdout: gateOut, stderr: '' };
+  };
+  assert.equal(main({ argv: ['--vault', '/none'], run, log: l => out.push(l) }), 1);
+  assert.ok(calls.some(c => c.join(' ') === 'npm run drift:check'));
+  assert.ok(out.some(l => /changelog: no added/.test(l)));
+  assert.ok(out.some(l => /drift \(line baseline\): run `npm run line:ratchet/.test(l)));
+});
+
+test('no separate drift run when the gate judged the wrong tree (local: failure)', () => {
+  const gateOut = [
+    'lane:merge: drift-check not run: it is slow, so it runs once the other checks pass',
+    'lane:merge: refused because (1) local: the working tree is not clean (1 change); commit or stash first',
+  ].join('\n');
+  const f = fake(gateOut, 1);
+  assert.equal(main({ argv: ['--vault', '/none'], run: f.run, log: f.log }), 1);
+  assert.ok(!f.calls.some(c => c.join(' ').includes('drift')));
+});
+
+test('drift-check passing after a skip adds no drift line', () => {
+  const gateOut =
+    'lane:merge: drift-check not run: x\nlane:merge: refused because (1) review: no review note';
+  const f = fake(gateOut, 1);
+  assert.equal(main({ argv: ['--vault', '/none'], run: f.run, log: f.log }), 1);
+  // fake's other commands return status 0 with no output: passes, so no drift line at all
+  assert.ok(!f.out.some(l => /drift \(/.test(l)));
 });
 
 test('--check writes nothing', () => {

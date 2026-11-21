@@ -3,7 +3,9 @@
  * Who uses what (D-146): reads the GM-only `GET /api/who-uses-what` report from a dashboard and
  * writes it as one Markdown note, which the PM board shows. Read-only against the dashboard.
  *
- *   node scripts/who-uses-what.mjs --base <dashboard address> [--days 7] [--out <file>]
+ *   node scripts/who-uses-what.mjs --base <dashboard address> [--days 7] [--out <file>] [--json <file>]
+ *
+ * --json writes the report itself (the JSON the dashboard answered with), which the Pi posts to the PM board (stage 35).
  *
  * Environment: COGM_TOKEN (the GM token, when the dashboard asks for one). The report holds
  * names, versions, tool names and counts only; never typed text, arguments or results.
@@ -93,7 +95,13 @@ async function main() {
     signal: AbortSignal.timeout(30_000),
   });
   if (!res.ok) throw new Error(`The dashboard answered ${res.status}.`);
-  const note = renderWhoUsesWhat(await res.json());
+  const report = await res.json();
+  const note = renderWhoUsesWhat(report);
+  const jsonOut = arg('json', '');
+  if (jsonOut) {
+    await fsp.mkdir(path.dirname(path.resolve(jsonOut)), { recursive: true });
+    await fsp.writeFile(jsonOut, JSON.stringify(report), 'utf8');
+  }
   const out = arg('out', '');
   if (out) {
     await fsp.mkdir(path.dirname(path.resolve(out)), { recursive: true });

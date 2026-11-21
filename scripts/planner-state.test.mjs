@@ -11,6 +11,7 @@ import {
   mainLine,
   newestNote,
   plannerSections,
+  BOARD_REPO,
   REPO,
   prTable,
   trainLine,
@@ -177,8 +178,22 @@ test('plannerSections assembles every section from a vault dir and a fake gh', (
     seen.push(args);
     return ghAnswer(args);
   };
+  fs.writeFileSync(
+    path.join(dev, 'Handoff', 'Reviews 2026-11-12', 'board-7-review.md'),
+    note(H2, 'Merge.').text
+  );
   const ghAnswer = args =>
-    args[0] === 'pr'
+    args[0] === 'pr' && args.includes(BOARD_REPO)
+      ? [
+          {
+            number: 7,
+            title: 'Board thing',
+            headRefOid: H2,
+            isDraft: false,
+            statusCheckRollup: [{ conclusion: 'SUCCESS', status: 'COMPLETED' }],
+          },
+        ]
+      : args[0] === 'pr'
       ? [
           {
             number: 5,
@@ -196,13 +211,16 @@ test('plannerSections assembles every section from a vault dir and a fake gh', (
   const s = plannerSections({
     devDir: dev,
     kitHome: dev,
+    runnerHome: dev,
     backlog: BACKLOG,
     today: '2026-11-12',
     gh,
   }).join('\n');
-  assert.equal(seen.length, 2);
-  for (const a of seen)
+  assert.match(s, /Merge runner is not running \(no heartbeat\)/);
+  assert.equal(seen.length, 3);
+  for (const a of seen.filter(x => !x.includes(BOARD_REPO)))
     assert.deepEqual(a.slice(a.indexOf('-R'), a.indexOf('-R') + 2), ['-R', REPO]);
+  assert.match(s, /Open board PRs \(1\):\n- #7 Board thing: CI green, review Merge \(head\)/);
   assert.match(s, /Accepted, unclaimed \(1\):/);
   assert.match(s, /#5 Thing: CI green, review Merge \(head\)/);
   assert.match(s, /Merge train: 1 of 4/);

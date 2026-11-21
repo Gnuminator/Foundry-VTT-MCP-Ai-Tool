@@ -39,7 +39,8 @@ Not prose, not only the wrap-up ask, never a message asking the planner to get i
   any live check and release it after. Servers A, B, C: check `lock.ps1
 status -Server B`, take a free one with `-Server X` and pass it to start, stop, sync and
   status. None free: wait or ask the user. Standalone bridge: `node packages/mcp-server/dist/standalone.js --port
-31514 --control-only` (B 31524, C 31534).- **Commands over 2 minutes** run in the background, never polled; logs go to the scratchpad. Never call `python3`.
+31514 --control-only` (B 31524, C 31534).
+- **Commands over 2 minutes** run in the background, never polled; logs go to the scratchpad. Never call `python3`.
 - **GPU lock:** take `lock.ps1 take -Server GPU` before any GPU job (Real-ESRGAN, Blender, audio,
   speech or headless models), release after; one at a time.
 - Review checklist: `review-checklist.md`. For dashboard or player-page UI the reviewer also
@@ -129,8 +130,8 @@ scripts/heavy-lock.mjs status`). `SKIP_PREPUSH=1 git push ...` skips the em-dash
   cleared by a newer run: rerun it (`gh run rerun <id> --failed`) or push.
 
 - **Board repo PR** (`foundry-ai-tool-pm-board`, CI `test`): the runner never merges it. Save
-  `board-<n>-review.md` with `Head reviewed: <sha>`, then `backlog.mjs progress <id> "board #<n>
-head <sha>, review <note>"`. `status --planner` lists it; the planner merges it.
+  `board-<n>-review.md` with `Head reviewed: <sha>`, then run
+  `backlog.mjs progress <id> "board #<n> head <sha>, review <note>"`. `status --planner` lists it; the planner merges it.
 
 ## Context and handover
 

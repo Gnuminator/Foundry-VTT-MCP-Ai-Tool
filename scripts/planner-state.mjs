@@ -75,8 +75,9 @@ export function newestNote(notes, pr, head, prefix = '') {
   const mine = notes
     .map(n => {
       const m = /^(\d+)-(opus-)?review(?:-round(\d+))?(?:-delta(\d*))?\.md$/.exec(
-        (n.file.split(/[\\/]/).pop() ?? '').replace(prefix, '')
+        (n.file.split(/[\\/]/).pop() ?? '').replace(new RegExp(`^${prefix}`), '')
       );
+      if (prefix && !(n.file.split(/[\\/]/).pop() ?? '').startsWith(prefix)) return null;
       if (!m || Number(m[1]) !== pr) return null;
       const delta = m[4] === undefined ? 0 : Number(m[4] || 1);
       return { ...n, round: Number(m[3] ?? 1), delta, opus: !!m[2] };

@@ -1,6 +1,6 @@
 ---
 source: gm/dashboard-player-pages.md
-sourceHash: 2dbdb8b8cd07
+sourceHash: cdca35e81834
 title: 'Dashboardet: spillersider og Obsidian'
 description: 'Spillersiden, afsløring af et handout, spillerlinks, My character og Open in Obsidian.'
 ---
@@ -120,6 +120,22 @@ enheder. Med The Veil-temaet bruger My character de samme skrifttyper og den sam
 spillersiden.
 
 > **Usikker? Spørg Claude.** Spørg GM coach: "Hvordan giver jeg hver spiller et privat link til deres karakterside?"
+
+### Downtime og My diary
+
+To fold-ud under arket på My character. Begge er ekstra til spillere, der kan lide dem; spillet
+virker uden dem.
+
+- **Downtime:** spilleren skriver, hvad karakteren gør mellem sessionerne, op til ti korte indlæg, og
+  kan redigere eller slette sine egne. Intet slår det til. Du ser dem kun gennem prep digest,
+  markeret "from player" (se "Prep-skuffen" på [skuffe-siden](dashboard-drawers.md)). Andre spillere
+  kan ikke se dem på `/player` eller på deres egen side.
+- **My diary:** spilleren beder sin egen Claude-hjælper (backstory buddy-skillen) om et kort
+  diary-indlæg i karakterens stemme om sidste session, indsætter det, retter det og gemmer det med
+  **Save entry**. Kun den spiller ser sine indlæg: ikke dig, ikke de andre spillere, ikke player
+  page. Intet slår det til, men indlæggene gemmes på bordets server: siger siden "This table keeps
+  diaries in memory only", går de tabt, når dashboardet genstarter, så bed spillerne kopiere det
+  vigtige et sikkert sted hen.
 
 ## Open in Obsidian (📓)
 

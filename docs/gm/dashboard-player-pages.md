@@ -116,6 +116,23 @@ their own devices.
 
 > **Not sure? Ask Claude.** Ask the GM coach: "How do I give each player a private link to their character page?"
 
+### Downtime and My diary
+
+Two fold-outs under the sheet on My character. Both are extras for players who like them; the game
+works without either.
+
+- **Downtime:** the player writes what their character does between sessions, up to ten short
+  entries, and can edit or delete their own. Nothing switches it on. You see them only through the
+  prep digest, marked "from player" (see "The prep drawer" in
+  [the drawers page](dashboard-drawers.md)). Other players cannot see them on `/player` or on
+  their own page.
+- **My diary:** the player asks their own Claude helper (the backstory buddy skill) for a short
+  in-character diary entry about the last session, then pastes it in, edits it and saves it with
+  **Save entry**. Only that player sees their entries: not you, not the other players, not the
+  player page. Nothing switches it on, but entries are kept on the table's server: if the page
+  says "This table keeps diaries in memory only", they are lost when the dashboard restarts, so
+  tell players to copy what matters somewhere safe.
+
 ## Open in Obsidian (📓)
 
 The 📓 links open notes in Obsidian: the campaign Home note (header), a month's change history

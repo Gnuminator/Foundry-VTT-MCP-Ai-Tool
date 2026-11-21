@@ -1,6 +1,6 @@
 ---
 source: gm/dashboard-panels.md
-sourceHash: cd32af5dbcd4
+sourceHash: 62c6d6c94be7
 title: 'Dashboardet: panelerne'
 description: "During layouts, Combat Tracker, Tonight's stats, Session notes, Live Feed, Module Diagnostics og Recent Changes."
 ---
@@ -193,6 +193,27 @@ slots, rolls, scene-skift og mere. Hver linje viser sin type og tidspunktet.
 - En linje, der begynder med "Applied:" eller "Undid:", dukker op, når en guarded change anvendes
   eller fortrydes. Dens chip nævner, hvad der gjorde det, for eksempel **actor change** eller **page
   reveal**.
+
+### Spotlight balance
+
+Et lille kort under Live Feed på During-skærmen, kun til dig. Det viser én bjælke pr.
+spillerkarakter for det, de har gjort, siden dashboardet startede: terningslag, damage rolls og
+brug af items, talt fra play log. Mens Discord-optageren kører, viser en anden bjælke, hvor længe
+hver spiller har talt. Det er et puf, ikke en pointtavle: en linje under bjælkerne nævner en
+karakter, der har haft lidt af spotlightet.
+
+- **Slå det til:** der er intet at slå til. Det er der på During. Talebjælkerne kræver, at
+  Discord-optageren kører (den, der kører Discord-botten, starter den); uden den ser du kun
+  handlingsbjælker.
+- **Hint after:** talfeltet nederst sætter, hvor mange handlinger partiet skal have taget, før
+  hintet siger noget (20 som standard; 0 slår hintet fra). Hintet tier tidligt i en session, hvor
+  et lavt tal ikke betyder noget.
+- **Hide:** **Hide** fjerner kortet, og **Show spotlight balance** henter det tilbage. Hvert valg
+  huskes i den browser.
+- **Nulstilling:** optællingen begynder forfra, når dashboardet starter, så på et bord, der lader
+  det køre, lægger den sig sammen over flere aftener. Genstart dashboardet for en ren optælling.
+- **Hvad spillerne ser:** ingenting. Kortet er kun for GM, og intet af det når player page. Det er
+  også kun et ekstra: du kan aflæse det samme ved bordet i Foundry.
 
 ### Module Diagnostics
 

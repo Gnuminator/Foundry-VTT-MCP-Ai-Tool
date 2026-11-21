@@ -16,7 +16,10 @@
 #      reading now. The timer is enabled only when the board accepted that reading;
 #   3. removes what the first version of this stage left (the deploy key, the known_hosts and the sparse vault clone in
 #      /var/lib/foundry-ai-tool-who-uses-what). The user also deletes the deploy key on GitHub (repo Gnuminator/obsidian-vault,
-#      Settings, Deploy keys). The dietpi-backup exclude line for that folder stays; it is harmless.
+#      Settings, Deploy keys). The dietpi-backup exclude line for that folder stays (harmless). That exclude line also means no
+#      snapshot holds the old key: it cannot be restored, only replaced by a new deploy key.
+#   4. turns the first version's timer off before anything else is changed, so a run that fails at the reading (for example the
+#      board endpoint is not deployed yet) leaves the timer off, not enabled and failing every 4 hours.
 # It restarts nothing: the bridge, the dashboard, Foundry and the recorder are not touched, so it needs no quiet check.
 #
 # Modes (environment, before bash):
@@ -28,7 +31,7 @@
 #   cat scripts/pi/remote/lib.sh scripts/pi/remote/35-who-uses-what.sh | ssh foundry-pi 'DRY_RUN=1 bash -s'
 #   cat scripts/pi/remote/lib.sh scripts/pi/remote/35-who-uses-what.sh | ssh foundry-pi 'bash -s'
 #   cat scripts/pi/remote/lib.sh scripts/pi/remote/35-who-uses-what.sh | ssh foundry-pi 'CHECK=1 bash -s'
-# Tests only: SRC_DIR, UNIT_DIR, STATE_DIR (TOOL_ETC, TOOL_DIR, TOOL_DATA and NODE_DIR are set by lib.sh, so they are not overrides).
+# Tests only: SRC_DIR, UNIT_DIR (TOOL_ETC, TOOL_DIR, TOOL_DATA and NODE_DIR are set by lib.sh, so they are not overrides).
 
 dry="${DRY_RUN:-0}"
 check="${CHECK:-0}"
@@ -39,7 +42,7 @@ unit_name=foundry-ai-tool-who-uses-what
 service_file="$unit_dir/$unit_name.service"
 timer_file="$unit_dir/$unit_name.timer"
 dest="$TOOL_DIR/who-uses-what"
-legacy_state="${STATE_DIR:-/var/lib/foundry-ai-tool-who-uses-what}"
+legacy_state=/var/lib/foundry-ai-tool-who-uses-what
 access_env="$TOOL_ETC/dashboard-access.env"
 board_conf="$TOOL_ETC/board-status.conf"
 files="who-uses-what.mjs who-uses-what-push.sh"
@@ -67,6 +70,12 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
+CapabilityBoundingSet=
+PrivateDevices=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
 TimeoutStartSec=300"
 
 want_timer="[Unit]
@@ -150,12 +159,18 @@ plan_units="write the service and the timer"
 plan_legacy="nothing to do"
 if [ -L "$legacy_state" ]; then plan_legacy="$legacy_state is a symbolic link: refuse"
 elif [ -e "$legacy_state" ]; then plan_legacy="remove $legacy_state (the old deploy key and vault clone)"; fi
-say "plan: files: $plan_files; units: $plan_units; old deploy key and clone: $plan_legacy; then one reading sent to the board, and the timer enabled when it worked"
+say "plan: files: $plan_files; units: $plan_units; old deploy key and clone: $plan_legacy; timer: turned off first (an earlier version's timer may be enabled); then one reading sent to the board, and the timer enabled when it worked"
 if [ "$dry" = 1 ]; then
   say "DRY_RUN=1: nothing changed"
   exit 0
 fi
 [ ! -L "$legacy_state" ] || die "$legacy_state is a symbolic link: refusing (remove it by hand after looking at it)"
+
+if have_systemd; then
+  say "the timer off until a reading is accepted (an earlier version's timer may be enabled and its job running)"
+  systemctl disable --now "$unit_name.timer" >/dev/null 2>&1 || true
+  systemctl stop "$unit_name.service" >/dev/null 2>&1 || true
+fi
 
 say "the files"
 if [ "$cmp_all" = 1 ]; then

@@ -257,8 +257,9 @@ rm -f /tmp/systemctl.log /tmp/fake-board-ok
 fresh
 run
 rc=$?
-if [ "$rc" -ne 0 ] && echo "$OUT" | grep -q 'timer is NOT enabled' && echo "$OUT" | grep -q 'endpoint is not deployed' && ! grep -q 'enable' /tmp/systemctl.log && no_secret; then
-  pass "a refused first reading dies and leaves the timer off"; else fail "board refuses: rc=$rc log=$(cat /tmp/systemctl.log) $OUT"; fi
+if [ "$rc" -ne 0 ] && echo "$OUT" | grep -q 'timer is NOT enabled' && echo "$OUT" | grep -q 'endpoint is not deployed' && ! grep -q 'enable' /tmp/systemctl.log && no_secret &&
+  [ "$(grep -n '^disable --now foundry-ai-tool-who-uses-what.timer' /tmp/systemctl.log | head -n 1 | cut -d: -f1)" -lt "$(grep -n '^start foundry-ai-tool-who-uses-what.service' /tmp/systemctl.log | head -n 1 | cut -d: -f1)" ]; then
+  pass "a refused first reading dies and leaves the timer off, turned off before the start (an earlier version's timer too)"; else fail "board refuses: rc=$rc log=$(cat /tmp/systemctl.log) $OUT"; fi
 : >/tmp/systemctl.log
 touch /tmp/fake-board-ok
 run
@@ -267,7 +268,7 @@ start_line="$(grep -n '^start foundry-ai-tool-who-uses-what.service' /tmp/system
 enable_line="$(grep -n '^enable --now foundry-ai-tool-who-uses-what.timer' /tmp/systemctl.log | head -n 1 | cut -d: -f1)"
 if [ "$rc" -eq 0 ] && [ -n "$start_line" ] && [ -n "$enable_line" ] && [ "$start_line" -lt "$enable_line" ]; then
   pass "with the board accepting, the reading is sent first and the timer is enabled after it"; else fail "board ok: rc=$rc log=$(cat /tmp/systemctl.log) $OUT"; fi
-if ! grep -qE '^(restart|stop) ' /tmp/systemctl.log && ! grep -v 'who-uses-what' /tmp/systemctl.log | grep -qE '^(start|restart|stop|enable|disable)'; then
+if ! grep -E '^(restart|stop) ' /tmp/systemctl.log | grep -qv 'foundry-ai-tool-who-uses-what' && ! grep -v 'who-uses-what' /tmp/systemctl.log | grep -qE '^(start|restart|stop|enable|disable)'; then
   pass "no other unit is started, stopped or restarted"; else fail "other units touched: $(cat /tmp/systemctl.log)"; fi
 rm -rf /run/systemd/system /tmp/fakebin/systemctl /tmp/fakebin/journalctl /tmp/fake-board-ok /tmp/systemctl.log
 

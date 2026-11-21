@@ -249,7 +249,9 @@ names and counts only.
 - **The board side:** the board repo (`foundry-ai-tool-pm-board`) needs `POST /api/who-uses-what` for the `pi` role, storing the
   report the way `/api/pi-status` does. Until that is deployed the stage's first reading fails and the timer stays off.
 - **Leftovers of the first version:** a real run removes `/var/lib/foundry-ai-tool-who-uses-what` (the old deploy key, known hosts
-  and vault clone). The old deploy key on GitHub (vault repo, Settings, Deploy keys) is deleted by the user.
+  and vault clone), after turning the first version's timer off; the timer comes back only when the board accepts a reading.
+  dietpi-backup excluded that folder, so no snapshot holds the old key: it is replaced, not restored. The old deploy key on
+  GitHub (vault repo, Settings, Deploy keys) is deleted by the user.
 - **Run it** (snapshot and the user's OK first):
   1. `scp scripts/who-uses-what.mjs scripts/pi/who-uses-what-push.sh foundry-pi:/root/`
   2. `cat scripts/pi/remote/lib.sh scripts/pi/remote/35-who-uses-what.sh | ssh foundry-pi 'bash -s'` (`DRY_RUN=1` first): it takes

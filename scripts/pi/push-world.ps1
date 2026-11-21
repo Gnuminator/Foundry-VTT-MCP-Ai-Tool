@@ -53,6 +53,13 @@
                        higher module.json version) is kept, not downgraded. scripts/plan-b/push-back.ps1 calls this.
 .PARAMETER BasedOnSnapshot  With -PushBack only (required there): the time of the Pi backup Plan B restored, ISO 8601
                        (state.json snapshot.time). Written into MANIFEST.txt in UTC for stage 11's change check.
+.PARAMETER NewerThanSnapshot  The Pi is the truth: the campaign world (curse-of-strahd) is refused unless this is a -PushBack, or this names
+                       the time (ISO 8601) of the Pi backup this PC copy was taken from and the copy has been written to since
+                       (its newest file is newer than that time), or -FirstInstall is given. Written into MANIFEST.txt as
+                       "based-on-snapshot:"; stage 11 then runs its change check when REPLACE_WORLD=1 replaces the Pi's world
+                       and refuses REPLACE_WORLD=1 for a bundle without the line.
+.PARAMETER FirstInstall  The Pi has no campaign world yet, so there is nothing to lose. Stage 11 without REPLACE_WORLD=1 keeps an
+                       existing world, and refuses REPLACE_WORLD=1 for this bundle (it names no snapshot).
 .PARAMETER LevelModule  classic-level for world-refs (default the test server's, C:\FoundryTest\app\node_modules\classic-level).
 .PARAMETER SkipRefs    FOR TESTS ONLY: skip the asset scan (the script's own test uses a fake Data folder with no
                        LevelDB). The real run never uses it, because the scan is what proves nothing is left behind.
@@ -73,6 +80,8 @@ param(
   [string]$GmUser = 'Gamemaster',
   [switch]$PushBack,
   [string]$BasedOnSnapshot = '',
+  [string]$NewerThanSnapshot = '',
+  [switch]$FirstInstall,
   [string]$LevelModule = '',
   [switch]$SkipRefs
 )
@@ -128,11 +137,41 @@ if ($PushBack) {
 } elseif ($BasedOnSnapshot) {
   Fail '-BasedOnSnapshot belongs to -PushBack only'
 }
+# The Pi is the truth (the user, 2026-11-20; Backlog strahd-pi-is-truth): the campaign world goes to the Pi only as a
+# push-back, or as a copy taken from a named Pi snapshot that has been played or prepared on since. A copy that is
+# not newer than the snapshot it came from could overwrite what was done on the Pi in between.
+if ($NewerThanSnapshot -and $PushBack) { Fail '-NewerThanSnapshot is for a plain campaign copy; a push-back names its snapshot with -BasedOnSnapshot' }
+if ($FirstInstall -and ($PushBack -or $NewerThanSnapshot)) { Fail '-FirstInstall (the Pi has no campaign world yet) does not go with -PushBack or -NewerThanSnapshot' }
+if ($NewerThanSnapshot) {
+  $snap = [datetimeoffset]::MinValue
+  if (-not [datetimeoffset]::TryParse($NewerThanSnapshot, [CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::AssumeUniversal, [ref]$snap)) {
+    Fail "-NewerThanSnapshot '$NewerThanSnapshot' is not an ISO 8601 time"
+  }
+  $basedOn = $snap.UtcDateTime.ToString('yyyy-MM-ddTHH:mm:ss.fffZ', [CultureInfo]::InvariantCulture)
+}
+if ($World -eq 'curse-of-strahd' -and -not $PushBack -and -not $NewerThanSnapshot -and -not $FirstInstall) {
+  Fail ("refusing to push the campaign world: the Pi's copy is the truth, and nothing here says this PC copy grew from it. " +
+    "Pass -NewerThanSnapshot <the time of the Pi backup this copy was taken from> (a copy played or prepared since), " +
+    "use scripts/plan-b/push-back.ps1 for a Plan B night, or -FirstInstall when the Pi has no campaign world yet")
+}
 if ($LevelModule -and -not (Test-Path -LiteralPath $LevelModule -PathType Container)) { Fail "no classic-level folder at $LevelModule" }
 $worldSrc = Join-Path $DataPath "worlds\$World"
 if (-not (Test-Path -LiteralPath (Join-Path $worldSrc 'world.json'))) { Fail "no world.json in $worldSrc" }
 foreach ($id in $Modules) {
   if (-not (Test-Path -LiteralPath (Join-Path $DataPath "modules\$id\module.json"))) { Fail "no module.json for module $id under $DataPath\modules" }
+}
+if ($NewerThanSnapshot) {
+  # The copy must have been written to after the snapshot it names (LevelDB files change when the world is played or edited).
+  $newest = Get-ChildItem -LiteralPath $worldSrc -Recurse -File -Force | Where-Object { $_.Name -ne 'LOCK' -and $_.Name -notlike '*.lock' } |
+    Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
+  if (-not $newest) { Fail "no files in $worldSrc" }
+  $newestUtc = [datetimeoffset]::new($newest.LastWriteTimeUtc, [timespan]::Zero)
+  if ($newestUtc -le $snap) {
+    Fail ("this PC copy of $World is not newer than the Pi snapshot of ${basedOn}: its newest file is from " +
+      $newestUtc.ToString('yyyy-MM-ddTHH:mm:ss.fffZ', [CultureInfo]::InvariantCulture) +
+      ". It cannot hold anything done since the snapshot, and replacing the Pi's world with it could lose the Pi's newer play. Nothing was built")
+  }
+  Write-Host "    this PC copy is newer than the Pi snapshot of $basedOn (newest file $($newestUtc.ToString('yyyy-MM-ddTHH:mm:ssZ', [CultureInfo]::InvariantCulture)))"
 }
 
 # --- 2. the world must not be running on this PC -------------------------------------------------
@@ -279,6 +318,9 @@ if ($PiModules.Count) { $manifest += "pi-modules: $(($PiModules | ForEach-Object
 # Stage 11 reads these two lines: a kept password needs REPLACE_WORLD=1, the Pi's env file and no kit
 # world, and the Pi's world must not have changed after the snapshot time (else REPLACE_NEWER=1).
 if ($PushBack) { $manifest += @('gm-password: kept (push-back)', "based-on-snapshot: $basedOn") }
+# A plain campaign copy built with -NewerThanSnapshot names its snapshot too: stage 11 runs the same change check
+# when REPLACE_WORLD=1 replaces a world that exists on the Pi, and refuses REPLACE_WORLD=1 without this line.
+if ($NewerThanSnapshot) { $manifest += "based-on-snapshot: $basedOn" }
 [System.IO.File]::WriteAllText((Join-Path $stage 'MANIFEST.txt'), ($manifest -join "`n") + "`n", $utf8)
 
 Step 'tar (no compression)'
@@ -323,5 +365,9 @@ if ($PushBack) {
 } else {
   Write-Host "  scp scripts/pi/remote/world-switches.mjs ${PiHost}:/root/   (the world switches; or add WORLD_SWITCHES=0 and skip this)"
   Write-Host "  cat scripts/pi/remote/lib.sh scripts/pi/remote/lib-gm-passwords.sh scripts/pi/remote/11-world.sh | ssh $PiHost 'BUNDLE=/var/lib/foundry-import/$remoteName WORLD=$World bash -s'"
+  if ($NewerThanSnapshot) {
+    Write-Host "To replace the Pi's $World with this copy, add REPLACE_WORLD=1 (before bash -s). Stage 11 then stops when the Pi's world changed after $basedOn"
+    Write-Host '(it lists what changed); only with your OK to lose those changes add REPLACE_NEWER=1. The Pi''s old copy is kept in /var/lib/foundry-import/prev-<time> either way.'
+  }
 }
 if ($PiModules.Count) { Write-Host "Modules left as they are on the Pi (not in the bundle): $($PiModules -join ', ')" }

@@ -688,6 +688,22 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
     assert.equal(c.prevSettings, '', 'an installed world has its old copy in prev already');
   });
 
+  test('replace-needs-snapshot: REPLACE_WORLD=1 on a world the Pi has is refused for a bundle that names no Pi snapshot', () => {
+    const r = run('replace-needs-snapshot');
+    assert.notEqual(r.exit, '0', r.output);
+    assert.match(r.output, /names no Pi snapshot it grew from/);
+    assert.match(r.output, /Nothing was changed/);
+  });
+
+  test('replace-clean: REPLACE_WORLD=1 with a named snapshot runs the change check, not the push-back rules', () => {
+    const r = run('replace-clean');
+    assert.equal(r.exit, '0', r.output);
+    assert.match(r.output, /replacing frostmaiden-training on the Pi, based on the Pi backup of 2026-10-30T12:00:00Z/);
+    assert.match(r.output, /change check: did frostmaiden-training on the Pi change after the Pi backup of/);
+    assert.match(r.output, /change check against the Pi backup of 2026-10-30T12:00:00Z: nothing on the Pi was newer/);
+    assert.ok(!/Plan B push-back of/.test(r.output), 'a plain copy is not a push-back');
+  });
+
   test('world switches: a kept world is left alone unless WORLD_SWITCHES=1', () => {
     const rerun = run('training-rerun');
     // /tmp/switches keeps the first run's line; the rerun keeps the world and adds none.

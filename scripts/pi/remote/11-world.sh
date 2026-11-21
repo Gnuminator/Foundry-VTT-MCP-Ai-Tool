@@ -330,6 +330,7 @@ ok "all $(wc -l <"$work/listed") files match"
 # that password) can take it, and the kit world is skipped (its env file holds another password, so its
 # provisioning would fail halfway through the run). Checked here, before Foundry stops.
 pushback=0
+change_check=0
 based_on=""
 if [ -f MANIFEST.txt ] && grep -q '^gm-password:' MANIFEST.txt; then
   grep -qx 'gm-password: kept (push-back)' MANIFEST.txt || die "MANIFEST.txt has a gm-password: line this stage does not know"
@@ -343,9 +344,19 @@ if [ -f MANIFEST.txt ] && grep -q '^gm-password:' MANIFEST.txt; then
   [ -f "$TOOL_ETC/world-$WORLD.env" ] || die "a push-back needs $TOOL_ETC/world-$WORLD.env (the Pi's GM password, which the pushed world keeps): it is missing. Nothing was changed"
   case "$REPLACE_NEWER" in 0 | 1) ;; *) die "REPLACE_NEWER must be 0 or 1" ;; esac
   ok "a Plan B push-back of $WORLD, based on the Pi backup of $based_on (REPLACE_WORLD=1, no kit world, $TOOL_ETC/world-$WORLD.env present)"
+elif [ "$REPLACE_WORLD" = 1 ] && [ -d "$data/worlds/$WORLD" ]; then
+  # The Pi is the truth (the user, 2026-11-20): replacing a world that exists on the Pi needs a named snapshot the
+  # PC's copy grew from, and the change check below stops the run when the Pi's world changed after it.
+  based_on="$(sed -n 's/^based-on-snapshot: //p' MANIFEST.txt 2>/dev/null | head -n1)"
+  [[ "$based_on" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?Z$ ]] ||
+    die "REPLACE_WORLD=1 replaces the Pi's $WORLD, and this bundle names no Pi snapshot it grew from (no based-on-snapshot: line in MANIFEST.txt), so the Pi's newer play could be lost. Build the bundle with push-world.ps1 -NewerThanSnapshot <the Pi backup the PC copy was taken from>. Nothing was changed"
+  case "$REPLACE_NEWER" in 0 | 1) ;; *) die "REPLACE_NEWER must be 0 or 1" ;; esac
+  change_check=1
+  ok "replacing $WORLD on the Pi, based on the Pi backup of $based_on"
 elif [ "$REPLACE_NEWER" != 0 ]; then
-  warn "REPLACE_NEWER is for a Plan B push-back only; this bundle is not one, so it is ignored"
+  warn "REPLACE_NEWER applies only when an existing world is replaced (a push-back, or REPLACE_WORLD=1); it is ignored here"
 fi
+[ "$pushback" = 0 ] || change_check=1
 
 # The world switches need the in-browser driver, but only when a world will get them: WORLD_SWITCHES=1, or auto with
 # a kit world or a WORLD this run installs, and not in a push-back. A kept world under auto and a push-back (the
@@ -490,7 +501,7 @@ say "free space"
 free_data="$(df --output=avail -B1 "$FOUNDRY_DATA" | tail -n1 | tr -d ' ')"
 [ "$free_data" -gt $((bundle_size * 2)) ] || die "$FOUNDRY_DATA has $free_data bytes free, the install needs twice the bundle ($((bundle_size * 2)))"
 ok "$free_data bytes free"
-if [ "$pushback" = 1 ]; then
+if [ "$change_check" = 1 ]; then
   # The change check copies the databases of the Pi's world and of the bundle's world into the work folder.
   need=0
   for d in "$data/worlds/$WORLD/data" "$data/worlds/$WORLD/packs" "$work/extract/Data/worlds/$WORLD/data" "$work/extract/Data/worlds/$WORLD/packs"; do
@@ -538,7 +549,7 @@ newer_count=0
 same_count=0
 scan_rc=0
 check_state=none
-if [ "$pushback" = 1 ]; then
+if [ "$change_check" = 1 ]; then
   say "change check: did $WORLD on the Pi change after the Pi backup of $based_on?"
   if [ ! -d "$data/worlds/$WORLD" ]; then
     ok "there is no $WORLD on the Pi: nothing to compare"
@@ -939,12 +950,12 @@ trap '' HUP PIPE
 # The summary goes through out (not echo) so the run's log holds it too.
 say "summary"
 out "    world $WORLD: $real_state"
-if [ "$pushback" = 1 ]; then
+if [ "$change_check" = 1 ]; then
   case "$check_state" in
-    newer) out "    push-back based on $based_on: $newer_count newer Pi documents replaced (REPLACE_NEWER=1; the Pi's copy is in prev)" ;;
-    failed) out "    push-back based on $based_on: the change check did not run (exit $scan_rc; REPLACE_NEWER=1; the Pi's copy is in prev)" ;;
-    clean) out "    push-back based on $based_on: nothing on the Pi was newer" ;;
-    *) out "    push-back based on $based_on: there was no $WORLD on the Pi to compare" ;;
+    newer) out "    change check against the Pi backup of $based_on: $newer_count newer Pi documents replaced (REPLACE_NEWER=1; the Pi's copy is in prev)" ;;
+    failed) out "    change check against the Pi backup of $based_on: the change check did not run (exit $scan_rc; REPLACE_NEWER=1; the Pi's copy is in prev)" ;;
+    clean) out "    change check against the Pi backup of $based_on: nothing on the Pi was newer" ;;
+    *) out "    change check against the Pi backup of $based_on: there was no $WORLD on the Pi to compare" ;;
   esac
 fi
 [ -z "$KIT_WORLD" ] || out "    kit world $KIT_WORLD: reset ($KIT_TITLE)"

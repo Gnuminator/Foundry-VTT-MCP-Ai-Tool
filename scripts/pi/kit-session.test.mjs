@@ -2587,7 +2587,8 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     assert.equal(counts.exit, 0, counts.output);
     const stuck = run('cut-down-kit-stop-fails');
     untouched(stuck, 'strahd-kit');
-    assert.match(stuck.output, /the Kit GM browser \(foundry-ai-tool-kit-gm-browser\) did not stop: see docker inspect foundry-ai-tool-kit-gm-browser/);
+    assert.match(stuck.output, /the Kit GM browser \(foundry-ai-tool-kit-gm-browser\) did not stop: see docker logs --tail 30 foundry-ai-tool-kit-gm-browser/);
+    assert.doesNotMatch(stuck.output, /see docker inspect foundry-ai-tool-kit-gm-browser\b(?! \()/);
     assert.deepEqual(dockerActions(stuck), [RM_KIT]);
     assert.ok(!stuck.output.includes('DRIVER'));
     assert.deepEqual(kit(stuck), KIT_UP);

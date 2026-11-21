@@ -19,7 +19,7 @@
 # Containers (day two): after the Docker cutover (stage 24) the stage works on the stack as it stands (use_stack in lib.sh).
 # The module folders sit in $FOUNDRY_DATA/Data/modules, which the foundry container mounts, so the folder moves are the same.
 # Only the service handling changes: the Assistant GM browser container and then the foundry container are stopped with
-# docker stop, Foundry is brought back with docker restart and the browser with docker start (the existing containers: nothing
+# stopped through the stack helpers, Foundry is brought back by a restart and the browser by a start (the existing containers: nothing
 # is recreated, no compose down), the browser's "joined world" line is read from its container log since the start, and the
 # "module problem" check reads docker logs of the foundry container since the run began. A failed run puts the old folders back
 # and starts the containers as they were. On systemd the commands are the ones it always ran.

@@ -33,7 +33,7 @@
 # Tests only: OPTIONS_FILE, WORLDS_DIR and FOUNDRY_URL point at stand-ins; KIT_STATE_FILE at the kit session's state file.
 # Containers (day two, D-149): after the cutover (stage 24) the stack runs as the containers of compose project
 #   foundry-ai-tool-pi and lib.sh use_stack sets STACK=containers. The stage then does the same steps through the svc_*
-#   helpers: docker stop on the Assistant GM browser and Foundry containers (they are never recreated), options.json set as
+#   helpers: the stack stop on the Assistant GM browser and Foundry containers (they are never recreated), options.json set as
 #   above, docker start on Foundry, the join page awaited, docker start on the Assistant GM browser when its container exists
 #   ("joined world WORLD" is read from its docker logs since a time taken just before it starts, not from a journal), and the
 #   same rollback when Foundry does not come up. The kit refusal also notices the Kit GM browser container

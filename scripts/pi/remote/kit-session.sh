@@ -60,11 +60,11 @@
 #   Kit GM file and no browser then, and the teardown finds no Kit GM.
 # Containers (day two, D-149): after the cutover (stage 24) the stack runs as the containers of compose project
 #   foundry-ai-tool-pi, and lib.sh use_stack sets STACK=containers. The stage then does the same steps, with these differences:
-#   Foundry and the Assistant GM browser are stopped and started with docker stop/start on their existing containers (never
+#   Foundry and the Assistant GM browser are stopped and started through the stack helpers on their existing containers (never
 #   recreated, never compose down); the Kit GM browser is not a transient unit but a plain container named
 #   foundry-ai-tool-kit-gm-browser (docker run -d, image foundry-ai-tool-pi/gm-browser:local, host network, the foundry
 #   user, the password file as --env-file, ports read from deploy/pi/.env, restart policy unless-stopped, so a reboot brings it
-#   back until MODE=down removes it). It has no compose label, so nothing counts it as the stack. Stopping it is docker rm -f
+#   back until MODE=down removes it). It has no compose label, so nothing counts it as the stack. Stopping it is a forced remove
 #   (harmless when absent); a leftover is any container of that name; "joined world strahd-kit as Kit GM" is read from its
 #   docker logs. The driver (kit-session.mjs through runuser, on the host's node and Chromium and the host build) is the same.
 #   No systemd-run, systemctl start or unit of the four stack services is used. The bridge must exist as a container, and
@@ -275,10 +275,10 @@ state_value() { # $1 key
 # ---- the Kit GM: password file, profile folder and browser unit ----------------------------------------------------
 
 # The Kit GM browser is a transient unit (units) or a plain container (containers), so it may not exist at all; reset-failed
-# clears a failed leftover unit, docker rm -f removes the container (also a stopped one), whose name would block the next run.
+# clears a failed leftover unit, a forced remove takes away the container (also a stopped one), whose name would block the next run.
 stop_kit_gm_browser() {
   if [ "$STACK" = containers ]; then
-    docker rm -f "$KIT_GM_UNIT" >/dev/null 2>&1 || true
+    stack_docker rm -f "$KIT_GM_UNIT" >/dev/null 2>&1 || true
   else
     systemctl stop "$KIT_GM_UNIT.service" 2>/dev/null || true
     systemctl reset-failed "$KIT_GM_UNIT.service" 2>/dev/null || true

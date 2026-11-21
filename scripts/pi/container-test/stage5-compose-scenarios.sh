@@ -242,7 +242,7 @@ if cmp -s "$APP/deploy/pi/.env" "$APP.prev/deploy/pi/.env"; then pass "new ref: 
 if no_unit_changes && no_container_moves; then pass "new ref: no unit started, stopped, enabled or restarted; no container stopped, started or removed"; else fail "units or containers touched: $CALLS"; fi
 if [ "$(echo "$CALLS" | grep -c '^up recreates')" -eq 4 ] && out_has 'foundry: recreated' && out_has 'gm-browser: recreated' && out_has 'bridge: recreated' && out_has 'dashboard: recreated'; then pass "new ref: all four containers recreated and reported"; else fail "recreate: $OUT"; fi
 if calls_have 'docker compose -p foundry-ai-tool-pi -f compose.yml up -d --no-build --wait'; then pass "new ref: compose up -d --wait on the live project"; else fail "up call: $CALLS"; fi
-if out_has 'docker restart cid-foundry-[0-9]+\) when no one plays'; then pass "new ref: the module change warns with the docker restart command"; else fail "module warning: $OUT"; fi
+if out_has 'restart the container cid-foundry-[0-9]+ when no one plays'; then pass "new ref: the module change warns and names the container to restart"; else fail "module warning: $OUT"; fi
 if [ -f "$SB/tool/gm-browser/assistant-gm.mjs" ]; then pass "new ref: a copied driver is still installed"; else fail "driver not installed"; fi
 if out_has 'the stack runs as containers \(project foundry-ai-tool-pi\)'; then pass "new ref: names the container stack"; else fail "services line: $OUT"; fi
 
@@ -254,7 +254,7 @@ if [ "$RC" -eq 0 ] && out_has 'bridge: recreated' && out_has 'dashboard: recreat
   pass "app image only: bridge and dashboard recreated, foundry and gm-browser unchanged"
 else fail "partial (rc $RC): $OUT"; fi
 if ! calls_have '^up recreates (foundry|gm-browser)' && no_unit_changes && no_container_moves; then pass "app image only: Foundry and the Assistant GM are left running"; else fail "partial calls: $CALLS"; fi
-if out_has 'docker restart cid-foundry-1\)'; then pass "app image only: the unchanged Foundry container is named for the module restart"; else fail "module warning: $OUT"; fi
+if out_has 'restart the container cid-foundry-1 when'; then pass "app image only: the unchanged Foundry container is named for the module restart"; else fail "module warning: $OUT"; fi
 
 # 2b. a new ref whose build gives the same images and settings: swapped in, nothing recreated
 new_pi

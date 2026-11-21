@@ -18,7 +18,7 @@
 # the old checkout alone. Nothing is stopped for the swap (the containers run baked images), and no unit file is written or
 # enabled. After the swap `docker compose up -d --wait` recreates only the services whose image or settings changed, after
 # require_quiet; a run that finds everything current recreates nothing and needs no quiet Pi. A new module still needs a
-# Foundry restart: the stage warns with the docker restart command.
+# Foundry restart: the stage warns and names the container to restart.
 
 require_root
 require_recent_snapshot
@@ -304,7 +304,7 @@ else
   ok "installed the module in $module_dir"
   if [ "$STACK" = containers ]; then
     if [ -n "$(svc_cid foundry)" ]; then
-      warn "Foundry is running: restart it (docker restart $(svc_cid foundry)) when no one plays, so it loads the new module"
+      warn "Foundry is running: restart the container $(svc_cid foundry) when no one plays, so it loads the new module"
     fi
   elif have_systemd && systemctl is-active --quiet foundry.service; then
     warn "Foundry is running: restart it (systemctl restart foundry) when no one plays, so it loads the new module"

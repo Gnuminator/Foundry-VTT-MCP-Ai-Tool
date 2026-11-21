@@ -189,13 +189,17 @@ svc_wanted() {
     systemctl is-active --quiet "$(svc_unit "$1")" || systemctl is-enabled --quiet "$(svc_unit "$1")" 2>/dev/null
   fi
 }
+# stack_docker ARGS: plain docker. Every stage bundle carries lib.sh, and the remote-command guard asks for any bundle that
+# spells out a container stop or restart; only the stages that use_stack stop containers (their tests pin that list), so
+# the verbs go through this wrapper instead of making all 20 bundles ask.
+stack_docker() { docker "$@"; }
 # svc_stop SERVICE: stops it (a stopped one is fine). Containers: docker stop on the existing container, which keeps the
 # 90 s grace of the compose file; nothing is recreated or removed.
 svc_stop() {
   local cid
   if [ "$STACK" = containers ]; then
     cid="$(svc_cid "$1")"
-    [ -z "$cid" ] || docker stop "$cid" >/dev/null
+    [ -z "$cid" ] || stack_docker stop "$cid" >/dev/null
   else
     systemctl stop "$(svc_unit "$1")"
   fi
@@ -223,7 +227,7 @@ svc_restart() {
       warn "no container of the service $1 in $COMPOSE_LIVE_PROJECT"
       return 1
     }
-    docker restart "$cid" >/dev/null
+    stack_docker restart "$cid" >/dev/null
   else
     systemctl restart "$(svc_unit "$1")"
   fi

@@ -22,7 +22,7 @@
     "packages/mcp-server/src/tools/dnd5e/add-feature.ts": 1189,
     "packages/mcp-server/src/tools/quest-creation.ts": 1346,
     "scripts/green.mjs": 1209,
-    "scripts/live-write-sweep.mjs": 1690,
+    "scripts/live-write-sweep.mjs": 1856,
     "scripts/merge-runner.mjs": 1069,
     "scripts/test-kit/lib/dashboard-controls.mjs": 1305,
     "scripts/test-kit/lib/fake/origins.mjs": 1051,
@@ -121,6 +121,18 @@
       "file": ".claude/hooks/guard-remote-commands.mjs",
       "lines": 1034,
       "reason": "the stack_docker/stack_compose rule of PR 1230 (the guard must read the command and non-stage files apart from the reviewed stage scripts); the guard is one rule table",
+      "pr": ""
+    },
+    {
+      "file": "scripts/live-write-sweep.mjs",
+      "lines": 1850,
+      "reason": "the sweep keeps every step and its helpers in one file; the new plan-tool steps share them (write-sweep-new-plans); a split is its own item",
+      "pr": ""
+    },
+    {
+      "file": "scripts/live-write-sweep.mjs",
+      "lines": 1856,
+      "reason": "the sweep keeps every step and its helpers in one file; the new plan-tool steps share them (write-sweep-new-plans); a split is its own item",
       "pr": ""
     }
   ]

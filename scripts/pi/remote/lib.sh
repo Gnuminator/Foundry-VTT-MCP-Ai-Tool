@@ -316,6 +316,22 @@ gm_container_joined() {
   [ "$(docker logs --since "$started" "$cid" 2>&1 | grep -c '\[assistant-gm\] joined world' || true)" -gt 0 ]
 }
 
+# The Kit GM browser of a kit session on a cut-over Pi is a plain container of this name (kit-session.sh), not part of the
+# compose project, so the stack guards never count it as a stack container.
+KIT_GM_CONTAINER=foundry-ai-tool-kit-gm-browser
+kit_container_running() {
+  command -v docker >/dev/null 2>&1 || return 1
+  [ "$(timeout 20 docker inspect -f '{{.State.Running}}' "$KIT_GM_CONTAINER" 2>/dev/null || true)" = true ]
+}
+# kit_container_joined: the Kit GM container runs and logged "joined world" in its current run.
+kit_container_joined() {
+  local started
+  kit_container_running || return 1
+  started="$(docker inspect -f '{{.State.StartedAt}}' "$KIT_GM_CONTAINER" 2>/dev/null || true)"
+  [ -n "$started" ] || return 1
+  [ "$(docker logs --since "$started" "$KIT_GM_CONTAINER" 2>&1 | grep -c '\[assistant-gm\] joined world' || true)" -gt 0 ]
+}
+
 # Install Debian packages that are missing.
 apt_install() {
   local missing=()
@@ -522,8 +538,9 @@ gm_browsers_joined() {
   for unit in foundry-ai-tool-gm-browser.service foundry-ai-tool-kit-gm-browser.service; do
     if browser_joined "$unit"; then n=$((n + 1)); fi
   done
-  # The Assistant GM as a container (after the cutover) holds a Foundry user the same way.
+  # The Assistant GM as a container (after the cutover) holds a Foundry user the same way, and so does the Kit GM container.
   if gm_container_joined; then n=$((n + 1)); fi
+  if kit_container_joined; then n=$((n + 1)); fi
   printf '%s' "$n"
 }
 
@@ -535,6 +552,7 @@ gm_browsers_pending() {
     if systemctl is-active --quiet "$unit" && ! browser_joined "$unit"; then n=$((n + 1)); fi
   done
   if [ -n "$(live_container gm-browser)" ] && ! gm_container_joined; then n=$((n + 1)); fi
+  if kit_container_running && ! kit_container_joined; then n=$((n + 1)); fi
   printf '%s' "$n"
 }
 

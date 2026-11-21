@@ -121,7 +121,7 @@ while players are online.
      need Foundry running first: after a killed run Foundry may be down, and `UNDO=1` starts it (and the browser).
    - It never downloads and never installs a version that is not pinned.
    - **Order in sitting 2:** stages 3, 14, 5 and 13 as in step 3, then this stage, then the Docker cutover; the cutover
-     guard (`refuse_when_cut_over`, Backlog item on the stages that restart `foundry.service`) must list stage 25 too.
+     guard knows stage 25: on a cut-over Pi it works on the containers (`use_stack`, D-149), no rollback needed.
      The stage installs into the modules folder every Pi world shares, so it applies to all worlds at once and Foundry
      restarts into whichever world is launched; it refuses while a kit session is up. Test the versions on the PC test
      server and kit first (step 4), not on the Pi's strahd-kit world. Stage 22 (seven books) runs after this stage when content modules changed.

@@ -162,6 +162,106 @@ exit 0
   });
 });
 
+// ---- use_stack and the svc_* helpers (day two, D-149) ------------------------------------------------------------
+// DOCKER_MODE: down (daemon silent) | none (no container) | live (a running container of the live project) | stopped.
+// Calls land in $CALLS. systemctl says a unit is active only when ACTIVE_UNIT names it.
+describe('use_stack and svc_*', { skip: !hasBash && 'no bash here' }, () => {
+  function run(mode, body, { activeUnit = '', systemd = true } = {}) {
+    const dir = path.join(tmp, `s${++counter}`);
+    const bin = path.join(dir, 'bin');
+    mkdirSync(bin, { recursive: true });
+    const calls = path.join(dir, 'calls');
+    writeFileSync(calls, '');
+    writeFileSync(
+      path.join(bin, 'docker'),
+      `#!/usr/bin/env bash
+echo "docker $*" >>"$CALLS"
+case "$1" in
+  info) [ "$DOCKER_MODE" != down ] || exit 1; exit 0 ;;
+  ps)
+    [ "$DOCKER_MODE" != down ] || exit 1
+    all=0; svc=""
+    for a in "$@"; do case "$a" in -aq) all=1 ;; label=com.docker.compose.service=*) svc="\${a#label=com.docker.compose.service=}" ;; esac; done
+    case "$DOCKER_MODE" in
+      live) echo "cid-\${svc:-all}" ;;
+      stopped) [ "$all" = 1 ] && echo "cid-\${svc:-all}" ;;
+    esac
+    exit 0 ;;
+esac
+exit 0
+`
+    );
+    chmodSync(path.join(bin, 'docker'), 0o755);
+    writeFileSync(
+      path.join(bin, 'systemctl'),
+      `#!/usr/bin/env bash
+echo "systemctl $*" >>"$CALLS"
+if [ "$1" = is-active ]; then u="\${@: -1}"; [ "$u" = "$ACTIVE_UNIT" ] && exit 0; exit 3; fi
+exit 0
+`
+    );
+    chmodSync(path.join(bin, 'systemctl'), 0o755);
+    const sys = systemd ? 'have_systemd() { return 0; }\n' : 'have_systemd() { return 1; }\n';
+    const r = bash(`export PATH="$BIN:$PATH"\n${lib}\n${sys}${body}\n`, {
+      BIN: posix(bin),
+      CALLS: posix(calls),
+      DOCKER_MODE: mode,
+      ACTIVE_UNIT: activeUnit,
+    });
+    return { ...r, calls: readFileSync(calls, 'utf8') };
+  }
+
+  test('no container of the live project: STACK is units and the helpers run the same systemctl commands as before', () => {
+    const r = run('none', 'use_stack "stage X"; echo "STACK=$STACK"; svc_stop gm-browser; svc_start foundry; svc_restart bridge; svc_try_restart dashboard');
+    assert.match(r.stdout, /STACK=units/);
+    assert.match(r.calls, /systemctl stop foundry-ai-tool-gm-browser\.service/);
+    assert.match(r.calls, /systemctl start foundry\.service/);
+    assert.match(r.calls, /systemctl restart foundry-ai-tool-bridge\.service/);
+    assert.match(r.calls, /systemctl try-restart foundry-ai-tool-dashboard\.service/);
+    assert.doesNotMatch(r.calls, /docker (stop|start|restart)/);
+  });
+  test('docker not installed: units', () => {
+    const r = run('none', 'command() { if [ "$1" = -v ] && [ "$2" = docker ]; then return 1; fi; builtin command "$@"; }\nuse_stack "stage X"; echo "STACK=$STACK"');
+    assert.match(r.stdout, /STACK=units/);
+  });
+  test('a container of the live project: STACK is containers and the helpers act on the existing container', () => {
+    const r = run('live', 'use_stack "stage X"; echo "STACK=$STACK"; svc_stop foundry; svc_start foundry; svc_restart bridge; svc_try_restart dashboard; svc_active gm-browser && echo active');
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /STACK=containers/);
+    assert.match(r.stdout, /active/);
+    assert.match(r.calls, /docker stop cid-foundry/);
+    assert.match(r.calls, /docker start cid-foundry/);
+    assert.match(r.calls, /docker restart cid-bridge/);
+    assert.match(r.calls, /docker restart cid-dashboard/);
+    assert.doesNotMatch(r.calls, /systemctl (start|stop|restart|try-restart)/);
+    assert.doesNotMatch(r.calls, /docker (rm|compose|run)/);
+  });
+  test('a stopped container still means containers; svc_start starts it and svc_stop leaves it', () => {
+    const r = run('stopped', 'use_stack "stage X"; echo "STACK=$STACK"; svc_stop foundry; svc_start foundry; svc_wanted gm-browser && echo wanted; svc_active gm-browser || echo notactive');
+    assert.match(r.stdout, /STACK=containers/);
+    assert.match(r.stdout, /wanted/);
+    assert.match(r.stdout, /notactive/);
+    assert.match(r.calls, /docker start cid-foundry/);
+    assert.doesNotMatch(r.calls, /docker stop/);
+  });
+  test('a silent Docker daemon refuses (unknown), FORCE=1 does not change that', () => {
+    const r = run('down', 'FORCE=1; use_stack "stage X"; echo passed', { systemd: false });
+    assert.equal(r.status, 1);
+    assert.doesNotMatch(r.stdout, /passed/);
+    assert.match(r.stderr, /does not answer.*stage X is refused/);
+  });
+  test('a unit running next to the containers is a mixed state: refused', () => {
+    const r = run('live', 'use_stack "stage X"; echo passed', { activeUnit: 'foundry.service' });
+    assert.equal(r.status, 1);
+    assert.doesNotMatch(r.stdout, /passed/);
+    assert.match(r.stderr, /foundry\.service runs next to the containers.*mixed state/);
+  });
+  test('svc_start of a service with no container is an error, not a silent success', () => {
+    const r = run('none', 'use_stack "x"; STACK=containers; svc_start foundry || echo "rc=$?"');
+    assert.match(r.stdout, /rc=1/);
+  });
+});
+
 // ---- the stick: every stage that touches a unit has the guard or a reason ------------------------------------------
 // Compose runs four units as containers (compose.yml): foundry, bridge, dashboard, gm-browser. A stage that starts,
 // restarts or enables a systemd unit would start a second copy of one of them next to its container on a cut-over Pi
@@ -195,7 +295,14 @@ const stageFiles = readdirSync(remote)
   .sort();
 const codeLines = text => text.split('\n').map((line, i) => ({ line, n: i + 1 })).filter(l => !/^\s*#/.test(l.line));
 const MUTATING = /\benable_unit\b|\bsystemctl\s+(?:--\S+\s+)*(?:start|restart|try-restart|reload-or-restart|enable)\b/;
-const GUARD = /^\s*refuse_when_cut_over\s+"/;
+// A stage is guarded by refuse_when_cut_over (it refuses on a cut-over Pi) or by use_stack (day two, D-149: it works on the
+// containers through the svc_* helpers of lib.sh).
+const GUARD = /^\s*(?:refuse_when_cut_over|use_stack)\s+"/;
+const USE_STACK = /^\s*use_stack\s+"/;
+// A use_stack stage reaches the four stack services only through svc_*: a direct systemctl start, stop, restart or
+// try-restart of foundry.service, the bridge, the dashboard or the Assistant GM would act on a unit while the containers run.
+const RAW_STACK_UNIT =
+  /\bsystemctl\s+(?:--\S+\s+)*(?:start|stop|restart|try-restart|reload-or-restart)\s+(?:--\S+\s+)*(?:foundry\.service|foundry-ai-tool-(?:bridge|dashboard|gm-browser)\.service|"?\$(?:\{?(?:gm_unit|GM_UNIT|dashboard_unit)\}?)"?)/;
 
 describe('every stage that starts, restarts or enables a unit calls the guard', () => {
   const info = Object.fromEntries(
@@ -235,6 +342,23 @@ describe('every stage that starts, restarts or enables a unit calls the guard', 
       }
     });
   }
+
+  test('a stage that calls use_stack drives the stack services through svc_*, not systemctl on their units', () => {
+    const users = stageFiles.filter(f => codeLines(readFileSync(path.join(remote, f), 'utf8')).some(l => USE_STACK.test(l.line)));
+    assert.deepEqual(
+      users,
+      ['21-player-vault.sh', '25-modules.sh', '5-tool.sh', 'kit-session.sh', 'switch-world.sh'],
+      'the day-two stages (D-149)'
+    );
+    for (const f of users) {
+      const raw = codeLines(readFileSync(path.join(remote, f), 'utf8')).filter(l => RAW_STACK_UNIT.test(l.line));
+      assert.deepEqual(
+        raw.map(l => `${f}:${l.n}: ${l.line.trim()}`),
+        [],
+        `${f} calls systemctl on a stack unit directly: use svc_start, svc_stop, svc_restart or svc_try_restart (lib.sh)`
+      );
+    }
+  });
 
   test('NO_GUARD names only files that exist', () => {
     for (const f of Object.keys(NO_GUARD)) assert.ok(stageFiles.includes(f), `${f} is gone: remove the entry`);

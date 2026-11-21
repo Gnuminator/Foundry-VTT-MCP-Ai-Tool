@@ -82,7 +82,7 @@ case "$kind" in
       text="Pi: the crash guard is installed; alerts reach this channel."
     elif [ "$name" = foundry-backup.service ]; then
       # A failed or skipped night of the restic backup: a oneshot, so its Result is exit-code, never start-limit-hit.
-      text="Pi: last night's backup failed or was skipped (the nightly restic backup, foundry-backup.service). Look at journalctl -u foundry-backup -n 50; when it is quiet, run: systemctl start foundry-backup.service"
+      text="Pi: last night's backup failed, was skipped, or left Foundry down afterwards (the nightly restic backup, foundry-backup.service). Look at journalctl -u foundry-backup -n 50 first; if Foundry is down, systemctl start foundry.service; when it is quiet, rerun the backup: systemctl start foundry-backup.service"
     else
       # RestartMode=direct keeps the automatic restarts from firing OnFailure; still post only for a real start-limit trip
       # (not for a stop that timed out, say).
@@ -317,7 +317,7 @@ if [ "$undo" = 1 ]; then
   done
   rm -f "${backup_dropin_file:?}"
   rmdir "${unit_dir:?}/$backup_unit.d" 2>/dev/null || true
-  rm -f "${unit_dir:?}/$alert_unit""${unit_dir:?}/$clock_service" "${unit_dir:?}/$clock_timer"
+  rm -f "${unit_dir:?}/$alert_unit" "${unit_dir:?}/$clock_service" "${unit_dir:?}/$clock_timer"
   rm -rf "${dest:?}" "/var/lib/${state_name:?}"
   have_systemd && systemctl daemon-reload
   ok "removed the drop-ins, the units, $dest and the state folder"

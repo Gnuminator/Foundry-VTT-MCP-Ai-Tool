@@ -231,8 +231,8 @@ const ACTIONS = {
   worldStatus: w => ({
     worldId: w.worldId,
     systemId: 'dnd5e',
-    systemVersion: '6.0.5',
-    coreVersion: '14.368',
+    systemVersion: '6.0.6',
+    coreVersion: '14.370',
     userName: 'Kit GM',
     isGM: true,
     moduleActive: true,

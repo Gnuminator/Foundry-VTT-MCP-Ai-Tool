@@ -19,8 +19,8 @@ const STUDIO_MODULE = 'foundryvtt-actor-studio';
 /** Same versions as the everyday test world (C:/FoundryTest/data/Data/worlds/ai-tool-test). */
 const WORLD_JSON = {
   system: 'dnd5e',
-  coreVersion: '14.368',
-  systemVersion: '6.0.5',
+  coreVersion: '14.370',
+  systemVersion: '6.0.6',
   compatibility: { minimum: '14', verified: '14' },
   description: '<p>Test kit world. Rebuilt by the kit; never a real campaign.</p>',
   flags: {},

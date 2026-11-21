@@ -185,20 +185,16 @@ describe('DiagnosticsTools.handleGetModuleManifest', () => {
     consoleErr.mockRestore();
   });
 
-  it('returns a Parameter-error string (not a throw) when moduleId is missing', async () => {
+  it('throws a parameter error when moduleId is missing', async () => {
     const { tools, query } = makeTools(DiagnosticsTools);
-    const result = await tools.handleGetModuleManifest({});
-    expect(typeof result).toBe('string');
-    expect(result as string).toMatch(/Parameter error/i);
+    await expect(tools.handleGetModuleManifest({})).rejects.toThrow(/Parameter error/i);
     expect(query).not.toHaveBeenCalled();
     consoleErr.mockRestore();
   });
 
-  it('returns a Parameter-error string (not a throw) when args are null/undefined', async () => {
+  it('throws a parameter error when args are null/undefined', async () => {
     const { tools, query } = makeTools(DiagnosticsTools);
-    const result = await tools.handleGetModuleManifest(null);
-    expect(typeof result).toBe('string');
-    expect(result as string).toMatch(/Parameter error/i);
+    await expect(tools.handleGetModuleManifest(null)).rejects.toThrow(/Parameter error/i);
     expect(query).not.toHaveBeenCalled();
     consoleErr.mockRestore();
   });

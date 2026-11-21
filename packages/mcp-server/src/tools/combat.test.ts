@@ -7,8 +7,8 @@ import { CombatTools, SET_INITIATIVE_NOTE } from './combat.js';
 /**
  * Tests for CombatTools: a thin, deterministic layer over FoundryClient.query.
  * Pattern: validate args → dispatch correct `foundry-mcp-bridge.*` method →
- * propagate foundry-side failures → return validation errors as strings
- * (handleSetInitiative only; all others throw).
+ * propagate foundry-side failures → throw `Parameter error: …` on validation
+ * failures.
  *
  * The FoundryClient is mocked so these tests run with no bridge connection.
  */
@@ -151,38 +151,34 @@ describe('CombatTools.handleSetInitiative', () => {
     expect(SET_INITIATIVE_NOTE).toMatch(/turn did not move/);
   });
 
-  it('returns a parameter-error string (not a throw) when combatantName is missing', async () => {
+  it('throws a parameter error when combatantName is missing', async () => {
     const { tools, query } = makeTools(CombatTools);
-    const result = await tools.handleSetInitiative({ initiative: 10 });
-    expect(typeof result).toBe('string');
-    expect(result as string).toMatch(/Parameter error/i);
+    await expect(tools.handleSetInitiative({ initiative: 10 })).rejects.toThrow(/Parameter error/i);
     expect(query).not.toHaveBeenCalled();
   });
 
-  it('returns a parameter-error string (not a throw) when initiative is missing', async () => {
+  it('throws a parameter error when initiative is missing', async () => {
     const { tools, query } = makeTools(CombatTools);
-    const result = await tools.handleSetInitiative({ combatantName: 'Goblin' });
-    expect(typeof result).toBe('string');
-    expect(result as string).toMatch(/Parameter error/i);
+    await expect(tools.handleSetInitiative({ combatantName: 'Goblin' })).rejects.toThrow(
+      /Parameter error/i
+    );
     expect(query).not.toHaveBeenCalled();
   });
 
-  it('returns a parameter-error string (not a throw) when args are null/undefined', async () => {
+  it('throws a parameter error when args are null/undefined', async () => {
     const { tools, query } = makeTools(CombatTools);
-    const result = await tools.handleSetInitiative(undefined);
-    expect(typeof result).toBe('string');
-    expect(result as string).toMatch(/Parameter error/i);
+    await expect(tools.handleSetInitiative(undefined)).rejects.toThrow(/Parameter error/i);
     expect(query).not.toHaveBeenCalled();
   });
 
-  it('returns a parameter-error string when initiative is a non-number string', async () => {
+  it('throws a parameter error when initiative is a non-number string', async () => {
     const { tools, query } = makeTools(CombatTools);
-    const result = await tools.handleSetInitiative({
-      combatantName: 'Goblin',
-      initiative: 'high',
-    });
-    expect(typeof result).toBe('string');
-    expect(result as string).toMatch(/Parameter error/i);
+    await expect(
+      tools.handleSetInitiative({
+        combatantName: 'Goblin',
+        initiative: 'high',
+      })
+    ).rejects.toThrow(/Parameter error/i);
     expect(query).not.toHaveBeenCalled();
   });
 

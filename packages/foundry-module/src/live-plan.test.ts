@@ -839,8 +839,40 @@ describe('condition on', () => {
       expect(data.duration).toMatchObject({ value: 0, units: 'rounds', expiry: 'turnEnd' });
       expect(data.start.combatant).toBe('c2');
       expect(plan.targets[0]?.line).toBe(
-        'Wolf: Poisoned (this round, ends at the end of its turn)'
+        'Wolf: Poisoned (this round, ends at the end of its turn, counted from now: plan again if the turn moves first)'
       );
+    });
+
+    it('stamps the start from the fight the holder is in', async () => {
+      const wolf = addActor({ id: 'a1', name: 'Wolf' });
+      world.setCombat({
+        id: 'fight1',
+        round: 3,
+        turn: 0,
+        turns: [{ id: 'c0' }],
+        combatants: [{ id: 'c0', name: 'C0', actor: wolf }],
+      });
+      const plan = await planLiveChange(
+        hpRequest({ action: 'condition', condition: 'poisoned', ends: 'turn-end' })
+      );
+      expect((plan.ops[0] as any).data.start).toMatchObject({
+        combat: 'fight1',
+        combatant: 'c0',
+        round: 3,
+        turn: 0,
+      });
+    });
+
+    it('says the fight has not started, not that the target is missing from it', async () => {
+      const wolf = addActor({ id: 'a1', name: 'Wolf' });
+      world.setCombat({
+        turn: null,
+        turns: [{ id: 'c0' }],
+        combatants: [{ id: 'c0', name: 'C0', actor: wolf }],
+      });
+      await expect(
+        planLiveChange(hpRequest({ action: 'condition', condition: 'poisoned', ends: 'turn-end' }))
+      ).rejects.toThrow(/has not started/);
     });
 
     it('counts one round when the target has already had its turn', async () => {
@@ -893,6 +925,9 @@ describe('condition on', () => {
     await expect(
       planLiveChange(hpRequest({ action: 'condition', condition: 'exhaustion', rounds: 2 }))
     ).rejects.toThrow(/leave rounds out/);
+    await expect(
+      planLiveChange(hpRequest({ action: 'condition', condition: 'exhaustion', ends: 'turn-end' }))
+    ).rejects.toThrow(/leave ends out/);
     await expect(
       planLiveChange(hpRequest({ action: 'condition', condition: 'poisoned', rounds: 0 }))
     ).rejects.toThrow(/whole number from 1 to 100/);

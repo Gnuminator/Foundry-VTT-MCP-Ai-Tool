@@ -23,6 +23,7 @@
  */
 import type {
   PlayerVisibleName,
+  PreflightCharacterBuilding,
   PreflightModuleFinding,
   PreflightScan,
   PreflightSettingFinding,
@@ -474,6 +475,45 @@ export function scanModules(modules: readonly ModuleLike[]): PreflightModuleFind
 }
 
 // ---------------------------------------------------------------------------
+// Character building (Actor Studio)
+// ---------------------------------------------------------------------------
+
+const ACTOR_STUDIO_ID = 'foundryvtt-actor-studio';
+/** `CONST.USER_ROLES.PLAYER`. */
+const PLAYER_ROLE = 1;
+
+function studioSetting(key: string, fallback: boolean): boolean {
+  try {
+    const settings = rec(rec(game)?.settings);
+    const get = settings?.get;
+    const value =
+      typeof get === 'function'
+        ? (get as (ns: string, k: string) => unknown).call(settings, ACTOR_STUDIO_ID, key)
+        : undefined;
+    return typeof value === 'boolean' ? value : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+/** Can players build and level? Null when Actor Studio is not active. */
+export function scanCharacterBuilding(): PreflightCharacterBuilding | null {
+  const modules = rec(rec(game)?.modules);
+  const get = modules?.get;
+  const studio =
+    typeof get === 'function'
+      ? rec((get as (id: string) => unknown).call(modules, ACTOR_STUDIO_ID))
+      : null;
+  if (studio?.active !== true) return null;
+  const allowed = rec(rec(game)?.permissions)?.ACTOR_CREATE;
+  return {
+    playerCanCreateActors: Array.isArray(allowed) && allowed.includes(PLAYER_ROLE),
+    levelUpEnabled: studioSetting('enableLevelUp', true),
+    milestoneLeveling: studioSetting('milestoneLeveling', false),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // The query
 // ---------------------------------------------------------------------------
 
@@ -487,5 +527,6 @@ export function getPreflightScan(): PreflightScan {
     settings: scanSettings(stored),
     names: collectPlayerVisibleNames(),
     modules: scanModules(installedModules()),
+    characterBuilding: scanCharacterBuilding(),
   };
 }

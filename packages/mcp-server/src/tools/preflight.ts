@@ -2,6 +2,7 @@ import {
   PREFLIGHT_QUERY,
   TOOL_VERSION,
   type GuardedFeatureState,
+  type PreflightCharacterBuilding,
   type PreflightCheck,
   type PreflightChecksResult,
   type PreflightScan,
@@ -90,7 +91,7 @@ export class PreflightTools {
       {
         name: 'get-preflight',
         description:
-          'GM ONLY. Pre-flight check before a session. action "checks" (default): one checklist with ok, warn, fail or info per item: Foundry link, module and bridge versions match, Claude Desktop connector versions, "Allow Write Operations" and the feature switches, secrets in world settings (every player can read those), names players can see that match a secret term (playlists, sounds, scenes, tokens, journals, actors), module conflicts, Obsidian notes, play session (with a warning for a paper night that has no paper sync yet); ready is true when nothing failed. action "scan": the findings behind those items. Secret values are masked, never returned. Read-only.',
+          'GM ONLY. Pre-flight check before a session. action "checks" (default): one checklist with ok, warn, fail or info per item: Foundry link, module and bridge versions match, Claude Desktop connector versions, "Allow Write Operations" and the feature switches, secrets in world settings (every player can read those), names players can see that match a secret term (playlists, sounds, scenes, tokens, journals, actors), module conflicts, whether players can build and level characters in Actor Studio (only when it is active), Obsidian notes, play session (with a warning for a paper night that has no paper sync yet); ready is true when nothing failed. action "scan": the findings behind those items. Secret values are masked, never returned. Read-only.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -139,6 +140,7 @@ export class PreflightTools {
         return terms.length > 0 ? [{ ...name, terms }] : [];
       }),
       modules: Array.isArray(raw?.modules) ? raw.modules : [],
+      characterBuilding: raw?.characterBuilding ?? null,
     };
   }
 
@@ -521,7 +523,36 @@ export class PreflightTools {
             status: warnModules.length > 0 ? 'warn' : 'info',
             detail: scan.modules.map(m => `${m.title}: ${m.reason}`).join(' '),
           };
-    return [settings, names, modules];
+    const building = this.characterBuildingCheck(scan.characterBuilding);
+    return building ? [settings, names, modules, building] : [settings, names, modules];
+  }
+
+  /** One line on whether players can build and level; no row when Actor Studio is off. */
+  private characterBuildingCheck(
+    building: PreflightCharacterBuilding | null | undefined
+  ): PreflightCheck | null {
+    if (!building) return null;
+    const label = 'Players can build and level characters';
+    const problems: string[] = [];
+    if (!building.playerCanCreateActors) {
+      problems.push(
+        'The Player role cannot create actors, so Actor Studio builds nothing for players (Configure Permissions: Create New Actors)'
+      );
+    }
+    if (!building.levelUpEnabled) {
+      problems.push("Actor Studio's Level Up is off, so players cannot level up there");
+    }
+    if (problems.length > 0) {
+      return { id: 'character-building', label, status: 'warn', detail: `${problems.join('. ')}.` };
+    }
+    return {
+      id: 'character-building',
+      label,
+      status: 'ok',
+      detail: building.milestoneLeveling
+        ? 'Players can build characters and level up; milestone levelling is on, so levels do not need XP.'
+        : 'Players can build characters and level up; milestone levelling is off, so a level needs the XP.',
+    };
   }
 
   private async playSessionCheck(): Promise<PreflightCheck> {

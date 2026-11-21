@@ -19,6 +19,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defaultRun } from './lane-merge/run.mjs';
+import { runDrift } from './lane-merge/drift.mjs';
 import { findReviewNotes } from './lane-merge/reviews.mjs';
 import { backlogIds as runnerIds } from './merge-runner/unready.mjs';
 
@@ -54,9 +55,22 @@ export const DRIFT_FIXES = [
   [/^em-dash baseline/, 'npm run emdash:ratchet -- --update'],
   [/^line baseline/, 'npm run line:ratchet -- --update'],
   [/^unused baseline/, 'npm run unused:ratchet -- --update'],
-  [/^usage catalog/, 'npm run usage:catalog'],
-  [/^mcp-server tests/, 'npm run docs:tools'],
-  [/^changelog fragments/, 'npm run changelog:check'],
+];
+
+/** Guards whose fix is not one generator: the advice text (shown whole, no command to run blindly). */
+export const DRIFT_BY_HAND = [
+  [
+    /^mcp-server tests/,
+    'if the tool reference test failed run `npm run docs:tools`; for tool counts or tool sets fix the doc or tool-set budget by hand',
+  ],
+  [
+    /^changelog fragments/,
+    'fix the fragment in changelog.d/ (format in changelog.d/README.md), then `npm run changelog:check`',
+  ],
+  [
+    /^usage catalog/,
+    'a control name in the sources is bad; fix it, then `npm run usage:catalog:check`',
+  ],
 ];
 
 /**
@@ -94,7 +108,9 @@ export function driftAdvice(guards) {
   if (guards.length === 0) return [];
   const lines = guards.map(g => {
     const hit = DRIFT_FIXES.find(([re]) => re.test(g));
-    return `drift (${g}): ${hit ? `run \`${hit[1]}\`` : 'fix by hand (see the drift-check log)'}`;
+    if (hit) return `drift (${g}): run \`${hit[1]}\``;
+    const hand = DRIFT_BY_HAND.find(([re]) => re.test(g));
+    return `drift (${g}): ${hand ? hand[1] : 'fix by hand (see the drift-check log)'}`;
   });
   lines.push('drift: after the fix, merge aitool/main, commit, push, then run /ready again');
   return lines;
@@ -221,8 +237,12 @@ export function main(o = {}) {
     let guards = driftGuards(output);
     // The gate runs drift-check last and skips it once anything else failed; run it here so one
     // list shows everything that would refuse the head.
-    if (/drift-check not run/.test(output) && guards.length === 0) {
-      const d = run('npm', ['run', 'drift:check']);
+    // Skipped when the gate judged the wrong tree (a `local:` failure): drift would too.
+    if (/drift-check not run/.test(output) && guards.length === 0 && !/\blocal: /.test(output)) {
+      log("lane:ready: running drift-check (main's copy, as the gate does); it may take minutes");
+      /** @type {string[]} */
+      const notes = [];
+      const d = runDrift(run, os.tmpdir(), notes);
       guards = driftGuards(`${d.stdout}\n${d.stderr}`, true);
       if (d.status !== 0 && guards.length === 0) {
         missing.push('drift: drift-check failed; run `npm run drift:check` by hand');

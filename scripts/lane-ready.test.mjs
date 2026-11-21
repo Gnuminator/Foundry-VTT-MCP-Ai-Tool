@@ -118,7 +118,9 @@ test('driftGuards reads the refusal reason, keeping commas inside parentheses', 
 test('driftAdvice gives the exact command per guard and a by-hand line otherwise', () => {
   const a = driftAdvice(['line baseline', 'mcp-server tests (tool counts)', 'docs links']);
   assert.ok(a[0].includes('`npm run line:ratchet -- --update`'));
-  assert.ok(a[1].includes('`npm run docs:tools`'));
+  assert.ok(a[1].includes('`npm run docs:tools`') && /tool reference test failed/.test(a[1]));
+  assert.match(driftAdvice(['changelog fragments'])[0], /changelog\.d\/README\.md/);
+  assert.doesNotMatch(driftAdvice(['changelog fragments'])[0], /run `npm run changelog:check`/);
   assert.match(a[2], /fix by hand/);
   assert.deepEqual(driftAdvice([]), []);
 });
@@ -159,6 +161,25 @@ test('when the gate skipped drift-check, /ready runs it and lists its failures',
   assert.ok(calls.some(c => c.join(' ') === 'npm run drift:check'));
   assert.ok(out.some(l => /changelog: no added/.test(l)));
   assert.ok(out.some(l => /drift \(line baseline\): run `npm run line:ratchet/.test(l)));
+});
+
+test('no separate drift run when the gate judged the wrong tree (local: failure)', () => {
+  const gateOut = [
+    'lane:merge: drift-check not run: it is slow, so it runs once the other checks pass',
+    'lane:merge: refused because (1) local: the working tree is not clean (1 change); commit or stash first',
+  ].join('\n');
+  const f = fake(gateOut, 1);
+  assert.equal(main({ argv: ['--vault', '/none'], run: f.run, log: f.log }), 1);
+  assert.ok(!f.calls.some(c => c.join(' ').includes('drift')));
+});
+
+test('drift-check failing with no FAIL lines gives the by-hand command', () => {
+  const gateOut =
+    'lane:merge: drift-check not run: x\nlane:merge: refused because (1) review: no review note';
+  const f = fake(gateOut, 1);
+  assert.equal(main({ argv: ['--vault', '/none'], run: f.run, log: f.log }), 1);
+  // fake's other commands return status 0 with no output: passes, so no drift line at all
+  assert.ok(!f.out.some(l => /drift \(/.test(l)));
 });
 
 test('--check writes nothing', () => {

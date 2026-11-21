@@ -160,6 +160,34 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
       .catch(() => null);
   }
 
+  // One sheet read per player at a time, remembered for a few seconds (item me-poll-load). Five
+  // players polling /api/me and the stash (which reads every player's sheet) shared one read each
+  // instead of dozens. Cleared when a game event arrives or the player rolls or changes a portrait.
+  const SHEET_TTL_MS = 4_000;
+  const sheets = new Map<string, { at: number; read: Promise<unknown> }>();
+  let eventMark: string | null = null;
+  function sheetFor(userId: string): Promise<unknown> {
+    const last = options.events?.().at(-1)?.id ?? null;
+    if (last !== eventMark) {
+      eventMark = last;
+      sheets.clear();
+    }
+    const hit = sheets.get(userId);
+    if (hit && Date.now() - hit.at < SHEET_TTL_MS) return hit.read;
+    const read = client.characterSheet!(userId);
+    const entry = { at: Date.now(), read };
+    sheets.set(userId, entry);
+    // A failed read is not remembered.
+    read.catch(() => {
+      if (sheets.get(userId) === entry) sheets.delete(userId);
+    });
+    return read;
+  }
+  const onChanged = (): void => {
+    sheets.clear();
+    options.onRolled?.();
+  };
+
   /** The banner for this player's own extension when it is older than the table; else null. */
   function playerUpdateNotice(userId: string): { da: string; en: string } | null {
     const seen = options.clients?.get('player-extension', userId);
@@ -212,7 +240,7 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
     // when either is off. null when the bridge cannot say (an old backend): the page keeps the
     // control and the refusal explains.
     const portraitEnabled = portraitFlag();
-    Promise.all([client.characterSheet(userId), portraitEnabled])
+    Promise.all([sheetFor(userId), portraitEnabled])
       .then(([result, portraitOn]) =>
         res.json({
           ...(result as object),
@@ -242,19 +270,16 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
       res.status(501).json({ error: 'The party stash is not available here. Ask your GM.' });
       return;
     }
-    const read = client.characterSheet.bind(client);
     void directory
       .refreshIfStale()
       .catch(() => undefined)
       .then(async () => {
-        const answers: unknown[] = [];
-        for (const player of directory.list()) {
-          try {
-            answers.push(await read(player.userId));
-          } catch {
-            // One unreadable player leaves their characters out; the rest still show.
-          }
-        }
+        // All players at once (each read is shared and remembered), not one after another.
+        const settled = await Promise.allSettled(
+          directory.list().map(player => sheetFor(player.userId))
+        );
+        // One unreadable player leaves their characters out; the rest still show.
+        const answers = settled.flatMap(s => (s.status === 'fulfilled' ? [s.value] : []));
         res.json(buildPartyStash(answers));
       })
       .catch(() => {
@@ -360,7 +385,7 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
         const r = (result ?? {}) as { success?: unknown; message?: unknown; error?: unknown };
         if (r.success === true) {
           res.json({ ok: true, message: typeof r.message === 'string' ? r.message : 'Rolled.' });
-          options.onRolled?.();
+          onChanged();
         } else {
           res.status(409).json({
             error: typeof r.error === 'string' ? r.error : 'The roll did not work.',
@@ -502,7 +527,7 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
         path: typeof result?.path === 'string' ? result.path : '',
         actorName: typeof result?.actorName === 'string' ? result.actorName : '',
       });
-      options.onRolled?.();
+      onChanged();
     } catch (error) {
       // Only a refusal the player can act on (not yours, too big, switched off) is shown as it is.
       const code = (error as { code?: unknown }).code;

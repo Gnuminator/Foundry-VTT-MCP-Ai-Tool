@@ -68,8 +68,8 @@ Tell the player about the kept and changed ones before they hit them:
   Levelling is on (a GM setting) or the sheet has enough XP. Without it, the player asks the GM.
   With it on, a small Actor Studio logo sits in the sheet header, beside dnd5e's own "Level Up" text.
 - **Click the "+" at the right end of the class row**, not the row (kept). At level 3 the **Choose
-  Subclass** list appears under it at once; one click opened it both times (changed: no second click
-  needed).
+  Subclass** list appears under it at once; one click opened it both times (kept: if it does not open,
+  click it once more).
 - **Hit Points** (fixed): **Take Average** is already applied, FINAL shows the sum, and Next moves
   on with nothing to tick.
 - **More than two Completes at level 3** (changed). After the class steps' **Complete**, the same

@@ -105,7 +105,7 @@ level 3, so not now: you pick it when you level up in
    click straight through. If you forget, your character ends up named after you.
 2. Click **Create Character**.
 
-![The bottom of the builder: Character Name still says the player name and the bar already reads 100% Complete](../images/guides/studio-name.png)
+![The bottom of the builder: Character Name still says the player name (screenshot from an older build)](../images/guides/studio-name.png)
 
 Your character now exists (you can see it in the Actors tab), and the builder moves on to the
 **Advancements** tab. Up to here you could change anything freely. From here, if you made a wrong
@@ -222,7 +222,7 @@ level at a time, with the same builder.
 2. Click it. The window **Level Up Existing Class** opens. Click the **+** at the right end of your
    class's row (the row itself does nothing).
 3. **Going from level 2 to 3, you also choose your subclass.** A **Choose Subclass** list appears
-   under the class row. Click it (if it does not open, click it again), pick one, and read its
+   under the class row. Click it (if it does not open, click once more), pick one, and read its
    description. The bar at the bottom reaches 100% when you have picked.
 4. Click **Add Character Level**. The steps run like in [step 7](#7-advancements-answer-each-step):
    - **Hit Points:** **Take Average** is already applied, so the FINAL number is the average; just

@@ -1,6 +1,6 @@
 ---
 source: player/make-a-character.md
-sourceHash: 933cc289f74e
+sourceHash: 317c5436ca8e
 title: Lav din karakter
 description: "Trin for trin: lav en level-3 karakter i Foundry med Actor Studio fra 2024 Player's Handbook (byg på level 1, level up to gange), tjek den og gør den til din egen."
 ---
@@ -110,7 +110,7 @@ ikke nu: du vælger den, når du levler op i
    Glemmer du det, ender din karakter med at hedde det samme som dig.
 2. Klik **Create Character**.
 
-![Bunden af builderen: Character Name viser stadig spillernavnet, og baren viser allerede 100% Complete](../../images/guides/studio-name.png)
+![Bunden af builderen: Character Name viser stadig spillernavnet (skærmbillede fra en ældre build)](../../images/guides/studio-name.png)
 
 Din karakter findes nu (du kan se den i fanen Actors), og builderen går videre til fanen
 **Advancements**. Indtil her kunne du ændre alt frit. Herfra gælder det: har du valgt forkert,

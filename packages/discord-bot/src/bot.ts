@@ -37,7 +37,7 @@ import {
   markerPath,
   restartAfterCrashMessage,
 } from './run-marker.js';
-import { recoverMessage, recoverOrphans } from './rec/recover.js';
+import { recoverMessage, recoverOrphans, startRecoverRetry } from './rec/recover.js';
 import { LOOKUP_NOT_HERE, createPlayerStateReader, lookupAllowed, lookupReply } from './lookup.js';
 import {
   SPACE_CHECK_INTERVAL_MS,
@@ -160,6 +160,7 @@ export class RecorderBot {
   });
   private active: Active | undefined;
   private spaceTimer: NodeJS.Timeout | undefined;
+  private stopRecoverRetry: (() => void) | undefined;
   private sessionPostTimer: NodeJS.Timeout | undefined;
   private omensTimer: NodeJS.Timeout | undefined;
   private statusServer: Server | undefined;
@@ -241,7 +242,11 @@ export class RecorderBot {
       this.startOmens(c);
       void this.startSpaceNotices(c)
         .catch((err: unknown) => log.error('Space notices could not start', err))
-        .then(() => this.recoverOrphans());
+        .then(() => this.recoverOrphans())
+        .then(() => {
+          this.stopRecoverRetry?.();
+          this.stopRecoverRetry = startRecoverRetry(() => this.recoverOrphans());
+        });
     });
     this.client.on('interactionCreate', i => {
       if (i.isChatInputCommand() && i.commandName === 'record') {
@@ -674,6 +679,7 @@ export class RecorderBot {
 
   async shutdown(): Promise<void> {
     if (this.spaceTimer) clearInterval(this.spaceTimer);
+    this.stopRecoverRetry?.();
     if (this.sessionPostTimer) clearInterval(this.sessionPostTimer);
     if (this.omensTimer) clearInterval(this.omensTimer);
     this.statusServer?.close();

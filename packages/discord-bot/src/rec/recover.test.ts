@@ -1,10 +1,10 @@
 import { existsSync, mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { sessionFolderName, uniqueSessionDir } from '../bot.js';
 import { RecordingSession, type Clock } from './session.js';
-import { findOrphans, recoverMessage, recoverOrphans } from './recover.js';
+import { findOrphans, recoverMessage, recoverOrphans, startRecoverRetry } from './recover.js';
 
 const dirs: string[] = [];
 function tempDir(): string {
@@ -50,6 +50,42 @@ describe('uniqueSessionDir', () => {
 });
 
 describe('orphan recovery', () => {
+  it('converts a crash half younger than the guard on a later pass and tells the owner', async () => {
+    const parent = tempDir();
+    const dir = await crashedSession(parent, '2026-10-04_1930-discord');
+    age(dir, 10_000); // crash, restart within 10 s
+    expect(await recoverOrphans(parent)).toEqual([]); // startup pass: too fresh
+    const later = Date.now() + 11 * 60 * 1000;
+    const outcomes = await recoverOrphans(parent, { now: later });
+    expect(outcomes).toEqual([{ dir, ok: true, tracks: 1 }]);
+    expect(recoverMessage(outcomes)).toContain('converted 1 track');
+  });
+
+  it('startRecoverRetry runs the pass on every tick, never twice at once, until stopped', async () => {
+    vi.useFakeTimers();
+    try {
+      let calls = 0;
+      let release: () => void = () => undefined;
+      const stop = startRecoverRetry(() => {
+        calls += 1;
+        return new Promise<void>(r => {
+          release = r;
+        });
+      }, 1000);
+      await vi.advanceTimersByTimeAsync(3000);
+      expect(calls).toBe(1); // first pass still running
+      release();
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(calls).toBe(2);
+      release();
+      stop();
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(calls).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('converts an old unconverted run and reports it', async () => {
     const parent = tempDir();
     const dir = await crashedSession(parent, '2026-10-04_1930-discord');

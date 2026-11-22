@@ -165,7 +165,7 @@ describe('buildWhoUsesWhat', () => {
           autoUpdate: 'off',
           lastSeen: NOW,
         },
-        // A stale sighting from a client without ids: hidden once an id-bearing one exists.
+        // A stale sighting from a client without ids, older than the id-bearing ones: hidden.
         {
           piece: 'connectors',
           who: 'gm',
@@ -173,7 +173,7 @@ describe('buildWhoUsesWhat', () => {
           version: '0.29.0',
           name: '',
           autoUpdate: null,
-          lastSeen: NOW,
+          lastSeen: NOW - 60_000,
         },
       ],
       usageEvents: events,
@@ -190,6 +190,36 @@ describe('buildWhoUsesWhat', () => {
       ['aaaa1111', 'on'],
       ['bbbb2222', 'off'],
     ]);
+    // A newer id-less sighting is a different PC on an old client: it stays visible.
+    const newer = buildWhoUsesWhat({
+      calls: [],
+      clients: [
+        {
+          piece: 'connectors',
+          who: 'gm',
+          install: 'aaaa1111',
+          version: '0.31.0',
+          name: '',
+          autoUpdate: 'on',
+          lastSeen: NOW - 60_000,
+        },
+        {
+          piece: 'connectors',
+          who: 'gm',
+          install: '',
+          version: '0.29.0',
+          name: '',
+          autoUpdate: null,
+          lastSeen: NOW,
+        },
+      ],
+      usageEvents: [],
+      toolNames: [],
+      current: '0.31.0',
+      days: 7,
+      now: NOW,
+    });
+    expect(newer.people[0].versions.map(v => v.install)).toEqual(['', 'aaaa1111']);
     expect(gm.skills).toEqual([{ skill: 'gm-coach', stub: 1, calls: 1 }]);
     expect(gm.versions.find(v => v.piece === 'obsidian')).toMatchObject({
       piece: 'obsidian',

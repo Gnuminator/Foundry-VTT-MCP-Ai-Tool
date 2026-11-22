@@ -78,6 +78,7 @@ function readAutoUpdate(): 'on' | 'off' | null {
   const base = process.env.LOCALAPPDATA;
   if (!base) return null;
   let known = false;
+  // `tunnel` for a tunnel install, `update` for a direct (Tailscale) install; both hold the flag.
   for (const dir of ['tunnel', 'update']) {
     const state = path.join(base, 'FoundryMCPServer', dir);
     try {

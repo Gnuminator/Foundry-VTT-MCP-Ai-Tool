@@ -450,12 +450,19 @@ export function buildWhoUsesWhat(input: {
   }
 
   // An entry without an install id (a client from before ids) is a stale twin once the same piece
-  // and person also have an entry with one: showing both would look like an extra PC.
-  const withId = new Set(
-    input.clients.filter(c => c.install !== '').map(c => `${c.piece}\u0000${c.who}`)
-  );
+  // and person report an id later: showing both would look like an extra PC.
+  // Only an id-less entry older than the newest id-bearing one is a twin; a newer one is a
+  // different PC still on an old client, which is exactly what the Versions table must show.
+  const newestWithId = new Map<string, number>();
   for (const c of input.clients) {
-    if (c.install === '' && withId.has(`${c.piece}\u0000${c.who}`)) continue;
+    if (c.install === '') continue;
+    const k = `${c.piece}\u0000${c.who}`;
+    newestWithId.set(k, Math.max(newestWithId.get(k) ?? 0, c.lastSeen));
+  }
+  for (const c of input.clients) {
+    if (c.install === '' && c.lastSeen < (newestWithId.get(`${c.piece}\u0000${c.who}`) ?? 0)) {
+      continue;
+    }
     const key = c.who === 'gm' ? 'gm' : c.who;
     const r = row(key, key === 'gm' ? 'gm' : 'player', null);
     r.versions.push({

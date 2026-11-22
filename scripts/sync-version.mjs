@@ -50,7 +50,7 @@ const PLAYER_MANIFEST = 'tools/player-connector/manifest.json';
 const PLAYER_SERVER = 'tools/player-connector/server/index.js';
 const VERSION_TS = 'shared/src/version.ts';
 const TESTED_TS = 'shared/src/tested-versions.ts';
-const NSIS ='installer/nsis/foundry-mcp-server.nsi';
+const NSIS = 'installer/nsis/foundry-mcp-server.nsi';
 
 const argv = process.argv.slice(2);
 const flag = name => argv.includes(name);

@@ -2,10 +2,10 @@ import {
   TESTED_DND5E_VERSION,
   TESTED_FOUNDRY_BUILD,
   type PreflightChecksResult,
-  PreflightModuleFinding,
-  PreflightScan,
-  PreflightScanResult,
-  PreflightSettingFinding,
+  type PreflightModuleFinding,
+  type PreflightScan,
+  type PreflightScanResult,
+  type PreflightSettingFinding,
 } from '@gnuminator/shared';
 import { describe, expect, it, vi, type Mock } from 'vitest';
 
@@ -426,6 +426,15 @@ describe('get-preflight', () => {
       expect(byId(one)['tested-versions']?.detail).toContain('dnd5e 6.1.1');
       const both = await run({ system: 'dnd5e', systemVersion: '6.1.1', foundryVersion: '14.999' });
       expect(byId(both)['tested-versions']?.detail).toContain('Foundry 14.999 and dnd5e 6.1.1');
+    });
+
+    it('is unknown for a world that is not dnd5e', async () => {
+      const result = await run({
+        system: 'pf2e',
+        systemVersion: '1.0.0',
+        foundryVersion: TESTED_FOUNDRY_BUILD,
+      });
+      expect(byId(result)['tested-versions']?.status).toBe('unknown');
     });
 
     it('is unknown, not a failure, when the world reports no versions or refuses', async () => {

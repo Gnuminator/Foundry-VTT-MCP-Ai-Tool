@@ -298,6 +298,8 @@ function loadGuide(dir = __dirname) {
 }
 
 const GUIDE = loadGuide();
+// The most a guide call waits for the table before it serves the bundled copy.
+const LIVE_GUIDE_MS = 8000;
 
 /** The extra tool that hands out the guide pages. */
 function guideTool(guide) {
@@ -343,6 +345,23 @@ function guideResult(guide, topic) {
  * answer, an error, an empty text, an unknown topic): the caller then serves the bundled copy.
  */
 async function liveGuide(forwarder, topic, guide) {
+  const limitMs = forwarder.guideMs || LIVE_GUIDE_MS; // guideMs: tests only
+  let timer;
+  const bound = new Promise(resolve => {
+    timer = setTimeout(() => resolve(null), limitMs);
+  });
+  try {
+    // The bundled copy must arrive well inside the client's tool timeout.
+    return await Promise.race([liveGuideTry(forwarder, topic, guide), bound]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+let guideCallSeq = 0;
+
+async function liveGuideTry(forwarder, topic, guide) {
+  if (topic !== undefined && topic !== null && typeof topic !== 'string') return null;
   const overview = !topic || topic === 'overview';
   if (!overview && !Object.prototype.hasOwnProperty.call(guide.pages, topic)) return null;
   const pages = overview
@@ -352,14 +371,16 @@ async function liveGuide(forwarder, topic, guide) {
     try {
       const out = await forwarder.forward({
         jsonrpc: '2.0',
-        id: `guide-${Date.now()}`,
+        id: `guide-${++guideCallSeq}`,
         method: 'tools/call',
         params: {
           name: 'get-player-skill-guide',
           arguments: page ? { page } : {},
         },
       });
-      const r = out && !out.failure && out.message && out.message.result;
+      // A transport failure will not be fixed by the second page name: serve the bundled copy.
+      if (!out || out.failure) return null;
+      const r = out.message && out.message.result;
       if (!r || r.isError || !Array.isArray(r.content)) continue;
       const text = r.content
         .filter(c => c && c.type === 'text' && typeof c.text === 'string')

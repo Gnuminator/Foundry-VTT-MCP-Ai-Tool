@@ -1034,6 +1034,66 @@ test('get-helper-guide falls back to the bundled copy when the table has no live
   }
 });
 
+test('get-helper-guide tries the second page name, stops on a transport failure and is time-bounded', async () => {
+  const { buildGuide } = await import('./build.mjs');
+  const guide = buildGuide();
+  const { handleMessage } = loadServer();
+  const call = (forwarder, args) =>
+    handleMessage(
+      {
+        jsonrpc: '2.0',
+        id: 3,
+        method: 'tools/call',
+        params: { name: 'get-helper-guide', arguments: args },
+      },
+      forwarder,
+      guide
+    );
+  // First page name is an error, the second answers.
+  const pages = [];
+  const second = await call(
+    {
+      secrets: [SECRET],
+      forward: async req => {
+        pages.push(req.params.arguments.page);
+        return pages.length === 1
+          ? { message: { result: { isError: true, content: [{ type: 'text', text: 'no page' }] } } }
+          : { message: { result: { content: [{ type: 'text', text: 'second page' }] } } };
+      },
+    },
+    { topic: 'join' }
+  );
+  assert.deepEqual(pages, ['references/join.md', 'references/player/join.md']);
+  assert.match(second.result.content[0].text, /^second page/);
+  // A transport failure stops after one try and serves the bundled copy.
+  let tries = 0;
+  const down = await call(
+    {
+      secrets: [SECRET],
+      forward: async () => {
+        tries++;
+        return { failure: 'timeout' };
+      },
+    },
+    { topic: 'join' }
+  );
+  assert.equal(tries, 1);
+  assert.ok(down.result.content[0].text.length > 0 && !down.result.isError);
+  // A table that never answers: the bundled copy arrives within the bound.
+  const started = Date.now();
+  const slow = await call(
+    { secrets: [SECRET], guideMs: 50, forward: () => new Promise(() => undefined) },
+    { topic: 'character-creation' }
+  );
+  assert.ok(Date.now() - started < 2000);
+  assert.match(slow.result.content[0].text, /^# Character creation flow/);
+  // Empty text and a non-array content fall back too.
+  for (const result of [{ content: [{ type: 'text', text: '  ' }] }, { content: 'x' }]) {
+    const r = await call({ secrets: [SECRET], forward: async () => ({ message: { result } }) }, {});
+    assert.match(r.result.content[0].text, /^# D&D helper/);
+  }
+});
+
 test('the bundled instructions no longer claim a closed tool list', async () => {
   const { buildGuide } = await import('./build.mjs');
   const g = buildGuide();

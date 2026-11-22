@@ -569,7 +569,7 @@ export function main(options = {}) {
       // drift-check logs "  FAIL <guard name>" per failing guard; the names go into the refusal reason
       const guards = [...output.matchAll(/^ {2}FAIL (.+?)\s*$/gm)].map(m => m[1]);
       driftGuards.push(...guards);
-      // drift-check retried a guard once when Vitest could not start a worker and says so with "  INFRA <guard>:"
+      // drift-check retried a guard once when Vitest could not start a worker or only timed out, and says so with "  INFRA <guard>:"
       // Only when every failing guard failed that way: one real failure beside it is the PR's.
       const cause = infraCause(output, guards);
       failures.push(

@@ -519,10 +519,21 @@ export function isWorkerStartFailure(output) {
  * @param {string} output
  */
 export function isVitestTimeout(output) {
-  return (
-    /(?:Test|Hook) timed out in \d+ms/i.test(output) &&
-    !/AssertionError|expected .+ to (?:be|equal|match|contain|deeply)/.test(output)
-  );
+  const timeouts = (output.match(/(?:Test|Hook) timed out in \d+ms/gi) ?? []).length;
+  if (timeouts === 0) return false;
+  // Any other error line (assertion, TypeError, snapshot, import) is a real failure beside the timeout.
+  const other = output
+    .split('\n')
+    .some(
+      l =>
+        (/\b\w*Error\b/.test(l) ||
+          /expected .+ to (?:be|equal|match|contain|deeply)|Snapshot/.test(l)) &&
+        !/timed out in \d+ms/i.test(l)
+    );
+  if (other) return false;
+  // Vitest's summary: every failed test must be one of the timeouts.
+  const failed = /Tests\s+(\d+) failed/.exec(output);
+  return !failed || Number(failed[1]) <= timeouts;
 }
 
 /**
@@ -556,7 +567,11 @@ export function runChecks(dir, checks, log, main, sha, merged, changed = null) {
     if (r.status !== 0 && !r.signal && isWorkerStartFailure(`${r.stdout ?? ''}${r.stderr ?? ''}`)) {
       log(`  retry ${check.name} (vitest could not start a worker; load on this PC)`);
       r = exec();
-    } else if (r.status !== 0 && !r.signal && isVitestTimeout(`${r.stdout ?? ''}${r.stderr ?? ''}`)) {
+    } else if (
+      r.status !== 0 &&
+      !r.signal &&
+      isVitestTimeout(`${r.stdout ?? ''}${r.stderr ?? ''}`)
+    ) {
       log(`  retry ${check.name} (vitest tests timed out; load on this PC)`);
       r = exec();
     }

@@ -15,6 +15,7 @@ import {
   pickRemote,
   entryDecision,
   isWorkerStartFailure,
+  isVitestTimeout,
   runChecks,
 } from './drift-check.mjs';
 
@@ -87,6 +88,28 @@ test('runChecks: a real failure is not retried and not marked INFRA', () => {
   assert.equal(r.runs, 1);
   assert.equal(r.code, 1);
   assert.ok(!r.lines.some(l => /INFRA|retry/.test(l)));
+});
+
+test('isVitestTimeout: test and hook timeouts only; any other failure beside them is real', () => {
+  assert.equal(isVitestTimeout('Error: Test timed out in 5000ms.'), true);
+  assert.equal(isVitestTimeout('Error: Hook timed out in 10000ms.'), true);
+  assert.equal(
+    isVitestTimeout('Error: Test timed out in 5000ms.\n Tests  1 failed | 3 passed'),
+    true
+  );
+  assert.equal(
+    isVitestTimeout('Error: Test timed out in 5000ms.\n Tests  2 failed | 3 passed'),
+    false
+  );
+  assert.equal(
+    isVitestTimeout('Error: Test timed out in 5000ms.\nTypeError: x is not a function'),
+    false
+  );
+  assert.equal(
+    isVitestTimeout('Error: Test timed out in 5000ms.\nError: Snapshot mismatched'),
+    false
+  );
+  assert.equal(isVitestTimeout('AssertionError: expected 1 to be 2'), false);
 });
 
 test('isWorkerStartFailure: every pattern, and a failing test is not one', () => {

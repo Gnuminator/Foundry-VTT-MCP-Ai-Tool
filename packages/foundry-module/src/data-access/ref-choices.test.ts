@@ -7,12 +7,10 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   MockCollection,
   createTestWorld,
-  makeCombat,
   makeCombatant,
   makeItem,
   makeJournalPage,
   makeNote,
-  makePack,
   makeToken,
   type TestWorld,
 } from '../test-support/foundry-mock/index.js';
@@ -163,18 +161,16 @@ describe('journals, pages, compendiums', () => {
   });
 
   it('lists packs by document class and searches entries', async () => {
-    world.addPack(
-      makePack({
-        id: 'dnd5e.monsters',
-        label: 'Monsters',
-        type: 'Actor',
-        documents: [
-          world.addActor({ id: 'm1', name: 'Wolf', type: 'npc' }),
-          world.addActor({ id: 'm2', name: 'Dire Wolf', type: 'npc' }),
-        ],
-      })
-    );
-    world.addPack(makePack({ id: 'dnd5e.items', label: 'Items', type: 'Item', documents: [] }));
+    world.addPack({
+      id: 'dnd5e.monsters',
+      label: 'Monsters',
+      type: 'Actor',
+      documents: [
+        world.addActor({ id: 'm1', name: 'Wolf', type: 'npc' }),
+        world.addActor({ id: 'm2', name: 'Dire Wolf', type: 'npc' }),
+      ],
+    });
+    world.addPack({ id: 'dnd5e.items', label: 'Items', type: 'Item', documents: [] });
     install();
     const actorPacks = await listRefChoices({
       kind: 'compendium-pack',
@@ -197,26 +193,24 @@ describe('combat, users, conditions, notes, templates', () => {
   it('lists combatants of the active combat', async () => {
     install();
     expect((await listRefChoices({ kind: 'combatant' })).note).toBe('No active combat');
-    world.setCombat(
-      makeCombat({
-        combatants: new MockCollection([
-          makeCombatant({
-            id: 'c1',
-            name: 'Goblin',
-            initiative: 12,
-            hidden: true,
-            defeated: false,
-          }),
-          makeCombatant({
-            id: 'c2',
-            name: 'Aria',
-            initiative: null,
-            hidden: false,
-            defeated: false,
-          }),
-        ]),
-      })
-    );
+    world.setCombat({
+      combatants: new MockCollection([
+        makeCombatant({
+          id: 'c1',
+          name: 'Goblin',
+          initiative: 12,
+          hidden: true,
+          defeated: false,
+        }),
+        makeCombatant({
+          id: 'c2',
+          name: 'Aria',
+          initiative: null,
+          hidden: false,
+          defeated: false,
+        }),
+      ]),
+    });
     const result = await listRefChoices({ kind: 'combatant' });
     expect(result.choices.map(c => [c.id, c.detail])).toEqual([
       ['c1', 'initiative 12, hidden'],
@@ -238,7 +232,7 @@ describe('combat, users, conditions, notes, templates', () => {
 
   it('lists conditions from the array or object shape of CONFIG.statusEffects', async () => {
     install();
-    const config = globalThis.CONFIG as { statusEffects: unknown };
+    const config = (globalThis as unknown as { CONFIG: { statusEffects: unknown } }).CONFIG;
     config.statusEffects = [{ id: 'prone', name: 'Prone', img: '' }];
     expect((await listRefChoices({ kind: 'condition' })).choices).toEqual([
       { id: 'prone', name: 'Prone' },
@@ -312,7 +306,7 @@ describe('modules', () => {
 describe('skills and abilities (dnd5e)', () => {
   it('lists keys with labels', async () => {
     install();
-    const config = globalThis.CONFIG as { DND5E: Record<string, unknown> };
+    const config = (globalThis as unknown as { CONFIG: { DND5E: Record<string, unknown> } }).CONFIG;
     config.DND5E.skills = { prc: { label: 'Perception', ability: 'wis' } };
     config.DND5E.abilities = { str: { label: 'Strength', abbreviation: 'str' } };
     expect((await listRefChoices({ kind: 'skill' })).choices).toEqual([

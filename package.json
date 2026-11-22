@@ -32,6 +32,7 @@
     "kit:test": "node --test --test-timeout=180000 \"scripts/test-kit/test/*.test.mjs\"",
     "emdash:ratchet": "node scripts/em-dash-guard.mjs",
     "unused:ratchet": "node scripts/unused-ratchet.mjs",
+    "typecheck:tests": "node scripts/typecheck-tests-ratchet.mjs",
     "line:ratchet": "node scripts/line-ratchet.mjs",
     "validate:manifest": "node scripts/validate-manifest.js",
     "version:sync": "node scripts/sync-version.mjs",

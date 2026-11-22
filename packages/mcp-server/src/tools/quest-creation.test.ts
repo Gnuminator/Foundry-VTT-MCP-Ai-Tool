@@ -4,6 +4,8 @@ import { makeTools, type ToolHarness } from '../test-support/make-tool-harness.j
 
 import { QuestCreationTools } from './quest-creation.js';
 
+type TestTools = ToolHarness<QuestCreationTools>;
+
 /**
  * Characterization test suite for QuestCreationTools.
  *
@@ -1184,9 +1186,7 @@ describe('QuestCreationTools.handleSearchJournals: dispatch and result shaping',
     // 1 listJournals + 3 page content calls (p1, p2, p3)
     expect(query.mock.calls[0][0]).toBe('foundry-mcp-bridge.listJournals');
     const pageCalls = query.mock.calls.slice(1);
-    expect(
-      pageCalls.every(([m]: [string]) => m === 'foundry-mcp-bridge.getJournalPageContent')
-    ).toBe(true);
+    expect(pageCalls.every(([m]) => m === 'foundry-mcp-bridge.getJournalPageContent')).toBe(true);
   });
 
   it('returns success:true with searchQuery, searchType, results, and totalMatches', async () => {
@@ -1215,7 +1215,7 @@ describe('QuestCreationTools.handleSearchJournals: dispatch and result shaping',
     const { tools, query } = makeSearcher();
     await tools.handleSearchJournals({ searchQuery: 'dragon', searchType: 'title' });
     const pageCalls = query.mock.calls.filter(
-      ([m]: [string]) => m === 'foundry-mcp-bridge.getJournalPageContent'
+      ([m]) => m === 'foundry-mcp-bridge.getJournalPageContent'
     );
     expect(pageCalls).toHaveLength(0);
   });
@@ -1277,7 +1277,7 @@ describe('QuestCreationTools.handleSearchJournals: dispatch and result shaping',
     await tools.handleSearchJournals({ searchQuery: 'text', searchType: 'content' });
     // Only 1 page content call for the text page, not the image page
     const pageCalls = query.mock.calls.filter(
-      ([m]: [string]) => m === 'foundry-mcp-bridge.getJournalPageContent'
+      ([m]) => m === 'foundry-mcp-bridge.getJournalPageContent'
     );
     expect(pageCalls).toHaveLength(1);
   });

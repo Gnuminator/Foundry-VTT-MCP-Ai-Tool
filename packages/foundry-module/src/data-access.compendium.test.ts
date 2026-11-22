@@ -493,7 +493,7 @@ describe('FoundryDataAccess: listCreaturesByCriteria (enhanced OFF → fallback)
 
     // 'monster' search matches 'Monster Alpha', not 'Cave Bear'
     expect(result.creatures).toHaveLength(1);
-    expect(result.creatures[0]!.name).toBe('Monster Alpha');
+    expect((result.creatures[0] as { name: string }).name).toBe('Monster Alpha');
 
     // Summary shape
     expect(result.searchSummary).toMatchObject({

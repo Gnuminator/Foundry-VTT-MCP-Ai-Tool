@@ -1806,12 +1806,16 @@ describe('ChangeHistory.list', () => {
   });
 
   it('links the history to a pump that is made later, and stands in while there is none', async () => {
-    let pump: Pick<ChangeJournalPump, 'pullNow' | 'historyStart'> | null = null;
+    let pump: Pick<ChangeJournalPump, 'pullNow' | 'historyStart' | 'cutActions'> | null = null;
     const links = journalLinks(() => pump);
     await expect(links.pullNow()).resolves.toBeUndefined();
     expect(await links.journalStart('w1')).toBe(0);
     const pulled = vi.fn(() => Promise.resolve());
-    pump = { pullNow: pulled, historyStart: (): Promise<number> => Promise.resolve(123) };
+    pump = {
+      pullNow: pulled,
+      historyStart: (): Promise<number> => Promise.resolve(123),
+      cutActions: (): Promise<Set<string>> => Promise.resolve(new Set<string>()),
+    };
     await links.pullNow();
     expect(pulled).toHaveBeenCalledOnce();
     expect(await links.journalStart('w1')).toBe(123);

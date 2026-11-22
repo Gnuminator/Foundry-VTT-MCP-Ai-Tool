@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import { remoteGmCall, remoteGmList, remoteGmSet } from './remote-gm.js';
 import type { ToolDefinitionLike } from './tool-router.js';
@@ -35,7 +35,7 @@ describe('remoteGmList', () => {
 describe('remoteGmCall', () => {
   const deps = (
     run: (n: string, a: unknown) => Promise<unknown>
-  ): Parameters<typeof remoteGmCall>[0] & { record: ReturnType<typeof vi.fn> } => ({
+  ): Omit<Parameters<typeof remoteGmCall>[0], 'record'> & { record: Mock } => ({
     allTools: all,
     run,
     record: vi.fn(),

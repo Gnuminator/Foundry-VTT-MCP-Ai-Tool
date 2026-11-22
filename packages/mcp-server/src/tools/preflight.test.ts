@@ -462,7 +462,7 @@ describe('get-preflight', () => {
     expect(byId(quiet)['character-building']).toBeUndefined();
 
     const withStudio = (building: PreflightScan['characterBuilding']): Setup => ({
-      scan: { ...SCAN, characterBuilding: building },
+      scan: { ...SCAN, characterBuilding: building } as PreflightScan,
     });
     const ok = (await tools(
       withStudio({ playerCanCreateActors: true, levelUpEnabled: true, milestoneLeveling: true })

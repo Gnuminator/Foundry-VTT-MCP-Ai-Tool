@@ -30,6 +30,9 @@ import { MIRROR_NOTE_TYPES, MIRROR_ROOT, pathKey, type ScannedNote } from './mir
 import { campaignDir, errorCode, errorMessage } from './note-writer.js';
 import { checkMarkdownOwnership, GENERATED_BY } from './ownership.js';
 
+// Re-exported so the pump (at its line budget) gets the counter through its existing scan import.
+export { noteMirrorWrites } from './mirror-generation.js';
+
 export const SCAN_MAX_DEPTH = 12;
 export const SCAN_MAX_FILES = 20_000;
 export const SCAN_HEAD_BYTES = 4096;

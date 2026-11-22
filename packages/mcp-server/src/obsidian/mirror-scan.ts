@@ -57,6 +57,8 @@ export interface MirrorScan {
   fileCount: number;
   /** Which caps stopped the walk short: the result is then incomplete. */
   limitsHit: Array<'files' | 'depth'>;
+  /** Syncthing conflict copies of notes (campaign-relative, path order): never read as mirror notes, never written. */
+  syncConflicts: string[];
   /** Folders or notes that could not be read (campaign-relative). A pump should not trust a scan with errors. */
   errors: Array<{ path: string; error: string }>;
 }
@@ -217,6 +219,9 @@ export async function readFrontmatter(full: string): Promise<HeadValues | null> 
 // The walk
 // ---------------------------------------------------------------------------
 
+/** `note.sync-conflict-20261122-190000-ABCDEFG.md`, as Syncthing names the losing copy. */
+const SYNC_CONFLICT = /\.sync-conflict-/i;
+
 function byCodeUnits(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
@@ -230,6 +235,7 @@ interface Walk {
   maxFiles: number;
   fileCount: number;
   markdown: string[];
+  syncConflicts: string[];
   takenPaths: Set<string>;
   limitsHit: Set<'files' | 'depth'>;
   errors: Array<{ path: string; error: string }>;
@@ -275,7 +281,11 @@ async function walk(dirFull: string, dirRel: string, depth: number, state: Walk)
     } else if (stat.isFile()) {
       state.fileCount++;
       if (insideFence(rel)) state.takenPaths.add(pathKey(rel));
-      if (!name.startsWith('.') && /\.md$/i.test(name)) state.markdown.push(rel);
+      if (!name.startsWith('.') && /\.md$/i.test(name)) {
+        // A Syncthing conflict copy is a stale twin of a real note: leave it out of the scan.
+        if (SYNC_CONFLICT.test(name)) state.syncConflicts.push(rel);
+        else state.markdown.push(rel);
+      }
     }
   }
 }
@@ -383,6 +393,8 @@ export interface CampaignWalk {
   root: string;
   /** Campaign-relative paths of the `.md` files, in path order (UTF-16 code units). */
   markdown: string[];
+  /** Campaign-relative paths of Syncthing conflict copies (`.md`), in path order. */
+  syncConflicts: string[];
   takenPaths: Set<string>;
   fileCount: number;
   limitsHit: Array<'files' | 'depth'>;
@@ -406,6 +418,7 @@ export async function walkCampaign(
     maxFiles: options.maxFiles ?? SCAN_MAX_FILES,
     fileCount: 0,
     markdown: [],
+    syncConflicts: [],
     takenPaths: new Set(),
     limitsHit: new Set(),
     errors: [],
@@ -414,6 +427,7 @@ export async function walkCampaign(
   const result = (): CampaignWalk => ({
     root,
     markdown: state.markdown.sort(byCodeUnits),
+    syncConflicts: state.syncConflicts.sort(byCodeUnits),
     takenPaths: state.takenPaths,
     fileCount: state.fileCount,
     limitsHit: [...state.limitsHit].sort(),
@@ -456,6 +470,7 @@ export async function scanCampaign(
     takenPaths: walked.takenPaths,
     fileCount: walked.fileCount,
     limitsHit: walked.limitsHit,
+    syncConflicts: walked.syncConflicts,
     errors: walked.errors,
   };
 

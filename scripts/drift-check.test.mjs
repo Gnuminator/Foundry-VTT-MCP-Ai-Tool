@@ -29,6 +29,9 @@ fs.writeFileSync('n', String(n));
 const mode = process.argv[2];
 if (mode === 'worker-once' && n === 1) { console.error('Error: [vitest-pool]: Failed to start forks worker'); process.exit(1); }
 if (mode === 'worker-always') { console.error('Error: [vitest-pool]: Timeout starting forks runner.'); process.exit(1); }
+if (mode === 'timeout-once' && n === 1) { console.error('Error: Test timed out in 5000ms.'); process.exit(1); }
+if (mode === 'timeout-always') { console.error('Error: Test timed out in 5000ms.'); process.exit(1); }
+if (mode === 'timeout-real') { console.error('Error: Test timed out in 5000ms.\\nAssertionError: expected 1 to be 2'); process.exit(1); }
 if (mode === 'real') { console.error('AssertionError: expected 1 to be 2'); process.exit(1); }
 `
   );
@@ -57,6 +60,26 @@ test('runChecks: a worker that never starts logs INFRA after exactly one retry',
   assert.equal(r.runs, 2);
   assert.equal(r.code, 1);
   assert.ok(r.lines.some(l => /^ {2}INFRA guard: vitest could not start a worker/.test(l)));
+});
+
+test('runChecks: a timed-out guard is retried once; a pass on the retry is ok', () => {
+  const r = stubGuard('timeout-once');
+  assert.equal(r.runs, 2);
+  assert.equal(r.code, 0);
+  assert.ok(!r.lines.some(l => /INFRA/.test(l)));
+});
+
+test('runChecks: a guard that times out twice logs INFRA after exactly one retry', () => {
+  const r = stubGuard('timeout-always');
+  assert.equal(r.runs, 2);
+  assert.equal(r.code, 1);
+  assert.ok(r.lines.some(l => /^ {2}INFRA guard: vitest tests timed out/.test(l)));
+});
+
+test('runChecks: a timeout beside a failed assertion is a real failure, not retried', () => {
+  const r = stubGuard('timeout-real');
+  assert.equal(r.runs, 1);
+  assert.ok(!r.lines.some(l => /INFRA|retry/.test(l)));
 });
 
 test('runChecks: a real failure is not retried and not marked INFRA', () => {

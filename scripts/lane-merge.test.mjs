@@ -4455,6 +4455,10 @@ test('infraCause: only when every failing guard failed to start a worker', () =>
   assert.match(infraCause(infra('a'), ['a']), /infrastructure, not the PR/);
   assert.equal(infraCause(`${infra('a')}  FAIL b\n`, ['a', 'b']), '');
   assert.equal(infraCause('  FAIL a\n', ['a']), '');
+  const slow = '  FAIL a\n  INFRA a: vitest tests timed out, also on the retry\n';
+  assert.match(infraCause(slow, ['a']), /gate timeout, not drift/);
+  assert.match(infraCause(slow, ['a']), /infrastructure, not the PR/);
+  assert.equal(infraCause(`${slow}  FAIL b\n`, ['a', 'b']), '');
 });
 
 test('explainFailing: looks into at most three failing checks', () => {

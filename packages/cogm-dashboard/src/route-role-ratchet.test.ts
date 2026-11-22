@@ -16,6 +16,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createDashboard, type Dashboard } from './app.js';
 import { config, type AuthConfig, type Config } from './config.js';
+import { gmConnectorFromEnv } from './gm-connector.js';
+import { playerConnectorFromEnv } from './player-connector.js';
 import { parseAllowedHosts } from './host-allowlist.js';
 import { Logger } from './logger.js';
 
@@ -77,7 +79,13 @@ function collectRoutes(build: () => Dashboard): { dashboard: Dashboard; routes: 
     return route;
   };
   proto.use = function (this: unknown, ...a: unknown[]): unknown {
-    if (typeof a[0] === 'string' && a[0] !== '/') found.push({ path: a[0], route: null });
+    const first = a[0];
+    if (typeof first === 'string') {
+      if (first !== '/') found.push({ path: first, route: null });
+    } else if (typeof first !== 'function') {
+      // An array, RegExp or Router mount would be probed under the wrong path: fail loudly.
+      throw new Error('route-role-ratchet: this test cannot read this form of use(); extend it');
+    }
     return origUse.apply(this, a);
   };
   try {
@@ -161,6 +169,10 @@ describe('route roles', () => {
       createDashboard({
         config: cfg,
         logger: new Logger('error', 'role-ratchet'),
+        // Pinned off from an empty environment, so the /mcp connector routes (they do their own
+        // login) do not appear on a PC whose shell has the connector variables set.
+        playerConnector: playerConnectorFromEnv({}, () => undefined),
+        gmConnector: gmConnectorFromEnv({}, () => undefined),
         client: {
           isConnected: true,
           listTools: (): Promise<unknown[]> => Promise.resolve([]),
@@ -176,8 +188,22 @@ describe('route roles', () => {
   });
 
   afterAll(async () => {
-    dashboard.close();
-    await new Promise<void>(resolve => server.close(() => resolve()));
+    dashboard?.close();
+    if (server) await new Promise<void>(resolve => server.close(() => resolve()));
+  });
+
+  // A positive control: without it, a broken token or host setup would turn every route away
+  // and the ratchet would stay green while testing nothing.
+  it('lets the GM token and the player token through where they should', async () => {
+    expect(await status(port, 'GET', '/api/features', { 'x-cogm-token': GM_TOKEN })).toBe(200);
+    expect(await status(port, 'GET', '/api/features', { 'x-cogm-token': PLAYER_TOKEN })).toBe(403);
+    expect(await status(port, 'GET', '/api/features', {})).toBe(401);
+    for (const key of PLAYER) {
+      const [method, path] = key.split(' ');
+      if (method !== 'GET' || path === '/api/stream' || path === '/api/player/stream') continue;
+      const code = await status(port, 'GET', path!, { 'x-cogm-token': PLAYER_TOKEN });
+      expect(code, key).toBe(200);
+    }
   });
 
   it('sees the routes of the app', () => {
@@ -206,5 +232,5 @@ describe('route roles', () => {
       }
     }
     expect(open, report.join('\n')).toEqual([]);
-  });
+  }, 60_000);
 });

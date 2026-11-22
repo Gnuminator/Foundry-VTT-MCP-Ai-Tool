@@ -17,6 +17,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { buildReport, fetchMergedPrs, usageLogFile, vaultDirFor } from './usage-week.mjs';
 import { paceNow, weekStartFor } from './usage-pace.mjs';
+import { noteFile as weeklyNoteFile, splitSections, upsert } from './weekly-check-note.mjs';
 
 const OFFSET_ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
 
@@ -138,6 +139,29 @@ export function renderNote(lines) {
   ].join('\n');
 }
 
+// The closed week's section for `Weekly check.md`: written once, by the first run after the reset.
+// The week that ended at the reset is the 7 days before it; a section for its first day already in
+// the note means a later run has nothing to do. Returns the heading date written, or null.
+export async function writeClosedWeek({ weeklyResets, root, prs, usageLog, vaultDir }) {
+  if (weeklyResets === undefined) return null;
+  const startMs = weekStartFor(0, weeklyResets);
+  const report = await buildReport({
+    root,
+    now: new Date(startMs - 1),
+    days: 7,
+    prs,
+    usageLog,
+    weeklyResets: new Date(startMs).toISOString(),
+  });
+  const file = weeklyNoteFile(vaultDir);
+  const existing = existsSync(file) ? readFileSync(file, 'utf8') : '';
+  const id = report.window.from;
+  if (splitSections(existing).some(([d]) => d === id)) return null;
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(file, upsert(existing, report));
+  return id;
+}
+
 export async function main(argv = process.argv.slice(2), env = process.env, out = process.stdout) {
   const opts = parseArgs(argv);
   const now = env.USAGE_WEEK_NOW ? new Date(env.USAGE_WEEK_NOW) : new Date();
@@ -156,6 +180,16 @@ export async function main(argv = process.argv.slice(2), env = process.env, out 
     const root = env.USAGE_WEEK_ROOT || path.join(os.homedir(), '.claude', 'projects');
     const report = await buildReport({ root, now, days: opts.days, prs, usageLog, weeklyResets: opts.weeklyResets });
     lines.push(...checkLines(report), ...paceLines(report, opts, now));
+    if (!opts.stdout) {
+      const written = await writeClosedWeek({
+        weeklyResets: opts.weeklyResets,
+        root,
+        prs,
+        usageLog,
+        vaultDir: vaultDirFor(env),
+      });
+      if (written) out.write(`usage:now wrote the closed week ${written} to Weekly check.md\n`);
+    }
   }
   const text = renderNote(lines);
   if (opts.stdout) {

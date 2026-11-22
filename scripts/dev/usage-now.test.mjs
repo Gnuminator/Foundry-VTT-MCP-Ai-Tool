@@ -112,6 +112,35 @@ test('main with the check reads an empty transcript folder without failing', asy
   }
 });
 
+test('the first run after the reset writes the closed week once, later runs write none', async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), 'usage-now-week-'));
+  try {
+    const env = { USAGE_WEEK_ROOT: root, USAGE_WEEK_VAULT: root, USAGE_WEEK_GH: 'off' };
+    // the reset at Sat 2026-10-24 05:00Z has passed; get_usage now reports the next one
+    const args = ['--weekly', '3', '--weekly-resets', '2026-10-31T05:00:00.111Z'];
+    const weekFile = path.join(root, 'Dev', 'Foundry AI Tool', 'Weekly check.md');
+    const sections = () => (readFileSync(weekFile, 'utf8').match(/^## /gm) || []).length;
+    let said = '';
+    await main(args, { ...env, USAGE_WEEK_NOW: '2026-10-24T07:00:00Z' }, { write: s => (said += s) });
+    assert.equal(sections(), 1);
+    assert.match(readFileSync(weekFile, 'utf8'), /^## 2026-10-18$/m);
+    assert.match(said, /closed week 2026-10-18/);
+    said = '';
+    await main(args, { ...env, USAGE_WEEK_NOW: '2026-10-26T09:00:00Z' }, { write: s => (said += s) });
+    assert.equal(sections(), 1);
+    assert.doesNotMatch(said, /closed week/);
+    // the next reset closes the next week: a second section
+    await main(
+      ['--weekly', '4', '--weekly-resets', '2026-11-07T05:00:00.111Z'],
+      { ...env, USAGE_WEEK_NOW: '2026-10-31T07:00:00Z' },
+      { write: s => (said += s) }
+    );
+    assert.equal(sections(), 2);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('pace lines: expected, delta, projection, active hours left and profile weeks', () => {
   const now = new Date('2026-10-23T14:05:00Z'); // Friday 16:05 CEST
   const opts = parseArgs(base);

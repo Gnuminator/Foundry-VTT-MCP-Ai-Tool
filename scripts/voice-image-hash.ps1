@@ -13,7 +13,10 @@ function Get-VoiceSourceHash {
   $lines = foreach ($f in (Get-ChildItem -LiteralPath $base -Recurse -File -Force)) {
     $rel = $f.FullName.Substring($base.Length + 1) -replace '\\', '/'
     $parts = $rel.Split('/')
-    if ($parts.Count -gt 1 -and ($parts[0..($parts.Count - 2)] | Where-Object { $script:VoiceHashSkipDirs -contains $_ -or $_ -like '*.egg-info' })) { continue }
+    # .dockerignore names the folders at the context root only; a nested data/ or build/ folder is copied
+    # into the image (src/session_pipeline/data holds the packaged word lists), so it counts.
+    if ($parts.Count -gt 1 -and ($script:VoiceHashSkipDirs -contains $parts[0] -or $parts[0] -like '*.egg-info')) { continue }
+    if ($parts.Count -gt 1 -and ($parts[0..($parts.Count - 2)] -contains '__pycache__')) { continue }
     if ($script:VoiceHashSkipExt -contains $f.Extension.ToLowerInvariant()) { continue }
     # Line endings do not change what the image runs, so a checkout with CRLF hashes like one with LF.
     $text = [System.IO.File]::ReadAllText($f.FullName) -replace "`r`n", "`n"

@@ -39,6 +39,18 @@ test('same sources, same hash; a source edit changes it; tests and audio do not'
   }
 });
 
+test('a nested data folder is part of the image and changes the hash', opts, () => {
+  const dir = tree();
+  try {
+    mkdirSync(join(dir, 'src', 'pkg', 'data'), { recursive: true });
+    const base = hashOf(dir);
+    writeFileSync(join(dir, 'src', 'pkg', 'data', 'words.txt'), 'x');
+    assert.notEqual(hashOf(dir), base);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('CRLF checkout hashes like LF', opts, () => {
   const dir = tree();
   try {

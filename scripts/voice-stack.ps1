@@ -268,6 +268,7 @@ switch ($Command) {
     # An image built from older sources (a stale transcriber ran turbo instead of large-v3 on 2026-10-29)
     # is rebuilt before the job, or the run stops with one line under -NoRebuild.
     $expected = Set-VoiceSourceHashes
+    if ($NoPipeline) { $expected.Remove('pipeline') }   # the pipeline image is not used by this run
     $stale = Get-StaleVoiceImages $expected
     if ($stale.Count -gt 0) {
       $names = $stale -join ' and '

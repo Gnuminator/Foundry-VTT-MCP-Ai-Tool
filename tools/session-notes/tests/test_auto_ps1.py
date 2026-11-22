@@ -411,3 +411,16 @@ def test_notes_with_missing_depth_layer_are_not_done(
     bin_dir, _calls = make_bin(tmp_path, run=76, publish=0)
     _code, out = run_pass(sessions, bin_dir)
     assert ("writing notes" in out) is writes
+
+
+def test_session_flag_works_on_that_folder_only(
+    tmp_path: Path, sessions: Path, folder_with_timeline: Path
+) -> None:
+    other = sessions / "2026-10-02-other"
+    (other / "timeline").mkdir(parents=True)
+    (other / "timeline" / "timeline.jsonl").write_text("{}\n", encoding="utf-8")
+    bin_dir, _calls = make_bin(tmp_path, run=0, publish=0)
+    _code, out = run_pass(sessions, bin_dir, args=("-Session", folder_with_timeline.name))
+    assert "2026-10-01-test: writing notes" in out
+    assert "2026-10-02-other" not in out
+

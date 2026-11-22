@@ -667,6 +667,7 @@ export async function buildKit({
     world,
     builtAt: new Date().toISOString(),
     systemVersion: status.systemVersion,
+    coreVersion: status.coreVersion,
     folders,
     profile: profile.id,
     heroes,

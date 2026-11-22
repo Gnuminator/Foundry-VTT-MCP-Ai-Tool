@@ -18,6 +18,12 @@ const FIELDS = ['dependencies', 'devDependencies', 'optionalDependencies'];
 /** Package name -> why its ranges may differ between package.json files. */
 export const ALLOWED_DIVERGENCE = /** @type {Record<string, string>} */ ({});
 
+/**
+ * Different packages released in lockstep that must share one range, whichever file names them
+ * (a root `playwright-core` ahead of the dashboard's `@playwright/test` installed two builds).
+ */
+export const SAME_RANGE_GROUPS = [['@playwright/test', 'playwright-core']];
+
 /** The package.json files that count: the root, the workspaces and the standalone recorder. */
 export function manifestPaths(root = ROOT) {
   const out = [path.join(root, 'package.json'), path.join(root, 'shared', 'package.json')];
@@ -45,9 +51,11 @@ export function findDivergence(manifests) {
       const deps = /** @type {Record<string, string> | undefined} */ (json[field]);
       for (const [name, range] of Object.entries(deps ?? {})) {
         if (name.startsWith('@gnuminator/')) continue;
-        const ranges = byName.get(name) ?? new Map();
+        const group = SAME_RANGE_GROUPS.find((names) => names.includes(name));
+        const key = group ? group.join(' + ') : name;
+        const ranges = byName.get(key) ?? new Map();
         ranges.set(range, [...(ranges.get(range) ?? []), file]);
-        byName.set(name, ranges);
+        byName.set(key, ranges);
       }
     }
   }

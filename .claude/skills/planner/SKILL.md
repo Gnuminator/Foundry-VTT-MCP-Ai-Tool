@@ -93,10 +93,6 @@ targets. A rule or tool that moves neither is removed. **Pace** is judged by hou
 `pace-active-hours-left`. Pace is information only: it never holds or adds a lane.
 The reset is Saturday 06:00 local in winter. On the Saturday after it run `npm run usage:week -- --write-vault --days 7`
 and push vault `Weekly check.md` (the board's Week page).
-Every weekly check also runs the Cloudflare drift check (`cloudflare-work` skill: read-only read, then
-`scripts/cloudflare-compare.mjs`); any `DRIFT` line is raised with the user, a `WARN` line names a service
-token that expires within 60 days (renew it and add a Waiting item). The same check runs in the full-kit
-checklist before each gate.
 Monthly: list the workflow action pins (`uses:` lines in `.github/workflows`) with their age; bump or leave.
 Glance at upstream Actor Studio releases after 2.10.5: a lane rebases it onto our fork,
 the module kit passes, then stage 13 installs it.

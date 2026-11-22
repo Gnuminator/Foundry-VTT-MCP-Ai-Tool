@@ -39,7 +39,7 @@ email policy only (see "The GM remote connector"). The live state is checked aga
 with the `cloudflare-work` skill's drift check. It covers the applications and their policies, DNS,
 every tunnel by name, each tunnel route (hostname, path, service, the origin Access check), the Transform
 Rules, Worker routes and each Access service token's expiry (a warning under 60 days). Run it in the full
-kit checklist before each gate and in the planner's weekly check; a test fails when the read code gets a
+kit checklist before each gate and at the Saturday weekly check (a `WARN` line names a token to renew); a test fails when the read code gets a
 field the compare does not check.
 
 ### Edge rules (Cloudflare Transform Rules)

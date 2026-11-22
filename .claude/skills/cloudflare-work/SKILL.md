@@ -34,7 +34,7 @@ it. If no prompt appears for a write, tell the user; never edit `.claude/setting
 2. `node scripts/cloudflare-compare.mjs <live.json> "<vault>/Dev/Foundry AI Tool/Cloudflare expected state.json"`
    prints every difference and exits 1 on any, and a `WARN` line for each service token that expires
    within 60 days (a warning, not drift). The expected file also holds `tunnel.names`, `transform_rules`,
-   `worker_routes` and `service_tokens`; `scripts/cloudflare-compare.test.mjs` fails when a field the
+   `worker_routes` and `service_tokens`; `scripts/cloudflare-compare-coverage.test.mjs` fails when a field the
    code below reads is not compared, so add the field there when you add it here.
 
 ```text

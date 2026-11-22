@@ -99,9 +99,10 @@ needed. A player who owns no character sees "Ask your GM".
 The page has four views, and each player picks theirs (remembered on their device):
 
 - **At the table**: big HP, AC and initiative, conditions, spell slots, resources, attacks and
-  prepared spells. It follows the dashboard theme. Under the sheet is an **On my turn** card that
-  lists what the character can do, grouped as action, bonus action, reaction and free. It helps a
-  new player who does not know their options yet. A switch under the sheet hides it.
+  prepared spells. It follows the dashboard theme. Right under the HP and AC block is an **On my
+  turn** card that lists what the character can do, grouped as action, bonus action, reaction and
+  free. It helps a new player who does not know their options yet. The switch **Show the "On my
+  turn" card** at the bottom of the page hides it.
 - **Paper 2024** (the default paper view) and **Paper 2014**: black on white, in the same order
   as the printed character sheet of that edition, so a player can copy it onto paper or print it
   (**Print** at the bottom).

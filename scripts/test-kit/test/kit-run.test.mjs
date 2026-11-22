@@ -310,6 +310,13 @@ test('lock taken, nightly: queues, waits, leaves the queue, records the skip, ke
     const doc = lastRun(t.home);
     assert.equal(doc.last.state, 'skipped');
     assert.equal(doc.lastRun.state, 'passed');
+    // The skipped nightly is the last nightly; the earlier lane-style run is not one.
+    assert.equal(doc.lastNightly.state, 'skipped');
+    writeLastRun(t.home, { state: 'passed', passed: 2, total: 2, at: 'y' });
+    const after = lastRun(t.home);
+    assert.equal(after.last.state, 'passed');
+    assert.equal(after.lastNightly.state, 'skipped');
+    assert.equal(after.lastNightlyRun, null);
     assert.equal(t.vault[0].state, 'skipped');
   } finally {
     t.cleanup();

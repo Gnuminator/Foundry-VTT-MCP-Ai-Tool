@@ -40,6 +40,10 @@ export default defineConfig({
     trace: 'retain-on-failure',
     ...devices['Desktop Chrome'],
     viewport: { width: 1440, height: 900 },
+    // The confirm window and the drawers slide in. On a loaded runner Playwright's "stable" check
+    // can pass while one is still moving, and the click lands where the button was (the Cancel
+    // click of scene-mood.spec.ts did). The stylesheet honours this setting (tools.css).
+    reducedMotion: 'reduce',
     ...(channel ? { channel } : {}),
   },
   webServer: {

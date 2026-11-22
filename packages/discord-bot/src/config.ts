@@ -13,7 +13,7 @@
  * | `FOUNDRY_AI_BACKUP_STALE_DAYS` | DM when a kind of copy is older than this; default 3  |
  * | `DISCORD_SESSION_POST_CHANNEL_ID` | channel for the "session is over" link post; unset = off |
  * | `DISCORD_GM_BOT_CHANNEL_ID` | #gm-bot: recorder alerts go here (else `GAMENIGHT_WATCH_CHANNEL_ID`, else the voice channel chat) |
- * | `FOUNDRY_AI_DASHBOARD_URL` | where the bot reads the session state; default `http://127.0.0.1:3100` |
+ * | `FOUNDRY_AI_DASHBOARD_URL` | where the bot reads the session state; default `http://127.0.0.1:3000` |
  * | `FOUNDRY_AI_BOT_STATUS_PORT` | port of the read-only status endpoint the dashboard's health line asks; unset = off |
  * | `FOUNDRY_AI_BOT_STATUS_HOST` | its listen address; default `127.0.0.1` (the Pi network address to share it, never the internet) |
  * | `FOUNDRY_AI_PLAYER_PAGE_URL` | the player page link in the post (required for the post; no default) |
@@ -47,7 +47,7 @@ export interface BotConfig {
   backupStaleDays?: number | undefined;
   /** I-111: the channel for the "session is over" post; unset means the post is off. */
   sessionPostChannelId?: string | undefined;
-  /** Where the bot reads the session state; default `http://127.0.0.1:3100`. */
+  /** Where the bot reads the session state; default `http://127.0.0.1:3000`. */
   dashboardUrl?: string | undefined;
   /** Port of the small status endpoint the dashboard's health line reads; unset means it is off. */
   statusPort?: number | undefined;

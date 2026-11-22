@@ -54,6 +54,7 @@
     "rules": ["2024", "2014"]
   },
   "knownConsoleErrors": [
+    "Failed to load audio element \"sounds/dice\\.wav\"",
     "ActiveEffect .dnd5eparalyzed00. does not exist",
     "using legacy syntax which should be migrated[\\s\\S]*(autoanimations|dnd5e)",
     "forced deletion of a data field value is no longer supported"

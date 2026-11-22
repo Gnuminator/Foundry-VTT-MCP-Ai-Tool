@@ -61,7 +61,7 @@ Keep playing: do the change by hand in Foundry.
 - **Every tool call fails:** Claude has lost its link to the game. At the break, quit Claude Desktop
   fully and start it again. If that doesn't help, call for help after the session.
 
-> **Not sure? Ask Claude.** Ask the GM coach: "Claude stopped answering during play. What can I still do, and what do I do about it at the break?" ([how to add the GM coach](gm-coach.md))
+> **Not sure? Ask Claude.** Ask the GM coach: "Claude stopped answering during play. What can I still do, and what do I do about it at the break?" ([how to add the GM coach](gm-coach.md)) The coach only needs Claude itself, not the game. If its tools fail it still has this runbook and the troubleshooting page built in, and says so.
 
 ## The dashboard does not load or loses its connection
 
@@ -96,7 +96,7 @@ On a plan B night your own Claude and the dashboard do not reach the game: play 
 Foundry. Your changes are kept, and the tool admin moves the world back to the home server before
 the next session. The tool admin's steps are in [Plan B](../dev/PLAN-B.md).
 
-> **Not sure? Ask Claude.** Ask the GM coach: "The server is down in the middle of the game. What do I tell the players, and what do I check once we are back?"
+> **Not sure? Ask Claude.** Ask the GM coach: "The server is down in the middle of the game. What do I tell the players, and what do I check once we are back?" With the server down the coach cannot load its full pages. It answers from this runbook and the troubleshooting page, which come with it, and tells you when it is going from general knowledge instead. It cannot see or change your game.
 
 ## When to call for help
 

@@ -29,7 +29,11 @@ const PREVIOUSLY_ON_LANGS = ['da', 'en'] as const;
 type PreviouslyOnLang = (typeof PREVIOUSLY_ON_LANGS)[number];
 
 interface PreviouslyOnClient {
-  callTool<T = unknown>(name: string, args?: Record<string, unknown>): Promise<T>;
+  callTool<T = unknown>(
+    name: string,
+    args?: Record<string, unknown>,
+    options?: { timeoutMs?: number }
+  ): Promise<T>;
 }
 
 interface PreviouslyOnOptions {
@@ -346,17 +350,31 @@ export function mountPreviouslyOnRoute(app: Express, options: PreviouslyOnOption
         });
         return;
       }
-      await client.callTool('send-chat-message', {
-        message: chatHtml(text),
-        messageType: 'ooc',
-      });
+      await client.callTool(
+        'send-chat-message',
+        {
+          message: chatHtml(text),
+          messageType: 'ooc',
+        },
+        // Above the backend's 30 s direct-write wait, so the backend answers first and the control channel stays up.
+        { timeoutMs: 45_000 }
+      );
       res.json({ ok: true, session: recap.session, lang });
     })().catch((error: unknown) => {
       options.logger?.warn('Previously on chat post failed', {
         error: error instanceof Error ? error.message : String(error),
       });
+      // Not connected or switched off: nothing was posted. Anything else may have landed.
+      const sent = !/not connected|switched off|disabled|control client closed/i.test(
+        error instanceof Error ? error.message : String(error)
+      );
       res.status(502).json({
-        error: { message: 'Could not post to chat. Is Foundry open?', code: 'bridge-unreachable' },
+        error: {
+          message: sent
+            ? 'Could not post to chat. It may or may not have posted: check the chat log before trying again.'
+            : 'Could not post to chat. Is Foundry open?',
+          code: 'bridge-unreachable',
+        },
       });
     });
   });

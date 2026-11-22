@@ -1,6 +1,6 @@
 ---
 source: gm/dashboard-player-pages.md
-sourceHash: fa8d947af2b1
+sourceHash: 0028c9c64129
 title: 'Dashboardet: spillersider og Obsidian'
 description: 'Spillersiden, afsløring af et handout, spillerlinks, My character og Open in Obsidian.'
 ---
@@ -103,9 +103,10 @@ nødvendigt. En spiller, der ikke ejer nogen karakter, ser "Ask your GM".
 Siden har fire visninger, og hver spiller vælger sin (husket på deres enhed):
 
 - **At the table**: store HP, AC og initiative, conditions, spell slots, resources, attacks og
-  prepared spells. Den følger dashboardets tema. Under arket er et **On my turn**-kort, der viser, hvad
-  karakteren kan gøre, grupperet som action, bonus action, reaction og free. Det hjælper en ny spiller,
-  der ikke kender sine muligheder endnu. En kontakt under arket skjuler det.
+  prepared spells. Den følger dashboardets tema. Lige under HP- og AC-feltet er et **On my turn**-kort, der
+  viser, hvad karakteren kan gøre, grupperet som action, bonus action, reaction og free. Det hjælper en
+  ny spiller, der ikke kender sine muligheder endnu. Kontakten **Show the "On my turn" card** nederst på
+  siden skjuler det.
 - **Paper 2024** (standard-papirvisningen) og **Paper 2014**: sort på hvidt, i den samme rækkefølge som
   det trykte karakterark i den udgave, så en spiller kan skrive det af på papir eller printe det
   (**Print** nederst).

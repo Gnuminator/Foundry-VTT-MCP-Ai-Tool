@@ -6,7 +6,8 @@
  * no tool instance and imports no tool class itself. The stdio wrapper loads it for
  * `capToolResult`, and so loads the tool modules (not their instances) through tool-hints.ts.
  */
-import { type ToolAnnotations, withToolHints } from './tool-hints.js';
+import { isDirectWriteTool, runDirectWrite } from './direct-write-timeout.js';
+import { TOOL_HINTS, type ToolAnnotations, withToolHints } from './tool-hints.js';
 import { RENAMED_TOOLS, actorToolNames, applyParamAliases } from './param-aliases.js';
 import { type ToolInstances, instanceOf } from './tools/tool-module.js';
 
@@ -37,7 +38,10 @@ export type ToolHandler = (args: unknown, context?: ToolCallContext) => Promise<
  * The map has a null prototype so a `name` like 'toString' / 'constructor' can't
  * resolve to an inherited Object.prototype method and slip past that guard.
  */
-export function buildToolRouter(deps: ToolRouterDeps): Record<string, ToolHandler> {
+export function buildToolRouter(
+  deps: ToolRouterDeps,
+  renamed: typeof RENAMED_TOOLS = RENAMED_TOOLS
+): Record<string, ToolHandler> {
   const routes = Object.create(null) as Record<string, ToolHandler>;
   const actorTools = actorToolNames(
     deps.modules.flatMap(module => module.definitions(instanceOf(deps, module)))
@@ -48,11 +52,15 @@ export function buildToolRouter(deps: ToolRouterDeps): Record<string, ToolHandle
       if (Object.hasOwn(routes, name)) {
         throw new Error(`Tool route "${name}" is claimed twice (module ${module.id})`);
       }
-      routes[name] = (args, context): Promise<unknown> =>
-        route(tools, applyParamAliases(name, args, actorTools), context);
+      const direct = isDirectWriteTool(name, TOOL_HINTS[name]?.kind);
+      routes[name] = (args, context): Promise<unknown> => {
+        const call = (): Promise<unknown> =>
+          route(tools, applyParamAliases(name, args, actorTools), context);
+        return direct ? runDirectWrite(name, call) : call();
+      };
     }
   }
-  for (const [old, { to, params }] of Object.entries(RENAMED_TOOLS)) {
+  for (const [old, { to, params }] of Object.entries(renamed)) {
     const target = routes[to];
     if (!target || Object.hasOwn(routes, old)) continue;
     routes[old] = (args, context): Promise<unknown> => target(applyRenames(args, params), context);

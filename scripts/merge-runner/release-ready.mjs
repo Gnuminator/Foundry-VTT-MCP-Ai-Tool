@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * The release step of the merge runner (item runner-starts-release). A `release-*` Backlog item
  * names what it waits for on its `- depends on:` line: PRs as `#<n>` and items as `item:<id>`.

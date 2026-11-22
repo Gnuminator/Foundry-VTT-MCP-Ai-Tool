@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * The Waiting.md edit behind `backlog.mjs waiting`, kept apart so backlog.mjs stays under the
  * line limit.

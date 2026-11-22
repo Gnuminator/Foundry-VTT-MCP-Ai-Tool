@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * PRs that are ready in every way except the ready line: open, not a draft, CI green on the head,
  * and a Merge review note for that head, but no ready (or enqueued) progress line on any item. The
@@ -96,7 +97,7 @@ export function findUnready(prs, backlogText, notesFor) {
 
 /** The command that writes the ready line. @param {Unready} u */
 export function readyCommand(u) {
-  const ready = id =>
+  const ready = (/** @type {string} */ id) =>
     `node scripts/backlog.mjs progress ${id} --ready ${u.pr} --head ${u.head} --review "${u.note.split(', ')[0]}"`;
   if (u.ids.length) return ready(u.ids[0]);
   // No item to write the line on (progress fails with "no item with id"): add one first.

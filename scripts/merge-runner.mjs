@@ -1,11 +1,12 @@
 #!/usr/bin/env node
+// @ts-check
 /**
  * Merge runner (D-140, D-141): merges ready PRs without a model, so no planner has to stand by.
  *
  *   node scripts/merge-runner.mjs [--once] [--interval <s>] [--vault <dir>] [--checkout <dir>]
  *
  * A Windows scheduled task starts it at logon (scripts/register-merge-runner.ps1) from the main
- * checkout. Each round it reads vault Backlog.md from the upstream branch (fetch, `git show @{u}:`,
+ * checkout. Each round it reads vault Backlog.md from the upstream branch (fetch, `git show` of the upstream branch,
  * never the shared working tree) and takes every item whose progress line is a ready line
  * (`PR #<n> ready, head <40-hex sha>`, written by `backlog.mjs progress <id> --ready`; parseReadyAll),
  * one PR at a time, in Backlog order. Before each PR the line is read again (an earlier gate run
@@ -271,7 +272,7 @@ const norm = p => {
 };
 
 /**
- * @typedef {{ status: number, stdout: string, stderr: string }} Ran
+ * @typedef {{ status: number, stdout: string, stderr: string, timedOut?: boolean }} Ran
  * @typedef {{
  *   readBacklog: () => string | null,
  *   gh: (args: string[]) => Ran,
@@ -860,6 +861,7 @@ export { isRunnerProcess, takeRunnerLock };
  */
 export function parseArgs(argv) {
   const repo = path.resolve(here, '..').replace(/[\\/]\.claude[\\/]worktrees[\\/].*$/, '');
+  /** @type {{ once: boolean, interval: number, vault: string, checkout: string, releaseSession?: boolean }} */
   const o = {
     once: false,
     interval: DEFAULT_INTERVAL,

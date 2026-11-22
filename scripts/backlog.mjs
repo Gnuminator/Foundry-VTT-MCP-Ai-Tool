@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 /**
  * The one writer of the vault Backlog for sessions (item `backlog-tool`). Lanes never edit
  * Backlog.md by hand: `.claude/hooks/guard-backlog.mjs` refuses it from a worktree.
@@ -611,6 +612,7 @@ export function writeWithRetry(o) {
  * fast-forward when there is nothing local, a plain rebase only when the vault already has unpushed
  * commits and no tracked file is dirty (a rebase would have to stash it), else it refuses.
  * @param {(args: string[], what: string) => { stdout: string }} must @param {(s: string) => void} log
+ * @param {string} marker
  */
 function syncVault(must, log, marker) {
   must(['fetch', '-q'], 'git fetch');
@@ -640,6 +642,7 @@ function syncVault(must, log, marker) {
 /**
  * @param {Parameters<typeof writeWithRetry>[0]} o
  * @param {(args: string[], what: string) => { stdout: string }} must
+ * @param {string} marker
  */
 function writeLocked(o, must, marker) {
   const log = o.log ?? (s => console.error(s));
@@ -800,12 +803,14 @@ export function run(argv, env = {}) {
             )
           : pos.slice(1).join(' ');
         if (!text) throw new Usage('progress <id> <text>');
+        /** @type {{ pr: number, head: string } | undefined} */
         let ifReady;
         if (typeof flags['if-ready'] === 'string') {
           const m = /^(\d+)@([0-9a-f]{40})$/.exec(flags['if-ready']);
           if (!m) throw new Usage('--if-ready <PR>@<40-character sha>');
           ifReady = { pr: Number(m[1]), head: m[2] };
         }
+        /** @type {number | undefined} */
         let pr;
         if (typeof flags.pr === 'string') {
           if (!/^\d+$/.test(flags.pr)) throw new Usage('--pr <PR number>');
@@ -919,7 +924,7 @@ export function run(argv, env = {}) {
           paths: [WAITING],
           message: `Waiting: ${key}`,
           edit: read => {
-            const r = waitingEdit(read(WAITING), { key, title, due, text: flags.text, date });
+            const r = waitingEdit(read(WAITING), { key, title, due, text: String(flags.text), date });
             notes = [r.added ? `waiting: added W${r.n}` : `waiting: ${key} is already there`];
             return { [WAITING]: r.text };
           },

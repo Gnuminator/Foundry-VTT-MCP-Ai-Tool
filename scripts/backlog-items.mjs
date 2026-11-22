@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * The vault Backlog.md item parser and the pure one-item edits that `scripts/backlog.mjs` makes.
  * `scripts/planner-wake.mjs` re-exports `parseProgress` from here.

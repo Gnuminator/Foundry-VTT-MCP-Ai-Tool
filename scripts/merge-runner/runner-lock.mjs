@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * The merge runner's single-instance lock (~/.foundry-ai-tool/merge-runner.lock holds the holder's
  * pid). Split from scripts/merge-runner.mjs to keep that file under the line limit; the runner

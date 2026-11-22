@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 /**
  * Main went red: rerun once, then open a DRAFT revert PR of the merge that turned it red.
  * Run by .github/workflows/main-red-revert.yml when a CI run on a push to main ends in failure.
@@ -45,7 +46,7 @@ export function rerunState(r) {
  *   cancelled run counts as red and is marked in the PR body)
  */
 export function findCulprit(runs, failedSha) {
-  const none = reason => ({ culprit: null, reason, streak: [] });
+  const none = (/** @type {string} */ reason) => ({ culprit: null, reason, streak: [] });
   const at = runs.findIndex(r => r.head_sha === failedSha);
   if (at < 0) return none('the failed run is not in the recent main runs');
   if (runs[at].conclusion === 'success') return none('that run is green');
@@ -88,7 +89,7 @@ export function commitTitle(subject, body) {
   return t || 'a merge to main';
 }
 
-/** @param {string[]} args @param {{ allowFail?: boolean }} [opt] */
+/** @param {string} cmd @param {string[]} args @param {{ allowFail?: boolean }} [opt] */
 function run(cmd, args, opt = {}) {
   const r = spawnSync(cmd, args, { encoding: 'utf8' });
   if (r.status !== 0 && !opt.allowFail) {
@@ -150,7 +151,7 @@ function readRun(io, id) {
   }
 }
 
-/** Like readRun, but a few tries: one blip must not turn a hand-made rerun into a second one. */
+/** Like readRun, but a few tries: one blip must not turn a hand-made rerun into a second one. @param {Io} io @param {string} id */
 function readRunWithRetry(io, id) {
   for (let i = 0; i < 3; i++) {
     if (i > 0) io.sleep(5 * 1000);

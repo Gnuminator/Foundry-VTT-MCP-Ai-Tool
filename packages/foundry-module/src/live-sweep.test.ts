@@ -2,7 +2,16 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { createTestWorld, makeToken, type TestWorld } from './test-support/foundry-mock/index.js';
 import { registerGuardedFeature, resetGuardedFeaturesForTests } from './guarded-features.js';
-import { liveSweep, SWEEP_PREFIX, SWEEP_WORLD_ID, SWEEP_WORLD_IDS } from './live-sweep.js';
+import {
+  liveSweep as liveSweepTyped,
+  SWEEP_PREFIX,
+  SWEEP_WORLD_ID,
+  SWEEP_WORLD_IDS,
+} from './live-sweep.js';
+
+/** The tests read mode-specific fields (`deleted`, `names`) off the union result. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const liveSweep = (data: unknown): Promise<any> => liveSweepTyped(data);
 
 let restore: (() => void) | undefined;
 

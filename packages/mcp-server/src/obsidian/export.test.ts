@@ -314,7 +314,9 @@ describe('exportWorldToObsidian', () => {
     expect(archived).toContain('Anvil');
 
     const canvas = await note('AI Tool/Tarokka/Spread.canvas');
-    const parsedCanvas = JSON.parse(canvas) as { nodes: Array<{ id: string; text?: string }> };
+    const parsedCanvas = JSON.parse(canvas) as {
+      nodes: Array<{ id: string; text?: string; color?: string }>;
+    };
     expect(parsedCanvas.nodes.map(n => n.id).sort()).toEqual(
       ['ally', 'generated', 'holySymbol', 'strahdLocation', 'sunsword', 'tome'].sort()
     );
@@ -470,7 +472,7 @@ describe('exportWorldToObsidian', () => {
     await run();
     expect(await note('AI Tool/Tarokka/Current reading.md')).toContain('No current reading');
     const canvas = JSON.parse(await note('AI Tool/Tarokka/Spread.canvas')) as {
-      nodes: Array<{ id: string; text?: string }>;
+      nodes: Array<{ id: string; text?: string; color?: string }>;
     };
     expect(canvas.nodes.map(n => n.id).sort()).toEqual(['generated', 'no-reading']);
   });

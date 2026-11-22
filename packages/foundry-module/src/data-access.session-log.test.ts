@@ -84,7 +84,7 @@ describe('FoundryDataAccess: getSessionLog: filters forwarded', () => {
     expect(spy).toHaveBeenCalledTimes(1);
     expect(spy).toHaveBeenCalledWith({});
     // confirm no spurious keys were added
-    const received = spy.mock.calls[0][0];
+    const received = spy.mock.calls[0][0] as object;
     expect(Object.keys(received)).toHaveLength(0);
   });
 
@@ -94,7 +94,7 @@ describe('FoundryDataAccess: getSessionLog: filters forwarded', () => {
     await da.getSessionLog({ limit: 5 });
 
     expect(spy).toHaveBeenCalledWith({ limit: 5 });
-    const received = spy.mock.calls[0][0];
+    const received = spy.mock.calls[0][0] as object;
     expect(Object.keys(received)).toEqual(['limit']);
   });
 
@@ -104,7 +104,7 @@ describe('FoundryDataAccess: getSessionLog: filters forwarded', () => {
     await da.getSessionLog({ eventType: 'hp-change' });
 
     expect(spy).toHaveBeenCalledWith({ eventType: 'hp-change' });
-    const received = spy.mock.calls[0][0];
+    const received = spy.mock.calls[0][0] as object;
     expect(Object.keys(received)).toEqual(['eventType']);
   });
 
@@ -114,7 +114,7 @@ describe('FoundryDataAccess: getSessionLog: filters forwarded', () => {
     await da.getSessionLog({ actorName: 'Baldur' });
 
     expect(spy).toHaveBeenCalledWith({ actorName: 'Baldur' });
-    const received = spy.mock.calls[0][0];
+    const received = spy.mock.calls[0][0] as object;
     expect(Object.keys(received)).toEqual(['actorName']);
   });
 
@@ -124,7 +124,7 @@ describe('FoundryDataAccess: getSessionLog: filters forwarded', () => {
     await da.getSessionLog({ limit: 10, eventType: 'death', actorName: 'Varis' });
 
     expect(spy).toHaveBeenCalledWith({ limit: 10, eventType: 'death', actorName: 'Varis' });
-    const received = spy.mock.calls[0][0];
+    const received = spy.mock.calls[0][0] as object;
     expect(Object.keys(received).sort()).toEqual(['actorName', 'eventType', 'limit']);
   });
 });
@@ -177,7 +177,7 @@ describe('FoundryDataAccess: getRecentEvents: filters forwarded', () => {
     await da.getRecentEvents({});
 
     expect(spy).toHaveBeenCalledTimes(1);
-    const received = spy.mock.calls[0][0];
+    const received = spy.mock.calls[0][0] as object;
     expect(Object.keys(received)).toHaveLength(0);
   });
 
@@ -188,7 +188,7 @@ describe('FoundryDataAccess: getRecentEvents: filters forwarded', () => {
     await da.getRecentEvents({ sinceTimestamp: ts });
 
     expect(spy).toHaveBeenCalledWith({ sinceTimestamp: ts });
-    const received = spy.mock.calls[0][0];
+    const received = spy.mock.calls[0][0] as object;
     expect(Object.keys(received)).toEqual(['sinceTimestamp']);
   });
 
@@ -198,7 +198,7 @@ describe('FoundryDataAccess: getRecentEvents: filters forwarded', () => {
     await da.getRecentEvents({ limit: 20 });
 
     expect(spy).toHaveBeenCalledWith({ limit: 20 });
-    const received = spy.mock.calls[0][0];
+    const received = spy.mock.calls[0][0] as object;
     expect(Object.keys(received)).toEqual(['limit']);
   });
 
@@ -208,7 +208,7 @@ describe('FoundryDataAccess: getRecentEvents: filters forwarded', () => {
     await da.getRecentEvents({ eventType: 'condition-applied' });
 
     expect(spy).toHaveBeenCalledWith({ eventType: 'condition-applied' });
-    const received = spy.mock.calls[0][0];
+    const received = spy.mock.calls[0][0] as object;
     expect(Object.keys(received)).toEqual(['eventType']);
   });
 
@@ -219,7 +219,7 @@ describe('FoundryDataAccess: getRecentEvents: filters forwarded', () => {
     await da.getRecentEvents({ sinceTimestamp: ts, limit: 15, eventType: 'scene-change' });
 
     expect(spy).toHaveBeenCalledWith({ sinceTimestamp: ts, limit: 15, eventType: 'scene-change' });
-    const received = spy.mock.calls[0][0];
+    const received = spy.mock.calls[0][0] as object;
     expect(Object.keys(received).sort()).toEqual(['eventType', 'limit', 'sinceTimestamp']);
   });
 });

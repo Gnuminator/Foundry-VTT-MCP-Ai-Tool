@@ -13,7 +13,10 @@
  *     <group>`. `green.test.mjs` parses `.github/workflows/ci.yml` (scripts/ci-yaml.mjs) and fails
  *     when a test command stands in ci.yml outside such a call, or a group is not called.
  *
- * Adding a script test means one `nodeTest(...)` line here; ci.yml needs no change.
+ * Adding a script test (`*.test.mjs` under .claude/hooks, scripts, deploy, installer or tools) needs no
+ * edit here: `nodeTestsIn` finds it by folder. A test file that another command runs (an npm
+ * script, another workflow) is a named exception in TEST_FOLDER_EXCEPTIONS; `test-coverage-check.mjs`
+ * proves every test runs somewhere. ci.yml needs no change.
  *
  *   node scripts/checks.mjs --list         print every entry: name, group and where it runs
  *   node scripts/checks.mjs --run <group>  run a CI group; table of checks and seconds to the job summary
@@ -72,18 +75,77 @@ const npmRun = (
   ...extra,
 });
 
-/** A step that runs `node --test <file>`. */
-const nodeTest = (
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+/** Folders the `*.test.mjs` walk never enters. */
+const WALK_SKIP = new Set(['node_modules', 'dist', '.git', 'worktrees']);
+
+/**
+ * Every `*.test.mjs` under a folder of the repo, as forward-slash paths relative to the root, sorted.
+ * @param {string} dir @param {string} [root]
+ * @returns {string[]}
+ */
+export function findNodeTests(dir, root = ROOT) {
+  /** @type {string[]} */
+  const found = [];
+  /** @param {string} rel */
+  const walk = rel => {
+    let entries;
+    try {
+      entries = fs.readdirSync(path.join(root, rel), { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      const next = `${rel}/${e.name}`;
+      if (e.isDirectory()) {
+        if (!WALK_SKIP.has(e.name)) walk(next);
+      } else if (e.name.endsWith('.test.mjs')) found.push(next);
+    }
+  };
+  walk(dir);
+  return found.sort();
+}
+
+/**
+ * The named exceptions to the folder walk: tests another command already runs (a path, or a folder
+ * ending in `/`). Each value says where. A test outside the walk and this list fails `coverage-check`.
+ * @type {Record<string, string>}
+ */
+export const TEST_FOLDER_EXCEPTIONS = {
+  'scripts/test-kit/': 'npm run kit:test (the kit group)',
+  'scripts/dev/': 'npm run dev:test',
+  'scripts/tool-eval/': 'npm run dev:test',
+  'scripts/wiki/': 'npm run wiki:test (wiki-scripts)',
+  'scripts/dep-ranges-check.test.mjs': 'npm run deps:check',
+  'scripts/docs-quest-check.test.mjs': 'npm run docs:links',
+  'scripts/pi/docker-compose.test.mjs': 'workflow pi-images.yml',
+  'scripts/pi/cutover-guard-container.test.mjs': 'the ARM job, check pi-cutover-guard-container',
+  'deploy/pi/healthcheck.test.mjs': 'workflow pi-images.yml',
+};
+
+const PI_TESTS_IN_SCRIPTS_GROUP = [
+  'scripts/pi/obsidian-plugin-guides.test.mjs',
+  'scripts/pi/runtime-imports.test.mjs',
+  'scripts/pi/world-switches.test.mjs',
+];
+
+/**
+ * A step that runs `node --test` on every `*.test.mjs` found under `dirs` (a folder walk, not a
+ * list of files), minus the exceptions and any `also` prefix that belongs to another check.
+ */
+const nodeTestsIn = (
   /** @type {string} */ name,
   /** @type {string} */ group,
-  /** @type {string[]} */ ...files
-) => ({
-  name,
-  group,
-  cmd: 'node',
-  args: ['--test', ...files],
-  env: CI,
-});
+  /** @type {string[]} */ dirs,
+  /** @type {string[]} */ also = []
+) => {
+  const except = [...Object.keys(TEST_FOLDER_EXCEPTIONS), ...also];
+  const files = dirs
+    .flatMap(d => findNodeTests(d))
+    .filter(f => !except.some(x => f === x || (x.endsWith('/') && f.startsWith(x))));
+  return { name, group, cmd: 'node', args: ['--test', ...files], env: CI };
+};
 
 /** A step that runs `npm test -w <workspace>`. */
 const workspaceTest = (/** @type {string} */ name, /** @type {string} */ ws) => ({
@@ -125,159 +187,23 @@ export const CHECKS = [
   npmRun('docs-links', 'docs', 'docs:links', { drift: { name: 'docs links', order: 7 } }),
   npmRun('docs-ui', 'docs', 'docs:ui'),
   npmRun('docs-kit', 'docs', 'docs:kit:check'),
-  nodeTest('docs-ui-test', 'docs', 'scripts/docs-ui-check.test.mjs'),
-  nodeTest('sync-version', 'scripts', 'scripts/sync-version.test.mjs'),
-  nodeTest('hook-remote-guard', 'hooks', '.claude/hooks/guard-remote-commands.test.mjs'),
-  nodeTest('hook-start-alerts', 'hooks', '.claude/hooks/start-alerts.test.mjs'),
-  nodeTest('drift-check-test', 'gate', 'scripts/drift-check.test.mjs'),
-  nodeTest('workflow-pins', 'gate', 'scripts/workflow-pins.test.mjs'),
-  nodeTest('eslint-plain-js', 'gate', 'scripts/eslint-plain-js.test.mjs'),
-  nodeTest('mutation-ratchet', 'gate', 'scripts/mutation-ratchet.test.mjs'),
-  nodeTest('test-env-frame-proxy', 'scripts', 'scripts/test-env/foundry-frame-proxy.test.mjs'),
-  nodeTest(
-    'hook-context-alert',
-    'hooks',
-    '.claude/hooks/context-alert.test.mjs',
-    '.claude/hooks/context-stop.test.mjs'
-  ),
-  nodeTest(
-    'hook-edit-guard',
-    'hooks',
-    '.claude/hooks/guard-shell-edits.test.mjs',
-    '.claude/hooks/warn-control-bytes.test.mjs',
-    '.claude/hooks/guard-model.test.mjs',
-    '.claude/hooks/guard-cloudflare.test.mjs',
-    '.claude/hooks/format-on-edit.test.mjs',
-    '.claude/hooks/guard-backlog.test.mjs',
-    '.claude/hooks/guard-registration.test.mjs'
-  ),
-  nodeTest('cloudflare-compare', 'scripts', 'scripts/cloudflare-compare.test.mjs'),
-  nodeTest(
-    'cloudflare-compare-coverage',
-    'scripts',
-    'scripts/cloudflare-compare-coverage.test.mjs'
-  ),
-  nodeTest(
-    'gate-scripts',
-    'gate',
-    'scripts/green.test.mjs',
-    'scripts/lane-merge.test.mjs',
-    'scripts/visual-diff-report.test.mjs',
-    'scripts/changelog-fold.test.mjs',
-    'scripts/review-note.test.mjs',
-    'scripts/lane-ready.test.mjs',
-    'scripts/build-lane-plugin.test.mjs',
-    'scripts/lane-plugin-install-check.test.mjs',
-    'scripts/heavy-lock.test.mjs',
-    'scripts/test-coverage-check.test.mjs',
-    'scripts/planner-wake.test.mjs',
-    'scripts/backlog.test.mjs',
-    'scripts/planner-state.test.mjs',
-    'scripts/merge-runner.test.mjs',
-    'scripts/merge-runner/liveness.test.mjs',
-    'scripts/merge-runner/open-steps.test.mjs',
-    'scripts/merge-runner/refresh.test.mjs',
-    'scripts/merge-runner/release-ready.test.mjs',
-    'scripts/merge-runner/self-check.test.mjs',
-    'scripts/merge-runner/train-run.test.mjs',
-    'scripts/merge-runner/unready.test.mjs',
-    'scripts/main-red-revert.test.mjs',
-    'scripts/line-ratchet.test.mjs',
-    'scripts/unused-ratchet.test.mjs',
-    'scripts/review-severity-rule.test.mjs',
-    'scripts/check-shared-link.test.mjs'
-  ),
+  // Script tests by folder: a new `*.test.mjs` there joins its check with no edit here.
+  nodeTestsIn('hook-tests', 'hooks', ['.claude/hooks']),
+  nodeTestsIn('script-tests', 'scripts', ['scripts', 'installer'], ['scripts/pi/']),
+  nodeTestsIn('pi-tests', 'pi', ['scripts/pi', 'deploy'], PI_TESTS_IN_SCRIPTS_GROUP),
+  // Pi-folder tests that read files outside the pi group's paths, so they run in the scripts group.
+  {
+    name: 'pi-wide-tests',
+    group: 'scripts',
+    cmd: 'node',
+    args: ['--test', ...PI_TESTS_IN_SCRIPTS_GROUP],
+    env: CI,
+  },
+  nodeTestsIn('tool-tests', 'tools', ['tools']),
   { name: 'dev-scripts', group: 'scripts', cmd: 'npm', args: ['run', 'dev:test'], env: CI },
-  nodeTest('who-uses-what', 'scripts', 'scripts/who-uses-what.test.mjs'),
-  nodeTest('game-day-brief', 'scripts', 'scripts/game-day-brief.test.mjs'),
-  nodeTest('gamenight-watch', 'scripts', 'scripts/gamenight-watch.test.mjs'),
-  nodeTest('gamenight-watch-pi', 'scripts', 'scripts/gamenight-watch-pi.test.mjs'),
-  nodeTest('pi-who-uses-what-stage', 'pi', 'scripts/pi/who-uses-what-stage.test.mjs'),
-  nodeTest('pi-player-connector-stage', 'pi', 'scripts/pi/player-connector-stage.test.mjs'),
-  nodeTest(
-    'pi-player-connector-cloudflare',
-    'pi',
-    'scripts/pi/player-connector-cloudflare.test.mjs'
-  ),
-  nodeTest('pi-crash-guard-stage', 'pi', 'scripts/pi/crash-guard-stage.test.mjs'),
-  nodeTest('pi-gamenight-watch-stage', 'pi', 'scripts/pi/gamenight-watch-stage.test.mjs'),
-  nodeTest('pi-space-check', 'pi', 'scripts/pi/space-check.test.mjs'),
-  nodeTest('pi-backup-record', 'pi', 'scripts/pi/backup-pull-record.test.mjs'),
-  nodeTest('pi-push-world', 'pi', 'scripts/pi/push-world.test.mjs'),
-  nodeTest('pi-world-refs', 'pi', 'scripts/pi/world-refs.test.mjs'),
-  nodeTest('pi-assistant-gm', 'pi', 'scripts/pi/assistant-gm.test.mjs'),
-  nodeTest('pi-gm-passwords', 'pi', 'scripts/pi/gm-passwords.test.mjs'),
-  nodeTest('pi-system-trial-guard', 'pi', 'scripts/pi/system-trial-guard.test.mjs'),
-  nodeTest('pi-ci-filter', 'pi', 'scripts/pi/ci-pi-filter.test.mjs'),
-  nodeTest('pi-container-lib', 'pi', 'scripts/pi/container-lib.test.mjs'),
-  nodeTest(
-    'pi-container-test-units',
-    'pi',
-    'scripts/pi/gm-watchdog.test.mjs',
-    'scripts/pi/modules-stage.test.mjs',
-    'scripts/pi/stage11-world.test.mjs',
-    'scripts/pi/system-trial.test.mjs'
-  ),
-  nodeTest('pi-player-creation', 'pi', 'scripts/pi/player-creation.test.mjs'),
-  nodeTest('pi-check-studio-pin', 'pi', 'scripts/pi/check-studio-pin.test.mjs'),
   // Not in the `pi` group: world-switches, runtime-imports and the Obsidian guides read module and
   // package sources and the docs (packages/*, docs/), so a pull request outside the Pi paths can break them.
-  nodeTest('pi-world-switches', 'scripts', 'scripts/pi/world-switches.test.mjs'),
-  nodeTest('pi-kit-session', 'pi', 'scripts/pi/kit-session.test.mjs'),
-  nodeTest('pi-fetch-kit-login', 'pi', 'scripts/pi/fetch-kit-login.test.mjs'),
-  nodeTest('pi-health-kit-line', 'pi', 'scripts/pi/health-kit-line.test.mjs'),
-  nodeTest('pi-runtime-imports', 'scripts', 'scripts/pi/runtime-imports.test.mjs'),
-  nodeTest('pi-runuser-helper', 'pi', 'scripts/pi/runuser-helper.test.mjs'),
-  nodeTest('pi-stage5-load-check', 'pi', 'scripts/pi/stage5-load-check.test.mjs'),
-  nodeTest('pi-stage5-compose', 'pi', 'scripts/pi/stage5-compose.test.mjs'),
-  nodeTest('pi-bridge-logging', 'pi', 'scripts/pi/bridge-logging.test.mjs'),
-  nodeTest('pi-ssh-keys-only', 'pi', 'scripts/pi/ssh-keys-only.test.mjs'),
-  nodeTest('pi-board-status', 'pi', 'scripts/pi/board-status.test.mjs'),
-  nodeTest('pi-pull-destination', 'pi', 'scripts/pi/pull-destination.test.mjs'),
-  nodeTest('pi-gh-runner', 'pi', 'scripts/pi/gh-runner.test.mjs'),
-  nodeTest('pi-bot-status-stage', 'pi', 'scripts/pi/bot-status-stage.test.mjs'),
-  nodeTest('pi-stage7-foundry-url', 'pi', 'scripts/pi/stage7-foundry-url.test.mjs'),
-  nodeTest('pi-time-sync', 'pi', 'scripts/pi/time-sync.test.mjs'),
-  nodeTest('pi-discord-game-server', 'pi', 'scripts/pi/discord-game-server.test.mjs'),
-  nodeTest('pi-join-page-look', 'pi', 'scripts/pi/join-page-look.test.mjs'),
-  nodeTest('pi-vault-sync', 'pi', 'scripts/pi/vault-sync.test.mjs'),
-  nodeTest('pi-gm-vault-peers', 'pi', 'scripts/pi/gm-vault-peers.test.mjs'),
-  nodeTest(
-    'pi-obsidian-plugin-stage',
-    'scripts',
-    'scripts/pi/obsidian-plugin-stage.test.mjs',
-    'scripts/pi/obsidian-plugin-guides.test.mjs'
-  ),
-  nodeTest('pi-map-upscale-stage', 'pi', 'scripts/pi/map-upscale-stage.test.mjs'),
-  nodeTest('pi-player-vault', 'pi', 'scripts/pi/player-vault.test.mjs'),
-  nodeTest(
-    'pi-seven-books',
-    'pi',
-    'scripts/pi/seven-books.test.mjs',
-    'scripts/pi/grave-domain-patch.test.mjs'
-  ),
-  nodeTest('pi-world-switch', 'pi', 'scripts/pi/switch-world.test.mjs'),
-  nodeTest('pi-control-port-check', 'pi', 'scripts/pi/control-port-check.test.mjs'),
-  nodeTest('pi-stage-safety', 'pi', 'scripts/pi/pi-stage-safety.test.mjs'),
-  nodeTest('pi-cutover-guard', 'pi', 'scripts/pi/cutover-guard.test.mjs'),
-  nodeTest('pi-ssh-log-secrets', 'pi', 'scripts/pi/ssh-log-secrets.test.mjs'),
-  nodeTest('pi-sync-check', 'pi', 'scripts/pi/sync-check.test.mjs'),
-  nodeTest('pi-deployed-state', 'pi', 'deploy/pi/deployed-state.test.mjs'),
-  nodeTest('cloudflare-join-veil', 'pi', 'deploy/cloudflare/join-veil/worker.test.mjs'),
-  nodeTest('tunnel-client', 'scripts', 'installer/nsis/tunnel-client.test.mjs'),
-  nodeTest('configure-claude', 'scripts', 'installer/nsis/configure-claude.test.mjs'),
-  nodeTest('client-update', 'scripts', 'installer/nsis/client-update.test.mjs'),
-  nodeTest('plan-b', 'scripts', 'scripts/plan-b/plan-b.test.mjs'),
-  nodeTest('data-folder', 'scripts', 'scripts/data-folder.test.mjs'),
-  nodeTest('gpu-lock', 'scripts', 'scripts/gpu-lock.test.mjs'),
-  nodeTest('voice-image-hash', 'scripts', 'scripts/voice-image-hash.test.mjs'),
-  nodeTest('tv-table-viewer', 'scripts', 'scripts/tv/start-table-viewer.test.mjs'),
   { name: 'wiki-scripts', group: 'scripts', cmd: 'npm', args: ['run', 'wiki:test'], env: CI },
-  nodeTest('dnd-helper-test', 'tools', 'tools/dnd-helper/build.test.mjs'),
-  nodeTest('backstory-buddy-test', 'tools', 'tools/backstory-buddy/build.test.mjs'),
-  nodeTest('skill-stubs-test', 'tools', 'tools/dnd-helper/stub.test.mjs'),
-  nodeTest('sync-skill-plugins-test', 'scripts', 'scripts/sync-skill-plugins.test.mjs'),
-  nodeTest('player-connector-test', 'tools', 'tools/player-connector/build.test.mjs'),
   {
     name: 'livekit-recorder-install',
     group: 'tools',
@@ -295,9 +221,7 @@ export const CHECKS = [
   npmRun('changelog', 'static', 'changelog:check', {
     drift: { name: 'changelog fragments', order: 3 },
   }),
-  nodeTest('gm-coach-test', 'tools', 'tools/gm-coach/build.test.mjs'),
   { name: 'gm-coach-build', group: 'tools', cmd: 'node', args: ['tools/gm-coach/build.mjs'] },
-  nodeTest('prep-ritual-test', 'tools', 'tools/prep-ritual/build.test.mjs'),
   { name: 'prep-ritual-build', group: 'tools', cmd: 'node', args: ['tools/prep-ritual/build.mjs'] },
   { name: 'build', group: 'build', cmd: 'npm', args: ['run', 'build'] },
   // The release workflow's esbuild bundles (index and backend), so an esbuild bump or a import
@@ -352,7 +276,6 @@ export const CHECKS = [
     args: ['scripts/standalone-smoke-test.mjs'],
   },
   { name: 'split-smoke', group: 'smoke', cmd: 'node', args: ['scripts/cogm-split-smoke-test.mjs'] },
-  nodeTest('ci-e2e-filter', 'smoke', 'scripts/ci-e2e-filter.test.mjs'),
   {
     name: 'validate-manifest',
     group: 'smoke',

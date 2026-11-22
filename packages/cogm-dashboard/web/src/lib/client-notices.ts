@@ -1,7 +1,7 @@
 // Outdated client pieces (item client-updates, layer 2): which rows of GET /api/client-versions
 // the GM sees as a banner. Only the GM's own pieces (connectors, Obsidian plugin) do; a player's
 // extension is reported to that player on their own page, and listed in the Versions panel.
-import { clientNoticeText, type ClientVersionsView } from '@gnuminator/shared';
+import { clientNoticeText, type ClientVersionsView } from '@gnuminator/shared/browser';
 
 interface ClientBanner {
   piece: 'connectors' | 'obsidian';

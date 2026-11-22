@@ -161,6 +161,8 @@ export class RecorderBot {
   private active: Active | undefined;
   private spaceTimer: NodeJS.Timeout | undefined;
   private stopRecoverRetry: (() => void) | undefined;
+  /** Folders of recordings this run stopped itself (stop() converts them). */
+  private readonly stoppedDirs = new Set<string>();
   private sessionPostTimer: NodeJS.Timeout | undefined;
   private omensTimer: NodeJS.Timeout | undefined;
   private statusServer: Server | undefined;
@@ -456,7 +458,7 @@ export class RecorderBot {
   private async recoverOrphans(): Promise<void> {
     try {
       const outcomes = await recoverOrphans(this.config.sessionsDir, {
-        isActive: dir => this.active?.session.dir === dir,
+        isActive: dir => this.active?.session.dir === dir || this.stoppedDirs.has(dir),
       });
       const text = recoverMessage(outcomes);
       if (!text) return;
@@ -641,6 +643,7 @@ export class RecorderBot {
     const a = this.active;
     if (!a) return NOT_RECORDING;
     this.active = undefined;
+    this.stoppedDirs.add(a.session.dir); // stop() converts it itself; the retry pass leaves it alone
     clearInterval(a.healthTimer);
     a.recorder.stop();
     const tracks = await a.session.stop(reason);

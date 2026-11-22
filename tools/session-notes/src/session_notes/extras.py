@@ -217,13 +217,27 @@ def merge_characters(parts: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def merge_remember(parts: list[dict[str, Any]]) -> dict[str, Any]:
-    return {"items": [i for p in parts for i in p.get("items", [])]}
+    seen: set[tuple[str, str]] = set()
+    items = []
+    for part in parts:
+        for i in part.get("items", []):
+            ident = (str(i.get("kind")), str(i.get("en", "")).strip().lower())
+            if ident not in seen:
+                seen.add(ident)
+                items.append(i)
+    return {"items": items}
 
 
-def chunk_key(kind: str, chunk: list[dict[str, Any]], roster: Roster) -> str:
+def chunk_key(kind: str, chunk: list[dict[str, Any]], roster: Roster, total: int = 1) -> str:
     rules = CHARACTERS_RULES if kind == "characters" else REMEMBER_RULES
     blob = json.dumps(
-        [kind, roster.players, _body(chunk), hashlib.sha256(rules.encode("utf-8")).hexdigest()],
+        [
+            kind,
+            total,
+            roster.players,
+            _body(chunk),
+            hashlib.sha256(rules.encode("utf-8")).hexdigest(),
+        ],
         ensure_ascii=False,
         sort_keys=True,
     )
@@ -239,6 +253,7 @@ HEAD = {
         "note": "Kun for GM: kan indeholde hemmeligheder. Hvert punkt linker til linjerne i "
         "transskriptionen.",
         "missing": "Ikke skrevet endnu (kør session-notes igen).",
+        "gave_up": "Kunne ikke skrives efter flere forsøg. Slet notes/.work/extra-*.json og kør igen.",
         "none": "Intet noteret.",
         "played_by": "spilles af",
         "sections": {
@@ -262,6 +277,7 @@ HEAD = {
         "remember": "Worth remembering",
         "note": "GM only: may contain secrets. Each point links to the transcript lines.",
         "missing": "Not written yet (run session-notes again).",
+        "gave_up": "Could not be written after several tries. Delete notes/.work/extra-*.json and run again.",
         "none": "Nothing noted.",
         "played_by": "played by",
         "sections": {
@@ -303,6 +319,8 @@ def render_characters(
     out = [f"# {h['characters']}", ""]
     if result is None:
         return "\n".join(out + [f"> {h['missing']}", ""])
+    if result.get("fallback"):
+        return "\n".join(out + [f"> {h['gave_up']}", ""])
     starts = {ln.id: ln.start for ln in lines}
     out += [f"> {h['note']}", ""]
     for c in _order(result.get("characters", []), roster):
@@ -323,6 +341,8 @@ def render_remember(lang: str, lines: list[Line], result: dict[str, Any] | None)
     out = [f"# {h['remember']}", ""]
     if result is None:
         return "\n".join(out + [f"> {h['missing']}", ""])
+    if result.get("fallback"):
+        return "\n".join(out + [f"> {h['gave_up']}", ""])
     starts = {ln.id: ln.start for ln in lines}
     out += [f"> {h['note']}", ""]
     items = result.get("items") or []

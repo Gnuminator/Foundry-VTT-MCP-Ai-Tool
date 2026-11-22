@@ -94,7 +94,7 @@ def test_chunking_and_merging() -> None:
         [{"characters": [character(choices=[point()])]}, {"characters": [character(choices=[point()])]}]
     )
     assert len(merged["characters"]) == 1 and len(merged["characters"][0]["choices"]) == 2
-    assert len(extras.merge_remember([{"items": [1]}, {"items": [2]}])["items"]) == 2
+    assert len(extras.merge_remember([{"items": [point()]}, {"items": [{**point(), "en": "Other"}]}])["items"]) == 2
 
 
 def lines() -> list[Line]:
@@ -125,7 +125,7 @@ def test_run_writes_both_layers_one_call_each_and_reruns_skip_them(session: Path
     for name in ("characters.da.md", "characters.en.md", "remember.da.md", "remember.en.md"):
         assert (notes / name).exists()
     chars = (notes / "characters.da.md").read_text(encoding="utf-8")
-    assert "## Ilvara" in chars and "u999999" not in chars and "^u" not in chars.split("(")[0]
+    assert "## Ilvara" in chars and "u999999" not in chars and "[[transcript.da#^u000001|" in chars
     assert "## Bo" in chars and "GM (" not in chars
     assert "## Aftaler ved bordet" in (notes / "remember.da.md").read_text(encoding="utf-8")
     # never in the player recap
@@ -159,11 +159,30 @@ def test_a_bad_answer_is_retried_then_left_missing(session: Path) -> None:
             return super().__call__(prompt, schema, model, effort)
 
     fake = Empty()
-    result = Writer(session, fake, opts()).run()
+    result = Writer(session, fake, opts(fallback_gap_s=0)).run()
     assert result.extras_missing == 1 and not result.paused
     assert [k for k, _ in fake.calls].count("remember") == 2
     assert "Ikke skrevet" in (session / "notes" / "remember.da.md").read_text(encoding="utf-8")
     assert "rejected" in fake.calls[-1][1]
+    # after three failed runs the layer is given up, so it cannot block the publish for ever
+    Writer(session, Empty(), opts(fallback_gap_s=0)).run()
+    third = Writer(session, Empty(), opts(fallback_gap_s=0)).run()
+    assert third.extras_missing == 0
+    assert "Kunne ikke skrives" in (session / "notes" / "remember.da.md").read_text(encoding="utf-8")
+    data = json.loads((session / "notes" / "notes.json").read_text(encoding="utf-8"))
+    assert data["layers"]["remember_complete"] is True
+
+
+def test_all_raw_scenes_leave_empty_layers_not_missing() -> None:
+    scenes = [{"index": 1, "fallback": True, "lines": []}]
+    assert extras.chunk_scenes(scenes) == []
+
+
+def test_merge_remember_drops_duplicates_and_total_is_in_the_key() -> None:
+    a = {"kind": "fact", **point()}
+    assert len(extras.merge_remember([{"items": [a]}, {"items": [dict(a)]}])["items"]) == 1
+    chunk = [{"index": 1, "title_en": "T", "summary_en": "S", "lines": []}]
+    assert extras.chunk_key("remember", chunk, ROSTER, 1) != extras.chunk_key("remember", chunk, ROSTER, 2)
 
 
 def test_layers_off_writes_neither(session: Path) -> None:

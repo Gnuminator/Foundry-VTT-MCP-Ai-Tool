@@ -257,12 +257,46 @@ class Writer:
                     parts = []
                     break
                 parts.append(got)
-            if parts:
+            empty = {"characters": []} if layer == "characters" else {"items": []}
+            if not chunks:  # nothing but raw scenes: nothing to write about
+                out[layer] = empty
+            elif parts:
                 merge = extras.merge_characters if layer == "characters" else extras.merge_remember
                 out[layer] = merge(parts) if len(parts) > 1 else parts[0]
+                self._clear_extra_failure(layer)
+            elif self._count_extra_failure(layer, chunks, roster):
+                # Like a scene's in-depth notes: after MAX_FALLBACK_RUNS counted runs the layer is
+                # accepted as not written, so an optional GM-only layer never blocks the publish.
+                out[layer] = {**empty, "fallback": True}
             else:
                 out[layer] = None
         return out, None
+
+    def _extra_fail_path(self, layer: str) -> Path:
+        return self.work / f"extra-{layer}.fail.json"
+
+    def _clear_extra_failure(self, layer: str) -> None:
+        self._extra_fail_path(layer).unlink(missing_ok=True)
+
+    def _count_extra_failure(self, layer: str, chunks: list[list[dict[str, Any]]], roster: Roster) -> bool:
+        """Count this run for a failed layer; True once it has failed ``MAX_FALLBACK_RUNS`` runs."""
+        marker = self._extra_fail_path(layer)
+        key = hashlib.sha256(
+            "".join(extras.chunk_key(layer, c, roster, len(chunks)) for c in chunks).encode()
+        ).hexdigest()
+        tries, last = 0, 0.0
+        try:
+            data = json.loads(marker.read_text(encoding="utf-8"))
+            if data.get("key") == key:
+                tries, last = int(data.get("tries", 0)), float(data.get("at", 0))
+        except (ValueError, OSError, AttributeError, TypeError):
+            pass
+        now = time.time()
+        if tries == 0 or now - last >= self.opts.fallback_gap_s:
+            tries += 1
+            marker.write_text(json.dumps({"key": key, "tries": tries, "at": now}), encoding="utf-8")
+        self._log(f"{layer}_failed_run", tries=tries)
+        return tries >= MAX_FALLBACK_RUNS
 
     def _extra_chunk(
         self,
@@ -275,7 +309,7 @@ class Writer:
     ) -> dict[str, Any] | str | None:
         """A finished chunk result, the pause text (str), or None when both tries failed."""
         path = self.work / f"extra-{layer}-{n:02d}.json"
-        key = extras.chunk_key(layer, chunk, roster)
+        key = extras.chunk_key(layer, chunk, roster, total)
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
             if data.get("key") == key and isinstance(data["notes"], dict):

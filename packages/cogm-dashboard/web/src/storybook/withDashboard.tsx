@@ -17,6 +17,7 @@ import { HelpProvider } from '../components/Help';
 import { ToastProvider } from '../components/Toasts';
 import { BRIDGE_STATUS_KEY, SETTINGS_KEY, WORLD_KEY } from '../lib/stream';
 import { TooltipProvider } from '../ui';
+import { preloadTooltips } from '../ui/Tooltip';
 
 import { makeFetch, reply, toolOk, type FakeApi } from './fakeApi';
 import { HELP_PAGE, PLAY_SESSION_CLOSED, WORLD } from './fixtures/common';
@@ -118,7 +119,9 @@ function Dashboard({
  * down. The fake /api is in place before any component fetches, and a strict-mode double
  * render cannot swap it out from under the live story.
  */
-export const dashboardBeforeEach: NonNullable<Preview['beforeEach']> = context => {
+export const dashboardBeforeEach: NonNullable<Preview['beforeEach']> = async context => {
+  // The tooltip's Radix chunk is lazy in the app; a story shot is taken with it already in.
+  await preloadTooltips();
   const config = (context.parameters['dashboard'] ?? {}) as DashboardParameters;
   return installFetch(mergeApi(config.api));
 };

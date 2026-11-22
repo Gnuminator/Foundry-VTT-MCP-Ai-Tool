@@ -28,6 +28,11 @@ function loadImpl(): Promise<Impl> {
   return implPromise;
 }
 
+/** Loads the Radix chunk now (Storybook does, so a story shows its tip as the page does later). */
+export async function preloadTooltips(): Promise<void> {
+  await loadImpl();
+}
+
 /** The chunk is fetched this long after a first tooltip mounts. */
 const PRELOAD_DELAY_MS = 1000;
 

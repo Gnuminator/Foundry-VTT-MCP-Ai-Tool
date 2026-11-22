@@ -24,6 +24,7 @@ export * from './player-view.js';
 export * from './export-index.js';
 export * from './library-index.js';
 export * from './version.js';
+export * from './tested-versions.js';
 export * from './client-versions.js';
 export * from './preflight.js';
 export * from './prep-digest.js';

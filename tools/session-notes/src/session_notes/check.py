@@ -112,6 +112,8 @@ class CheckReport:
     answered: int = 0
     new_answers: int = 0
     conflicts: list[str] = field(default_factory=list)
+    corrected: list[str] = field(default_factory=list)  # an answer edited on the page after it was read
+    unknown: list[str] = field(default_factory=list)  # an answer under a heading that is not on the list
     names_added: list[str] = field(default_factory=list)
     rules_added: int = 0
 
@@ -270,7 +272,7 @@ def fact_entries(session: Path, raw: list[Line], lines: list[Line], names: list[
 
 # --- answers --------------------------------------------------------------------------------
 
-_NOT_NAME = re.compile(r"^(not a name|ikke et navn|ikke navn|no name)\b", re.I)
+_NOT_NAME = re.compile(r"^(not a name|ikke et navn|ikke navn)\W*$", re.I)
 _SAME = re.compile(r"^(same as|samme som|=)\s*(.+)$", re.I)
 _OK = re.compile(r"^(ok|okay|keep|behold|fine)\.?$", re.I)
 
@@ -331,9 +333,7 @@ def _load_answers(session: Path) -> dict[str, dict[str, Any]]:
 
 
 def _save_answers(session: Path, answers: dict[str, dict[str, Any]]) -> None:
-    (session / ANSWERS_FILE).write_text(
-        json.dumps({"answers": answers}, ensure_ascii=False, indent=1) + "\n", encoding="utf-8"
-    )
+    _write(session / ANSWERS_FILE, json.dumps({"answers": answers}, ensure_ascii=False, indent=1) + "\n")
 
 
 def page_path(session: Path, lang: str) -> Path:
@@ -358,19 +358,50 @@ def _read_pages(session: Path) -> tuple[dict[str, str], list[str]]:
 # --- writing the files the next steps read ---------------------------------------------------
 
 
+def _write(path: Path, text: str) -> None:
+    """Whole file at once (a rename), LF line endings, so an editor never sees half a page."""
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(text, encoding="utf-8", newline="\n")
+    tmp.replace(path)
+
+
+def _read_rules(session: Path) -> dict[str, list[str]] | None:
+    path = session / "rules.json"
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8-sig"))
+        if not isinstance(data, dict) or any(not isinstance(v, list) for v in data.values()):
+            return None
+        return {str(k): [str(w) for w in v] for k, v in data.items()}
+    except ValueError:
+        return None  # a hand-edited file that does not parse is not ours to overwrite
+
+
+def _drop_rules(session: Path, answer: dict[str, Any]) -> None:
+    """Take back the wrong spellings an answer added, before a correction replaces it."""
+    rules = _read_rules(session)
+    correct = answer.get("correct") or ""
+    if not rules or correct not in rules:
+        return
+    gone = {w.casefold() for w in answer.get("wrongs", [])}
+    rules[correct] = [w for w in rules[correct] if w.casefold() not in gone]
+    if not rules[correct]:
+        del rules[correct]
+    _write(session / "rules.json", json.dumps(rules, ensure_ascii=False, indent=1) + "\n")
+
+
 def _merge_rules(session: Path, answers: dict[str, dict[str, Any]]) -> int:
     path = session / "rules.json"
-    rules: dict[str, list[str]] = {}
-    if path.exists():
-        try:
-            rules = {str(k): [str(w) for w in v] for k, v in json.loads(path.read_text(encoding="utf-8-sig")).items()}
-        except (ValueError, AttributeError, TypeError):
-            return 0  # a hand-edited file that does not parse is not ours to overwrite
+    rules = _read_rules(session)
+    if rules is None:
+        return 0
     added = 0
     for a in answers.values():
         correct = a.get("correct") or ""
         if not correct:
             continue
+        correct = next((k for k in rules if k.casefold() == correct.casefold()), correct)
         have = {w.casefold() for w in rules.get(correct, [])}
         for wrong in a.get("wrongs", []):
             if wrong.casefold() not in have and wrong.casefold() != correct.casefold():
@@ -378,7 +409,7 @@ def _merge_rules(session: Path, answers: dict[str, dict[str, Any]]) -> int:
                 have.add(wrong.casefold())
                 added += 1
     if added:
-        path.write_text(json.dumps(rules, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+        _write(path, json.dumps(rules, ensure_ascii=False, indent=1) + "\n")
     return added
 
 
@@ -394,7 +425,7 @@ def _merge_names(session: Path, answers: dict[str, dict[str, Any]]) -> list[str]
             have.add(name.casefold())
     if new:
         # first in the file: the transcriber keeps the first names when its budget runs out
-        path.write_text("\n".join([*new, *existing]) + "\n", encoding="utf-8")
+        _write(path, "\n".join([*new, *(ln.rstrip("\r") for ln in existing)]) + "\n")
     return new
 
 
@@ -417,7 +448,12 @@ def apply_answers(session: Path, lines: list[Line]) -> tuple[list[Line], set[str
     out: list[Line] = []
     changed: set[str] = set()
     for ln in lines:
-        text = pattern.sub(lambda m: pairs[m.group(1).casefold()], ln.text)
+        def fix(m: re.Match[str]) -> str:
+            right = pairs[m.group(1).casefold()]
+            found = m.group(1)
+            return right.upper() if len(found) > 1 and found.isupper() else right
+
+        text = pattern.sub(fix, ln.text)
         if text == ln.text:
             out.append(ln)
             continue
@@ -542,29 +578,58 @@ def sync(session: Path) -> CheckReport:
     report.facts = len(entries) - report.entries
 
     stored = _load_answers(session)
-    given, report.conflicts = _read_pages(session)
+    # An answered entry stays on the page even when its answer made it disappear from the lists
+    # above (the name is now in names.txt): it is rebuilt from what was stored with the answer.
     by_key = {e.key: e for e in entries}
+    for key, a in stored.items():
+        data = a.get("entry_data")
+        if key not in by_key and isinstance(data, dict):
+            kept = Entry(**{**data, "where": [tuple(w) for w in data.get("where", [])]})
+            entries.append(kept)
+            by_key[key] = kept
+    given, report.conflicts = _read_pages(session)
     for key, text in given.items():
         entry = by_key.get(key)
-        if entry is None or key in stored:
-            continue  # unknown heading, or someone answered first
+        if entry is None:
+            report.unknown.append(f"{key}: {text}")
+            continue
+        old = stored.get(key)
+        if old is not None and old["text"].strip().casefold() == text.strip().casefold():
+            continue
         ans = parse_answer(text, entry)
         if ans is None:
             continue
+        if old is not None:  # the page differs from the stored answer: a correction
+            _drop_rules(session, old)
+            report.corrected.append(f"{key}: '{old['text']}' -> '{text}'")
+        else:
+            report.new_answers += 1
         stored[key] = {
             "kind": ans.kind,
             "text": ans.text,
             "correct": ans.correct,
             "wrongs": ans.wrongs,
             "entry": entry.kind,
+            "entry_data": {
+                "kind": entry.kind,
+                "key": entry.key,
+                "variants": entry.variants,
+                "count": entry.count,
+                "where": [list(w) for w in entry.where],
+                "suggestion": entry.suggestion,
+                "note_en": entry.note_en,
+                "note_da": entry.note_da,
+                "wrongs": entry.wrongs,
+            },
         }
-        report.new_answers += 1
     if stored:
         _save_answers(session, stored)
     report.names_added = _merge_names(session, stored)
     report.rules_added = _merge_rules(session, stored)
+    report.entries = sum(1 for e in entries if e.kind == "name")
+    report.facts = len(entries) - report.entries
     report.answered = sum(1 for e in entries if e.key in stored)
     (session / "notes").mkdir(parents=True, exist_ok=True)
     for lang in ("en", "da"):
-        page_path(session, lang).write_text(render_page(lang, entries, stored), encoding="utf-8", newline="\n")
+        _write(page_path(session, lang), render_page(lang, entries, stored))
     return report

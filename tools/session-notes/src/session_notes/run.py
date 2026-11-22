@@ -150,7 +150,8 @@ class Writer:
         # Answers on the names page go into names.txt and rules.json first; the page is written again.
         report = check.sync(self.session)
         self._log("names_check", flagged=report.flagged, entries=report.entries, facts=report.facts,
-                  answered=report.answered, new_answers=report.new_answers)
+                  answered=report.answered, new_answers=report.new_answers,
+                  corrected=report.corrected, conflicts=report.conflicts, unknown=report.unknown)
         lines = apply_speakers(load_timeline(timeline), self.session)
         lines, changed = check.apply_answers(self.session, lines)
         roster = load_roster(self.session, lines)

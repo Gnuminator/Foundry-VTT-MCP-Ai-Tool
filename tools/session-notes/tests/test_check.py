@@ -124,20 +124,66 @@ def test_answers_feed_names_rules_and_the_text(tmp_path: Path) -> None:
     assert "Status: applied in the notes" in check.page_path(session, "en").read_text(encoding="utf-8")
 
 
-def test_first_answer_wins_and_an_english_conflict_is_named(tmp_path: Path) -> None:
+def _stored(session: Path) -> dict:
+    return json.loads((session / "name-answers.json").read_text(encoding="utf-8"))["answers"]
+
+
+def test_an_answer_on_the_danish_page_alone_counts(tmp_path: Path) -> None:
     session = _session(tmp_path)
     check.sync(session)
     _answer(session, "da", "Vesperhult", "Vesperholt")
+    assert check.sync(session).new_answers == 1
+    assert _stored(session)["Vesperhult"]["correct"] == "Vesperholt"
+    assert "Status: applied in the notes" in check.page_path(session, "en").read_text(encoding="utf-8")
+
+
+def test_a_typo_can_be_corrected_on_the_page_and_the_old_rule_goes(tmp_path: Path) -> None:
+    session = _session(tmp_path)
+    check.sync(session)
+    _answer(session, "en", "Botte", "Brannik")
+    check.sync(session)
+    en = check.page_path(session, "en")
+    en.write_text(en.read_text(encoding="utf-8").replace("Answer: Brannik", "Answer: Brannick"), encoding="utf-8")
+    report = check.sync(session)
+    assert report.new_answers == 0 and len(report.corrected) == 1
+    assert _stored(session)["Botte"]["correct"] == "Brannick"
+    rules = json.loads((session / "rules.json").read_text(encoding="utf-8"))
+    assert "Brannik" not in rules and set(rules["Brannick"]) == {"Botte", "Bote"}
+
+
+def test_english_wins_when_the_two_pages_disagree(tmp_path: Path) -> None:
+    session = _session(tmp_path)
     check.sync(session)
     _answer(session, "en", "Botte", "Brannick")
-    # the Danish page still shows the first answer; someone types another one over it
-    da = check.page_path(session, "da")
-    da.write_text(da.read_text(encoding="utf-8").replace("Svar: Vesperholt", "Svar: Noget andet"), encoding="utf-8")
+    _answer(session, "da", "Botte", "Brandt")
     report = check.sync(session)
-    answers = json.loads((session / "name-answers.json").read_text(encoding="utf-8"))["answers"]
-    assert answers["Vesperhult"]["correct"] == "Vesperholt"
-    assert answers["Botte"]["correct"] == "Brannick"
-    assert report.new_answers == 1
+    assert len(report.conflicts) == 1
+    assert _stored(session)["Botte"]["correct"] == "Brannick"
+
+
+def test_an_answered_entry_stays_on_the_page_after_its_name_joined_names_txt(tmp_path: Path) -> None:
+    session = _session(tmp_path)
+    check.sync(session)
+    _answer(session, "en", "Botte", "ok")  # the heard spelling is right: Botte is now a known name
+    check.sync(session)
+    report = check.sync(session)  # names.txt knows Botte now, the entry must not vanish
+    page = check.page_path(session, "en").read_text(encoding="utf-8")
+    assert "### Botte" in page and "Status: applied in the notes" in page
+    assert report.answered == 1
+
+
+def test_answer_under_an_unknown_heading_is_reported_not_dropped_silently(tmp_path: Path) -> None:
+    session = _session(tmp_path)
+    check.sync(session)
+    en = check.page_path(session, "en")
+    en.write_text(en.read_text(encoding="utf-8") + "\n### Other\nAnswer: Something\n", encoding="utf-8")
+    assert check.sync(session).unknown == ["Other: Something"]
+
+
+def test_not_a_name_needs_the_whole_answer() -> None:
+    entry = check.Entry(kind="name", key="Botte", wrongs=["Botte"])
+    assert check.parse_answer("No Name Inn", entry).correct == "No Name Inn"
+    assert check.parse_answer("not a name.", entry).kind == "not-name"
 
 
 def test_not_a_name_is_kept_and_changes_nothing(tmp_path: Path) -> None:

@@ -157,7 +157,9 @@ transcript's character name against `speakers.json`, and a character that `names
 
 The reviewer writes after `Answer:` (`Svar:` on the Danish page) the right spelling, `same as X` or `not a
 name`, and saves. `ok` on a name means the heard spelling is right. The next run stores the answers in
-`name-answers.json` (the first answer given stays, English page first on a conflict), puts new names first in
+`name-answers.json` (the first answer to an entry is taken; a later edit of that answer on the page is a
+correction and replaces it; the English page wins when the two pages differ; an answer under a heading that
+is not on the list is named in the audit log, not applied), puts new names first in
 `names.txt`, wrong spellings in `rules.json` (the session pipeline's `--rules` file, so a new transcription
 fixes them too), rewrites the transcript lines before Claude sees them and writes again only the scenes where
 a line changed. The filled entries stay on the page with a `Status:` line. The character name in a speaker

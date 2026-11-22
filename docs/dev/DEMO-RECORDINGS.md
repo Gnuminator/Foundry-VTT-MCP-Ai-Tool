@@ -3,7 +3,7 @@
 Repeatable video takes and docs screenshots on the local test server (idea I-082). A take
 is a short script: it resets a demo world to a saved clean state, opens visible browser
 windows (Foundry as GM or player, the dashboard, the `/player` page), drives them
-with Playwright, and records them with OBS Studio over its WebSocket. Running the same
+with Playwright, and records them with ffmpeg (OBS Studio over its WebSocket is the option). Running the same
 take again gives the same video, so videos and screenshots are cheap to redo after a UI
 change.
 
@@ -16,7 +16,16 @@ Test server only. Nothing here touches a real world or the live bridge ports 314
   snapshot (see [The demo world](#the-demo-world)).
 - Microsoft Edge (ships with Windows). Playwright drives it through `playwright-core`; no
   browser download.
-- OBS Studio 32 or newer: `winget install OBSProject.OBSStudio`.
+- `ffmpeg` with NVENC on `PATH`: the default recorder. A primary monitor at least as large as
+  `--res`, with the take windows on it.
+- The gdigrab switch: if the video comes out upside down (ffmpeg 9.0.2 with driver 616.92 did on
+  2026-11-20) or never delivers a frame, set `FOUNDRY_DEMO_GRAB=gdigrab` and record again.
+- The GPU lock: ffmpeg encodes on the GPU, so take it first
+  (`pwsh scripts/test-env/lock.ps1 take -Server GPU -Holder "<session title>" -Session <local_id> -Purpose "demo take"`)
+  and release it after the take (`... release -Server GPU -Session <local_id>`).
+- The screen-time OK: a take drives visible windows and records the screen, so ask the user
+  before you start one.
+- OBS Studio 32 or newer (only for `--recorder obs`): `winget install OBSProject.OBSStudio`.
 - `ffprobe` on `PATH` (optional): the runner then prints the video's size and frame rate.
 - Run the commands from PowerShell, not from a sandboxed shell: a sandbox can hide
   `%APPDATA%` (where OBS keeps its settings) and its windows cannot be captured.
@@ -24,25 +33,31 @@ Test server only. Nothing here touches a real world or the live bridge ports 314
 ## Record a take
 
 ```powershell
-npm run demo:obs-setup
 npm run demo:take -- damage-undo
+```
+
+To record with OBS instead, run `npm run demo:obs-setup` once and add `--recorder obs`:
+
+```powershell
+npm run demo:obs-setup
+npm run demo:take -- damage-undo --recorder obs
 ```
 
 `demo:obs-setup` is only needed once. It makes a WebSocket password, saves it in the
 gitignored `scripts/demo/local.json`, writes it into OBS's WebSocket settings, starts OBS
-and creates the profile and scene collection "Foundry AI Tool demo". `demo:take` also does
-all of that when it is missing.
+and creates the profile and scene collection "Foundry AI Tool demo". `demo:take --recorder obs`
+also does all of that when it is missing.
 
 Options for `demo:take`:
 
-| Option                                   | What it does                                                                                                                                                                                                                                                    |
-| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--res 1080`, `--res 1440`, `--res 2160` | Output size. Default 2160. Always 60 fps, MP4 (never GIF).                                                                                                                                                                                                      |
-| `--no-reset`                             | Skip the world reset; the demo world must already run.                                                                                                                                                                                                          |
-| `--no-record`                            | Rehearse without recording. Screenshots are still saved.                                                                                                                                                                                                        |
-| `--recorder ffmpeg`                      | Record with ffmpeg (ddagrab, NVENC) of the top-left of the primary monitor instead of OBS, which froze on window captures on 2026-10-18. Needs ffmpeg with NVENC on PATH, a primary monitor at least as large as `--res`, and the take windows on that monitor. |
-| `--keep-open`                            | Leave the browser windows open afterwards.                                                                                                                                                                                                                      |
-| `--world <id>`                           | Another demo world (see [Private videos](#private-videos)).                                                                                                                                                                                                     |
+| Option                                          | What it does                                                                                                                                                                                                                                            |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--res 1080`, `--res 1440`, `--res 2160`        | Output size. Default 2160. Always 60 fps, MP4 (never GIF).                                                                                                                                                                                              |
+| `--no-reset`                                    | Skip the world reset; the demo world must already run.                                                                                                                                                                                                  |
+| `--no-record`                                   | Rehearse without recording. Screenshots are still saved.                                                                                                                                                                                                |
+| `--recorder ffmpeg` (default), `--recorder obs` | ffmpeg (ddagrab, NVENC) records the top-left of the primary monitor; OBS froze on window captures on 2026-10-18, so it is the option. ffmpeg needs NVENC on PATH, a primary monitor at least as large as `--res`, and the take windows on that monitor. |
+| `--keep-open`                                   | Leave the browser windows open afterwards.                                                                                                                                                                                                              |
+| `--world <id>`                                  | Another demo world (see [Private videos](#private-videos)).                                                                                                                                                                                             |
 
 Every take writes a folder `C:\FoundryTest\demo\takes\<take>-<date>-<time>\`:
 

@@ -61,7 +61,8 @@ night runs out, play on without it: everything can be done by hand in Foundry
 
 Skills, desktop extensions (local connections like the ones the GM's five Foundry connectors use), the
 desktop app and memory are the same on both plans. Custom connectors (remote, by web address) are
-limited to one on Free. A player uses exactly that one for the
+limited to one on Free. That is why the five GM connectors [by web address](connect-claude-web.md) need
+Pro; on Free you use the Windows client. A player uses exactly that one for the
 [D&D helper](../player/dnd-helper.md#the-simple-way-add-the-connector-by-its-web-address), so a
 player on Free should keep it for the helper.
 

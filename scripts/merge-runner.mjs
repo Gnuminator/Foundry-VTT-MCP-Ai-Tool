@@ -84,7 +84,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseBacklog, parseProgress, parseReadyAll, readyOrEnqueuedPr } from './backlog-items.mjs';
-import { readUpstreamBacklog } from './planner-wake.mjs';
+import { readUpstreamBacklog } from './backlog-items.mjs';
 import { queueQuery } from './lane-merge/constants.mjs';
 import {
   GHOST_MINUTES,

@@ -27,10 +27,17 @@
   Test-only variable: FVTT_VOICE_STACK replaces scripts\voice-stack.ps1 (the pass logs one line
   when it is set, so a leftover value does not quietly replace the real transcriber).
 
+.PARAMETER Session
+  Work on this one session folder only (by name): pull it from the Pi when FVTT_PI_HOST is set,
+  then the same steps. Used by session.ps1, the manual entry point.
+
+.PARAMETER Port
+  Bridge control port for the publish step (sets FOUNDRY_AI_CONTROL_PORT for this pass).
+
 .PARAMETER DryRun
   Only print what would be done.
 #>
-param([switch]$DryRun)
+param([switch]$DryRun, [string]$Session = '', [int]$Port = 0)
 
 $ErrorActionPreference = 'Stop'
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -63,6 +70,7 @@ if (Test-Path $lock) {
   Say "Removing a stale lock ($([int]$age.TotalMinutes) min old, pass $lockPid $(if ($alive) { 'still listed' } else { 'gone' }))."
 }
 if (-not $DryRun) { Set-Content -Path $lock -Value $PID }
+if ($Port -gt 0) { $env:FOUNDRY_AI_CONTROL_PORT = "$Port" }
 if ($env:FVTT_VOICE_STACK) { Say "FVTT_VOICE_STACK is set (test only): using $voiceStack instead of scripts\voice-stack.ps1" }
 
 $passStart = Get-Date
@@ -142,17 +150,18 @@ $audioPattern = '\.(ogg|oga|opus|flac|wav|mp3|m4a)$'
 try {
   # 0. With the recorder on the Pi (FVTT_PI_HOST set, D-068): copy its finished recordings here.
   if ($env:FVTT_PI_HOST) {
-    if ($DryRun) { & pwsh -NoProfile -File (Join-Path $here 'pull.ps1') -DryRun | ForEach-Object { Say "  pull: $_" } }
-    else { & pwsh -NoProfile -File (Join-Path $here 'pull.ps1') | ForEach-Object { Say "  pull: $_" } }
+    $pullArgs = @(); if ($Session) { $pullArgs += @('-Only', $Session) }
+    if ($DryRun) { & pwsh -NoProfile -File (Join-Path $here 'pull.ps1') @pullArgs -DryRun | ForEach-Object { Say "  pull: $_" } }
+    else { & pwsh -NoProfile -File (Join-Path $here 'pull.ps1') @pullArgs | ForEach-Object { Say "  pull: $_" } }
   }
 
   # 0b. Recap inbox (I-132, off unless FVTT_RECAP_INBOX is set): take back notes a cloud routine
   # wrote, and send new timelines (text only, consent checked) to the private inbox repo.
-  if ($env:FVTT_RECAP_INBOX -and -not $DryRun) {
+  if ($env:FVTT_RECAP_INBOX -and -not $DryRun -and -not $Session) {
     [void](Invoke-Notes @('inbox', 'sync'))
   }
 
-  foreach ($dir in Get-ChildItem $sessions -Directory | Where-Object { $_.Name -notlike '.*' } | Sort-Object Name) {
+  foreach ($dir in Get-ChildItem $sessions -Directory | Where-Object { $_.Name -notlike '.*' -and (-not $Session -or $_.Name -eq $Session) } | Sort-Object Name) {
     $folder = $dir.FullName
     $timeline = Join-Path $folder 'timeline\timeline.jsonl'
     $recorded = Test-Path (Join-Path $folder 'raw\session.json')

@@ -14,7 +14,8 @@ Then, in this order:
 3. The [before-session](before-session.md) and [after-session](after-session.md) checklists, every
    time you play.
 
-On a new PC, [connect Claude Desktop to the server](connect-claude-desktop.md) first. A word you do
+On a new PC, [connect Claude Desktop to the server](connect-claude-desktop.md) first, or
+[add the connectors by web address](connect-claude-web.md) (no installer, paid plan). A word you do
 not know is in the [glossary](glossary.md).
 
 **From inside Foundry:** Settings tab, **Game Settings**, category **Foundry AI Tool**, the
@@ -25,14 +26,15 @@ not know is in the [glossary](glossary.md).
 Each of these is a short page you can do alone, in any order that suits you. Each ends with what you
 should see when it worked and what to do if it did not.
 
-| Setup                                                                    | What you do                                                            | Time   |
-| ------------------------------------------------------------------------ | ---------------------------------------------------------------------- | ------ |
-| [Connect Claude Desktop to the server](connect-claude-desktop.md)        | Install the small Windows client and the tunnel key; update it later.  | 10 min |
-| [The dashboard](setup-dashboard.md)                                      | Open it, sign in through Cloudflare, bookmark it and pick a layout.    | 10 min |
-| [The GM coach](setup-gm-coach.md)                                        | Add the Foundry GM coach skill to your Claude account.                 | 5 min  |
-| [Your vault on your PC (Obsidian and Syncthing)](setup-obsidian-sync.md) | Install both, pair with the server and check a note travels both ways. | 20 min |
-| [The Obsidian plugin](setup-obsidian-plugin.md)                          | Install the plugin and connect it to the dashboard.                    | 10 min |
-| [The TV at the table](setup-tv-table.md)                                 | Only for in-person play: make the Table player and sign the TV in.     | 15 min |
+| Setup                                                                    | What you do                                                                   | Time   |
+| ------------------------------------------------------------------------ | ----------------------------------------------------------------------------- | ------ |
+| [Connect Claude Desktop to the server](connect-claude-desktop.md)        | Install the small Windows client and the tunnel key; update it later.         | 10 min |
+| [Connect Claude by web address](connect-claude-web.md)                   | The five connectors as custom connectors with an email sign-in; no installer. | 5 min  |
+| [The dashboard](setup-dashboard.md)                                      | Open it, sign in through Cloudflare, bookmark it and pick a layout.           | 10 min |
+| [The GM coach](setup-gm-coach.md)                                        | Add the Foundry GM coach skill to your Claude account.                        | 5 min  |
+| [Your vault on your PC (Obsidian and Syncthing)](setup-obsidian-sync.md) | Install both, pair with the server and check a note travels both ways.        | 20 min |
+| [The Obsidian plugin](setup-obsidian-plugin.md)                          | Install the plugin and connect it to the dashboard.                           | 10 min |
+| [The TV at the table](setup-tv-table.md)                                 | Only for in-person play: make the Table player and sign the TV in.            | 15 min |
 
 ## All guides
 
@@ -67,6 +69,7 @@ should see when it worked and what to do if it did not.
 | [The TV at the table](tv-table-viewer.md)                         | Show the map on a TV at an in-person session; it signs in once as a player called Table.                       |
 | [Troubleshooting](troubleshooting.md)                             | Symptom, likely cause and fix.                                                                                 |
 | [Connect Claude Desktop to the server](connect-claude-desktop.md) | Install the small Windows client and the tunnel key so Claude Desktop reaches the server.                      |
+| [Connect Claude by web address](connect-claude-web.md)            | Add the five connectors by address and email sign-in, with no installer and no tunnel key.                     |
 | [Claude Free or Pro](claude-plans.md)                             | What works on the free Claude plan, its limits, and what Pro adds.                                             |
 
 What players see and what the tool records about them: [player guide](../player/README.md) and

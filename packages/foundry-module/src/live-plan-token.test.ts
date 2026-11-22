@@ -490,7 +490,7 @@ describe('planTokenChange: delete', () => {
       ]
     );
     const plan = planTokenChange(del(['Wolf 1']));
-    expect(plan.ops.map(o => o.uuid)).toEqual([
+    expect(plan.ops.map(o => (o as { uuid: string }).uuid)).toEqual([
       'Combat.c1.Combatant.cb1',
       'Combat.c2.Combatant.cb9',
       'Scene.s1.Token.t1',
@@ -513,7 +513,7 @@ describe('planTokenChange: delete', () => {
       ]
     );
     const plan = planTokenChange(del(['Wolf 1', 'Wolf 2']));
-    expect(plan.ops.map(o => o.uuid)).toEqual([
+    expect(plan.ops.map(o => (o as { uuid: string }).uuid)).toEqual([
       'Scene.s1.Token.t1',
       'Combat.c1.Combatant.cb2',
       'Scene.s1.Token.t2',

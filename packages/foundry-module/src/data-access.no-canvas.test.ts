@@ -74,7 +74,7 @@ describe('no canvas', () => {
 
   it('resolveTargets finds a token on the active scene', () => {
     const scene = game.scenes.active;
-    scene.tokens.add(
+    (scene.tokens as unknown as { add(token: unknown): void }).add(
       makeToken({ id: 't3', name: 'Archer', actor: { uuid: 'Actor.a3', name: 'Archer' } })
     );
     const targets = resolveTargets(['Archer']);

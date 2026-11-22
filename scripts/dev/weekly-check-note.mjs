@@ -69,7 +69,7 @@ const HEAD = [
   '',
   '# Weekly check',
   '',
-  'Written by `npm run usage:week -- --write-vault` at the Saturday weekly check; do not edit by hand.',
+  'Written by `npm run usage:now` (the first run after each weekly reset) or `npm run usage:week -- --write-vault`; do not edit by hand.',
   "The board's Week page reads the sections below (newest first). Only numbers go here.",
   '',
 ].join('\n');

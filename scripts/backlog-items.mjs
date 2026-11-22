@@ -1,7 +1,6 @@
 // @ts-check
 /**
  * The vault Backlog.md item parser and the pure one-item edits that `scripts/backlog.mjs` makes.
- * `scripts/planner-wake.mjs` re-exports `parseProgress` from here.
  *
  * An item is a `## <S|M|L> <title>` line at the start of a line, then every line up to the next
  * line that starts with `#` or `##` and a space. Only whole lines count: a heading written inside a
@@ -14,6 +13,8 @@
  * count must move by exactly what the command meant, the preamble must stay intact and no item may
  * sit under an old Done chapter (the Done list lives in `Backlog done.md` now).
  */
+
+export const BACKLOG_PATH = 'Dev/Foundry AI Tool/Backlog.md';
 
 export const ITEM_HEADING = /^##\s+([SML])\s+(.*\S)\s*$/;
 const ANY_HEADING = /^#{1,2}\s/;
@@ -158,6 +159,52 @@ export function parseProgress(text) {
     if (item.id && progress) map.set(item.id, progress);
   }
   return map;
+}
+
+/** @typedef {(args: string[]) => { status: number | null, stdout: string }} Git */
+
+/**
+ * The Backlog file as the vault's upstream branch has it: fetch, then `git show @{u}:<path>`. Never
+ * touches the working tree (the vault is shared with the planner, lanes and open Obsidian notes, and
+ * may be dirty). A failed fetch is reported through `warn` and the last fetched copy is read.
+ * Returns null (after a `warn` line) when unreadable.
+ * @param {Git} git
+ * @param {(message: string) => void} [warn]
+ * @returns {string | null}
+ */
+export function readUpstreamBacklog(git, warn = m => console.error(`backlog: ${m}`)) {
+  const fetched = git(['fetch', '-q']);
+  if (fetched.status !== 0)
+    warn(`git fetch failed (status ${fetched.status}); reading the last fetched copy`);
+  const r = git(['show', `@{u}:${BACKLOG_PATH}`]);
+  if (r.status === 0 && r.stdout) return r.stdout;
+  warn(`cannot read ${BACKLOG_PATH} from the upstream branch (git show status ${r.status})`);
+  return null;
+}
+
+/**
+ * The area names in Board.md: the `### ` headings under `## Areas`.
+ * @param {string} boardText
+ * @returns {string[]}
+ */
+export function boardAreas(boardText) {
+  const areas = [];
+  let inAreas = false;
+  for (const line of boardText.split(/\r?\n/)) {
+    if (/^## /.test(line)) inAreas = /^## Areas\s*$/.test(line);
+    else if (inAreas && /^### /.test(line)) areas.push(line.slice(4).trim());
+  }
+  return areas;
+}
+
+/**
+ * Refuse a `board` value that is not a Board.md area (the board shows it under Unsorted and warns).
+ * No areas known (no Board.md): nothing to check against.
+ * @param {string} value @param {string[] | undefined} areas
+ */
+export function checkBoardArea(value, areas) {
+  if (!value || !areas?.length || areas.includes(value) || value === 'Unsorted') return;
+  throw new Error(`board "${value}" is not an area in Board.md; use one of: ${areas.join(', ')}`);
 }
 
 /** @param {Parsed} p @param {string} id */

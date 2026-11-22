@@ -13,8 +13,8 @@
  */
 
 export interface Identified {
-  id?: string | null;
-  name?: string | null;
+  id?: string | null | undefined;
+  name?: string | null | undefined;
 }
 
 export class MockCollection<T extends Identified> implements Iterable<T> {

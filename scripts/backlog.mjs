@@ -58,6 +58,8 @@ import { waitingEdit } from './backlog-waiting.mjs';
 import { pidAlive, sleepSync } from './heavy-lock.mjs';
 import { ghJson, plannerSections, REPO } from './planner-state.mjs';
 import {
+  boardAreas,
+  checkBoardArea,
   checkEdit,
   findItem,
   isMerged,
@@ -80,6 +82,7 @@ export const DONE = `${DIR}/Backlog done.md`;
 export const PI_LIST = `${DIR}/Pi sitting list.md`;
 export const LOWS = `${DIR}/Lows`;
 export const WAITING = `${DIR}/Waiting.md`;
+export const BOARD = `${DIR}/Board.md`;
 export const RETRIES = 5;
 const TRIAGE = /^Captured on the board/i;
 
@@ -203,8 +206,9 @@ export const SETTABLE = [
 ];
 
 /**
- * Replace (or, with an empty value, remove) one planning field of an item.
- * @param {string} text @param {{ id: string, name: string, value: string }} o
+ * Replace (or, with an empty value, remove) one planning field of an item. `areas` (the Board.md
+ * areas) checks a `board` value.
+ * @param {string} text @param {{ id: string, name: string, value: string, areas?: string[] }} o
  */
 export function setFieldEdit(text, o) {
   const name = o.name.toLowerCase().trim();
@@ -212,6 +216,7 @@ export function setFieldEdit(text, o) {
     throw new Error(`set changes only: ${SETTABLE.join(', ')} (not "${o.name}")`);
   }
   const value = oneLine(o.value);
+  if (name === 'board') checkBoardArea(value, o.areas);
   if (!value && (name === 'board' || name === 'title'))
     throw new Error(`an item keeps its ${name} (give a value)`);
   const p = parseBacklog(text);
@@ -226,7 +231,9 @@ export function setFieldEdit(text, o) {
   if (name === 'link') {
     if (!field(item, 'claimed')) throw new Error(`${o.id} is not claimed; claim it with --link`);
     if (value && !LINK_RE.test(value))
-      throw new Error(`link must look like claude://claude.ai/epitaxy/local_<uuid> (got "${value}")`);
+      throw new Error(
+        `link must look like claude://claude.ai/epitaxy/local_<uuid> (got "${value}")`
+      );
   }
   const { body, tail } = trimBlock(item);
   const next = setField(body, name, value ? [`- ${name}: ${value}`] : [], [
@@ -345,7 +352,7 @@ const overlaps = (/** @type {string} */ a, /** @type {string} */ b) =>
 
 /**
  * @param {string} text @param {string} doneText
- * @param {{ block: string[], date: string, after?: string, chapter?: string }} o
+ * @param {{ block: string[], date: string, after?: string, chapter?: string, areas?: string[] }} o
  */
 export function addEdit(text, doneText, o) {
   const p = parseBacklog(text);
@@ -367,6 +374,7 @@ export function addEdit(text, doneText, o) {
   const idRe = new RegExp(`^- \\d{4}-\\d{2}-\\d{2} ${item.id}:`, 'm');
   if (idRe.test(doneText))
     throw new Error(`id ${item.id} was used before (Backlog done.md); ids are never reused`);
+  checkBoardArea(field(item, 'board'), o.areas);
   const notes = [];
   const source = field(item, 'source');
   const touches = touchPaths(field(item, 'touches'));
@@ -740,6 +748,7 @@ export function run(argv, env = {}) {
       const f = path.join(vault, rel);
       return fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : '';
     };
+    const areas = () => boardAreas(readNow(BOARD));
     if (!fs.existsSync(path.join(vault, BACKLOG))) throw new Error(`no ${BACKLOG} under ${vault}`);
     const id = pos[0] ?? '';
     const needId = () => {
@@ -844,7 +853,10 @@ export function run(argv, env = {}) {
         job = {
           paths: [BACKLOG],
           message: `Backlog: set ${id} ${name}`,
-          edit: read => ({ [BACKLOG]: setFieldEdit(read(BACKLOG), { id, name, value }).text }),
+          edit: read => {
+            const r = setFieldEdit(read(BACKLOG), { id, name, value, areas: areas() });
+            return { [BACKLOG]: r.text };
+          },
         };
         break;
       }
@@ -907,7 +919,13 @@ export function run(argv, env = {}) {
           paths: [BACKLOG],
           message: `Backlog: add ${newId ?? 'item'}`,
           edit: read => {
-            const r = addEdit(read(BACKLOG), read(DONE), { block, date, after, chapter });
+            const r = addEdit(read(BACKLOG), read(DONE), {
+              block,
+              date,
+              after,
+              chapter,
+              areas: areas(),
+            });
             notes = r.notes;
             return { [BACKLOG]: r.text };
           },

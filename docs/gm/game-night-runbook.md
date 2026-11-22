@@ -58,6 +58,11 @@ Keep playing: do the change by hand in Foundry.
   then, play without Claude. See [Claude Free or Pro](claude-plans.md).
 - **Claude says a tool set is off:** switch it on in Claude Desktop's **+** menu, then **Plugins**
   (see [Asking Claude](asking-claude.md#tool-sets-which-switches-to-turn-on)).
+- **A connector added by web address says it is not connected:** open **Settings**, **Plugins**, pick
+  it and press **Connect** to sign in with your email again. If it still fails, see
+  [Connect Claude by web address](connect-claude-web.md#if-something-does-not-work).
+- **A change shows an error but may have gone through:** after a long wait Claude can show an error
+  (a 524) although the change landed. Open **Recent Changes** in the dashboard before you ask again.
 - **Every tool call fails:** Claude has lost its link to the game. At the break, quit Claude Desktop
   fully and start it again. If that doesn't help, call for help after the session.
 

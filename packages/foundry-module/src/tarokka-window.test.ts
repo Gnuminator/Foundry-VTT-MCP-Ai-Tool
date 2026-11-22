@@ -449,7 +449,7 @@ describe('the window class on a fake ApplicationV2', () => {
       target: unknown
     ) => void;
     handler.call(rendered[0], {} as Event, { dataset: data });
-    return vi.advanceTimersByTimeAsync(0);
+    return vi.advanceTimersByTimeAsync(0).then(() => undefined);
   }
 
   /** The GM changes an input: the browser fires an event that bubbles to the content element. */
@@ -465,7 +465,7 @@ describe('the window class on a fake ApplicationV2', () => {
       ...(typeof value === 'boolean' ? { checked: value } : { value }),
     };
     for (const listener of rendered[0].content.listeners[type] ?? []) listener({ target });
-    return vi.advanceTimersByTimeAsync(0);
+    return vi.advanceTimersByTimeAsync(0).then(() => undefined);
   }
 
   it('opens one window, veils the cards, and draws names from the reading, every string escaped', async () => {

@@ -53,7 +53,7 @@ function buildTools(
   createPlan: ReturnType<typeof fakeCreatePlan>;
 } {
   const { tools, query } = makeTools(OwnershipTools, {
-    queryImpl,
+    ...(queryImpl ? { queryImpl } : {}),
     extra: { guardedWrites: { createPlan } },
   });
   return { tools, query, createPlan };

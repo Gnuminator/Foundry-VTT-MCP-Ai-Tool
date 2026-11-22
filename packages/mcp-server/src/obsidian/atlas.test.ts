@@ -20,7 +20,8 @@ import {
   SPREAD_CARD_IDS,
 } from './atlas.js';
 import { renderSpreadCanvas } from './render.js';
-import { exportWorldToObsidian } from './export.js';
+import { exportWorldToObsidian, newExportCache } from './export.js';
+import { bumpMirrorGeneration } from './mirror-generation.js';
 import { campaignDir } from './note-writer.js';
 import { withGeneratedHash } from './ownership.js';
 
@@ -185,6 +186,41 @@ describe('Campaign Atlas canvases', () => {
     expect(after.nodes.some(n => n.id === 'mine')).toBe(true);
     expect(after.nodes.filter(n => n.type === 'file')).toHaveLength(4);
     expect(checkAtlasOwnership(JSON.stringify(after)).owned).toBe(true);
+  });
+
+  it('skips the Atlas scan on an event-only render and rebuilds after a mirror change', async () => {
+    const store = new VaultStore({ dataDir });
+    const cache = newExportCache();
+    const render = (): Promise<unknown> =>
+      exportWorldToObsidian({
+        store,
+        audit: new AuditLog(store),
+        worldId: WORLD,
+        vaultDir,
+        cache,
+      });
+    const fileCards = async (): Promise<number> =>
+      (await readCanvas(PLACES_CANVAS_PATH)).nodes.filter(n => n.type === 'file').length;
+
+    await seedMirror();
+    await render();
+    expect(await fileCards()).toBe(3);
+
+    // A note lands in the vault without the pump reporting a write: an event-only render does
+    // no scan, so the canvas does not change.
+    await mirrorNote('AI Tool/Foundry/Scenes/Castle/Crypt.md', {
+      type: 'scene',
+      uuid: 'Scene.crypt',
+      name: 'Crypt',
+      folder: 'Castle',
+    });
+    await render();
+    expect(await fileCards()).toBe(3);
+
+    // The pump wrote, moved or trashed a note: the next render scans and rebuilds.
+    bumpMirrorGeneration(WORLD);
+    await render();
+    expect(await fileCards()).toBe(4);
   });
 
   it('leaves a canvas alone once the GM deleted its marker card', async () => {

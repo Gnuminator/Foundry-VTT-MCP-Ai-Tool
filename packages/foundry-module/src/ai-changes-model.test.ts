@@ -43,7 +43,7 @@ function entry(over: Partial<ChangeEntry> = {}): ChangeEntry {
     undoneBy: '',
     coversSeveral: false,
     ...over,
-  };
+  } as ChangeEntry;
 }
 
 /** A `list-changes` item of a person's action. */

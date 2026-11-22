@@ -104,6 +104,30 @@ test('a changed, removed or added Transform Rule and Worker route are reported',
   assert.ok(g.some(x => /worker route .*: missing in live/.test(x)));
 });
 
+test('undescribed rules in one phase compare in order, not as "listed twice"', () => {
+  const rule = (expression, description = '') => ({
+    phase: 'http_request_transform',
+    description,
+    enabled: true,
+    action: 'rewrite',
+    expression,
+    parameters: '{}',
+  });
+  const a = full();
+  a.transform_rules = [rule('one'), rule('two')];
+  const b = full();
+  b.transform_rules = [rule('one'), rule('two')];
+  assert.deepEqual(compare(a, b), []);
+  b.transform_rules = [rule('one'), rule('three')];
+  const d = compare(a, b);
+  assert.equal(d.length, 1);
+  assert.match(
+    d[0],
+    /transform rule http_request_transform {2}#2: expression is "two", expected "three"/
+  );
+  assert.ok(!d.some(x => /listed twice/.test(x)));
+});
+
 test('a service token expiry change is drift; under 60 days is a warning, not drift', () => {
   const live = full();
   live.service_tokens[0].expires_at = '2026-12-01';
@@ -153,6 +177,20 @@ test('every field the skill read code produces is compared, and the reverse', ()
     markers.map(m => m[1]).sort(),
     Object.keys(COMPARED).sort(),
     'one marker per compared section'
+  );
+  // The returned object: every section is compared (a new one must get a marker and a COMPARED
+  // entry), and the tunnel carries exactly the names and the routes that compare() reads.
+  const ret = skill.match(/return JSON\.stringify\(\{/);
+  assert.ok(ret, 'the read code returns JSON.stringify({ ... })');
+  const retKeys = topLevelKeys(skill, ret.index + ret[0].length - 1);
+  const wanted = Object.keys(COMPARED).map(k => (k === 'routes' ? 'tunnel' : k));
+  assert.deepEqual([...retKeys].sort(), [...new Set(wanted)].sort(), 'returned sections');
+  const tun = skill.match(/tunnel: \{/);
+  assert.ok(tun, 'the returned object has a tunnel entry');
+  assert.deepEqual(
+    topLevelKeys(skill, tun.index + tun[0].length - 1),
+    ['names', 'routes'],
+    'tunnel carries names and routes'
   );
   for (const m of markers) {
     const rest = skill.slice(m.index + m[0].length);

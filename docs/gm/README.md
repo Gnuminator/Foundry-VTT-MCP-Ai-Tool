@@ -63,6 +63,7 @@ should see when it worked and what to do if it did not.
 | [Before each session](before-session.md)                          | A checklist for the 15 minutes before play.                                                                    |
 | [Quest: before a session](before-session-quest.md)                | The 15 minutes before play as four stages.                                                                     |
 | [After each session](after-session.md)                            | A checklist for right after play.                                                                              |
+| [After a session: notes](after-session-notes.md)                  | From the Discord recording to the players reading the recap: where the notes land, what you approve.           |
 | [When a character dies](death-and-new-characters.md)              | The moment of death, a death log, and bringing in a new character.                                             |
 | [Never do this, only do this if](never-and-only-if.md)            | Short rules, each with its reason.                                                                             |
 | [Game night runbook](game-night-runbook.md)                       | One page for the night: what to do when something fails, and when to call for help.                            |

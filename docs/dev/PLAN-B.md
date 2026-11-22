@@ -157,13 +157,14 @@ night; changes made by hand in Foundry need no dashboard.
    is replaced without a notice; the old copy is in `prev-<time>`. Restore
    Plan B fresh for each night; a second push-back of a world that was changed again on the PC
    lists those changes.
-   **The bridge vault does not go back.** The bundle holds the world only. The Plan B night's change
-   history (the Undo list) and session log stay in `C:\FoundryPlanB\tool\vault`, and the Pi's vault
-   (`/var/lib/foundry-ai-tool/vault`) does not get them; `push-back.ps1` says so in its last lines.
-   Nothing is deleted. To keep them, copy the folder by hand after the stage 11 run, with your OK
-   (a Pi change): `scp -r C:\FoundryPlanB\tool\vault foundry-pi:/tmp/planb-vault`, then merge only the
-   files you want (never over the Pi vault). Do not touch it before the Plan B restore of the next
-   night, which replaces `C:\FoundryPlanB\tool` (the old one is kept under `previous\` after a played night).
+   **The bridge vault does not go back.** The bundle holds the world only. All of the night's bridge data
+   (Undo list, session log, Tarokka, omens, downtime, handout reveals) stays in `C:\FoundryPlanB\tool\vault`,
+   and the Pi's vault (`/var/lib/foundry-ai-tool/vault`) does not get it; `push-back.ps1` says so in its last
+   lines. Step 4 (`stop.ps1 -Clean`) deletes that folder. To keep it, copy it on the PC first, no Pi change:
+   `Copy-Item -Recurse C:\FoundryPlanB\tool\vault C:\FoundryPlanB-vault-<date>`. Merging it into the Pi's
+   vault by hand is not advised (the Pi bridge writes it all the time); that needs a stage script with a
+   snapshot and a stopped bridge, which does not exist yet.
+
    **Modules:** the bundle carries the modules Plan B restored from the Pi backup. One that was
    updated on the Pi after that backup (a higher version in its `module.json`) is kept and named
    in the output; a push-back never downgrades a module. When either version cannot be read as

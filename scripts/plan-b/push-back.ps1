@@ -96,8 +96,8 @@ if (-not $Upload) {
 
 # The bundle carries the world only. The bridge vault is not in it (nothing in stage 11 reads one).
 Write-Host ''
-Write-Host 'NOT carried back: the bridge vault (change history and session log of the Plan B night).'
-Write-Host "  It stays on this PC in $($L.VaultDir). The Pi's vault will lack that night (Undo list, session log)."
-Write-Host '  To keep it, copy it by hand after the stage 11 run, with your OK (a Pi change), into a new folder and never over'
-Write-Host '  the Pi vault /var/lib/foundry-ai-tool/vault:'
-Write-Host "    scp -r `"$($L.VaultDir)`" ${PiHost}:/tmp/planb-vault"
+Write-Host 'NOT carried back: the bridge vault, all bridge data of that night (Undo list, session log, Tarokka, omens, downtime, handout reveals).'
+Write-Host "  It stays on this PC in $($L.VaultDir) and the Pi's vault will lack it."
+Write-Host '  stop.ps1 -Clean -PushedBack DELETES it. To keep it, copy it on this PC first (no Pi change):'
+Write-Host "    Copy-Item -Recurse `"$($L.VaultDir)`" `"$($L.Root)-vault-$(Get-Date -Format yyyyMMdd)`""
+Write-Host '  Putting it into the Pi vault needs a reviewed stage script with a snapshot and a stopped bridge; there is none yet.'

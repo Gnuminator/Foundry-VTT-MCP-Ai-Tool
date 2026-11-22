@@ -51,6 +51,7 @@ import { createSpaceStatusReader } from './space-status.js';
 import { OMENS_POST_INTERVAL_MS, createOmensPoster } from './omens-post.js';
 import { DEFAULT_BACKUP_STALE_DAYS, createBackupPullReader } from './backup-pull-status.js';
 import { BackupPullNotifier } from './backup-pull-notify.js';
+import { UnpulledNotifier, findUnpulled } from './unpulled-notify.js';
 import {
   SESSION_POST_INTERVAL_MS,
   SessionPostNotifier,
@@ -360,9 +361,13 @@ export class RecorderBot {
       log: log.info,
     });
     const pullNotifier = new BackupPullNotifier({ send });
+    const unpulledNotifier = new UnpulledNotifier({ send });
     const tick = (withBackupCheck: boolean): void => {
       notifier.check(readStatus()).catch((err: unknown) => log.error('Space check failed', err));
       if (!withBackupCheck) return;
+      unpulledNotifier
+        .check(findUnpulled(this.config.sessionsDir))
+        .catch((err: unknown) => log.error('Unpulled recording check failed', err));
       pullNotifier
         .check(readPulls())
         .catch((err: unknown) => log.error('Backup copy check failed', err));

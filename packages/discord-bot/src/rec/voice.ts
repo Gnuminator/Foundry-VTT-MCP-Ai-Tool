@@ -40,6 +40,9 @@ export interface VoiceRecorderOptions {
   nowMs?: () => number;
 }
 
+/** A connection not Ready this long after it began reconnecting is destroyed so the rejoin path runs. */
+export const READY_WATCHDOG_MS = 30_000;
+
 const REJOIN_DELAYS_MS = [1_000, 2_000, 5_000, 10_000, 30_000];
 
 /**
@@ -188,8 +191,11 @@ export class VoiceRecorder {
         entersState(connection, VoiceConnectionStatus.Signalling, 5_000),
         entersState(connection, VoiceConnectionStatus.Connecting, 5_000),
       ]);
+      // Watchdog: a self-heal that hangs in Signalling or Connecting must not stay there forever.
+      await entersState(connection, VoiceConnectionStatus.Ready, READY_WATCHDOG_MS);
     } catch {
       if (this.stopping || this.connection !== connection) return;
+      if (connection.state.status === VoiceConnectionStatus.Destroyed) return; // already on its way
       this.opts.alert?.(
         bi(
           'Optagebotten mistede voice-forbindelsen og prøver at komme ind igen.',

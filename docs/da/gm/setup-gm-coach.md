@@ -1,6 +1,6 @@
 ---
 source: gm/setup-gm-coach.md
-sourceHash: 6191cf71b829
+sourceHash: ed9658b179cd
 title: 'Engangsopsætning: GM-coachen'
 description: Læg Foundry GM coach-skillen ind på din egen Claude-konto, med et Claude Project som nødplan. Cirka 5 minutter, én gang.
 ---
@@ -12,7 +12,7 @@ Den virker på den gratis Claude-plan. Hvad den kan, og hvordan du spørger den,
 [Din GM-coach i Claude](gm-coach.md). Cirka 5 minutter, én gang.
 
 **Du skal bruge:** en Claude-konto (desktop-appen eller claude.ai) med Foundry-connectoren slået til
-i dine chats. På en Pro- eller Max-plan tilføjer du coachen som plugin (første afsnit nedenfor). På
+i dine chats (tilføjet med Windows-klienten eller [med webadresse](connect-claude-web.md)). På en Pro- eller Max-plan tilføjer du coachen som plugin (første afsnit nedenfor). På
 en gratis plan bruger du filen `foundry-gm-coach.zip` fra den, der byggede værktøjet.
 
 <!-- wiki:coach-download -->

@@ -1,6 +1,6 @@
 ---
 source: gm/claude-plans.md
-sourceHash: c9f0d4bff3c9
+sourceHash: 00cc40793151
 title: Claude Free eller Pro
 description: Hvad der virker med den gratis Claude-plan, og hvad Claude Pro giver dig, når du kører et spil med Foundry AI Tool, med kilder og datoer.
 ---
@@ -63,7 +63,8 @@ en spilaften løber tør, så spil videre uden den: alt kan gøres i hånden i F
 
 Skills, desktop extensions (lokale forbindelser som dem, GM'ens fem Foundry-connectors bruger),
 desktop-appen og memory er ens på begge planer. Custom connectors (eksterne, via webadresse) er
-begrænset til én på Free. En spiller bruger netop den til
+begrænset til én på Free. Derfor kræver de fem GM-connectors [med webadresse](connect-claude-web.md)
+Pro; på Free bruger du Windows-klienten. En spiller bruger netop den til
 [D&D-hjælperen](../player/dnd-helper.md#den-enkle-vej-tilføj-connectoren-med-dens-webadresse), så en
 spiller på Free bør gemme den til hjælperen.
 

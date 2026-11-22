@@ -1,6 +1,6 @@
 ---
 source: gm/game-night-runbook.md
-sourceHash: 4fb296796d41
+sourceHash: dfe40f023bcb
 title: Spilaftenens runbook
 description: Én side til selve aftenen. Hvad du gør, når Foundry, en spiller, Claude, dashboardet eller hjemmeserveren fejler, og hvornår du råber om hjælp.
 ---
@@ -60,6 +60,11 @@ Bliv ved med at spille: lav ændringen i hånden i Foundry.
   selv. Indtil da spiller du uden Claude. Se [Claude Free eller Pro](claude-plans.md).
 - **Claude siger, at et tool set er slået fra:** slå det til i Claude Desktops **+**-menu,
   så **Plugins** (se [Spørg Claude](asking-claude.md#tool-sets-hvilke-kontakter-du-skal-tænde)).
+- **En connector tilføjet med webadresse siger, at den ikke er forbundet:** åbn **Settings**,
+  **Plugins**, vælg den og tryk **Connect** for at logge ind med din e-mail igen. Virker det stadig
+  ikke, se [Forbind Claude med webadresse](connect-claude-web.md#hvis-noget-ikke-virker).
+- **En ændring viser en fejl, men kan være gået igennem:** efter lang ventetid kan Claude vise en fejl
+  (en 524), selv om ændringen landede. Åbn **Recent Changes** på dashboardet, før du spørger igen.
 - **Hvert værktøjskald fejler:** Claude har mistet forbindelsen til spillet. I pausen lukker du Claude
   Desktop helt og starter det igen. Hjælper det ikke, så råb om hjælp efter sessionen.
 

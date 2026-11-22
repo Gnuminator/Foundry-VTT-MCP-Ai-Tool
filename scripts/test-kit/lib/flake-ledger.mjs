@@ -13,6 +13,8 @@ import {
   readFileSync,
   readdirSync,
   renameSync,
+  rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import path from 'node:path';
@@ -68,16 +70,63 @@ export function entryFromReport(report, dir = '', dirty = false) {
   };
 }
 
+const LOCK_FILE = `${HISTORY_FILE}.lock`;
+const LOCK_STALE_MS = 30_000;
+const LOCK_WAIT_MS = 5_000;
+
+/**
+ * Runs `fn` while holding <home>/scenario-history.json.lock, so two kit runs on one PC (servers
+ * A, B and C) never read the same history and lose one entry. A lock older than 30 seconds is
+ * taken over, and after 5 seconds without it `fn` runs anyway: a lost entry beats a failed run.
+ */
+export function withHistoryLock(home, fn) {
+  mkdirSync(home, { recursive: true });
+  const lock = path.join(home, LOCK_FILE);
+  const until = Date.now() + LOCK_WAIT_MS;
+  let held = false;
+  while (!held) {
+    try {
+      writeFileSync(lock, String(process.pid), { flag: 'wx' });
+      held = true;
+    } catch (error) {
+      if (/** @type {{code?: string}} */ (error)?.code !== 'EEXIST') break;
+      try {
+        if (Date.now() - statSync(lock).mtimeMs > LOCK_STALE_MS) rmSync(lock, { force: true });
+      } catch {
+        // the holder just released it
+      }
+      if (Date.now() > until) break;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 25);
+    }
+  }
+  try {
+    return fn();
+  } finally {
+    if (held) rmSync(lock, { force: true });
+  }
+}
+
 /** Appends a run's entry (same dir twice replaces it). Returns the new history. */
 export function recordRun(home, report, dir = '', dirty = false) {
   const entry = entryFromReport(report, dir, dirty);
-  const runs = readHistory(home);
-  if (!entry) return runs;
-  const next = runs.filter(r => !dir || r.dir !== dir);
-  next.push(entry);
-  next.sort((a, b) => String(a.at).localeCompare(String(b.at)));
-  writeHistory(home, next);
-  return next;
+  if (!entry) return readHistory(home);
+  return withHistoryLock(home, () => {
+    const next = readHistory(home).filter(r => !dir || r.dir !== dir);
+    next.push(entry);
+    next.sort((a, b) => String(a.at).localeCompare(String(b.at)));
+    writeHistory(home, next);
+    return next;
+  });
+}
+
+/** A flaky mark older than this is history, not news; it leaves the list and the note. */
+export const FLAKY_MAX_AGE_DAYS = 30;
+
+/** True when `at` is a date more than FLAKY_MAX_AGE_DAYS before `now` (unreadable dates stay). */
+function tooOld(at, now) {
+  if (!/^\d{4}-\d{2}-\d{2}/.test(String(at ?? ''))) return false;
+  const t = Date.parse(String(at).replace(' ', 'T'));
+  return Number.isFinite(t) && now - t > FLAKY_MAX_AGE_DAYS * 86_400_000;
 }
 
 /**
@@ -85,11 +134,12 @@ export function recordRun(home, report, dir = '', dirty = false) {
  * a tree with uncommitted changes (the fix-and-rerun loop) and runs with no sha are left out: a
  * real failure fixed without a commit would otherwise look flaky.
  */
-export function findFlaky(runs) {
+export function findFlaky(runs, now = Date.now()) {
   /** @type {Map<string, {id:string, sha:string, world:string, size:string, pass:number, fail:number, last:string}>} */
   const m = new Map();
   for (const run of runs) {
     if (run.dirty || !run.sha || run.sha === 'unknown') continue;
+    if (tooOld(run.at, now)) continue;
     for (const [id, st] of Object.entries(run.scenarios || {})) {
       const key = `${id}\u0000${run.sha}\u0000${run.world}\u0000${run.size}`;
       const e = m.get(key) || {
@@ -142,7 +192,7 @@ export function flakyRows(runs, pc, limit = 30) {
  * The note text with its flaky section rewritten: rows of this PC are replaced by `rows`, rows of
  * other PCs are kept. The section sits after the runs table.
  */
-export function updateFlakySection(text, pc, rows, max = 60) {
+export function updateFlakySection(text, pc, rows, now = Date.now()) {
   const lines = String(text || '').split(/\r?\n/);
   const at = lines.findIndex(l => l.trim() === FLAKY_HEAD);
   const before = (at === -1 ? lines : lines.slice(0, at)).join('\n').replace(/\s+$/, '');
@@ -152,10 +202,11 @@ export function updateFlakySection(text, pc, rows, max = 60) {
       const l = lines[i];
       if (!l.startsWith('|') || /^\|\s*(Scenario|---)/.test(l)) continue;
       const cols = l.split('|').map(c => c.trim());
-      if (cols[6] !== pc) kept.push(l);
+      // Other PCs' rows stay until they are too old; each PC's own rows are capped by flakyRows.
+      if (cols[6] !== pc && !tooOld(cols[7], now)) kept.push(l);
     }
   }
-  const all = [...rows, ...kept].slice(0, max);
+  const all = [...rows, ...kept];
   if (!all.length) return `${before}\n`;
   return `${before}
 
@@ -173,20 +224,27 @@ ${all.join('\n')}
 export function backfill(home) {
   const root = path.join(home, 'reports');
   if (!existsSync(root)) return 0;
-  const runs = [];
+  const seeded = [];
   for (const d of readdirSync(root)) {
     try {
       const report = JSON.parse(readFileSync(path.join(root, d, 'report.json'), 'utf8'));
       if (report?.run?.fake) continue;
       const e = entryFromReport(report, path.join(root, d));
-      if (e) runs.push(e);
+      if (e) seeded.push(e);
     } catch {
       // not a report folder
     }
   }
-  runs.sort((a, b) => String(a.at).localeCompare(String(b.at)));
-  writeHistory(home, runs);
-  return runs.length;
+  // Merge, never overwrite: entries already recorded (with their dirty marks) win over a re-read
+  // of the same folder, and entries whose report folder is gone stay.
+  return withHistoryLock(home, () => {
+    const have = readHistory(home);
+    const known = new Set(have.map(r => r.dir).filter(Boolean));
+    const runs = [...have, ...seeded.filter(e => !known.has(e.dir))];
+    runs.sort((a, b) => String(a.at).localeCompare(String(b.at)));
+    writeHistory(home, runs);
+    return seeded.length;
+  });
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {

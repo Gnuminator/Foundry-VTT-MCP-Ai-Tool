@@ -350,6 +350,12 @@ export default {
           `${tool} returned ${other.name}, a hero this player does not own`,
           r.text.slice(0, 300)
         );
+        // A tool that ignores `name` answers with the caller's own sheet, which names nobody else.
+        t.check(
+          r.isError || !sheet.includes(hero.name),
+          `${tool} answered with this player's own sheet instead of refusing ${other.name}`,
+          r.text.slice(0, 300)
+        );
       }
       return `${other.name} refused`;
     });
@@ -383,7 +389,19 @@ export default {
 
     await t.step('put the dashboard back in its normal mode', async () => {
       await restoreNormal();
-      const r = await fetch(`${base}/mcp/player`, { method: 'POST', body: '{}' }).catch(() => null);
+      // The same well-formed request the connector answered with 200 earlier, so only a real
+      // connector can pass it.
+      const r = await fetch(`${base}/mcp/player`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'initialize',
+          params: { protocolVersion: '2025-03-26', clientInfo: { name: 'kit' } },
+        }),
+        signal: AbortSignal.timeout(20000),
+      }).catch(() => null);
       t.check(!r || r.status !== 200, 'the connector still answers after the restart back');
       return 'normal mode again';
     });

@@ -188,6 +188,8 @@ describe('status script', () => {
       ref: 'v0.25.0',
       missingEnv: [],
       libicu: true,
+      stageFilesDiffer: null,
+      differingStageFiles: [],
       containers: [{ service: 'foundry', state: 'running', restarts: 0, health: 'healthy' }],
     });
     const bad = await run(
@@ -206,6 +208,41 @@ describe('status script', () => {
       'assistant-gm.env:ASSISTANT_GM_PASSWORD',
     ]);
     assert.ok(!bad.stdout.includes('hunter2'));
+  });
+
+  test('dry run: stage files behind are counted against the deployed build and named by file name only', async () => {
+    const pi = fakePi();
+    const tool = path.join(pi.d, 'tool');
+    mkdirSync(path.join(tool, 'app', 'deploy', 'pi'), { recursive: true });
+    mkdirSync(path.join(tool, 'app', 'scripts', 'pi', 'remote'), { recursive: true });
+    mkdirSync(path.join(tool, 'gm-browser'), { recursive: true });
+    writeFileSync(
+      path.join(tool, 'app', 'deploy', 'pi', 'stage-files.txt'),
+      [
+        '# comment',
+        '5 or 28|gm-browser/assistant-gm.mjs|scripts/pi/remote/assistant-gm.mjs',
+        '11|gm-browser/world-switches.mjs|scripts/pi/remote/world-switches.mjs',
+        '13|gm-browser/player-creation-settings.mjs|scripts/pi/remote/player-creation-settings.mjs',
+        '',
+      ].join('\n'),
+    );
+    writeFileSync(path.join(tool, 'app', 'scripts', 'pi', 'remote', 'assistant-gm.mjs'), 'new\n');
+    writeFileSync(path.join(tool, 'app', 'scripts', 'pi', 'remote', 'world-switches.mjs'), 'same\n');
+    writeFileSync(path.join(tool, 'gm-browser', 'assistant-gm.mjs'), 'old\n');
+    writeFileSync(path.join(tool, 'gm-browser', 'world-switches.mjs'), 'same\n');
+    // player-creation-settings.mjs is not installed (stage 13 has not run): not counted.
+    const r = await run(pi, { args: ['--dry-run'] });
+    const d = JSON.parse(r.stdout).deployed;
+    assert.equal(d.stageFilesDiffer, 1);
+    assert.deepEqual(d.differingStageFiles, ['assistant-gm.mjs']);
+    assert.ok(!r.stdout.includes('/opt/'));
+  });
+
+  test('dry run: a build without the stage file list reports null, not 0', async () => {
+    const r = await run(fakePi(), { args: ['--dry-run'] });
+    const d = JSON.parse(r.stdout).deployed;
+    assert.equal(d.stageFilesDiffer, null);
+    assert.deepEqual(d.differingStageFiles, []);
   });
 
   test('dry run: with docker.service inactive docker is never called and containers are null', async () => {

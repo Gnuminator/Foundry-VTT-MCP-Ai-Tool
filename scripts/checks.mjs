@@ -153,6 +153,11 @@ export const CHECKS = [
   ),
   nodeTest('cloudflare-compare', 'scripts', 'scripts/cloudflare-compare.test.mjs'),
   nodeTest(
+    'cloudflare-compare-coverage',
+    'scripts',
+    'scripts/cloudflare-compare-coverage.test.mjs'
+  ),
+  nodeTest(
     'gate-scripts',
     'gate',
     'scripts/green.test.mjs',

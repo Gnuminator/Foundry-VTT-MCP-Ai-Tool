@@ -61,8 +61,8 @@ export function renderWhoUsesWhat(report) {
   }
   out.push('## Versions');
   out.push('');
-  out.push('| Person | Piece | Version | Install | Status | Last seen |');
-  out.push('| --- | --- | --- | --- | --- | --- |');
+  out.push('| Person | Piece | Version | Install | Auto-update | Status | Last seen |');
+  out.push('| --- | --- | --- | --- | --- | --- | --- |');
   let any = false;
   for (const p of report.people) {
     const name = p.role === 'gm' ? 'GM' : p.name ?? p.key;
@@ -71,11 +71,11 @@ export function renderWhoUsesWhat(report) {
       const piece = v.piece === 'claude' && v.name ? `claude (${v.name})` : v.piece;
       out.push(
         `| ${cell(name)} | ${cell(piece)} | ${cell(v.version ?? 'unknown')} | ${cell(v.install || '-')} | ` +
-          `${v.behind ? 'BEHIND' : 'ok'} | ${when(v.lastSeen)} |`
+          `${v.autoUpdate ?? '-'} | ${v.behind ? 'BEHIND' : 'ok'} | ${when(v.lastSeen)} |`
       );
     }
   }
-  if (!any) out.push('| none yet | | | | | |');
+  if (!any) out.push('| none yet | | | | | | |');
   out.push('');
   out.push('## Tools');
   out.push('');

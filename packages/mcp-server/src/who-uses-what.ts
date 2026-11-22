@@ -29,6 +29,8 @@ interface ClientEntry {
   version: string | null;
   /** The Claude client's own name (clientInfo), for `claude`; empty otherwise. */
   name: string;
+  /** The Windows client's automatic update switch: `on`, `off`, or null when not reported. */
+  autoUpdate: 'on' | 'off' | null;
   lastSeen: number;
 }
 
@@ -69,12 +71,14 @@ export class ClientsFile {
         ? r.version.replace(/^v/, '')
         : null;
     const name = typeof r.name === 'string' && NAME_RE.test(r.name) ? r.name : '';
+    const autoUpdate = r.autoUpdate === 'on' || r.autoUpdate === 'off' ? r.autoUpdate : null;
     const entry: ClientEntry = {
       piece: piece as ClientPieceName,
       who,
       install,
       version,
       name,
+      autoUpdate,
       lastSeen: now,
     };
     return this.enqueue(async () => {
@@ -82,7 +86,12 @@ export class ClientsFile {
       const key = ClientsFile.key(entry);
       const before = this.entries.get(key);
       // Same version seen within the last minute: keep the file quiet.
-      if (before?.version === version && before.name === name && now - before.lastSeen < 60_000) {
+      if (
+        before?.version === version &&
+        before.name === name &&
+        before.autoUpdate === autoUpdate &&
+        now - before.lastSeen < 60_000
+      ) {
         return true;
       }
       this.entries.delete(key);
@@ -129,6 +138,7 @@ export class ClientsFile {
             install: typeof c.install === 'string' ? c.install : '',
             version: typeof c.version === 'string' ? c.version : null,
             name: typeof c.name === 'string' ? c.name : '',
+            autoUpdate: c.autoUpdate === 'on' || c.autoUpdate === 'off' ? c.autoUpdate : null,
             lastSeen: c.lastSeen,
           };
           this.entries.set(ClientsFile.key(entry), entry);
@@ -204,6 +214,8 @@ interface WhoRow {
     install: string;
     name: string;
     version: string | null;
+    /** The client's automatic update switch, when it reports one. */
+    autoUpdate: 'on' | 'off' | null;
     behind: boolean;
     lastSeen: string;
   }>;
@@ -270,15 +282,15 @@ export function findDownWindows(calls: readonly ToolCallLine[]): {
     if (run.length >= DOWN_MIN_RUN) {
       for (const x of run) down.add(x.c);
       windows.push({
-        from: new Date(run[0]!.ts).toISOString(),
-        to: new Date(run[run.length - 1]!.ts).toISOString(),
+        from: new Date(run[0].ts).toISOString(),
+        to: new Date(run[run.length - 1].ts).toISOString(),
         calls: run.length,
       });
     }
     run = [];
   };
   for (const x of imm) {
-    if (run.length > 0 && x.ts - run[run.length - 1]!.ts > DOWN_GAP_MS) flush();
+    if (run.length > 0 && x.ts - run[run.length - 1].ts > DOWN_GAP_MS) flush();
     run.push(x);
   }
   flush();
@@ -437,7 +449,13 @@ export function buildWhoUsesWhat(input: {
     r.lastSeen = later(r.lastSeen, new Date(e.t).toISOString());
   }
 
+  // An entry without an install id (a client from before ids) is a stale twin once the same piece
+  // and person also have an entry with one: showing both would look like an extra PC.
+  const withId = new Set(
+    input.clients.filter(c => c.install !== '').map(c => `${c.piece}\u0000${c.who}`)
+  );
   for (const c of input.clients) {
+    if (c.install === '' && withId.has(`${c.piece}\u0000${c.who}`)) continue;
     const key = c.who === 'gm' ? 'gm' : c.who;
     const r = row(key, key === 'gm' ? 'gm' : 'player', null);
     r.versions.push({
@@ -445,6 +463,7 @@ export function buildWhoUsesWhat(input: {
       install: c.install,
       name: c.name,
       version: c.version,
+      autoUpdate: c.autoUpdate,
       // Only our own pieces are compared with the Pi's version; the Claude client has its own numbers.
       behind: c.piece === 'claude' ? false : isClientBehind(c.version, input.current),
       lastSeen: new Date(c.lastSeen).toISOString(),

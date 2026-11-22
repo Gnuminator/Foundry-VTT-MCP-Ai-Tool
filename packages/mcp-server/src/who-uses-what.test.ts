@@ -61,6 +61,22 @@ describe('ClientsFile', () => {
     expect(list.find(e => e.piece === 'player-extension')?.version).toBe('0.29.2');
   });
 
+  it('keeps the auto-update state per install and drops values it does not know', async () => {
+    const a = new ClientsFile(dataDir);
+    await a.record({ piece: 'connectors', who: 'gm', install: 'aaaa1111', autoUpdate: 'on' }, NOW);
+    await a.record({ piece: 'connectors', who: 'gm', install: 'bbbb2222', autoUpdate: 'off' }, NOW);
+    await a.record(
+      { piece: 'connectors', who: 'gm', install: 'cccc3333', autoUpdate: 'maybe' },
+      NOW
+    );
+    const list = await new ClientsFile(dataDir).list();
+    expect(list.map(e => [e.install, e.autoUpdate])).toEqual([
+      ['aaaa1111', 'on'],
+      ['bbbb2222', 'off'],
+      ['cccc3333', null],
+    ]);
+  });
+
   it('refuses unknown pieces, odd names and free text', async () => {
     const f = new ClientsFile(dataDir);
     expect(await f.record({ piece: 'keylogger', who: 'gm', version: '1.0.0' })).toBe(false);
@@ -118,6 +134,7 @@ describe('buildWhoUsesWhat', () => {
           install: '',
           version: '0.20.0',
           name: '',
+          autoUpdate: null,
           lastSeen: NOW,
         },
         {
@@ -126,6 +143,36 @@ describe('buildWhoUsesWhat', () => {
           install: 'abc123abc123',
           version: '0.29.2',
           name: '',
+          autoUpdate: null,
+          lastSeen: NOW,
+        },
+        // Two GM PCs on one version: separate sightings, each with its own auto-update state.
+        {
+          piece: 'connectors',
+          who: 'gm',
+          install: 'aaaa1111',
+          version: '0.31.0',
+          name: '',
+          autoUpdate: 'on',
+          lastSeen: NOW,
+        },
+        {
+          piece: 'connectors',
+          who: 'gm',
+          install: 'bbbb2222',
+          version: '0.31.0',
+          name: '',
+          autoUpdate: 'off',
+          lastSeen: NOW,
+        },
+        // A stale sighting from a client without ids: hidden once an id-bearing one exists.
+        {
+          piece: 'connectors',
+          who: 'gm',
+          install: '',
+          version: '0.29.0',
+          name: '',
+          autoUpdate: null,
           lastSeen: NOW,
         },
       ],
@@ -138,8 +185,13 @@ describe('buildWhoUsesWhat', () => {
     expect(report.people.map(p => p.key)).toEqual(['gm', 'P1']);
     const gm = report.people[0];
     expect(gm.calls).toBe(2);
+    const connectors = gm.versions.filter(v => v.piece === 'connectors');
+    expect(connectors.map(v => [v.install, v.autoUpdate])).toEqual([
+      ['aaaa1111', 'on'],
+      ['bbbb2222', 'off'],
+    ]);
     expect(gm.skills).toEqual([{ skill: 'gm-coach', stub: 1, calls: 1 }]);
-    expect(gm.versions[0]).toMatchObject({
+    expect(gm.versions.find(v => v.piece === 'obsidian')).toMatchObject({
       piece: 'obsidian',
       install: 'abc123abc123',
       behind: false,
@@ -214,7 +266,7 @@ describe('buildWhoUsesWhat', () => {
       days: 7,
       now: NOW,
     });
-    const gm = report.people[0]!;
+    const gm = report.people[0];
     expect(gm).toMatchObject({ calls: 4, claudeCalls: 2, dashboardCalls: 2 });
     expect(gm.topTools.map(t => t.name).sort()).toEqual(['get-character', 'list-scenes']);
     expect(gm.dashboardTools).toEqual([{ name: 'get-combat-state', calls: 2 }]);

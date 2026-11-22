@@ -70,6 +70,26 @@ import * as path from 'path';
 /** A short id for this PC, so two PCs running Claude against one bridge are two rows, not one. */
 const INSTALL_ID = createHash('sha256').update(os.hostname()).digest('hex').slice(0, 8);
 
+/**
+ * The Windows client's automatic update switch: the flag file `autoupdate.on` in its tunnel or
+ * direct-install state folder. Null when this is not a Windows client install (no such folder).
+ */
+function readAutoUpdate(): 'on' | 'off' | null {
+  const base = process.env.LOCALAPPDATA;
+  if (!base) return null;
+  let known = false;
+  for (const dir of ['tunnel', 'update']) {
+    const state = path.join(base, 'FoundryMCPServer', dir);
+    try {
+      if (fs.existsSync(path.join(state, 'autoupdate.on'))) return 'on';
+      if (fs.existsSync(state)) known = true;
+    } catch {
+      // unreadable: treat as unknown
+    }
+  }
+  return known ? 'off' : null;
+}
+
 // PB-01: MCP_CONTROL_HOST / MCP_CONTROL_PORT point the wrapper at a bridge elsewhere (the Orange
 // Pi); MCP_NO_SPAWN=1 or a non-loopback host means it never starts a backend itself.
 const {
@@ -163,6 +183,7 @@ class BackendClient {
             version: TOOL_VERSION,
             build: BUILD_ID,
             install: INSTALL_ID,
+            autoUpdate: readAutoUpdate(),
             sets: TOOL_SET_SELECTION.all ? 'all' : TOOL_SET_SELECTION.sets.join(','),
           },
         };

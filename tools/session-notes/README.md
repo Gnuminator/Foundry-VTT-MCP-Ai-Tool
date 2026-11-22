@@ -38,7 +38,17 @@ Exit codes: 0 done, 1 error, 75 paused by a usage limit, 76 incomplete (some sce
 written or have no in-depth notes yet). After a pause or an incomplete run, run the same command
 again later; finished scenes are kept in `notes/.work/` and are not redone.
 
-## Automatic runs
+## The current way: one command per session
+
+Until G2 the notes are made by hand (the user, 2026-11-20); the hourly task below is not
+registered. `pwsh tools/session-notes/session.ps1 <session-folder-name>` runs the whole chain for
+that one session: pull from the Pi (`FVTT_PI_HOST`), consent check, names, transcription (takes
+the GPU lock), `run --layers`, publish. It publishes to the test bridge (31514); `-Real` publishes
+to the real one and is only for when the user says so. `-DryRun` shows the plan. If it stops
+(usage limit, bridge down), run the same command again. It is `auto.ps1 -Session <name> -Port <n>`
+underneath, so everything in the next section applies to it.
+
+## Automatic runs (not registered until G2)
 
 `auto.ps1` does one pass over the sessions folder: it transcribes finished Discord recordings
 (`raw\session.json` present, audio, no timeline yet; names from Foundry when the bridge answers),

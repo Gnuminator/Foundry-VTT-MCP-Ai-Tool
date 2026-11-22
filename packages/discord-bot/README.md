@@ -160,7 +160,9 @@ token is in: the user runs `scripts/pi/set-discord-token.ps1` on the PC, which a
 **Getting the recordings to the PC.** `tools/session-notes/pull.ps1` (step 0 of `auto.ps1` when
 `FVTT_PI_HOST` is set, normally `foundry-pi`) copies every finished session over SSH through
 Tailscale, checks each file's SHA-256, puts it in the PC's sessions folder and marks it pulled on
-the Pi; the Pi deletes pulled sessions after 7 days. A session counts as finished once
+the Pi; the Pi deletes pulled sessions after 7 days. Until G2 the whole chain (pull, consent, names,
+transcribe, notes, publish) is run by hand for one session: `pwsh tools/session-notes/session.ps1
+<session-folder-name>` (test bridge unless `-Real`). A session counts as finished once
 `raw/convert-report.json` exists (the converter writes it last). The pull logs in as the Pi's SSH
 user from the setup (root; any member of the `foundry` group works too). The notes step then stages the notes on the bridge, which runs on the Pi
 too: set `MCP_CONTROL_HOST` to the Pi's Tailscale name for `session-notes publish`.

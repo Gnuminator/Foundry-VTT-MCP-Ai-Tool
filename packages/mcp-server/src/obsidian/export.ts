@@ -54,6 +54,7 @@ import {
   renderPlacesCanvas,
   renderQuestsCanvas,
 } from './atlas.js';
+import { mirrorGeneration } from './mirror-generation.js';
 import { scanCampaign } from './mirror-scan.js';
 import { baseOwnershipCheck, checkMarkdownOwnership } from './ownership.js';
 import { createPrepTemplates } from './prep-templates.js';
@@ -100,10 +101,18 @@ export interface ExportCache {
   playLogs: Map<string, { size: number; mtimeMs: number; records: PlayRecord[] }>;
   usageLogs: Map<string, { size: number; mtimeMs: number; events: UsageEvent[] }>;
   written: Map<string, string>;
+  /** The mirror generation the Atlas was last built from (null: never, or the build failed). */
+  atlasGeneration: number | null;
 }
 
 export function newExportCache(): ExportCache {
-  return { logs: new Map(), playLogs: new Map(), usageLogs: new Map(), written: new Map() };
+  return {
+    logs: new Map(),
+    playLogs: new Map(),
+    usageLogs: new Map(),
+    written: new Map(),
+    atlasGeneration: null,
+  };
 }
 
 export interface ExportResult {
@@ -418,15 +427,22 @@ export async function exportWorldToObsidian(options: {
         }
         targets.push([relPath, existing, render]);
       }
-      if (targets.length > 0) {
+      // The Atlas is built from the mirror notes, so an export with no mirror write, move or trash
+      // since the last build (and both canvases still there) skips the vault scan.
+      const generation = mirrorGeneration(worldId);
+      const upToDate =
+        cache.atlasGeneration === generation && targets.every(([, existing]) => existing !== null);
+      if (targets.length > 0 && !upToDate) {
         const scan = await scanCampaign(options.vaultDir, worldId);
         // An incomplete scan would drop cards (and their saved positions): leave the canvases as they are.
         if (scan.errors.length > 0 || scan.limitsHit.length > 0) {
+          cache.atlasGeneration = null;
           writer.errors.push({
             path: 'AI Tool/Atlas',
             error: 'the mirror scan was incomplete; the canvases were left as they are',
           });
         } else {
+          cache.atlasGeneration = generation;
           for (const [relPath, existing, render] of targets) {
             await writer.owned(
               relPath,

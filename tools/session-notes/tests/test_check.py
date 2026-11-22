@@ -151,6 +151,19 @@ def test_a_typo_can_be_corrected_on_the_page_and_the_old_rule_goes(tmp_path: Pat
     assert "Brannik" not in rules and set(rules["Brannick"]) == {"Botte", "Bote"}
 
 
+def test_a_correction_on_the_danish_page_alone_is_kept(tmp_path: Path) -> None:
+    session = _session(tmp_path)
+    check.sync(session)
+    _answer(session, "en", "Botte", "Brannik")
+    check.sync(session)
+    da = check.page_path(session, "da")
+    da.write_text(da.read_text(encoding="utf-8").replace("Svar: Brannik", "Svar: Brannick"), encoding="utf-8")
+    report = check.sync(session)
+    assert len(report.corrected) == 1 and report.conflicts == []
+    assert _stored(session)["Botte"]["correct"] == "Brannick"
+    assert "Answer: Brannick" in check.page_path(session, "en").read_text(encoding="utf-8")
+
+
 def test_english_wins_when_the_two_pages_disagree(tmp_path: Path) -> None:
     session = _session(tmp_path)
     check.sync(session)

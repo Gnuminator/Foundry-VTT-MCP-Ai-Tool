@@ -340,18 +340,25 @@ def page_path(session: Path, lang: str) -> Path:
     return session / "notes" / f"{PAGE}.{lang}.md"
 
 
-def _read_pages(session: Path) -> tuple[dict[str, str], list[str]]:
-    """Answers from both pages. English wins a conflict (named in the second value)."""
+def _read_pages(session: Path, stored: dict[str, dict[str, Any]]) -> tuple[dict[str, str], list[str]]:
+    """Answers from both pages. A page text that differs from the stored answer is the edit (both
+    pages are written from the stored answer, so a difference is a person's change). When the two
+    pages differ from each other, English wins and the conflict is named in the second value."""
     en = page_path(session, "en")
     da = page_path(session, "da")
     en_ans = parse_page(en.read_text(encoding="utf-8-sig")) if en.exists() else {}
     da_ans = parse_page(da.read_text(encoding="utf-8-sig")) if da.exists() else {}
-    merged = dict(da_ans)
+    merged: dict[str, str] = {}
     conflicts = []
-    for key, text in en_ans.items():
-        if key in da_ans and da_ans[key].casefold() != text.casefold():
-            conflicts.append(f"{key}: English page says '{text}', Danish page says '{da_ans[key]}'")
-        merged[key] = text
+    for key in {*en_ans, *da_ans}:
+        have = (stored.get(key) or {}).get("text", "").strip().casefold()
+        edits = [t for t in (en_ans.get(key), da_ans.get(key)) if t and t.strip().casefold() != have]
+        if not edits:
+            merged[key] = en_ans.get(key) or da_ans[key]
+            continue
+        if len({t.strip().casefold() for t in edits}) > 1:
+            conflicts.append(f"{key}: English page says '{en_ans.get(key)}', Danish page says '{da_ans.get(key)}'")
+        merged[key] = edits[0]  # English first
     return merged, conflicts
 
 
@@ -382,6 +389,7 @@ def _drop_rules(session: Path, answer: dict[str, Any]) -> None:
     """Take back the wrong spellings an answer added, before a correction replaces it."""
     rules = _read_rules(session)
     correct = answer.get("correct") or ""
+    correct = next((k for k in (rules or {}) if k.casefold() == correct.casefold()), correct)
     if not rules or correct not in rules:
         return
     gone = {w.casefold() for w in answer.get("wrongs", [])}
@@ -587,7 +595,7 @@ def sync(session: Path) -> CheckReport:
             kept = Entry(**{**data, "where": [tuple(w) for w in data.get("where", [])]})
             entries.append(kept)
             by_key[key] = kept
-    given, report.conflicts = _read_pages(session)
+    given, report.conflicts = _read_pages(session, stored)
     for key, text in given.items():
         entry = by_key.get(key)
         if entry is None:

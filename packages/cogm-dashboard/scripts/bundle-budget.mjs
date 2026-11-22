@@ -48,8 +48,8 @@ import { gzipSync } from 'node:zlib';
 // behind a stand-in button) and the combat strip (CombatStrip) moved to their own chunks; the
 // first load measured 144.6 KB, 5.4 KB of headroom. Not raised.
 // 150 kept on 2026-11-22 (the build had reached 149.4 KB): the toast stack (ToastStack) and the
-// Radix tooltip (TooltipImpl) moved to their own chunks and the first load measured 141.2 KB,
-// 8.8 KB of headroom. Not raised.
+// Radix tooltip (TooltipImpl) moved to their own chunks and the first load measured 141.6 KB,
+// 8.4 KB of headroom. Not raised.
 export const FIRST_LOAD_LIMIT_KB = 150;
 
 /**

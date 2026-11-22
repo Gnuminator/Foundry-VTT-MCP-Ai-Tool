@@ -1,6 +1,7 @@
 import {
   cloneElement,
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useRef,
@@ -66,6 +67,7 @@ interface TooltipProps {
   /** The one element that gets the tooltip; it must take a ref and the usual DOM props. */
   children: ReactElement<{
     onFocus?: (event: FocusEvent<HTMLElement>) => void;
+    onBlur?: (event: FocusEvent<HTMLElement>) => void;
     onPointerEnter?: (event: PointerEvent<HTMLElement>) => void;
   }>;
 }
@@ -83,13 +85,21 @@ interface TooltipProps {
 export function Tooltip({ content, side = 'top', children }: TooltipProps): JSX.Element {
   const tabbing = useContext(ProviderContext);
   const [Impl, setImpl] = useState<Impl | null>(loaded);
+  // Swapping in the Radix tree remounts the control, which would drop its focus: while it has
+  // focus the swap waits for the blur.
+  const focused = useRef(false);
+  const pending = useRef<Impl | null>(null);
+  const apply = useCallback((impl: Impl): void => {
+    if (focused.current) pending.current = impl;
+    else setImpl(() => impl);
+  }, []);
   useEffect(() => {
     if (!tabbing || Impl) return;
     let live = true;
     const start = (): void => {
       void loadImpl().then(
         impl => {
-          if (live) setImpl(() => impl);
+          if (live) apply(impl);
         },
         () => undefined
       );
@@ -99,22 +109,30 @@ export function Tooltip({ content, side = 'top', children }: TooltipProps): JSX.
       live = false;
       window.clearTimeout(timer);
     };
-  }, [tabbing, Impl]);
+  }, [tabbing, Impl, apply]);
   if (!tabbing) return children;
   const own = children.props.onFocus;
+  const ownBlur = children.props.onBlur;
   const ownEnter = children.props.onPointerEnter;
   const guarded = cloneElement(children, {
     onFocus: (event: FocusEvent<HTMLElement>): void => {
+      focused.current = true;
       own?.(event);
       // Radix skips its own handler when the event is default-prevented.
       if (!tabbing.current) event.preventDefault();
     },
+    onBlur: (event: FocusEvent<HTMLElement>): void => {
+      focused.current = false;
+      ownBlur?.(event);
+      const impl = pending.current;
+      pending.current = null;
+      if (impl) setImpl(() => impl);
+    },
     onPointerEnter: (event: PointerEvent<HTMLElement>): void => {
       ownEnter?.(event);
-      void loadImpl().then(
-        impl => setImpl(() => impl),
-        () => undefined
-      );
+      // A touch has no hover; a swap under the finger could eat the tap.
+      if (event.pointerType !== 'mouse') return;
+      void loadImpl().then(apply, () => undefined);
     },
   });
   return Impl ? <Impl content={content} side={side} trigger={guarded} /> : guarded;

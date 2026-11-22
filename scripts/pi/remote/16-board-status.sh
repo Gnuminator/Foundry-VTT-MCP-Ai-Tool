@@ -12,7 +12,7 @@
 # dietpi-backup snapshot, Foundry up or down (and whether foundry.service is active), the clock (NTP synchronized and the
 # measured offset), the Foundry and dnd5e versions and the deployed state (the deployed ref from .tool-ref, env names a
 # stage should have written but are missing, how many stage-installed files differ from the deployed build's copy and
-# their file names (stageFilesBehind, staleStageFiles; null when the build has no deploy/pi/stage-files.txt), whether libicu is installed, and each compose container's state, health and
+# their file names (stageFilesDiffer, differingStageFiles; a file installed from main can differ because it is ahead; null when the build has no deploy/pi/stage-files.txt), whether libicu is installed, and each compose container's state, health and
 # restart count: names and states only, the short form of deploy/pi/deployed-state.sh). No log lines, no secrets, no host name but the constant "foundry-pi".
 
 require_root
@@ -152,7 +152,10 @@ if [ -f "$stage_list" ]; then
     case "$s_stage" in '' | '#'*) continue ;; esac
     [ -n "$s_rel" ] && [ -n "$s_repo" ] || continue
     [ -f "$tool_dir/$s_rel" ] || continue
-    if [ ! -f "$tool_dir/app/$s_repo" ] || [ "$(sha256sum "$tool_dir/$s_rel" | cut -d' ' -f1)" != "$(sha256sum "$tool_dir/app/$s_repo" | cut -d' ' -f1)" ]; then
+    [ -f "$tool_dir/app/$s_repo" ] || continue
+    # Stages 29 and 35 install from main, so a file can be ahead of the build: this counts "differs", and the PC check
+    # (deployed-state.ps1) tells ahead from behind.
+    if [ "$(sha256sum "$tool_dir/$s_rel" | cut -d' ' -f1)" != "$(sha256sum "$tool_dir/app/$s_repo" | cut -d' ' -f1)" ]; then
       stage_behind=$((stage_behind + 1))
       stale_files="$stale_files $(basename "$s_rel")"
     fi
@@ -233,8 +236,8 @@ process.stdout.write(JSON.stringify({
     ref: word(e.DEPLOYED_REF, 40),
     missingEnv: (e.MISSING_ENV || "").split(" ").filter(x => /^[A-Za-z0-9._-]+:[A-Za-z0-9_|]+$/.test(x)),
     libicu: e.LIBICU === "yes" ? true : e.LIBICU === "no" ? false : null,
-    stageFilesBehind: num(e.STAGE_BEHIND),
-    staleStageFiles: (e.STALE_FILES || "").split(" ").filter(x => /^[A-Za-z0-9._-]+$/.test(x)).slice(0, 20),
+    stageFilesDiffer: num(e.STAGE_BEHIND),
+    differingStageFiles: (e.STALE_FILES || "").split(" ").filter(x => /^[A-Za-z0-9._-]+$/.test(x)).slice(0, 20),
     containers:
       e.CONTAINERS_QUERIED !== "yes"
         ? null

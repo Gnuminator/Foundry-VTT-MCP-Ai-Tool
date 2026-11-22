@@ -188,8 +188,8 @@ describe('status script', () => {
       ref: 'v0.25.0',
       missingEnv: [],
       libicu: true,
-      stageFilesBehind: null,
-      staleStageFiles: [],
+      stageFilesDiffer: null,
+      differingStageFiles: [],
       containers: [{ service: 'foundry', state: 'running', restarts: 0, health: 'healthy' }],
     });
     const bad = await run(
@@ -233,16 +233,16 @@ describe('status script', () => {
     // player-creation-settings.mjs is not installed (stage 13 has not run): not counted.
     const r = await run(pi, { args: ['--dry-run'] });
     const d = JSON.parse(r.stdout).deployed;
-    assert.equal(d.stageFilesBehind, 1);
-    assert.deepEqual(d.staleStageFiles, ['assistant-gm.mjs']);
+    assert.equal(d.stageFilesDiffer, 1);
+    assert.deepEqual(d.differingStageFiles, ['assistant-gm.mjs']);
     assert.ok(!r.stdout.includes('/opt/'));
   });
 
   test('dry run: a build without the stage file list reports null, not 0', async () => {
     const r = await run(fakePi(), { args: ['--dry-run'] });
     const d = JSON.parse(r.stdout).deployed;
-    assert.equal(d.stageFilesBehind, null);
-    assert.deepEqual(d.staleStageFiles, []);
+    assert.equal(d.stageFilesDiffer, null);
+    assert.deepEqual(d.differingStageFiles, []);
   });
 
   test('dry run: with docker.service inactive docker is never called and containers are null', async () => {

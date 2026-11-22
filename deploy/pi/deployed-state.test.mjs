@@ -363,10 +363,25 @@ describe('deployed-state.sh', { skip: noBash }, () => {
       },
     });
     assert.equal(r.code, 0, 'a stale file is a warning');
-    assert.match(r.out, /WARNING: .*gamenight-watch\.mjs is behind the release's copy of scripts\/gamenight-watch\.mjs: run stage 29 again/);
-    assert.doesNotMatch(r.out, /assistant-gm\.mjs is behind/);
-    assert.doesNotMatch(r.out, /who-uses-what\.mjs is behind/);
-    assert.match(r.out, /stage files: 1 behind, 1 match, 1 not installed/);
+    assert.match(r.out, /WARNING: .*gamenight-watch\.mjs differs from the release copy of scripts\/gamenight-watch\.mjs: run stage 29 again/);
+    assert.doesNotMatch(r.out, /assistant-gm\.mjs differs/);
+    assert.doesNotMatch(r.out, /who-uses-what\.mjs differs/);
+    assert.match(r.out, /stage files: 1 behind, 1 match, 0 ahead, 1 not installed/);
+  });
+
+  test('stage files: a file that matches main but not the release is ahead, not behind', () => {
+    const r = run({
+      setup: tool => put(tool, 'gamenight-watch/gamenight-watch.mjs', 'main\n'),
+      expect: {
+        STAGE_FILES_B64: b64(LIST),
+        EXPECT_STAGE_SOURCE: 'the v0.31.0 copy',
+        EXPECT_STAGE_SHAS_B64: b64(`scripts/gamenight-watch.mjs ${sha('release\n')}\n`),
+        EXPECT_STAGE_MAIN_SHAS_B64: b64(`scripts/gamenight-watch.mjs ${sha('main\n')}\n`),
+      },
+    });
+    assert.match(r.out, /ok: .*gamenight-watch\.mjs matches main's copy of scripts\/gamenight-watch\.mjs \(ahead of the v0\.31\.0 copy\)/);
+    assert.doesNotMatch(r.out, /WARNING: .*gamenight/);
+    assert.match(r.out, /ok: stage files: .*1 ahead of the release.*0 behind/);
   });
 
   test('stage files: all current is ok; with no list passed the deployed build supplies list and copies', () => {
@@ -374,7 +389,7 @@ describe('deployed-state.sh', { skip: noBash }, () => {
       helper: 'h\n',
       expect: { STAGE_FILES_B64: b64(LIST), EXPECT_STAGE_SHAS_B64: b64(`scripts/pi/remote/assistant-gm.mjs ${sha('h\n')}\n`) },
     });
-    assert.match(current.out, /ok: stage files: 1 match, 2 not installed, 0 behind/);
+    assert.match(current.out, /ok: stage files: 1 match, 0 ahead of the release, 2 not installed, 0 behind/);
     const fromBuild = run({
       helper: 'installed\n',
       setup: tool => {
@@ -382,7 +397,7 @@ describe('deployed-state.sh', { skip: noBash }, () => {
         put(tool, 'app/scripts/pi/remote/assistant-gm.mjs', 'in the build\n');
       },
     });
-    assert.match(fromBuild.out, /assistant-gm\.mjs is behind the deployed build's copy of scripts\/pi\/remote\/assistant-gm\.mjs: run stage 5 or 28 again/);
+    assert.match(fromBuild.out, /assistant-gm\.mjs differs from the deployed build's copy of scripts\/pi\/remote\/assistant-gm\.mjs: run stage 5 or 28 again/);
   });
 
   test('stage files: no list anywhere warns that nothing was compared', () => {
@@ -402,10 +417,28 @@ describe('deployed-state.sh', { skip: noBash }, () => {
       .filter(f => f.endsWith('.sh'))
       .map(f => readFileSync(path.join(repoRoot, 'scripts', 'pi', 'remote', f), 'utf8'))
       .join('\n');
+    const remoteDir = path.join(repoRoot, 'scripts', 'pi', 'remote');
+    const stageFile = n => readdirSync(remoteDir).find(f => f === `${n}.sh` || f.startsWith(`${n}-`));
     for (const [stage, rel, repoPath] of rows) {
       assert.ok(stage && rel && repoPath, `bad row ${stage}|${rel}|${repoPath}`);
       assert.ok(existsSync(path.join(repoRoot, repoPath)), `${repoPath} is not in the repo`);
       assert.ok(stageText.includes(path.basename(rel)), `no stage script installs ${path.basename(rel)}`);
+      // The named stage (or one of "5 or 28") must mention the file and its install folder.
+      const named = stage.split(' or ').map(n => stageFile(n)).filter(Boolean);
+      assert.ok(named.length > 0, `no stage script for "${stage}"`);
+      const ok = named.some(f => {
+        const t = readFileSync(path.join(remoteDir, f), 'utf8');
+        return t.includes(path.basename(rel)) && t.includes(path.dirname(rel).split('/')[0]);
+      });
+      assert.ok(ok, `stage "${stage}" does not mention ${rel}`);
+    }
+    // A new copy-from-repo install in a stage needs a row.
+    const listed = new Set(rows.map(r => path.basename(r[1])));
+    for (const f of readdirSync(remoteDir).filter(x => x.endsWith('.sh'))) {
+      const t = readFileSync(path.join(remoteDir, f), 'utf8');
+      for (const m of t.matchAll(/install -m 0?644 (?:-o root -g root )?"\$(?:SETTINGS_DRIVER|SWITCH_DRIVER|SESSION_DRIVER)" "[^"]*\/([\w.-]+\.mjs)"/g)) {
+        assert.ok(listed.has(m[1]), `${f} installs ${m[1]} but deploy/pi/stage-files.txt has no row for it`);
+      }
     }
   });
 

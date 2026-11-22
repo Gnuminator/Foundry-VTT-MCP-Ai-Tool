@@ -16,7 +16,8 @@
 #   stage files every file a stage copies verbatim from the repo (deploy/pi/stage-files.txt) is hashed and compared with the
 #               copy the release (or main) would write; one WARNING per stale file names the stage to rerun
 #               (backlog pi-deployed-file-hashes). The wrapper passes the list and the expected hashes as STAGE_FILES_B64
-#               and EXPECT_STAGE_SHAS_B64 (lines "repo-path sha256"); on the Pi alone the list comes from the deployed
+#               and EXPECT_STAGE_SHAS_B64 (lines "repo-path sha256", from EXPECT_STAGE_SOURCE) plus
+#               EXPECT_STAGE_MAIN_SHAS_B64 (main's copies: stages 29 and 35 install from main, so a match is "ahead", not behind); on the Pi alone the list comes from the deployed
 #               build ($TOOL_DIR/app/deploy/pi/stage-files.txt) and the expected copy is that build's own file.
 #
 # Paths and commands can be overridden by environment for the tests: TOOL_DIR, TOOL_ETC, COMPOSE_PROJECT, and
@@ -242,10 +243,13 @@ elif [ -f "$app/deploy/pi/stage-files.txt" ]; then
 fi
 expect_shas=""
 [ -z "${EXPECT_STAGE_SHAS_B64:-}" ] || expect_shas="$(printf '%s' "$EXPECT_STAGE_SHAS_B64" | base64 -d 2>/dev/null)" || expect_shas=""
+expect_main_shas=""
+[ -z "${EXPECT_STAGE_MAIN_SHAS_B64:-}" ] || expect_main_shas="$(printf '%s' "$EXPECT_STAGE_MAIN_SHAS_B64" | base64 -d 2>/dev/null)" || expect_main_shas=""
 if [ -z "$list" ]; then
   warn "no stage file list (the deployed build has no deploy/pi/stage-files.txt and none was passed): the stage files were not compared"
 else
   behind=0
+  ahead=0
   current=0
   absent=0
   while IFS='|' read -r stage rel repo_path; do
@@ -257,7 +261,8 @@ else
       continue
     fi
     want="$(printf '%s\n' "$expect_shas" | awk -v p="$repo_path" '$1 == p {print $2; exit}')"
-    from="the release's copy"
+    from="${EXPECT_STAGE_SOURCE:-the release copy}"
+    main_want="$(printf '%s\n' "$expect_main_shas" | awk -v p="$repo_path" '$1 == p {print $2; exit}')"
     if [ -z "$want" ] && [ -f "$app/$repo_path" ]; then
       want="$(sha256sum "$app/$repo_path" | awk '{print $1}')"
       from="the deployed build's copy"
@@ -269,15 +274,19 @@ else
     have="$(sha256sum "$installed" | awk '{print $1}')"
     if [ "$have" = "$want" ]; then
       current=$((current + 1))
+    elif [ -n "$main_want" ] && [ "$have" = "$main_want" ]; then
+      # Stages 29 and 35 install from main at the merge commit, so a file can be newer than the release.
+      ahead=$((ahead + 1))
+      ok "$installed matches main's copy of $repo_path (ahead of $from)"
     else
       behind=$((behind + 1))
-      warn "$installed is behind $from of $repo_path: run stage $stage again"
+      warn "$installed differs from $from of $repo_path${main_want:+ and from main}: run stage $stage again"
     fi
   done <<<"$list"
   if [ "$behind" -eq 0 ]; then
-    ok "stage files: $current match, $absent not installed, 0 behind"
+    ok "stage files: $current match, $ahead ahead of the release, $absent not installed, 0 behind"
   else
-    printf '    stage files: %d behind, %d match, %d not installed\n' "$behind" "$current" "$absent"
+    printf '    stage files: %d behind, %d match, %d ahead, %d not installed\n' "$behind" "$current" "$ahead" "$absent"
   fi
 fi
 

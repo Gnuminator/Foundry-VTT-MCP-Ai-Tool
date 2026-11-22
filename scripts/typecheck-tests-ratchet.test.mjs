@@ -1,6 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { countByCode, evaluate, WORKSPACES, STRICT_CODES } from './typecheck-tests-ratchet.mjs';
+import {
+  countByCode,
+  compilerFailure,
+  evaluate,
+  WORKSPACES,
+  STRICT_CODES,
+} from './typecheck-tests-ratchet.mjs';
 
 test('countByCode counts errors per TS code', () => {
   const out = [
@@ -24,8 +30,24 @@ test('evaluate: a rise or a new code fails, equal or lower passes', () => {
   ]);
 });
 
+test('compilerFailure: a run that did not really run is a failure, a normal error exit is not', () => {
+  const ok = { status: 0, signal: null };
+  assert.equal(compilerFailure(ok, ''), null);
+  assert.equal(compilerFailure({ status: 2, signal: null }, 'a.ts: error TS2339: x'), null);
+  assert.match(
+    compilerFailure({ status: 1, signal: null }, 'tsc7: not installed') ?? '',
+    /exit code 1/
+  );
+  assert.match(compilerFailure({ status: null, signal: 'SIGKILL' }, '') ?? '', /SIGKILL/);
+  assert.match(
+    compilerFailure({ status: null, signal: null, error: new Error('spawn') }, '') ?? '',
+    /could not start/
+  );
+});
+
 test('every workspace has a tsconfig.test.json and the strict codes are the real mismatches', async () => {
   const { existsSync } = await import('node:fs');
-  for (const ws of WORKSPACES) assert.ok(existsSync(`${ws}/tsconfig.test.json`), ws);
+  const root = new URL('..', import.meta.url);
+  for (const ws of WORKSPACES) assert.ok(existsSync(new URL(`${ws}/tsconfig.test.json`, root)), ws);
   assert.deepEqual(STRICT_CODES, ['TS2339', 'TS2304', 'TS2345', 'TS2322', 'TS2769']);
 });

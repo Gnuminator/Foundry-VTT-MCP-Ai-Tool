@@ -225,6 +225,22 @@ describe('scanCampaign: mirror notes', () => {
   });
 });
 
+describe('scanCampaign: Syncthing conflict copies', () => {
+  it('an unedited conflict copy never beats the edited original, and is listed', async () => {
+    const spec: NoteSpec = { type: 'npc', uuid: 'Actor.sc', name: 'SC' };
+    const good = mirrorText(spec);
+    const copy = 'AI Tool/Foundry/NPCs/Wolf.sync-conflict-20261122-190000-ABCDEFG.md';
+    await put('AI Tool/Foundry/NPCs/Wolf.md', edited(good));
+    await put(copy, good);
+    const scan = await scanCampaign(vault, WORLD);
+    expect(scan.mirror.get('Actor.sc')?.path).toBe('AI Tool/Foundry/NPCs/Wolf.md');
+    expect(scan.duplicates).toEqual([]);
+    expect(scan.syncConflicts).toEqual([copy]);
+    // It still occupies its name, so the pump never writes over it.
+    expect([...scan.takenPaths].some(p => p.includes('sync-conflict'))).toBe(true);
+  });
+});
+
 describe('scanCampaign: which note wins a uuid', () => {
   it('inside and unedited beats inside and edited beats outside; the rest are duplicates', async () => {
     const spec: NoteSpec = { type: 'npc', uuid: 'Actor.x', name: 'X' };

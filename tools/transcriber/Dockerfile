@@ -34,6 +34,9 @@ RUN pip install --no-deps .
 
 # The Hugging Face token is never part of the image: bind-mount the host file read-only at
 # /run/secrets/hf_token (the compose file does this). The model cache is the volume at /cache.
+# Hash of the files above, set by scripts/voice-stack.ps1; it tells a stale image from a current one.
+ARG SOURCE_HASH=unknown
+LABEL fvtt.source-hash=$SOURCE_HASH
 VOLUME ["/cache"]
 WORKDIR /work
 ENTRYPOINT ["transcribe"]

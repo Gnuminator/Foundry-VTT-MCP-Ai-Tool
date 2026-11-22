@@ -3,8 +3,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   clientHeaderValue,
   compareVersions,
+  installRestartNotice,
   installUpdateNotice,
   localInstallId,
+  restartNotice,
   updateNotice,
 } from './client-update.js';
 import { DashboardClient, type HttpRequest } from './dashboard.js';
@@ -206,5 +208,69 @@ describe('installUpdateNotice', () => {
     t.setAnswer(null);
     await t.check();
     expect(t.state.shown).toBe(false);
+  });
+});
+
+describe('restartNotice', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('asks for a restart only when the plugin on disk is newer', () => {
+    expect(restartNotice('0.30.0', '0.31.0')?.text).toBe('Restart Obsidian');
+    expect(restartNotice('0.31.0', '0.31.0')).toBeNull();
+    expect(restartNotice('0.31.0', '0.30.0')).toBeNull();
+    expect(restartNotice('0.31.0', undefined)).toBeNull();
+    expect(restartNotice('0.31.0', 'junk')).toBeNull();
+  });
+
+  it('shows and hides the status bar item from the manifest on disk', async () => {
+    vi.stubGlobal('window', { setInterval: (): number => 1 });
+    let onDisk = '0.31.0';
+    let shown = false;
+    let text = '';
+    let layoutReady: (() => void) | undefined;
+    const reads: string[] = [];
+    installRestartNotice({
+      manifest: { version: '0.30.0', dir: '.obsidian/plugins/foundry-ai-tool' },
+      addStatusBarItem: () => ({
+        addClass: (): void => undefined,
+        hide: (): void => {
+          shown = false;
+        },
+        show: (): void => {
+          shown = true;
+        },
+        setText: (t: string): void => {
+          text = t;
+        },
+        setAttribute: (): void => undefined,
+      }),
+      registerInterval: (id: number): number => id,
+      app: {
+        vault: {
+          adapter: {
+            read: (p: string): Promise<string> => {
+              reads.push(p);
+              return Promise.resolve(JSON.stringify({ version: onDisk }));
+            },
+          },
+        },
+        workspace: {
+          onLayoutReady: (cb: () => void): void => {
+            layoutReady = cb;
+          },
+        },
+      },
+    });
+    layoutReady?.();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(reads).toEqual(['.obsidian/plugins/foundry-ai-tool/manifest.json']);
+    expect(shown).toBe(true);
+    expect(text).toBe('Restart Obsidian');
+    onDisk = '0.30.0';
+    layoutReady?.();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(shown).toBe(false);
   });
 });

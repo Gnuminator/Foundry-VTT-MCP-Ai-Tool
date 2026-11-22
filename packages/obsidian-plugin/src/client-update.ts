@@ -67,11 +67,14 @@ interface BarEl {
 
 /** The slice of the plugin the notice needs, so this file stays free of the `obsidian` import. */
 interface NoticeHost {
-  manifest: { version: string };
+  manifest: { version: string; dir?: string };
   addStatusBarItem(): BarEl & EventTarget;
   registerInterval(id: number): number;
   registerDomEvent(el: EventTarget, type: 'click', cb: () => void): void;
-  app: { workspace: { onLayoutReady(cb: () => void): void } };
+  app: {
+    vault?: { adapter: { read(path: string): Promise<string> } };
+    workspace: { onLayoutReady(cb: () => void): void };
+  };
 }
 
 /**
@@ -106,6 +109,7 @@ export function installUpdateNotice(
   };
   host.registerInterval(window.setInterval(() => void check(), CLIENT_CHECK_INTERVAL_MS));
   host.app.workspace.onLayoutReady(() => void check());
+  installRestartNotice(host);
 }
 
 interface UpdateNotice {
@@ -137,4 +141,61 @@ export function updateNotice(
     title: `${da.trim()}\n${en.trim()}`,
     link,
   };
+}
+
+/** The status bar text and hover text (Danish line, then English line) once the plugin on disk is newer than the running one. */
+export function restartNotice(
+  running: string,
+  onDisk: unknown
+): { text: string; title: string } | null {
+  if (typeof onDisk !== 'string' || !/^\d+(\.\d+){0,3}$/.test(onDisk)) return null;
+  if (!/^\d+(\.\d+){0,3}/.test(running) || compareVersions(running, onDisk) >= 0) return null;
+  return {
+    text: 'Restart Obsidian',
+    title: `Genstart Obsidian: pluginet på disken er ${onDisk}, det kørende er ${running}.\nRestart Obsidian: the plugin on disk is ${onDisk}, the running one is ${running}.`,
+  };
+}
+
+/** The slice of the plugin the restart notice needs (the manifest folder and a file reader). */
+interface RestartHost {
+  manifest: { version: string; dir?: string };
+  addStatusBarItem(): BarEl;
+  registerInterval(id: number): number;
+  app: {
+    vault?: { adapter: { read(path: string): Promise<string> } };
+    workspace: { onLayoutReady(cb: () => void): void };
+  };
+}
+
+/**
+ * Syncthing may replace the plugin files while Obsidian runs (stage 33). A status bar item says
+ * "Restart Obsidian" while manifest.json on disk is newer than the running version: checked once the
+ * layout is ready and every 10 minutes. Silent on any failure.
+ */
+export function installRestartNotice(host: RestartHost): void {
+  const dir = host.manifest.dir;
+  const vault = host.app.vault;
+  if (!dir || !vault) return;
+  const el = host.addStatusBarItem();
+  el.addClass('foundry-ai-tool-restart');
+  el.hide();
+  const check = async (): Promise<void> => {
+    try {
+      const raw = await vault.adapter.read(`${dir}/manifest.json`);
+      const disk = (JSON.parse(raw) as { version?: unknown }).version;
+      const notice = restartNotice(host.manifest.version, disk);
+      if (!notice) {
+        el.hide();
+        return;
+      }
+      el.setText(notice.text);
+      el.setAttribute('aria-label', notice.title);
+      el.setAttribute('title', notice.title);
+      el.show();
+    } catch {
+      /* no manifest to read: say nothing */
+    }
+  };
+  host.registerInterval(window.setInterval(() => void check(), 10 * 60 * 1000));
+  host.app.workspace.onLayoutReady(() => void check());
 }

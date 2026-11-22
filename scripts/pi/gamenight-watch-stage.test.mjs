@@ -52,6 +52,17 @@ describe('stage 29 as text', () => {
     assert.match(lib, /systemctl is-active --quiet "\$unit" \|\| return 1/);
   });
 
+  test('CHECK names the administrator password and the GM passwords, read-only, and fails on either (gm-password-watch)', () => {
+    const check = stage.slice(stage.indexOf('if [ "$check" = 1 ]'), stage.indexOf('if [ "$undo" = 1 ]'));
+    assert.match(check, /admin_password_set/);
+    assert.match(check, /gm_password_check/);
+    assert.match(check, /FOUND: no administrator password/);
+    assert.match(check, /declare -F gm_password_check/);
+    assert.match(check, /pipe lib-gm-passwords\.sh/);
+    assert.doesNotMatch(check, /admin\.txt"?\s*\)?\s*(\||>)/);
+    assert.match(stage, /lib-gm-passwords\.sh scripts\/pi\/remote\/29-gamenight-watch\.sh \| ssh foundry-pi 'CHECK=1/);
+  });
+
   test('a newer bot env file also restarts a running watch', () => {
     assert.match(stage, /"\$watch_env" "\$bot_env"; do/);
   });

@@ -150,8 +150,13 @@ ssh foundry-pi 'runuser -u foundry -- systemctl is-active foundry-ai-tool-discor
 scp scripts/gamenight-watch.mjs scripts/gamenight-watch-pi.mjs foundry-pi:/root/
 cat scripts/pi/remote/lib.sh scripts/pi/remote/29-gamenight-watch.sh | ssh foundry-pi 'DRY_RUN=1 bash -s'
 cat scripts/pi/remote/lib.sh scripts/pi/remote/29-gamenight-watch.sh | ssh foundry-pi 'bash -s'
-cat scripts/pi/remote/lib.sh scripts/pi/remote/29-gamenight-watch.sh | ssh foundry-pi 'CHECK=1 bash -s'
+cat scripts/pi/remote/lib.sh scripts/pi/remote/lib-gm-passwords.sh scripts/pi/remote/29-gamenight-watch.sh | ssh foundry-pi 'CHECK=1 bash -s'
 ```
+
+After the five checks, `CHECK=1` also reads (read-only, by name) whether Foundry has an administrator password and whether any
+world has a Gamemaster or Assistant GM without a password, the same check as stage 12 and `gm-passwords.sh`. It prints
+`FOUND: no administrator password` or `FOUND: <world>: Gamemaster "<name>" has no password` and exits 1; without
+`lib-gm-passwords.sh` in the pipe it fails and says so. Run it before a game night.
 
 It needs stage 8 and 26 done (the bot token and `GAMENIGHT_WATCH_CHANNEL_ID` in `discord-bot.env`; it checks the names only).
 It restarts nothing but itself, and itself also when `discord-bot.env` changed or is newer than the running watch. `UNDO=1` removes the service and the files and keeps the settings file.

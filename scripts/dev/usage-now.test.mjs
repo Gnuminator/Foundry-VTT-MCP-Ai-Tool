@@ -141,6 +141,24 @@ test('the first run after the reset writes the closed week once, later runs writ
   }
 });
 
+test('a closed-week write failure still writes Usage now.md', async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), 'usage-now-fail-'));
+  try {
+    // Weekly check.md is a directory, so reading it as the note fails
+    mkdirSync(path.join(root, 'Dev', 'Foundry AI Tool', 'Weekly check.md'), { recursive: true });
+    let said = '';
+    await main(
+      ['--weekly', '3', '--weekly-resets', '2026-10-31T05:00:00.111Z'],
+      { USAGE_WEEK_ROOT: root, USAGE_WEEK_VAULT: root, USAGE_WEEK_GH: 'off', USAGE_WEEK_NOW: '2026-10-24T07:00:00Z' },
+      { write: s => (said += s) }
+    );
+    assert.match(said, /closed week skipped/);
+    assert.match(readFileSync(noteFile(root), 'utf8'), /weekly-percent: 3/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('pace lines: expected, delta, projection, active hours left and profile weeks', () => {
   const now = new Date('2026-10-23T14:05:00Z'); // Friday 16:05 CEST
   const opts = parseArgs(base);

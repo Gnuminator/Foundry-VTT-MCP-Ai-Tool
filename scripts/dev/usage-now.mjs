@@ -15,7 +15,7 @@ import { mkdirSync, readFileSync, existsSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { buildReport, fetchMergedPrs, usageLogFile, vaultDirFor } from './usage-week.mjs';
+import { buildReport, fetchMergedPrs, usageLogFile, vaultDirFor, windowDays } from './usage-week.mjs';
 import { paceNow, weekStartFor } from './usage-pace.mjs';
 import { noteFile as weeklyNoteFile, splitSections, upsert } from './weekly-check-note.mjs';
 
@@ -145,6 +145,11 @@ export function renderNote(lines) {
 export async function writeClosedWeek({ weeklyResets, root, prs, usageLog, vaultDir }) {
   if (weeklyResets === undefined) return null;
   const startMs = weekStartFor(0, weeklyResets);
+  // The window is calendar days (Sunday to the reset's Saturday), as in a hand-run usage:week.
+  const file = weeklyNoteFile(vaultDir);
+  const existing = existsSync(file) ? readFileSync(file, 'utf8') : '';
+  const first = windowDays(new Date(startMs - 1), 7).keys[0];
+  if (splitSections(existing).some(([d]) => d === first)) return null;
   const report = await buildReport({
     root,
     now: new Date(startMs - 1),
@@ -153,13 +158,9 @@ export async function writeClosedWeek({ weeklyResets, root, prs, usageLog, vault
     usageLog,
     weeklyResets: new Date(startMs).toISOString(),
   });
-  const file = weeklyNoteFile(vaultDir);
-  const existing = existsSync(file) ? readFileSync(file, 'utf8') : '';
-  const id = report.window.from;
-  if (splitSections(existing).some(([d]) => d === id)) return null;
   mkdirSync(path.dirname(file), { recursive: true });
   writeFileSync(file, upsert(existing, report));
-  return id;
+  return report.window.from;
 }
 
 export async function main(argv = process.argv.slice(2), env = process.env, out = process.stdout) {
@@ -181,14 +182,19 @@ export async function main(argv = process.argv.slice(2), env = process.env, out 
     const report = await buildReport({ root, now, days: opts.days, prs, usageLog, weeklyResets: opts.weeklyResets });
     lines.push(...checkLines(report), ...paceLines(report, opts, now));
     if (!opts.stdout) {
-      const written = await writeClosedWeek({
-        weeklyResets: opts.weeklyResets,
-        root,
-        prs,
-        usageLog,
-        vaultDir: vaultDirFor(env),
-      });
-      if (written) out.write(`usage:now wrote the closed week ${written} to Weekly check.md\n`);
+      // a failure here never stops the Usage now.md write below
+      try {
+        const written = await writeClosedWeek({
+          weeklyResets: opts.weeklyResets,
+          root,
+          prs,
+          usageLog,
+          vaultDir: vaultDirFor(env),
+        });
+        if (written) out.write(`usage:now wrote the closed week ${written} to Weekly check.md\n`);
+      } catch (e) {
+        out.write(`usage:now: closed week skipped (${e?.message || e})\n`);
+      }
     }
   }
   const text = renderNote(lines);

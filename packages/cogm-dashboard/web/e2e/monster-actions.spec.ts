@@ -59,7 +59,7 @@ async function setup(
           return ok(opts.activity);
         case 'plan-actor-change':
           return ok({
-            planId: `plan-${call.args['damageType'] ?? 'x'}`,
+            planId: `plan-${String(call.args['damageType'] ?? 'x')}`,
             summary: 'Damage',
             risk: 'write',
             autoApply: opts.autoApply ?? true,

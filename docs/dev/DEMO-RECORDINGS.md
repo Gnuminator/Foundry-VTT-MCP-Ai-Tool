@@ -21,7 +21,8 @@ Test server only. Nothing here touches a real world or the live bridge ports 314
 - The gdigrab switch: if the video comes out upside down (ffmpeg 9.0.2 with driver 616.92 did on
   2026-11-20) or never delivers a frame, set `FOUNDRY_DEMO_GRAB=gdigrab` and record again.
 - The GPU lock: ffmpeg encodes on the GPU, so take it first
-  (`scripts/test-env/lock.ps1 take -Server GPU`) and release it after the take.
+  (`pwsh scripts/test-env/lock.ps1 take -Server GPU -Holder "<session title>" -Session <local_id> -Purpose "demo take"`)
+  and release it after the take (`... release -Server GPU -Session <local_id>`).
 - The screen-time OK: a take drives visible windows and records the screen, so ask the user
   before you start one.
 - OBS Studio 32 or newer (only for `--recorder obs`): `winget install OBSProject.OBSStudio`.

@@ -31,6 +31,7 @@ import {
   TOOL_SETS,
   filterToolsBySets,
   resolveToolSets,
+  toolSetInstructions,
 } from './tool-sets.js';
 
 const deps = stubToolRouterDeps();
@@ -118,6 +119,20 @@ describe('tool catalog', () => {
       }
       expect(size, set).toBeLessThanOrEqual(TOOL_SET_BUDGETS[set]);
     }
+  });
+
+  it('keeps the connector instructions short: the full text once (core), a short one on the other four', () => {
+    // Instruction text is sent with every connector, so it costs context five times over.
+    const sizes = Object.fromEntries(
+      (['core', 'play', 'prep', 'build', 'admin'] as const).map(set => [
+        set,
+        toolSetInstructions(resolveToolSets(set)).length,
+      ])
+    );
+    process.stdout.write(`connector instruction size: ${JSON.stringify(sizes)} characters\n`);
+    for (const set of ['play', 'prep', 'build', 'admin'] as const)
+      expect(sizes[set], `${set} instructions`).toBeLessThan(700);
+    expect(sizes.core, 'core keeps the full text').toBeGreaterThan(1500);
   });
 
   it('matches the set lists in docs/reference/TOOL-SETS.md', () => {

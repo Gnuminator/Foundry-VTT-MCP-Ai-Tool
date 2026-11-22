@@ -6,7 +6,7 @@ description: Every tool in the Admin set with its description and parameters. Ge
 
 # Admin tools
 
-Set up and troubleshoot: installed modules and their errors, Foundry settings, modules on or off, user roles, who can open a compendium pack, a journal or a scene, who owns which actor, round token rings for all actors, and the Obsidian mirror settings. Part of the [tool reference](../tools.md); [Tool sets](../TOOL-SETS.md) explains how Claude Desktop loads the sets. Claude Desktop entry: `foundry-mcp-admin`.
+Set up and troubleshoot: installed modules and their errors, Foundry settings, modules on or off, user roles, who can open a pack, journal or scene, who owns which actor, round token rings, and the Obsidian mirror settings. Part of the [tool reference](../tools.md); [Tool sets](../TOOL-SETS.md) explains how Claude Desktop loads the sets. Claude Desktop entry: `foundry-mcp-admin`.
 
 ## plan-ownership-change
 

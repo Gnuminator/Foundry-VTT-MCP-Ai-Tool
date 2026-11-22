@@ -114,6 +114,11 @@ def main(argv: list[str] | None = None) -> int:
     show = sub.add_parser("scenes", help="show the scene split, no Claude call")
     show.add_argument("session")
     show.add_argument("--scene-gap", type=float, default=90.0)
+    chk = sub.add_parser(
+        "check",
+        help="write the 'Names and facts to check' pages and read the answers on them (no Claude call)",
+    )
+    chk.add_argument("session")
     ok = sub.add_parser("approve", help="mark the notes approved (audio is kept, D-097)")
     ok.add_argument("session")
     ok.add_argument("--by", default="GM")
@@ -207,6 +212,23 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         print(outcome.message, file=sys.stderr if outcome.code == 1 else sys.stdout)
         return outcome.code
+    if args.cmd == "check":
+        from . import check
+
+        try:
+            rep = check.sync(session)
+        except FileNotFoundError as exc:
+            print(exc, file=sys.stderr)
+            return 1
+        print(
+            f"{rep.entries} name(s) and {rep.facts} fact(s) to check ({rep.flagged} uncertain words "
+            f"before merging); {rep.answered} answered, {rep.new_answers} new answer(s) read; "
+            f"{len(rep.names_added)} name(s) added to names.txt, {rep.rules_added} rule(s) to rules.json."
+        )
+        for line in rep.conflicts:
+            print(f"Conflict (English page used): {line}")
+        print(f"Pages: {check.page_path(session, 'en')} and {check.page_path(session, 'da')}")
+        return 0
     if args.cmd == "scenes":
         lines = load_timeline(session / "timeline" / "timeline.jsonl")
         for scene in split_scenes(lines, gap=args.scene_gap):

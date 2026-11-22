@@ -145,6 +145,26 @@ is split by scene and the parts are merged. Results are cached in
 stay done). `publish` adds them as sections to the GM summary page only; they are never in the
 player recap.
 
+## Names and facts to check (D-151)
+
+Every run (and `session-notes check <session>`, which makes no Claude call) writes
+`notes/Names and facts to check.en.md` and `.da.md`. One entry per uncertain name: a word the
+transcriber scored under 0.5 that looks like a name (capitalised in mid-sentence, or close to a name in
+`names.txt`; ordinary words are skipped using the pipeline's word lists when the repo is there). Spellings
+of one name are merged ("Jor", "Jors"); each entry has the count, up to six timestamp links
+`[[transcript.en#^u000270|00:39:38]]` and a suggestion from `names.txt`. A few facts are listed too: the
+transcript's character name against `speakers.json`, and a character that `names.txt` does not know.
+
+The reviewer writes after `Answer:` (`Svar:` on the Danish page) the right spelling, `same as X` or `not a
+name`, and saves. `ok` on a name means the heard spelling is right. The next run stores the answers in
+`name-answers.json` (the first answer to an entry is taken; a later edit of that answer on the page is a
+correction and replaces it; the English page wins when the two pages differ; an answer under a heading that
+is not on the list is named in the audit log, not applied), puts new names first in
+`names.txt`, wrong spellings in `rules.json` (the session pipeline's `--rules` file, so a new transcription
+fixes them too), rewrites the transcript lines before Claude sees them and writes again only the scenes where
+a line changed. The filled entries stay on the page with a `Status:` line. The character name in a speaker
+label is not rewritten, only the text.
+
 ## Into Foundry (D-087)
 
 ```bash

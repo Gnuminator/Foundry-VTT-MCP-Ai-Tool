@@ -170,7 +170,7 @@ export const CHECKS = [
     'scripts/lane-plugin-install-check.test.mjs',
     'scripts/heavy-lock.test.mjs',
     'scripts/test-coverage-check.test.mjs',
-    'scripts/planner-wake.test.mjs',
+    'scripts/backlog-items.test.mjs',
     'scripts/backlog.test.mjs',
     'scripts/planner-state.test.mjs',
     'scripts/merge-runner.test.mjs',

@@ -96,8 +96,8 @@ export function recoverMessage(outcomes: RecoverOutcome[]): string | undefined {
       : `${o.dir}: kunne ikke konverteres / could not convert (${o.error ?? 'unknown error'}), raw files kept`
   );
   const head = bi(
-    `Recorderen fandt ${outcomes.length} optagelse(r) fra en stoppet eller nedbrudt kørsel og tog sig af dem ved opstart:`,
-    `The recorder found ${outcomes.length} recording(s) from a stopped or crashed run and handled them on startup:`
+    `Recorderen fandt ${outcomes.length} optagelse(r) fra en stoppet eller nedbrudt kørsel og tog sig af dem:`,
+    `The recorder found ${outcomes.length} recording(s) from a stopped or crashed run and handled them:`
   );
   // A Discord message holds 2000 characters: show the first folders and count the rest.
   const MAX_LINES = 8;
@@ -107,4 +107,27 @@ export function recoverMessage(outcomes: RecoverOutcome[]): string | undefined {
     shown.push(`... og ${more} flere / and ${more} more`);
   }
   return `${head}\n${shown.join('\n')}`;
+}
+
+/** How often the bot looks for orphans again after the startup pass (a crash half younger than the guard waits for this). */
+const RECOVER_RETRY_INTERVAL_MS = 15 * 60 * 1000;
+
+/**
+ * Run `pass` every `intervalMs` (an unref'd timer) so a run the startup pass skipped as too fresh
+ * is converted on a later one. A pass still running is not started twice. Returns the stop function.
+ */
+export function startRecoverRetry(
+  pass: () => Promise<void>,
+  intervalMs: number = RECOVER_RETRY_INTERVAL_MS
+): () => void {
+  let running = false;
+  const timer = setInterval(() => {
+    if (running) return;
+    running = true;
+    void pass().finally(() => {
+      running = false;
+    });
+  }, intervalMs);
+  timer.unref();
+  return () => clearInterval(timer);
 }

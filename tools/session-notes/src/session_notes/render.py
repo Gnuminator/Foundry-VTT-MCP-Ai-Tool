@@ -20,6 +20,7 @@ from typing import Any
 
 from . import extras, layers
 from .model import Line, Roster, clock
+from .npcs import label as npc_label
 
 LANGS = ("da", "en")
 HEAD = {
@@ -124,7 +125,7 @@ def render_scenes(
                 if key == "quotes":
                     out.append(f"- \"{e[lang]}\"{_cite([e['id']], lang, starts)}")
                 elif key == "npcs":
-                    out.append(f"- **{e['name']}**: {e[lang]}{_cite(e['cites'], lang, starts)}")
+                    out.append(f"- **{npc_label(e, lang)}**: {e[lang]}{_cite(e['cites'], lang, starts)}")
                 else:
                     out.append(f"- {e[lang]}{_cite(e['cites'], lang, starts)}")
             out.append("")

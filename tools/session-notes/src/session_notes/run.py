@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from . import extras
+from . import extras, npcs
 from .claude_runner import AuthError, ClaudeError, Runner, UsageLimitError
 from .layers import (
     DEPTH_SCHEMA,
@@ -198,6 +198,9 @@ class Writer:
             list(pool.map(work, todo))
         notes = [done[i] for i in sorted(done)]
         paused_reason = paused[0] if paused else None
+        renamed = npcs.canonicalize(notes)
+        if renamed:
+            self._log("npc_names_merged", renamed=renamed)
 
         session_notes: dict[str, Any] | None = None
         complete = paused_reason is None and len(notes) == len(scenes) and not retry

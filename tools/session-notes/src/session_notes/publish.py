@@ -31,6 +31,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from .npcs import label as npc_label
 from .retention import APPROVED, approve
 
 DEFAULT_PORT = 31414
@@ -203,7 +204,7 @@ def scenes_html(scenes: list[dict[str, Any]]) -> str:
                 for e in entries:
                     text = e.get(lang) or ""
                     if key == "npcs":
-                        items.append(f"**{e.get('name', '')}**: {text}")
+                        items.append(f"**{npc_label(e, lang)}**: {text}")
                     elif key == "quotes":
                         items.append(f'"{text}"')
                     else:

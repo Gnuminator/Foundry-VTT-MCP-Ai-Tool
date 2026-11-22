@@ -108,7 +108,7 @@ def _slim(scene: dict[str, Any]) -> dict[str, Any]:
         entries = scene.get(key) or []
         if entries:
             out[key] = [
-                {k: v for k, v in e.items() if k in ("name", "en", "cites")} for e in entries
+                {k: v for k, v in e.items() if k in ("name", "name_en", "aliases", "en", "cites")} for e in entries
             ]
     return out
 

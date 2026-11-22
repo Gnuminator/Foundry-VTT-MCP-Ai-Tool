@@ -25,7 +25,9 @@ def _list(item: dict[str, Any]) -> dict[str, Any]:
 
 
 ITEM = _obj(da=_STR, en=_STR, cites=_IDS)
-NPC = _obj(name=_STR, da=_STR, en=_STR, cites=_IDS)
+NPC = _obj(
+    name_da=_STR, name_en=_STR, aliases={"type": "array", "items": _STR}, da=_STR, en=_STR, cites=_IDS
+)
 QUOTE = _obj(id=_STR, da=_STR, en=_STR)
 LINE = _obj(id=_STR, da=_STR, en=_STR, ooc={"type": "boolean"})
 
@@ -80,8 +82,17 @@ Notes (Danish `da` and English `en` for every entry):
   debates) is not an event; use it only where it settles something in the game (a ruling,
   a roll result, a choice).
 - Name characters, not players, wherever the roster says who plays whom.
+- Pronouns: use the pronouns the roster gives for a person. Where it gives none, use they/them
+  (or the name); never guess someone's pronouns from a name or a role, and never write "she" for
+  the GM unless the roster says so.
 - events: what happened in the story, in order. decisions: choices the party made.
 - npcs: non-player characters who appear or are talked about (not the player characters).
+  Give each NPC `name_da` and `name_en`: a proper name stays as spoken in both; a title or
+  description the table uses as a name is translated (Danish "Kommandøren" is "The Commander" in
+  `name_en`, "Fuld soldat" is "Drunk soldier"), so English notes never carry Danish labels.
+  One NPC is one entry: when speech recognition or the table spells the same name in several
+  ways (Vesperholt, Vesperhult), use one entry, put the best spelling in the name fields and the
+  other spellings in `aliases` (empty list when there are none).
 - loot: items, money or information gained or lost. threads: open questions and hooks.
 - dice: only natural 20s, natural 1s and rolls that changed the outcome dramatically.
 - quotes: at most three memorable lines, by line id.
@@ -99,6 +110,11 @@ English (`en`):
   hit points, armor class, initiative, spell slot, advantage, token, D&D, and the like. The Danish
   text is Danish sentences with these English words (for example "han klarede sit saving throw"),
   never a pure Danish translation such as "redningskast" or "angreb".
+- Pronouns: use the pronouns the roster gives for a person; where it gives none, use they/them
+  (or the name). Never guess from a name or a role, and never write "she" for the GM unless the
+  roster says so.
+- NPCs: in the English text use each NPC's `name_en` from the notes, in the Danish text
+  `name_da`; never leave a Danish label in English text.
 - title: a short title for the session.
 - summary: up to 400 words for the GM (shorter when little happened), in story order, may include gm_only material.
 - changed: up to 8 bullets on what changed in the world or for the party (none if nothing did).
@@ -111,15 +127,20 @@ Use only what is in the notes. Leave out table talk that did not happen in the g
 """
 
 
+def _pron(roster: Roster, player: str) -> str:
+    pr = roster.pronouns.get(player)
+    return f" ({pr})" if pr else " (pronouns not given: use they/them)"
+
+
 def roster_block(roster: Roster) -> str:
     rows = []
     for p, c in roster.players.items():
         if is_gm(c):
-            rows.append(f"- {p} is the GM (narrates, rules, plays all NPCs)")
+            rows.append(f"- {p} is the GM (narrates, rules, plays all NPCs){_pron(roster, p)}")
         elif c and c != p:
-            rows.append(f"- {p} plays {c}")
+            rows.append(f"- {p} plays {c}{_pron(roster, p)}")
         else:
-            rows.append(f"- {p} (character unknown)")
+            rows.append(f"- {p} (character unknown){_pron(roster, p)}")
     names = ", ".join(roster.names) if roster.names else "(none given)"
     return "Players:\n" + "\n".join(rows) + f"\nKnown names (spell them like this): {names}\n"
 

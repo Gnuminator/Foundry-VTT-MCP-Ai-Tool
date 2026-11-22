@@ -18,7 +18,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from . import layers
+from . import extras, layers
 from .model import Line, Roster, clock
 
 LANGS = ("da", "en")
@@ -159,6 +159,7 @@ def write_outputs(
     notes: list[dict[str, Any]],
     session: dict[str, Any] | None,
     depth: dict[int, dict[str, Any]] | None = None,
+    extra: dict[str, dict[str, Any] | None] | None = None,
 ) -> list[Path]:
     """``depth`` is None unless the three Danish layers are on (I-066): then raw, in-depth and
     index files are written too (an empty dict means no in-depth notes yet)."""
@@ -184,8 +185,19 @@ def write_outputs(
         depth_complete = not incomplete and all(i in depth for i in wanted)
         put("raw.da.md", layers.render_raw(lines, notes))
         put("depth.da.md", layers.render_depth(lines, notes, depth, not depth_complete))
-        put("index.da.md", layers.render_index(session, depth_complete))
-        layers_info = {"depth_complete": depth_complete}
+        extra = extra or {}
+        for lang in LANGS:
+            chars = extra.get("characters")
+            put(f"characters.{lang}.md", extras.render_characters(lang, lines, roster, chars))
+            put(f"remember.{lang}.md", extras.render_remember(lang, lines, extra.get("remember")))
+        chars_done = not incomplete and extra.get("characters") is not None
+        remember_done = not incomplete and extra.get("remember") is not None
+        put("index.da.md", layers.render_index(session, depth_complete, chars_done, remember_done))
+        layers_info = {
+            "depth_complete": depth_complete,
+            "characters_complete": chars_done,
+            "remember_complete": remember_done,
+        }
     put(
         "notes.json",
         json.dumps(
@@ -196,6 +208,8 @@ def write_outputs(
                 "scenes": notes,
                 "session": session,
                 "depth": {str(k): v for k, v in (depth or {}).items()} or None,
+                "characters": (extra or {}).get("characters"),
+                "remember": (extra or {}).get("remember"),
                 "layers": layers_info,
             },
             ensure_ascii=False,

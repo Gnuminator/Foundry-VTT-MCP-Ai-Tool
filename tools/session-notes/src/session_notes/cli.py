@@ -248,19 +248,23 @@ def main(argv: list[str] | None = None) -> int:
     counts = {
         "scenes": result.scenes,
         "fallbacks": result.fallbacks,
-        "pending": result.pending + result.depth_missing,
+        "pending": result.pending + result.depth_missing + result.extras_missing,
     }
     if result.paused:
         why = "" if result.login_needed else "Paused by a usage limit: "
         print(f"{why}{result.paused}\nRun the same command again later.")
         write_status(session, "paused", f"{why}{result.paused}", **counts)
         return EXIT_PAUSED
-    if result.pending or result.depth_missing:
+    if result.pending or result.depth_missing or result.extras_missing:
         parts = []
         if result.pending:
             parts.append(f"{result.pending} scene(s) could not be written and are kept raw for now")
         if result.depth_missing:
             parts.append(f"{result.depth_missing} scene(s) have no in-depth notes yet")
+        if result.extras_missing:
+            parts.append(
+                f"{result.extras_missing} of the character and worth-remembering notes are not written yet"
+            )
         msg = "; ".join(parts) + "."
         print(f"{msg} Run the same command again to try them again.")
         write_status(session, "incomplete", msg, **counts)

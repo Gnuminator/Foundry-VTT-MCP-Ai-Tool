@@ -88,7 +88,17 @@ class FakeClaude:
         n = len(self.calls) + 1
         self.efforts.append(effort)
         props = schema["properties"]
-        kind = "scene" if "lines" in props else "depth" if "beats" in props else "session"
+        kind = (
+            "scene"
+            if "lines" in props
+            else "depth"
+            if "beats" in props
+            else "characters"
+            if "characters" in props
+            else "remember"
+            if "items" in props
+            else "session"
+        )
         self.calls.append((kind, prompt))
         if self.fail.get(n) == "limit":
             raise UsageLimitError("Claude usage limit reached")
@@ -98,6 +108,25 @@ class FakeClaude:
             raise ClaudeError("boom")
         if kind == "session":
             return dict(SESSION_ANSWER)
+        if kind in ("characters", "remember"):
+            ids = re.findall(r"\bu\d{6}\b", prompt)
+            point = {"da": "Punkt", "en": "Point", "cites": [ids[0], "u999999"]}
+            if kind == "remember":
+                return {"items": [{"kind": "agreement", **point}, {"kind": "weird", **point}]}
+            chars = re.findall(r"^- (\S+) \(played by (\S+)\)$", prompt, re.M)
+            return {
+                "characters": [
+                    {
+                        "name": c,
+                        "player": p,
+                        "revealed": [point],
+                        "choices": [],
+                        "ties": [point],
+                        "hooks": [],
+                    }
+                    for c, p in chars
+                ]
+            }
         if kind == "depth":
             ids = re.findall(r"^(u\d{6}) \[", prompt, re.M)
             return {

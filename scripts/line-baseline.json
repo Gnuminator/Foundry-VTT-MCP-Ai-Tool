@@ -27,7 +27,7 @@
     "scripts/test-kit/lib/dashboard-controls.mjs": 1305,
     "scripts/test-kit/lib/fake/origins.mjs": 1051,
     "scripts/test-kit/lib/features.mjs": 1387,
-    "scripts/test-kit/lib/gm-actions.mjs": 1975,
+    "scripts/test-kit/lib/gm-actions.mjs": 1977,
     "scripts/test-kit/lib/monsters.mjs": 1187,
     "scripts/test-kit/lib/origins.mjs": 1038,
     "scripts/test-kit/lib/spells-deep.mjs": 1020
@@ -121,6 +121,12 @@
       "file": ".claude/hooks/guard-remote-commands.mjs",
       "lines": 1034,
       "reason": "the stack_docker/stack_compose rule of PR 1230 (the guard must read the command and non-stage files apart from the reviewed stage scripts); the guard is one rule table",
+      "pr": ""
+    },
+    {
+      "file": "scripts/test-kit/lib/gm-actions.mjs",
+      "lines": 1977,
+      "reason": "targetToken lives in target-token.mjs; the import and the registry entry add 2 lines to the GM action table",
       "pr": ""
     },
     {

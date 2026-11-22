@@ -146,12 +146,12 @@ export const DASHBOARD_CONTROLS = [
   ].map(name => ({
     name,
     how: 'skip',
-    why: 'only on the live strip page (/next?strip=1); the e2e specs or the live check cover it',
+    why: 'only on the live strip page (/next?strip=1); the dashboard-live-strip scenario and the e2e specs cover it',
   })),
   {
     name: 'dash.live.monster-action',
     how: 'skip',
-    why: 'only on the live strip page (/next?strip=1); the unit tests of monster-actions.ts cover the words and the damage steps; no e2e or live check drives the button yet',
+    why: 'only on the live strip page (/next?strip=1); the dashboard-live-strip scenario clicks it against real Foundry, and the unit tests of monster-actions.ts cover the words and the damage steps',
   },
   ...[
     'dash.changes.ai-only',

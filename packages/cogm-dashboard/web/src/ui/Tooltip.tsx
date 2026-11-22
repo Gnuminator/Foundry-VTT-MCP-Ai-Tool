@@ -84,7 +84,7 @@ interface TooltipProps {
  */
 export function Tooltip({ content, side = 'top', children }: TooltipProps): JSX.Element {
   const tabbing = useContext(ProviderContext);
-  const [Impl, setImpl] = useState<Impl | null>(loaded);
+  const [Impl, setImpl] = useState<Impl | null>(() => loaded);
   // Swapping in the Radix tree remounts the control, which would drop its focus: while it has
   // focus the swap waits for the blur.
   const focused = useRef(false);

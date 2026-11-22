@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from . import extras, npcs
+from . import check, extras, npcs
 from .claude_runner import AuthError, ClaudeError, Runner, UsageLimitError
 from .layers import (
     DEPTH_SCHEMA,
@@ -131,6 +131,14 @@ class Writer:
         self._log("scene_fallback", scene=scene.index, lines=len(scene.lines))
         return raw_fallback(scene)
 
+    @staticmethod
+    def _text_key(scene: Scene, changed: set[str]) -> str:
+        """Empty unless a names answer rewrote a line of this scene: then the scene is written again."""
+        if not changed.intersection(scene.ids):
+            return ""
+        joined = "\n".join(ln.text for ln in scene.lines)
+        return hashlib.sha256(joined.encode("utf-8")).hexdigest()
+
     # --- the whole session -------------------------------------------------------------------
 
     def run(self) -> RunResult:
@@ -139,7 +147,12 @@ class Writer:
         timeline = self.session / "timeline" / "timeline.jsonl"
         if not timeline.exists():
             raise FileNotFoundError(f"No timeline at {timeline}; run the session pipeline first.")
+        # Answers on the names page go into names.txt and rules.json first; the page is written again.
+        report = check.sync(self.session)
+        self._log("names_check", flagged=report.flagged, entries=report.entries, facts=report.facts,
+                  answered=report.answered, new_answers=report.new_answers)
         lines = apply_speakers(load_timeline(timeline), self.session)
+        lines, changed = check.apply_answers(self.session, lines)
         roster = load_roster(self.session, lines)
         self.pron_key = json.dumps(roster.pronouns, ensure_ascii=False, sort_keys=True)
         self.rules_key = hashlib.sha256(
@@ -161,6 +174,8 @@ class Writer:
                 # (an older run cached raw scenes as done, so they are tried again here)
                 raw = bool(data["notes"].get("fallback"))
                 if data.get("ids") == scene.ids and data.get("rules") == self.rules_key and (
+                    data.get("textkey", "") == self._text_key(scene, changed)
+                ) and (
                     not raw or self._fallback_tries(scene) >= MAX_FALLBACK_RUNS
                 ):
                     done[scene.index] = data["notes"]
@@ -195,7 +210,13 @@ class Writer:
                 return
             (self.work / f"scene-{scene.index:03d}.json").write_text(
                 json.dumps(
-                    {"ids": scene.ids, "rules": self.rules_key, "notes": result}, ensure_ascii=False
+                    {
+                        "ids": scene.ids,
+                        "rules": self.rules_key,
+                        "textkey": self._text_key(scene, changed),
+                        "notes": result,
+                    },
+                    ensure_ascii=False,
                 ),
                 encoding="utf-8",
             )

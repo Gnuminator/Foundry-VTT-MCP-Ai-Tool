@@ -710,6 +710,7 @@ const NOT_CONTRACT = [
   'client-versions',
   'combat-change',
   'export-index',
+  'tested-versions',
   'foundry-setup',
   'handout-press',
   'index',

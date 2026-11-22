@@ -28,7 +28,7 @@ same email code as Foundry.
 ## The D&D helper address
 
 Nothing to send. At the bottom of My character, the card **Your Claude connector** (tap it to open
-it) shows the web address for the D&D helper. A player copies it, opens Claude, Settings, Connectors, **Add custom
+it) shows the web address for the D&D helper. A player copies it, opens Claude, Settings, Plugins, **Add custom
 connector**, pastes it and presses **Connect**, then signs in with their own email (Cloudflare mails a
 code). If the card or the web address is missing, the helper is not set up for that player yet: ask
 Gnuminator.

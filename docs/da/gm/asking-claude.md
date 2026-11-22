@@ -1,6 +1,6 @@
 ---
 source: gm/asking-claude.md
-sourceHash: 8aa1ddb930e3
+sourceHash: 9e9f477db135
 title: Spørg Claude
 description: Sådan bruger du Claude Desktop med værktøjet, gode forespørgsler, de færdige prompts, hvordan Claudes ændringer godkendes, og hvad Claude ikke kan.
 ---
@@ -60,7 +60,7 @@ Forespørgsler der går galt:
 ## Tool sets: hvilke kontakter du skal tænde
 
 Claude Desktop viser værktøjet som fem punkter, ét pr. tool set, hver med sin egen kontakt i
-**+**-menuen under beskedfeltet, så **Connectors** (det præcise sted kan flytte sig mellem versioner
+**+**-menuen under beskedfeltet, så **Plugins** (det præcise sted kan flytte sig mellem versioner
 af Claude Desktop). Claude læser alle værktøjer, der er tændt, når en chat starter, så færre kontakter
 giver mere plads til din samtale og færre forkerte valg. Kontakterne bliver, som du lod dem, i nye
 chats.

@@ -93,3 +93,11 @@ if (-not $Upload) {
   Write-Host 'Built and checked; nothing was sent to the Pi. Next (a session, after a dietpi-backup 1 snapshot and your OK):'
   Write-Host '  .\scripts\plan-b\push-back.ps1 -Upload, then the stage 11 command it prints.'
 }
+
+# The bundle carries the world only. The bridge vault is not in it (nothing in stage 11 reads one).
+Write-Host ''
+Write-Host 'NOT carried back: the bridge vault, all bridge data of that night (Undo list, session log, Tarokka, omens, downtime, handout reveals).'
+Write-Host "  It stays on this PC in $($L.VaultDir) and the Pi's vault will lack it."
+Write-Host '  stop.ps1 -Clean -PushedBack DELETES it. To keep it, copy it on this PC first (no Pi change):'
+Write-Host "    Copy-Item -Recurse `"$($L.VaultDir)`" `"$($L.Root)-vault-$(Get-Date -Format yyyyMMdd)`""
+Write-Host '  Putting it into the Pi vault needs a reviewed stage script with a snapshot and a stopped bridge; there is none yet.'

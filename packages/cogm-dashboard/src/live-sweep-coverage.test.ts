@@ -13,24 +13,14 @@ const read = (relative: string): string =>
  * the reason. A new write tool gets a sweep step in the same PR, or an entry here.
  */
 const RECORDED_SKIPS: Record<string, string> = {
-  'plan-scene-mood':
-    'ships off (feature scene-mood) and needs a playlist in the world (I-034, I-129); checked by hand on server A (save, apply, music switch, undo), see the PR',
   'plan-actor-image':
     'needs a picture file in an allowed folder on the PC (FOUNDRY_AI_TOOL_IMAGE_ROOTS); checked by hand on server A (plan, apply, actor read back, file served, undo, a file outside the folder refused, a 3 MB picture), see the PR',
   'plan-handout-press':
     'ships off (feature handouts) and needs Edge or Chrome on the PC to render; checked by hand on server B (letter, notice and card planned in about 1 s each, applied hidden, queued, revealed, picture served, undo), see the PR',
   'plan-token-rings':
     'ships off (feature token-rings); bulk write on every actor of the world (I-093); checked by hand on the strahd-kit copy on server C (plan, apply 150, apply the 7 left, new tokens ringed, undo both, ring count back to 0), and for tokens placed on a scene on server C (scenes without placed refused, plan one named token with a missing scene and name reported, apply, ring on, undo, ring off), see the PRs',
-  'plan-macro':
-    'ships off (feature macro-forge); creates a script Macro that runs only for a GM; checked by hand on a test server (the live check is recorded in the PR: plan shows the full source and a summary, a macro that sends data out refused, apply, undo, redo), see the PR',
   'plan-table-viewer':
     'creates a Foundry user; checked by hand on server A (plan, apply, join as Table, undo), see the PR',
-  'plan-foundry-setup':
-    'ships off behind the "Foundry setup" switch (D-135); checked by hand on a test server (hide a pack from players, change and restore a setting, undo each, a refused value outside the choices, a refused Assistant GM downgrade), see the PR',
-  'plan-npc-turn':
-    'ships off behind the "NPC turn assistant" switch (I-125); checked by hand on server A (small combat: read, plan a move, apply, undo), see the PR',
-  'plan-paper-sync':
-    'ships off behind the "Paper sync" switch (Paper nights A); checked by hand on a test server (plan, apply, undo, a refused value above the maximum, an item removal with its second confirm), see the PR',
   'plan-scene-restore':
     'needs a backup copy of the world on disk and Foundry app files (I-128); checked by hand on server A (break a scene, restore, undo), see the PR',
   'plan-pc-creation':
@@ -39,8 +29,6 @@ const RECORDED_SKIPS: Record<string, string> = {
     'needs a faction actor and the dnd5e "Renown Scores" setting, which the sweep world lacks (D-146); checked by hand on server B on dnd5e 6.1.1 (adjust create and update, set-member, undo, a bogus member refused), see the PR',
   'draft-omens':
     'writes only the bridge vault omens list and never Foundry (I-181); the draft, approve, send and undo-free flow is covered by the omens store tests and checked by hand on a test server with a second Discord account, see the PR',
-  'plan-room-setup':
-    'ships off behind the "Room setup" switch (I-133); checked by hand on server A (teleport and spawn: plan, apply, walk a token through, undo), see the PR',
 };
 
 /**

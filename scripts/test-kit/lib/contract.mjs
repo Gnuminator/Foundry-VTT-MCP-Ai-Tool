@@ -418,7 +418,8 @@ export const GM_ACTIONS = {
  * @property {number} version         {@link KIT_FORMAT_VERSION}
  * @property {string} world
  * @property {string} builtAt         ISO time
- * @property {string} systemVersion
+ * @property {string} systemVersion   the dnd5e version
+ * @property {string} [coreVersion]   the Foundry build (builds from before it was kept lack it)
  * @property {Record<string, string>} folders   type -> folderId
  * @property {string} profile         the content profile id
  * @property {Array<{actorId: string, name: string, classIdentifier: string, level: number, tokenId?: string,

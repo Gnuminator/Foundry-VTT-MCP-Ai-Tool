@@ -1,5 +1,13 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -76,6 +84,12 @@ test('a name already in the archive gets a prefix and nothing is lost', () => {
     assert.deepEqual(failed, []);
     assert.equal(moved.length, 2);
     assert.ok(!existsSync(path.join(w, 'sessions', '2026-11-17.jsonl')));
+    // The planted folder is untouched and the moved file sits beside it under a prefixed name.
+    const archSessions = path.join(root, 'vault-archive', 'kit-world', 'sessions');
+    assert.ok(existsSync(path.join(archSessions, '2026-11-17.jsonl', 'f')));
+    const prefixed = readdirSync(archSessions).filter((n) => /^\d+-2026-11-17\.jsonl$/.test(n));
+    assert.equal(prefixed.length, 1);
+    assert.equal(readFileSync(path.join(archSessions, prefixed[0]), 'utf8'), big);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

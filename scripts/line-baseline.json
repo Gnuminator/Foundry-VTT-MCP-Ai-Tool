@@ -13,8 +13,8 @@
     "packages/mcp-server/src/guarded-write/service.ts": 1548,
     "packages/mcp-server/src/handouts/service.ts": 1296,
     "packages/mcp-server/src/obsidian/library-sync.ts": 1240,
-    "packages/mcp-server/src/obsidian/mirror-pump.ts": 2146,
-    "packages/mcp-server/src/obsidian/mirror-render.ts": 1503,
+    "packages/mcp-server/src/obsidian/mirror-pump.ts": 2151,
+    "packages/mcp-server/src/obsidian/mirror-render.ts": 1510,
     "packages/mcp-server/src/obsidian/render.ts": 1172,
     "packages/mcp-server/src/stats/build.ts": 1035,
     "packages/mcp-server/src/tools/character.ts": 1045,
@@ -22,7 +22,7 @@
     "packages/mcp-server/src/tools/dnd5e/add-feature.ts": 1189,
     "packages/mcp-server/src/tools/quest-creation.ts": 1346,
     "scripts/green.mjs": 1209,
-    "scripts/live-write-sweep.mjs": 1690,
+    "scripts/live-write-sweep.mjs": 1856,
     "scripts/merge-runner.mjs": 1069,
     "scripts/test-kit/lib/dashboard-controls.mjs": 1305,
     "scripts/test-kit/lib/fake/origins.mjs": 1051,
@@ -128,6 +128,30 @@
       "lines": 1977,
       "reason": "targetToken lives in target-token.mjs; the import and the registry entry add 2 lines to the GM action table",
       "pr": ""
+    },
+    {
+      "file": "scripts/live-write-sweep.mjs",
+      "lines": 1850,
+      "reason": "the sweep keeps every step and its helpers in one file; the new plan-tool steps share them (write-sweep-new-plans); a split is its own item",
+      "pr": ""
+    },
+    {
+      "file": "scripts/live-write-sweep.mjs",
+      "lines": 1856,
+      "reason": "the sweep keeps every step and its helpers in one file; the new plan-tool steps share them (write-sweep-new-plans); a split is its own item",
+      "pr": ""
+    },
+    {
+      "file": "packages/mcp-server/src/obsidian/mirror-pump.ts",
+      "lines": 2151,
+      "reason": "+5..7 lines for the sync-conflict status list; one field through scan, status and render, not worth a split",
+      "pr": "1270"
+    },
+    {
+      "file": "packages/mcp-server/src/obsidian/mirror-render.ts",
+      "lines": 1510,
+      "reason": "+5..7 lines for the sync-conflict status list; one field through scan, status and render, not worth a split",
+      "pr": "1270"
     }
   ]
 }

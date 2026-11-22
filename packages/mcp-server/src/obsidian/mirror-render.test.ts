@@ -1873,6 +1873,7 @@ function fullStatus(): MirrorStatus {
     ],
     movedByGm: [{ path: 'Prep/Moved Wolf.md', uuid: NPC_UUID }],
     duplicates: [{ path: 'AI Tool/Foundry/NPCs/Wolf copy.md', uuid: NPC_UUID }],
+    syncConflicts: ['AI Tool/Foundry/NPCs/Wolf.sync-conflict-20261122-190000-ABCDEFG.md'],
     keptDeleted: [{ path: 'AI Tool/Foundry/Items/Old.md', uuid: `Item.${fid('old')}` }],
     truncated: [{ kind: 'actor', total: 6000, cap: 5000 }],
     errors: [{ path: 'AI Tool/Foundry/Journals/Maravia/Village.md', error: 'bad markup `x`' }],
@@ -1906,7 +1907,7 @@ describe('renderMirrorStatusNote', () => {
         - "campaign/sorvan-test"
         - "mirror-status"
       generated_by: "foundry-ai-tool"
-      generated_hash: "8f5c781e3ff26244"
+      generated_hash: "26cffbca73a38c59"
       ---
       # Foundry mirror status
 
@@ -1937,6 +1938,12 @@ describe('renderMirrorStatusNote', () => {
       - (none)
 
       ## Duplicates (a document with more than one note)
+
+      - (none)
+
+      ## Sync conflict copies (safe to delete)
+
+      Syncthing made these when a note changed on two PCs at once. The mirror ignores them; delete them once you have checked the note they belong to.
 
       - (none)
 
@@ -1976,7 +1983,7 @@ describe('renderMirrorStatusNote', () => {
         - "campaign/sorvan-test"
         - "mirror-status"
       generated_by: "foundry-ai-tool"
-      generated_hash: "38836df45ce17e08"
+      generated_hash: "5145bd9ad4860cc2"
       ---
       # Foundry mirror status
 
@@ -2010,6 +2017,12 @@ describe('renderMirrorStatusNote', () => {
       ## Duplicates (a document with more than one note)
 
       - \`AI Tool/Foundry/NPCs/Wolf copy.md\` (\`Actor.npc1000000000000\`)
+
+      ## Sync conflict copies (safe to delete)
+
+      Syncthing made these when a note changed on two PCs at once. The mirror ignores them; delete them once you have checked the note they belong to.
+
+      - \`AI Tool/Foundry/NPCs/Wolf.sync-conflict-20261122-190000-ABCDEFG.md\`
 
       ## Deleted in Foundry, kept because you edited the note
 

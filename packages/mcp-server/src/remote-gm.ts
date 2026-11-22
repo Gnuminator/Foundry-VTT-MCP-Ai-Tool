@@ -3,7 +3,7 @@
  * `remote_gm_list` and `remote_gm_call` that the dashboard's `/mcp/<set>` routes (core, play,
  * prep, build, admin) forward to once Cloudflare Access has signed the GM in. One path serves
  * one tool set, exactly as one stdio wrapper entry does, so the per-set token budgets, the
- * Search and tools switches and the server instructions stay as they are. Plan, confirm and
+ * connector switches and the server instructions stay as they are. Plan, confirm and
  * undo live in the tool routes and are untouched.
  *
  * No I/O of its own: the backend passes in the tool list, the router call and the call log.

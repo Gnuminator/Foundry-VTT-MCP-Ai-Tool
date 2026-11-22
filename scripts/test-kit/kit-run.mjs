@@ -308,7 +308,7 @@ export function noteRow(r) {
   return `| ${[
     localTime(r.at),
     r.pc,
-    `${r.size} ${r.profile}${r.nightly ? ' nightly' : ''}${r.server ? ` on ${r.server}` : ''}`,
+    `${r.size} ${r.profile}${r.nightly ? ' nightly' : ''}${r.server ? ` on ${r.server}` : ''}${r.versions ? ` (${r.versions})` : ''}`,
     `${r.git}${r.branch ? ` (${r.branch})` : ''}`,
     resultText(r),
     shown,
@@ -397,11 +397,14 @@ export function writeLastRun(home, r) {
   return file;
 }
 
-/** True when the repo has uncommitted changes (the run did not test exactly its git sha). */
+/**
+ * True when tracked files have uncommitted changes (the run did not test exactly its git sha).
+ * Untracked files do not count: a run that leaves some behind would otherwise flag every run.
+ */
 function treeIsDirty() {
   try {
     return (
-      execFileSync('git', ['status', '--porcelain'], {
+      execFileSync('git', ['status', '--porcelain', '--untracked-files=no'], {
         cwd: REPO_ROOT,
         encoding: 'utf8',
       }).trim() !== ''
@@ -434,6 +437,14 @@ export function recordFlakes(home, dir, r, dirty = treeIsDirty()) {
   }
 }
 
+/** "Foundry 14.370, dnd5e 6.0.6" from a report's build block; empty when it has neither. */
+export function versionText(build) {
+  const parts = [];
+  if (build?.coreVersion) parts.push(`Foundry ${build.coreVersion}`);
+  if (build?.systemVersion) parts.push(`dnd5e ${build.systemVersion}`);
+  return parts.join(', ');
+}
+
 /** Reads the kit's report.json into the result. */
 export function readReport(dir, r) {
   const file = path.join(dir, 'report.json');
@@ -453,6 +464,7 @@ export function readReport(dir, r) {
     skipped: s.skipped ?? 0,
     total: s.total ?? 0,
     newConsole: fresh,
+    versions: versionText(report.build),
     failing: (report.scenarios || [])
       .filter(x => x.status === 'fail' || x.status === 'error')
       .map(x => String(x.id).slice(0, 60)),

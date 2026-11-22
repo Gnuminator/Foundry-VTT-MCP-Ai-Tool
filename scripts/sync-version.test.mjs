@@ -17,6 +17,20 @@ test('the player extension carries the release number (manifest and VERSION cons
   assert.equal(/const VERSION = '([^']+)'/.exec(server)?.[1], rootVersion);
 });
 
+test('--tested refuses a malformed pair and writes nothing', () => {
+  const script = path.join(repo, 'scripts/sync-version.mjs');
+  const file = path.join(repo, 'shared/src/tested-versions.ts');
+  const before = fs.readFileSync(file, 'utf8');
+  const bad = spawnSync(process.execPath, [script, '--tested', 'fourteen', '6.0.6'], {
+    encoding: 'utf8',
+  });
+  assert.equal(bad.status, 1);
+  assert.match(bad.stderr, /usage: --tested/);
+  assert.equal(fs.readFileSync(file, 'utf8'), before);
+  assert.match(before, /TESTED_FOUNDRY_BUILD = '\d+\.\d+';/);
+  assert.match(before, /TESTED_DND5E_VERSION = '\d+\.\d+\.\d+';/);
+});
+
 test('--check passes and names the player extension targets', () => {
   const script = path.join(repo, 'scripts/sync-version.mjs');
   const ok = spawnSync(process.execPath, [script, '--check'], { encoding: 'utf8' });

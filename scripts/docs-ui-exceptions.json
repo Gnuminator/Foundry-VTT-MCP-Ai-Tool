@@ -25,7 +25,6 @@
     },
     { "name": "Plugins", "reason": "Claude Desktop menu" },
     { "name": "Quit", "reason": "Claude Desktop tray menu" },
-    { "name": "Search and tools", "reason": "Claude Desktop chat box menu" },
     { "name": "foundry-mcp-admin", "reason": "Claude Desktop connector name" },
     { "name": "Basics", "reason": "Foundry scene configuration tab" },
     { "name": "Save Changes", "reason": "Foundry configuration dialog button" },
@@ -71,7 +70,6 @@
     { "name": "[+] Cantrips", "reason": "Actor Studio spell step button" },
     { "name": "Finalize Spells", "reason": "Actor Studio button" },
     { "name": "Add Character Level", "reason": "Actor Studio button" },
-    { "name": "Take Average", "reason": "Actor Studio hit point button" },
     { "name": "User Configuration", "reason": "Foundry player configuration window" },
     { "name": "Save Player Configuration", "reason": "Foundry player configuration button" },
     {

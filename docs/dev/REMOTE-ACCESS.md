@@ -36,7 +36,11 @@ What goes through the tunnel, and nothing else:
 
 The five GM web connectors, when deployed, add one more application with Managed OAuth and the GM
 email policy only (see "The GM remote connector"). The live state is checked against a saved copy
-with the `cloudflare-work` skill's drift check.
+with the `cloudflare-work` skill's drift check. It covers the applications and their policies, DNS,
+every tunnel by name, each tunnel route (hostname, path, service, the origin Access check), the Transform
+Rules, Worker routes and each Access service token's expiry (a warning under 60 days). Run it in the full
+kit checklist before each gate and in the planner's weekly check; a test fails when the read code gets a
+field the compare does not check.
 
 ### Edge rules (Cloudflare Transform Rules)
 

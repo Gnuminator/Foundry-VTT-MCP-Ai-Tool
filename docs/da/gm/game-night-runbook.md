@@ -1,6 +1,6 @@
 ---
 source: gm/game-night-runbook.md
-sourceHash: 712c233dc932
+sourceHash: 4fb296796d41
 title: Spilaftenens runbook
 description: Én side til selve aftenen. Hvad du gør, når Foundry, en spiller, Claude, dashboardet eller hjemmeserveren fejler, og hvornår du råber om hjælp.
 ---
@@ -63,7 +63,7 @@ Bliv ved med at spille: lav ændringen i hånden i Foundry.
 - **Hvert værktøjskald fejler:** Claude har mistet forbindelsen til spillet. I pausen lukker du Claude
   Desktop helt og starter det igen. Hjælper det ikke, så råb om hjælp efter sessionen.
 
-> **Usikker? Spørg Claude.** Spørg GM coach: "Claude holdt op med at svare under spillet. Hvad kan jeg stadig gøre, og hvad gør jeg ved det i pausen?" ([sådan tilføjer du GM coach](gm-coach.md))
+> **Usikker? Spørg Claude.** Spørg GM coach: "Claude holdt op med at svare under spillet. Hvad kan jeg stadig gøre, og hvad gør jeg ved det i pausen?" ([sådan tilføjer du GM coach](gm-coach.md)) Coachen har kun brug for Claude selv, ikke for spillet. Hvis dens tools fejler, har den stadig denne runbook og fejlfindingssiden indbygget og siger det.
 
 ## Dashboardet vil ikke indlæse eller mister forbindelsen
 
@@ -98,7 +98,7 @@ På en plan B-aften når din egen Claude og dashboardet ikke spillet: spil i hå
 Foundry. Dine ændringer bliver gemt, og administratoren flytter worlden tilbage til hjemmeserveren før
 næste session. Administratorens trin står i [Plan B](../../dev/PLAN-B.md).
 
-> **Usikker? Spørg Claude.** Spørg GM coach: "Serveren er nede midt i spillet. Hvad siger jeg til spillerne, og hvad tjekker jeg, når vi er tilbage?"
+> **Usikker? Spørg Claude.** Spørg GM coach: "Serveren er nede midt i spillet. Hvad siger jeg til spillerne, og hvad tjekker jeg, når vi er tilbage?" Når serveren er nede, kan coachen ikke hente sine fulde sider. Den svarer ud fra denne runbook og fejlfindingssiden, som følger med, og siger til, når den går på almen viden i stedet. Den kan ikke se eller ændre dit spil.
 
 ## Hvornår du råber om hjælp
 

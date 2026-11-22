@@ -40,7 +40,16 @@ interface GmRouteOptions {
   client: GmRouteClient;
   logger: Logger;
   accessFetch?: ConstructorParameters<typeof AccessJwtVerifier>[1];
+  /** Test seam: how long a tool call may run before the "may have landed" reply. */
+  slowCallMs?: number;
 }
+
+/** Cloudflare cuts a request at 100 s (a 524); answer a little before that. */
+const SLOW_CALL_MS = 90_000;
+
+const SLOW_CALL_NOTE =
+  'This call is still running after about 90 seconds and the connection would be cut soon. ' +
+  'It may still land in Foundry: do not repeat it; check list-recent-changes or the current state first.';
 
 const SUPPORTED_PROTOCOLS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'];
 const MAX_BODY = '256kb';
@@ -250,7 +259,24 @@ export function mountGmRoute(app: Express, options: GmRouteOptions): void {
           res.json(rpcError(id, -32602, 'Unknown tool'));
           return;
         }
-        const result = await client.remoteGmCall(set, p.name, p.arguments ?? {});
+        const call = client.remoteGmCall(set, p.name, p.arguments ?? {});
+        call.catch(() => undefined); // a late failure after the slow reply has nobody to tell
+        let timer: NodeJS.Timeout | undefined;
+        const slow = new Promise<'slow'>(resolve => {
+          timer = setTimeout(() => resolve('slow'), options.slowCallMs ?? SLOW_CALL_MS);
+        });
+        const result = await Promise.race([call, slow]).finally(() => clearTimeout(timer));
+        if (result === 'slow') {
+          log.warn(
+            `A ${set} tool call ran past the Cloudflare limit; told Claude it may have landed`
+          );
+          res.json({
+            jsonrpc: '2.0',
+            id,
+            result: { content: [{ type: 'text', text: SLOW_CALL_NOTE }], isError: true },
+          });
+          return;
+        }
         res.json({ jsonrpc: '2.0', id, result });
         return;
       }

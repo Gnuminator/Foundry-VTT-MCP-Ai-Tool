@@ -230,7 +230,7 @@ export class ErrorHandler {
     this.logError(mcpError, toolName, error);
 
     const formattedMessage = this.formatErrorMessage(mcpError, toolName);
-    throw new Error(formattedMessage);
+    throw new Error(formattedMessage, { cause: error });
   }
 
   /**

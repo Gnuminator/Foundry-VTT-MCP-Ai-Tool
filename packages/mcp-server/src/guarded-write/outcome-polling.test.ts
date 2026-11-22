@@ -35,8 +35,20 @@ beforeEach(async () => {
   applyOptions.length = 0;
   applyImpl = (data): Promise<any> => foundry.query(APPLY, data);
   outcomeImpl = (): Promise<any> => Promise.reject(new Error('not configured'));
+  service = makeService(GENEROUS_DEADLINE_MS);
+});
+
+/**
+ * The deadline is wall-clock time. Tests that expect a recovery must not race it: a stall of
+ * the event loop (the gate runs many suites at once) longer than a short deadline made them
+ * give up ("no answer within 0 s"). Only the give-up test uses the short one.
+ */
+const GENEROUS_DEADLINE_MS = 30_000;
+const SHORT_DEADLINE_MS = 80;
+
+function makeService(outcomeDeadlineMs: number): GuardedWriteService {
   const store = new VaultStore({ dataDir });
-  service = new GuardedWriteService({
+  return new GuardedWriteService({
     foundryClient: {
       query: vi.fn((method: string, data?: any, options?: any): Promise<any> => {
         if (method === APPLY) {
@@ -52,9 +64,9 @@ beforeEach(async () => {
     audit: new AuditLog(store),
     logger,
     outcomePollIntervalMs: 5,
-    outcomeDeadlineMs: 80,
+    outcomeDeadlineMs,
   });
-});
+}
 
 afterEach(async () => {
   await fsp.rm(dataDir, { recursive: true, force: true });
@@ -107,9 +119,7 @@ describe('apply timeout and outcome polling (PB-04)', () => {
       applyImpl = (): Promise<any> => Promise.reject(new Error(message));
       const spy = vi.fn();
       outcomeImpl = spy;
-      const started = Date.now();
       await expect(planAndApply()).rejects.toThrow(/this request was not sent to Foundry/);
-      expect(Date.now() - started).toBeLessThan(75);
       expect(spy).not.toHaveBeenCalled();
     }
   });
@@ -172,11 +182,12 @@ describe('apply timeout and outcome polling (PB-04)', () => {
   });
 
   it('gives up when the deadline passes while the link stays down', async () => {
+    service = makeService(SHORT_DEADLINE_MS);
     applyImpl = (): Promise<any> => Promise.reject(new Error(LOST));
     outcomeImpl = (): Promise<any> => Promise.reject(new Error('not connected'));
     const started = Date.now();
     await expect(planAndApply()).rejects.toThrow(/may or may not have been applied/);
-    expect(Date.now() - started).toBeGreaterThanOrEqual(75);
+    expect(Date.now() - started).toBeGreaterThanOrEqual(SHORT_DEADLINE_MS - 5);
     expect(logger.error).toHaveBeenCalledTimes(1);
   });
 

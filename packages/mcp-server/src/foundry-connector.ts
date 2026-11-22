@@ -19,6 +19,7 @@ import {
   type ModuleRequestData,
   NOT_CONNECTED_TAIL,
 } from '@gnuminator/shared';
+import { queryTimeoutContext } from './direct-write-timeout.js';
 import { Logger } from './logger.js';
 import { Config } from './config.js';
 import type { BridgeMessage, ConnectionInfo, InboundFrame } from './types/connector-types.js';
@@ -552,7 +553,7 @@ export class FoundryConnector {
     const timeoutMs =
       typeof options.timeoutMs === 'number' && options.timeoutMs > 0
         ? options.timeoutMs
-        : DEFAULT_QUERY_TIMEOUT_MS;
+        : (queryTimeoutContext.getStore()?.timeoutMs ?? DEFAULT_QUERY_TIMEOUT_MS);
     const socket =
       this.activeConnectionType === 'websocket' && this.foundrySocket
         ? this.foundrySocket

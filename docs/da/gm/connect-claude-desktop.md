@@ -1,6 +1,6 @@
 ---
 source: gm/connect-claude-desktop.md
-sourceHash: 441d1450d8d6
+sourceHash: 1320e9b99962
 title: Forbind Claude Desktop til serveren
 description: Installer den lille Windows-klient, så Claude Desktop på din PC når det Foundry AI Tool, der kører på hjemmeserveren, med en nøgle som kun du har.
 ---
@@ -14,7 +14,7 @@ gør det én gang, og du skal bruge din **tunnelnøgle** (to stykker tekst) fra 
 værktøjet.
 
 Du skal bruge: en Windows-PC, Claude Desktop installeret og logget ind, og tunnelnøglen. Cirka 10 minutter.
-Den gratis Claude-plan er nok til at forbinde, men den har en daglig grænse; se
+Den gratis Claude-plan er nok til at forbinde, men den har en grænse pr. fem timer og en pr. uge; se
 [Claude Free eller Pro](claude-plans.md).
 
 Dette er en af [engangsopsætningerne](README.md#engangsopsætning). Ved en ny installation gør du

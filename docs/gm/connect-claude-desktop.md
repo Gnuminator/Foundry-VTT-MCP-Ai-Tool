@@ -11,7 +11,7 @@ to Claude Desktop, and it keeps a private, locked tunnel open to the server. You
 you need your **tunnel key** (two pieces of text) from the person who built the tool.
 
 You need: a Windows PC, Claude Desktop installed and signed in, and the tunnel key. About 10 minutes.
-The free Claude plan is enough to connect, but it has a daily limit; see
+The free Claude plan is enough to connect, but it has a limit per five hours and one per week; see
 [Claude Free or Pro](claude-plans.md).
 
 This is one of the [one-time setups](README.md#one-time-setups). For a new install do "Install",

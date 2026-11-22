@@ -491,7 +491,7 @@ function freshStart(): Rec {
  * effect then ends in this round), 1 when it has passed or is the current one. Null outside a fight
  * or when the actor is not in it.
  */
-function turnHolder(actor: LiveActor): { combatantId: string; rounds: 0 | 1 } | null {
+function turnHolder(actor: LiveActor): TurnHolder | 'not-started' | null {
   const fight = currentFight();
   if (!fight) return null;
   const mine = fightCombatants().find(c => asActor(c.actor)?.uuid === actor.uuid);
@@ -500,8 +500,23 @@ function turnHolder(actor: LiveActor): { combatantId: string; rounds: 0 | 1 } | 
   const turns = contentsOf(fight.turns).map(rec);
   const idx = turns.findIndex(t => str(t?.id) === id);
   const turn = num(fight.turn);
-  if (idx < 0 || turn === null) return null;
-  return { combatantId: id, rounds: idx > turn ? 0 : 1 };
+  if (idx < 0) return null;
+  if (turn === null) return 'not-started';
+  return {
+    combatantId: id,
+    rounds: idx > turn ? 0 : 1,
+    combatId: str(fight.id),
+    round: num(fight.round),
+    turn,
+  };
+}
+
+interface TurnHolder {
+  combatantId: string;
+  rounds: 0 | 1;
+  combatId: string | null;
+  round: number | null;
+  turn: number;
 }
 
 /** A whole number of rounds from 1 to 100, null when the request has none. */
@@ -526,7 +541,9 @@ export async function planCondition(
   const expiry = request.ends === 'turn-end' ? 'turnEnd' : 'turnStart';
   const endsText = request.ends === 'turn-end' ? ', ends at the end of its turn' : '';
   if (baseRounds !== null && status.levels !== null) {
-    throw new Error(`${status.name} is a level, not a timed condition: leave rounds out`);
+    throw new Error(
+      `${status.name} is a level, not a timed condition: leave ${request.rounds === undefined ? 'ends' : 'rounds'} out`
+    );
   }
   const ops: GuardedOp[] = [];
   const previews: LiveTargetPreview[] = [];
@@ -585,13 +602,27 @@ export async function planCondition(
       continue;
     }
     // Without a count, "until the end of its turn" counts from the target's own place in the order.
-    const holder = request.ends ? turnHolder(actor) : null;
+    const found = request.ends ? turnHolder(actor) : null;
+    if (found === 'not-started') {
+      skip('its fight has not started: its turn cannot be timed');
+      continue;
+    }
+    const holder = found;
     if (request.ends && !holder && currentFight()) {
       skip('is not in the fight: its turn cannot be timed');
       continue;
     }
     const rounds = holder && request.rounds === undefined ? holder.rounds : baseRounds;
-    const start = holder ? { ...freshStart(), combatant: holder.combatantId } : freshStart();
+    // The stamp comes from the same fight as the holder, not from the active one.
+    const start = holder
+      ? {
+          ...freshStart(),
+          combat: holder.combatId,
+          combatant: holder.combatantId,
+          round: holder.round,
+          turn: holder.turn,
+        }
+      : freshStart();
     const extras: string[] = [];
     // An expired or disabled effect leaves actor.statuses but keeps dnd5e's fixed id, so a create
     // would clash with it: bring that effect back with an update instead.
@@ -647,6 +678,7 @@ export async function planCondition(
       const span =
         rounds === 0 ? 'this round' : rounds === 1 ? 'for 1 round' : `for ${rounds} rounds`;
       extras.unshift(`${span}${endsText}`);
+      if (holder) extras.push('counted from now: plan again if the turn moves first');
     }
     if (staleUuid) {
       ops.push({

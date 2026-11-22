@@ -74,7 +74,7 @@ yet, so tell them. Nobody else sees your message, and it is not on the player pa
 ## See what you can do on your turn
 
 - **Look at:** the **On my turn** card on **My character**. It groups what your character can do into
-  action, bonus action, reaction and free, so you do not have to remember. A switch under the sheet
+  action, bonus action, reaction and free, so you do not have to remember. The switch **Show the "On my turn" card** at the bottom of the page
   hides it if you do not want it.
 
 ## Ask the Discord bot

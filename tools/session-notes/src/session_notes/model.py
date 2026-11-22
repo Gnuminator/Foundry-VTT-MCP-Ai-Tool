@@ -50,6 +50,7 @@ class Roster:
 
     players: dict[str, str] = field(default_factory=dict)  # player -> character
     names: list[str] = field(default_factory=list)
+    pronouns: dict[str, str] = field(default_factory=dict)  # player -> "he/him", from speakers.json
 
 
 def line_id(n: int) -> str:
@@ -125,6 +126,18 @@ def load_roster(session: Path, lines: list[Line]) -> Roster:
     roster = Roster()
     for line in lines:
         roster.players.setdefault(line.player, line.character)
+    speakers = session / "speakers.json"
+    if speakers.exists():
+        try:
+            table = json.loads(speakers.read_text(encoding="utf-8-sig"))
+        except ValueError:
+            table = {}
+        for entry in table.values() if isinstance(table, dict) else []:
+            if not isinstance(entry, dict) or not entry.get("pronouns"):
+                continue
+            player = str(entry.get("player") or "")
+            if player in roster.players:
+                roster.pronouns[player] = str(entry["pronouns"]).strip()
     names_file = session / "names.txt"
     if names_file.exists():
         for raw in names_file.read_text(encoding="utf-8-sig").splitlines():

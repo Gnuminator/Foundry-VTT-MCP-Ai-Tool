@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from . import extras
+from . import extras, npcs
 from .claude_runner import AuthError, ClaudeError, Runner, UsageLimitError
 from .layers import (
     DEPTH_SCHEMA,
@@ -29,7 +29,7 @@ from .layers import (
     scene_key,
 )
 from .model import Line, Roster, Scene, apply_speakers, load_roster, load_timeline
-from .prompts import SCENE_SCHEMA, SESSION_SCHEMA, roster_block, scene_prompt, session_prompt
+from .prompts import SCENE_RULES, SCENE_SCHEMA, SESSION_RULES, SESSION_SCHEMA, roster_block, scene_prompt, session_prompt
 from .scenes import split_scenes
 from .validate import check_lines, combine, raw_fallback, repair
 
@@ -79,6 +79,8 @@ class Writer:
         self.notes_dir = session / "notes"
         self.work = self.notes_dir / ".work"
         self.audit: list[dict[str, Any]] = []
+        self.pron_key = ""  # roster pronouns as text: part of every cache key
+        self.rules_key = ""  # scene rules, schema and pronouns: a change reruns cached scenes
         self.session_pause: str | None = None  # the limit or login message from the summary call
         self.login_needed = False  # a pause came from a logged-out claude, not a usage limit
 
@@ -139,6 +141,10 @@ class Writer:
             raise FileNotFoundError(f"No timeline at {timeline}; run the session pipeline first.")
         lines = apply_speakers(load_timeline(timeline), self.session)
         roster = load_roster(self.session, lines)
+        self.pron_key = json.dumps(roster.pronouns, ensure_ascii=False, sort_keys=True)
+        self.rules_key = hashlib.sha256(
+            (SCENE_RULES + json.dumps(SCENE_SCHEMA, sort_keys=True) + self.pron_key).encode("utf-8")
+        ).hexdigest()
         scenes = split_scenes(lines, gap=self.opts.scene_gap)
         self.work.mkdir(parents=True, exist_ok=True)
         self._log("start", lines=len(lines), scenes=len(scenes), options=self._opts_dict())
@@ -154,7 +160,7 @@ class Writer:
                 # same timeline, same split; a raw fallback counts only once it has been accepted
                 # (an older run cached raw scenes as done, so they are tried again here)
                 raw = bool(data["notes"].get("fallback"))
-                if data.get("ids") == scene.ids and (
+                if data.get("ids") == scene.ids and data.get("rules") == self.rules_key and (
                     not raw or self._fallback_tries(scene) >= MAX_FALLBACK_RUNS
                 ):
                     done[scene.index] = data["notes"]
@@ -188,7 +194,9 @@ class Writer:
                     retry.append(scene.index)
                 return
             (self.work / f"scene-{scene.index:03d}.json").write_text(
-                json.dumps({"ids": scene.ids, "notes": result}, ensure_ascii=False),
+                json.dumps(
+                    {"ids": scene.ids, "rules": self.rules_key, "notes": result}, ensure_ascii=False
+                ),
                 encoding="utf-8",
             )
             with lock:
@@ -198,6 +206,9 @@ class Writer:
             list(pool.map(work, todo))
         notes = [done[i] for i in sorted(done)]
         paused_reason = paused[0] if paused else None
+        renamed = npcs.canonicalize(notes)
+        if renamed:
+            self._log("npc_names_merged", renamed=renamed)
 
         session_notes: dict[str, Any] | None = None
         complete = paused_reason is None and len(notes) == len(scenes) and not retry
@@ -369,7 +380,7 @@ class Writer:
             cached = self.work / f"depth-{scene['index']:03d}.json"
             try:
                 data = json.loads(cached.read_text(encoding="utf-8"))
-                if data.get("key") == scene_key(scene) and isinstance(data["notes"], dict):
+                if data.get("key") == scene_key(scene, self.pron_key) and isinstance(data["notes"], dict):
                     done[scene["index"]] = data["notes"]
                     continue
             except (ValueError, KeyError, OSError, AttributeError, TypeError):
@@ -439,7 +450,7 @@ class Writer:
         path = self.work / f"depth-{scene['index']:03d}.json"
         tmp = path.with_suffix(".tmp")
         tmp.write_text(
-            json.dumps({"key": scene_key(scene), "notes": result}, ensure_ascii=False),
+            json.dumps({"key": scene_key(scene, self.pron_key), "notes": result}, ensure_ascii=False),
             encoding="utf-8",
         )
         os.replace(tmp, path)
@@ -447,7 +458,7 @@ class Writer:
     def _count_depth_failure(self, scene: dict[str, Any]) -> bool:
         """Count this run for a scene whose in-depth notes failed; True once it is given up."""
         marker = self.work / f"depth-{scene['index']:03d}.fail.json"
-        key = scene_key(scene)
+        key = scene_key(scene, self.pron_key)
         tries, last = 0, 0.0
         try:
             data = json.loads(marker.read_text(encoding="utf-8"))
@@ -496,7 +507,11 @@ class Writer:
         # The summary is about the scene notes: a scene rewritten since (a raw one that now works)
         # must not keep the old summary, so the cache also holds a digest of the notes it was for.
         digest = hashlib.sha256(
-            json.dumps(notes, ensure_ascii=False, sort_keys=True).encode("utf-8")
+            (
+                json.dumps(notes, ensure_ascii=False, sort_keys=True)
+                + SESSION_RULES
+                + self.pron_key
+            ).encode("utf-8")
         ).hexdigest()
         if cached.exists():
             data = json.loads(cached.read_text(encoding="utf-8"))

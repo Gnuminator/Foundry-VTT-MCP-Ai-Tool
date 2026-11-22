@@ -107,7 +107,7 @@ def repair_depth(result: dict[str, Any], scene: dict[str, Any]) -> list[str]:
     return log
 
 
-def scene_key(scene: dict[str, Any]) -> str:
+def scene_key(scene: dict[str, Any], pronouns: str = "") -> str:
     """Cache key: the in-depth notes are about exactly these cleaned lines and notes."""
     blob = json.dumps(
         [
@@ -118,6 +118,7 @@ def scene_key(scene: dict[str, Any]) -> str:
             scene.get("events"),
             scene.get("decisions"),
             hashlib.sha256(DEPTH_RULES.encode("utf-8")).hexdigest(),  # new rules, new notes
+            pronouns,
         ],
         ensure_ascii=False,
         sort_keys=True,

@@ -18,7 +18,7 @@ import json
 from typing import Any
 
 from .model import Line, Roster, clock, is_gm
-from .prompts import _IDS, _STR, _list, _obj, roster_block
+from .prompts import PRONOUN_RULE, _IDS, _STR, _list, _obj, roster_block
 
 POINT = _obj(da=_STR, en=_STR, cites=_IDS)
 CHARACTER = _obj(
@@ -108,7 +108,7 @@ def _slim(scene: dict[str, Any]) -> dict[str, Any]:
         entries = scene.get(key) or []
         if entries:
             out[key] = [
-                {k: v for k, v in e.items() if k in ("name", "en", "cites")} for e in entries
+                {k: v for k, v in e.items() if k in ("name", "name_da", "name_en", "aliases", "en", "cites")} for e in entries
             ]
     return out
 
@@ -136,13 +136,13 @@ def _body(chunk: list[dict[str, Any]]) -> str:
 def characters_prompt(chunk: list[dict[str, Any]], roster: Roster, part: str = "") -> str:
     pcs = "\n".join(f"- {c} (played by {p})" for c, p in player_characters(roster))
     return (
-        f"{CHARACTERS_RULES}\n{roster_block(roster)}\nPlayer characters:\n{pcs}\n"
+        f"{CHARACTERS_RULES}\n{roster_block(roster)}\n{PRONOUN_RULE}\nPlayer characters:\n{pcs}\n"
         f"{part}\nScene notes (JSON):\n{_body(chunk)}"
     )
 
 
 def remember_prompt(chunk: list[dict[str, Any]], roster: Roster, part: str = "") -> str:
-    return f"{REMEMBER_RULES}\n{roster_block(roster)}\n{part}\nScene notes (JSON):\n{_body(chunk)}"
+    return f"{REMEMBER_RULES}\n{roster_block(roster)}\n{PRONOUN_RULE}\n{part}\nScene notes (JSON):\n{_body(chunk)}"
 
 
 def part_note(i: int, total: int) -> str:
@@ -235,6 +235,7 @@ def chunk_key(kind: str, chunk: list[dict[str, Any]], roster: Roster, total: int
             kind,
             total,
             roster.players,
+            roster.pronouns,
             _body(chunk),
             hashlib.sha256(rules.encode("utf-8")).hexdigest(),
         ],

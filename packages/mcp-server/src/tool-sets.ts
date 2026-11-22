@@ -101,6 +101,13 @@ export const TOOL_SETS: Readonly<Record<ToolSetName, ToolSetSpec>> = Object.from
 ) as unknown as Record<ToolSetName, ToolSetSpec>;
 
 /** The environment variable a Claude Desktop entry sets, e.g. `core` or `prep,admin`. */
+/**
+ * The place in Claude Desktop where the per-connector switches live (checked on the app
+ * 2026-11-21: the + menu under the message box, then Plugins). One spelling for the server
+ * instructions; `claude-menu-name.test.ts` fails when a doc or stub uses another.
+ */
+export const CLAUDE_CONNECTOR_MENU = 'the + menu, then Plugins';
+
 export const TOOL_SETS_ENV = 'FOUNDRY_AI_TOOL_SETS';
 
 const SET_OF_TOOL: ReadonlyMap<string, ToolSetName> = new Map(
@@ -211,7 +218,7 @@ export function toolSetInstructions(selection: Pick<ToolSetSelection, 'sets' | '
   const others = TOOL_SET_NAMES.filter(set => !selection.sets.includes(set));
   if (others.length > 0) {
     lines.push(
-      'Other Foundry AI Tool sets (each is its own connector; the GM switches them on in the Search and tools menu, and some may be on already):'
+      `Other Foundry AI Tool sets (each is its own connector; the GM switches them on in ${CLAUDE_CONNECTOR_MENU}, and some may be on already):`
     );
     for (const set of others) lines.push(`- ${TOOL_SETS[set].title}: ${TOOL_SETS[set].purpose}`);
     lines.push(

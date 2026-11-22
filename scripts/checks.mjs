@@ -153,6 +153,11 @@ export const CHECKS = [
   ),
   nodeTest('cloudflare-compare', 'scripts', 'scripts/cloudflare-compare.test.mjs'),
   nodeTest(
+    'cloudflare-compare-coverage',
+    'scripts',
+    'scripts/cloudflare-compare-coverage.test.mjs'
+  ),
+  nodeTest(
     'gate-scripts',
     'gate',
     'scripts/green.test.mjs',
@@ -265,6 +270,7 @@ export const CHECKS = [
   nodeTest('plan-b', 'scripts', 'scripts/plan-b/plan-b.test.mjs'),
   nodeTest('data-folder', 'scripts', 'scripts/data-folder.test.mjs'),
   nodeTest('gpu-lock', 'scripts', 'scripts/gpu-lock.test.mjs'),
+  nodeTest('voice-image-hash', 'scripts', 'scripts/voice-image-hash.test.mjs'),
   nodeTest('tv-table-viewer', 'scripts', 'scripts/tv/start-table-viewer.test.mjs'),
   { name: 'wiki-scripts', group: 'scripts', cmd: 'npm', args: ['run', 'wiki:test'], env: CI },
   nodeTest('dnd-helper-test', 'tools', 'tools/dnd-helper/build.test.mjs'),

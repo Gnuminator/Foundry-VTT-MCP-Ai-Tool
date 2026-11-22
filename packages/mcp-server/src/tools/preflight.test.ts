@@ -1,9 +1,11 @@
-import type {
-  PreflightChecksResult,
-  PreflightModuleFinding,
-  PreflightScan,
-  PreflightScanResult,
-  PreflightSettingFinding,
+import {
+  TESTED_DND5E_VERSION,
+  TESTED_FOUNDRY_BUILD,
+  type PreflightChecksResult,
+  type PreflightModuleFinding,
+  type PreflightScan,
+  type PreflightScanResult,
+  type PreflightSettingFinding,
 } from '@gnuminator/shared';
 import { describe, expect, it, vi, type Mock } from 'vitest';
 
@@ -31,6 +33,7 @@ interface Setup {
   moduleVersion?: string | null;
   scan?: PreflightScan | Error;
   features?: unknown;
+  worldInfo?: unknown;
   terms?: string[];
   open?: boolean;
   vaultDirSet?: boolean;
@@ -55,6 +58,15 @@ function tools(setup: Setup = {}): { tools: PreflightTools; query: Mock } {
           { id: 'tarokka', name: 'Tarokka', hint: '', enabled: true, writesAllowed: true },
           { id: 'handouts', name: 'Handouts', hint: '', enabled: false, writesAllowed: true },
         ]
+      );
+    }
+    if (method === 'foundry-mcp-bridge.getWorldInfo') {
+      return Promise.resolve(
+        setup.worldInfo ?? {
+          system: 'dnd5e',
+          systemVersion: TESTED_DND5E_VERSION,
+          foundryVersion: TESTED_FOUNDRY_BUILD,
+        }
       );
     }
     return Promise.reject(new Error(`unexpected ${method}`));
@@ -287,6 +299,7 @@ describe('get-preflight', () => {
     expect(result.checks.map(c => c.id)).toEqual([
       'foundry-link',
       'versions',
+      'tested-versions',
       'wrapper',
       'write-switches',
       'world-settings',
@@ -379,6 +392,57 @@ describe('get-preflight', () => {
     expect(byId(result).versions).toMatchObject({ status: 'fail' });
     expect(byId(result).versions?.detail).toContain('1.2.0');
     expect(byId(result).versions?.detail).toContain('1.2.3');
+  });
+
+  describe('tested Foundry and dnd5e versions', () => {
+    const run = async (worldInfo: unknown): Promise<PreflightChecksResult> =>
+      (await tools({ worldInfo }).tools.handleGetPreflight({})) as PreflightChecksResult;
+
+    it('is ok on the tested pair', async () => {
+      expect(byId(await run(undefined))['tested-versions']?.status).toBe('ok');
+    });
+
+    it('gives one to-fix line naming a different Foundry build', async () => {
+      const result = await run({
+        system: 'dnd5e',
+        systemVersion: TESTED_DND5E_VERSION,
+        foundryVersion: '14.999',
+      });
+      const lines = result.checks.filter(c => c.id === 'tested-versions');
+      expect(lines).toHaveLength(1);
+      expect(lines[0]?.status).toBe('fail');
+      expect(lines[0]?.detail).toContain('Foundry 14.999');
+      expect(lines[0]?.detail).toContain('This world runs Foundry 14.999, but');
+      expect(result.ready).toBe(false);
+    });
+
+    it('names a different dnd5e version, and both when both differ', async () => {
+      const one = await run({
+        system: 'dnd5e',
+        systemVersion: '6.1.1',
+        foundryVersion: TESTED_FOUNDRY_BUILD,
+      });
+      expect(byId(one)['tested-versions']).toMatchObject({ status: 'fail' });
+      expect(byId(one)['tested-versions']?.detail).toContain('dnd5e 6.1.1');
+      const both = await run({ system: 'dnd5e', systemVersion: '6.1.1', foundryVersion: '14.999' });
+      expect(byId(both)['tested-versions']?.detail).toContain('Foundry 14.999 and dnd5e 6.1.1');
+    });
+
+    it('is unknown for a world that is not dnd5e', async () => {
+      const result = await run({
+        system: 'pf2e',
+        systemVersion: '1.0.0',
+        foundryVersion: TESTED_FOUNDRY_BUILD,
+      });
+      expect(byId(result)['tested-versions']?.status).toBe('unknown');
+    });
+
+    it('is unknown, not a failure, when the world reports no versions or refuses', async () => {
+      expect(byId(await run({ system: 'dnd5e' }))['tested-versions']?.status).toBe('unknown');
+      expect(byId(await run({ success: false, error: 'no' }))['tested-versions']?.status).toBe(
+        'unknown'
+      );
+    });
   });
 
   it('without Foundry: fails the link, leaves the module checks unknown and does not query', async () => {

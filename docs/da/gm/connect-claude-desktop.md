@@ -1,6 +1,6 @@
 ---
 source: gm/connect-claude-desktop.md
-sourceHash: ca294d49fda5
+sourceHash: 1320e9b99962
 title: Forbind Claude Desktop til serveren
 description: Installer den lille Windows-klient, så Claude Desktop på din PC når det Foundry AI Tool, der kører på hjemmeserveren, med en nøgle som kun du har.
 ---
@@ -34,7 +34,7 @@ klient (en fil, der hedder `FoundryMCPServer-Setup-vX.Y.Z.exe`) gør du "Opdater
 4. Gå videre. Et lille vindue spørger efter **Client ID** og derefter **secret**. Indsæt hver af dem
    og tryk Enter. Secret er skjult, mens du indsætter; det er normalt. Intet, du indsætter, bliver
    vist eller gemt andre steder end i et låst lager, som kun din Windows-bruger kan åbne.
-5. Gør installationen færdig. Start Claude Desktop. Klik på **+** i chatfeltet, vælg **Connectors**, og slå dem til,
+5. Gør installationen færdig. Start Claude Desktop. Klik på **+** i chatfeltet, vælg **Plugins**, og slå dem til,
    du vil bruge (`foundry-mcp` er Core; Play og Prep er dem, du bruger mest). En connector, der er
    slået fra, er ikke tilgængelig i den chat. Gør derefter afsnittet Stop "Allow"-spørgsmålene nedenfor én
    gang, så Claude ikke spørger "Allow?" ved hvert eneste værktøjskald.
@@ -48,8 +48,8 @@ Klienten opdaterer sig ikke selv, medmindre den, der byggede værktøjet, har sl
 efter Client ID og secret, så hav nøglen klar og indsæt begge.
 
 Gør det, når Claude ser ud til at mangle værktøjer, som vejledningerne nævner. En gammel klient
-skjuler nyere værktøjer uden nogen fejl. Sådan tjekker du det: sørg for, at Prep-connectoren er slået til (**+**, derefter
-**Connectors**), og spørg så Claude i en ny chat _"Run get-preflight"_. Rækken **Claude Desktop
+skjuler nyere værktøjer uden nogen fejl. Sådan tjekker du det: sørg for, at Prep-connectoren er slået til (**+**-menuen, derefter
+**Plugins**), og spørg så Claude i en ny chat _"Run get-preflight"_. Rækken **Claude Desktop
 connectors are up to date** er grøn, når du er opdateret. En advarsel betyder, at en gammel klient
 stadig er forbundet: afslut Claude Desktop fra systembakken (nær uret), kør den nyeste installer,
 start Claude Desktop igen og spørg endnu en gang. Siger rækken, at ingen connector er forbundet, er

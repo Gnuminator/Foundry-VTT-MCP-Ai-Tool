@@ -1,6 +1,6 @@
 ---
 source: gm/game-night-runbook.md
-sourceHash: 6820870866c9
+sourceHash: 4fb296796d41
 title: Spilaftenens runbook
 description: Én side til selve aftenen. Hvad du gør, når Foundry, en spiller, Claude, dashboardet eller hjemmeserveren fejler, og hvornår du råber om hjælp.
 ---
@@ -59,7 +59,7 @@ Bliv ved med at spille: lav ændringen i hånden i Foundry.
 - **Beskeden "Usage limit":** den gratis plan har en grænse pr. fem timer. Den nulstilles af sig
   selv. Indtil da spiller du uden Claude. Se [Claude Free eller Pro](claude-plans.md).
 - **Claude siger, at et tool set er slået fra:** slå det til i Claude Desktops **+**-menu,
-  **Connectors** (se [Spørg Claude](asking-claude.md#tool-sets-hvilke-kontakter-du-skal-tænde)).
+  så **Plugins** (se [Spørg Claude](asking-claude.md#tool-sets-hvilke-kontakter-du-skal-tænde)).
 - **Hvert værktøjskald fejler:** Claude har mistet forbindelsen til spillet. I pausen lukker du Claude
   Desktop helt og starter det igen. Hjælper det ikke, så råb om hjælp efter sessionen.
 

@@ -23,7 +23,7 @@ QUICK START
    window asks. There is nothing to connect on this PC: the tunnel starts by itself when you sign
    in to Windows.
 3. Start Claude Desktop. Without the tunnel, make sure your private network (Tailscale) is
-   connected. Then switch the connectors on in the "Search and tools" menu.
+   connected. Then switch the connectors on in the + menu, then Plugins.
 
 Claude Desktop gets five connectors, one per tool set: foundry-mcp (Core), foundry-mcp-play,
 foundry-mcp-prep, foundry-mcp-build and foundry-mcp-admin. Each one only connects to the bridge

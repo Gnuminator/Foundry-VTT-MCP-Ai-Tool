@@ -1,6 +1,6 @@
 ---
 source: gm/troubleshooting.md
-sourceHash: e056e517a775
+sourceHash: bda343fa7553
 title: Fejlfinding
 description: Symptom, sandsynlig årsag og løsning på de problemer, en GM oftest møder med Foundry AI Tool.
 ---
@@ -70,7 +70,7 @@ fortryde. Ret det i hånden i Foundry.
 | Sandsynlig årsag                                               | Løsning                                                                                                                                                                                |
 | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | De fem Foundry-connectors mangler.                             | Afslut Claude Desktop fra ikonet i systembakken, og kør installeren igen. Se [Forbind Claude Desktop til serveren](connect-claude-desktop.md).                                         |
-| Det set, du skal bruge, er slået fra.                          | Claude siger, hvilket set en forespørgsel kræver. Tænd det punkt under **+**, **Connectors** (se [Spørg Claude](asking-claude.md#tool-sets-hvilke-kontakter-du-skal-tænde)).           |
+| Det set, du skal bruge, er slået fra.                          | Claude siger, hvilket set en forespørgsel kræver. Tænd det punkt i **+**-menuen, så **Plugins** (se [Spørg Claude](asking-claude.md#tool-sets-hvilke-kontakter-du-skal-tænde)).        |
 | Claude Desktop blev ikke genstartet efter ændringen.           | Afslut det helt (også fra ikonet i systembakken), og start det så igen.                                                                                                                |
 | Bridgen kunne ikke starte. Claude får så en tom værktøjsliste. | Claude Desktops indstillinger viser lokale MCP-servere og deres status (i nuværende versioner under **Settings**, **Developer**). Tjek loggen `%TEMP%\foundry-mcp-server\wrapper.log`. |
 | Værktøjerne er der, men hvert kald fejler.                     | Foundry er ikke forbundet. Se "Bridgen får ikke forbindelse" ovenfor.                                                                                                                  |

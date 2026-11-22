@@ -89,10 +89,14 @@ export function playLogDot(pumps: PumpSnapshot[] | null, now: number): HealthDot
   return null;
 }
 
+/** "norecord" and "overrun" (item record-start-nudge) show even when no recording runs. */
+type ProblemKind = 'silent' | 'stream' | 'rejoin' | 'norecord' | 'overrun';
+const KINDS: readonly string[] = ['silent', 'stream', 'rejoin', 'norecord', 'overrun'];
+
 /** The bot's answer (feeds `GET /status`); null = unreachable or unreadable. */
 export interface BotAnswer {
   recording: boolean;
-  problems: Array<{ kind: 'silent' | 'stream' | 'rejoin'; text: string }>;
+  problems: Array<{ kind: ProblemKind; text: string }>;
   /** Estimated speaking time per person (ms); absent from an older bot. */
   speaking?: unknown;
 }
@@ -129,14 +133,17 @@ export function recorderDot(answer: BotAnswer | null): HealthDot | null {
         'The recording bot does not answer, so it cannot be seen whether a recording is healthy.',
     };
   }
-  if (!answer.recording || answer.problems.length === 0) return null;
-  const rejoin = answer.problems.some(p => p.kind === 'rejoin');
-  const first = answer.problems[0].text;
-  const more = answer.problems.length - 1;
+  const problems = answer.recording
+    ? answer.problems
+    : answer.problems.filter(p => p.kind === 'norecord' || p.kind === 'overrun');
+  if (problems.length === 0) return null;
+  const rejoin = problems.some(p => p.kind === 'rejoin');
+  const first = problems[0].text;
+  const more = problems.length - 1;
   return {
     tone: rejoin ? 'bad' : 'warn',
     text: more > 0 ? `${first} (+${more} more)` : first,
-    detail: `${answer.problems.map(p => p.text).join('; ')}.`,
+    detail: `${problems.map(p => p.text).join('; ')}.`,
   };
 }
 
@@ -151,8 +158,7 @@ function isBotAnswer(v: unknown): v is BotAnswer {
       if (p === null || typeof p !== 'object') return false;
       const q = p as Record<string, unknown>;
       return (
-        (q['kind'] === 'silent' || q['kind'] === 'stream' || q['kind'] === 'rejoin') &&
-        typeof q['text'] === 'string'
+        typeof q['kind'] === 'string' && KINDS.includes(q['kind']) && typeof q['text'] === 'string'
       );
     })
   );

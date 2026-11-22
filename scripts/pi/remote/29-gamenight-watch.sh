@@ -19,13 +19,15 @@
 #
 # Modes (environment, before bash):
 #   DRY_RUN=1  print what a real run would do; changes nothing, needs no snapshot
-#   CHECK=1    run one round of the five checks as the foundry user, log only (no post); exit 1 when one fails; changes nothing
+#   CHECK=1    run one round of the five checks as the foundry user, log only (no post), then name, read-only, "no administrator
+#              password" and every Gamemaster or Assistant GM without a password (backlog gm-password-watch; the same check as
+#              stage 12 and gm-passwords.sh, so lib-gm-passwords.sh must be in the pipe); exit 1 when one fails; changes nothing
 #   UNDO=1     stop and remove the service and the installed files; the settings file is kept (it may hold the token)
 # A real run (and UNDO) needs a dietpi-backup snapshot from today and the user's OK. These lines are bash:
 #   scp scripts/gamenight-watch.mjs scripts/gamenight-watch-pi.mjs foundry-pi:/root/   (from a clean checkout of main at the merge commit)
 #   cat scripts/pi/remote/lib.sh scripts/pi/remote/29-gamenight-watch.sh | ssh foundry-pi 'DRY_RUN=1 bash -s'
 #   cat scripts/pi/remote/lib.sh scripts/pi/remote/29-gamenight-watch.sh | ssh foundry-pi 'bash -s'
-#   cat scripts/pi/remote/lib.sh scripts/pi/remote/29-gamenight-watch.sh | ssh foundry-pi 'CHECK=1 bash -s'
+#   cat scripts/pi/remote/lib.sh scripts/pi/remote/lib-gm-passwords.sh scripts/pi/remote/29-gamenight-watch.sh | ssh foundry-pi 'CHECK=1 bash -s'
 # The service token is added by the user, never by Claude: edit $TOOL_ETC/gamenight-watch.env on the Pi, then
 # `systemctl restart foundry-ai-tool-gamenight-watch`. Tests only: SRC_DIR and UNIT_DIR (TOOL_ETC, TOOL_DIR and NODE_DIR
 # are set by lib.sh, so they are not overrides).
@@ -111,8 +113,32 @@ if [ "$check" = 1 ]; then
   if have_systemd; then
     systemctl is-active --quiet "$unit" && ok "$unit is running" || die "$unit is not running: journalctl -u $unit -n 20"
   fi
-  if [ "${rc:-0}" -ne 0 ] || printf '%s\n' "$out" | grep -q ' FAIL '; then
+  watch_failed=0
+  if [ "${rc:-0}" -ne 0 ] || printf '%s\n' "$out" | grep -q ' FAIL '; then watch_failed=1; fi
+  say "passwords (read-only, by name): the administrator password and the GM users of every world"
+  pw_failed=0
+  if declare -F gm_password_check >/dev/null; then
+    if admin_password_set; then ok "Foundry has an administrator password"; else
+      printf '    FOUND: no administrator password (%s is missing or empty): /setup is open to anyone who reaches Foundry\n' "$FOUNDRY_DATA/Config/admin.txt"
+      pw_failed=1
+    fi
+    pw_rc=0
+    gm_password_check || pw_rc=$?
+    case "$pw_rc" in
+      0) ok "every world's Gamemaster and Assistant GM users have a password" ;;
+      3) printf '    FOUND: a Gamemaster or Assistant GM user without a password (named above): set one in that world (Game Settings, User Management)\n'; pw_failed=1 ;;
+      *) printf '    the GM password check could not read every world (see the errors above)\n'; pw_failed=1 ;;
+    esac
+  else
+    printf '    the password checks did not run: pipe lib-gm-passwords.sh after lib.sh (see the header)\n'
+    pw_failed=1
+  fi
+  if [ "$watch_failed" = 1 ] && [ "$pw_failed" = 1 ]; then
+    die "at least one check failed and a password check found something (see above; the bridge link fails while no world is running, which is expected off game night)"
+  elif [ "$watch_failed" = 1 ]; then
     die "at least one check failed (see above; the bridge link fails while no world is running, which is expected off game night)"
+  elif [ "$pw_failed" = 1 ]; then
+    die "a password check found something (FOUND above) or did not run: through the tunnel anyone past Access could reach it"
   fi
   say "stage 29 check: all checks ok"
   exit 0

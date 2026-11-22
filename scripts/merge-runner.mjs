@@ -2,7 +2,6 @@
 // @ts-check
 /**
  * Merge runner (D-140, D-141): merges ready PRs without a model, so no planner has to stand by.
- *
  *   node scripts/merge-runner.mjs [--once] [--interval <s>] [--vault <dir>] [--checkout <dir>]
  *
  * A Windows scheduled task starts it at logon (scripts/register-merge-runner.ps1) from the main
@@ -11,7 +10,6 @@
  * (`PR #<n> ready, head <40-hex sha>`, written by `backlog.mjs progress <id> --ready`; parseReadyAll),
  * one PR at a time, in Backlog order. Before each PR the line is read again (an earlier gate run
  * can take half an hour); a line that changed meanwhile waits for the next round.
- *
  * Merge queue (main's ruleset has `merge_queue` and requires ci-all-green): the gate ends with
  * `lane:merge: enqueued #<PR>`; the runner replaces the ready line with "PR #<n> enqueued in the
  * merge queue, head <sha>" and each round follows those PRs: merged -> `backlog.mjs done` and one

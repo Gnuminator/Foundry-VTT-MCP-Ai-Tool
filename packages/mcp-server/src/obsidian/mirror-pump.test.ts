@@ -396,6 +396,18 @@ describe('ObsidianMirrorPump: reconcile and deletes', () => {
     expect(await read(P.status)).toContain(P.wolf);
   });
 
+  it('lists a Syncthing conflict copy in the status and never writes it', async () => {
+    const pump = await started();
+    const copy = 'AI Tool/Foundry/NPCs/Wolf.sync-conflict-20261122-190000-ABCDEFG.md';
+    await fsp.writeFile(full(copy), await read(P.wolf), 'utf8');
+    await reconcileNow(pump);
+    expect(pump.status().syncConflicts).toEqual([copy]);
+    expect(pump.status().duplicates).toEqual([]);
+    expect(await read(P.status)).toContain('Sync conflict copies');
+    expect(await read(P.status)).toContain(copy);
+    expect(await exists(full(P.wolf))).toBe(true);
+  });
+
   it('trashes a page note when its page is gone from a freshly fetched journal', async () => {
     const pump = await started();
     fake.edit(

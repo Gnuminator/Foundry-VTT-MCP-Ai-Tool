@@ -236,6 +236,14 @@ describe('scanCampaign: Syncthing conflict copies', () => {
     expect(scan.mirror.get('Actor.sc')?.path).toBe('AI Tool/Foundry/NPCs/Wolf.md');
     expect(scan.duplicates).toEqual([]);
     expect(scan.syncConflicts).toEqual([copy]);
+    // A prep-typed copy outside the fence stays out of the prep map too.
+    await put(
+      'Prep/Plan.sync-conflict-20261122-190000-ABCDEFG.md',
+      mirrorText({ type: 'session-plan', uuid: 'Prep.p' })
+    );
+    const again = await scanCampaign(vault, WORLD);
+    expect(again.prep.size).toBe(0);
+    expect(again.syncConflicts).toHaveLength(2);
     // It still occupies its name, so the pump never writes over it.
     expect([...scan.takenPaths].some(p => p.includes('sync-conflict'))).toBe(true);
   });

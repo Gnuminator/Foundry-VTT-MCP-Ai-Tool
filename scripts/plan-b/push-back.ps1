@@ -93,3 +93,11 @@ if (-not $Upload) {
   Write-Host 'Built and checked; nothing was sent to the Pi. Next (a session, after a dietpi-backup 1 snapshot and your OK):'
   Write-Host '  .\scripts\plan-b\push-back.ps1 -Upload, then the stage 11 command it prints.'
 }
+
+# The bundle carries the world only. The bridge vault is not in it (nothing in stage 11 reads one).
+Write-Host ''
+Write-Host 'NOT carried back: the bridge vault (change history and session log of the Plan B night).'
+Write-Host "  It stays on this PC in $($L.VaultDir). The Pi's vault will lack that night (Undo list, session log)."
+Write-Host '  To keep it, copy it by hand after the stage 11 run, with your OK (a Pi change), into a new folder and never over'
+Write-Host '  the Pi vault /var/lib/foundry-ai-tool/vault:'
+Write-Host "    scp -r `"$($L.VaultDir)`" ${PiHost}:/tmp/planb-vault"

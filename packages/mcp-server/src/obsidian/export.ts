@@ -103,7 +103,12 @@ export interface ExportCache {
   written: Map<string, string>;
   /** The mirror generation the Atlas was last built from (null: never, or the build failed). */
   atlasGeneration: number | null;
+  /** When the Atlas was last built (ms since the epoch). */
+  atlasBuiltAt: number;
 }
+
+/** The longest an Atlas build is trusted without a mirror change (GM edits do not bump the counter). */
+const ATLAS_MAX_AGE_MS = 10 * 60_000;
 
 export function newExportCache(): ExportCache {
   return {
@@ -112,6 +117,7 @@ export function newExportCache(): ExportCache {
     usageLogs: new Map(),
     written: new Map(),
     atlasGeneration: null,
+    atlasBuiltAt: 0,
   };
 }
 
@@ -430,8 +436,12 @@ export async function exportWorldToObsidian(options: {
       // The Atlas is built from the mirror notes, so an export with no mirror write, move or trash
       // since the last build (and both canvases still there) skips the vault scan.
       const generation = mirrorGeneration(worldId);
+      // GM moves, renames and Obsidian-side edits do not bump the counter, so a build older than
+      // ATLAS_MAX_AGE_MS is redone anyway.
       const upToDate =
-        cache.atlasGeneration === generation && targets.every(([, existing]) => existing !== null);
+        cache.atlasGeneration === generation &&
+        Date.now() - cache.atlasBuiltAt < ATLAS_MAX_AGE_MS &&
+        targets.every(([, existing]) => existing !== null);
       if (targets.length > 0 && !upToDate) {
         const scan = await scanCampaign(options.vaultDir, worldId);
         // An incomplete scan would drop cards (and their saved positions): leave the canvases as they are.
@@ -442,13 +452,19 @@ export async function exportWorldToObsidian(options: {
             error: 'the mirror scan was incomplete; the canvases were left as they are',
           });
         } else {
-          cache.atlasGeneration = generation;
+          // Recorded as built only when every canvas was rendered and written without a problem.
+          cache.atlasGeneration = null;
+          const problemsBefore = writer.errors.length + writer.skipped.length;
           for (const [relPath, existing, render] of targets) {
             await writer.owned(
               relPath,
               mergeCanvas(await render(worldId, root, scan), existing, isAtlasGeneratedId, true),
               checkAtlasOwnership
             );
+          }
+          if (writer.errors.length + writer.skipped.length === problemsBefore) {
+            cache.atlasGeneration = generation;
+            cache.atlasBuiltAt = Date.now();
           }
         }
       }

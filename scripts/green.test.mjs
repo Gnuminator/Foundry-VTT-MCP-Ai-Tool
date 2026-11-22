@@ -23,6 +23,8 @@ import {
   runGroup,
   piGroupApplies,
   PI_GROUP_PATHS,
+  TEST_FOLDER_EXCEPTIONS,
+  findNodeTests,
 } from './checks.mjs';
 import {
   STEPS,
@@ -163,6 +165,30 @@ test('parity: build-test calls every CI group once in order; the ARM job calls t
     for (const g of calledGroups(job))
       assert.ok(RUN_GROUPS.includes(g), `${job} calls unknown ${g}`);
   }
+});
+
+test('folder walk: every script test under the walked folders is in a check or a named exception', () => {
+  const run = new Set(ALL_CHECKS.flatMap(c => c.args).filter(a => a.endsWith('.test.mjs')));
+  const ex = Object.keys(TEST_FOLDER_EXCEPTIONS);
+  const isEx = f => ex.some(x => f === x || (x.endsWith('/') && f.startsWith(x)));
+  const walked = ['.claude/hooks', 'scripts', 'installer', 'deploy', 'tools'].flatMap(d =>
+    findNodeTests(d)
+  );
+  assert.deepEqual(
+    walked.filter(f => !run.has(f) && !isEx(f)),
+    []
+  );
+  assert.deepEqual(
+    walked.filter(f => run.has(f) && isEx(f) && !f.endsWith('cutover-guard-container.test.mjs')),
+    [],
+    'an exception is not also in a check'
+  );
+  for (const x of ex)
+    assert.ok(
+      walked.some(f => f === x || f.startsWith(x)),
+      `stale exception ${x}`
+    );
+  assert.deepEqual(findNodeTests('no-such-folder'), []);
 });
 
 test('parity: every check that is a step belongs to a CI group, or to e2e (its own sharded job)', () => {
@@ -306,12 +332,12 @@ test('runGroup: runs every check after a red one, names failures, writes the sum
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rungroup-'));
   try {
     const summaryFile = path.join(dir, 'summary.md');
-    const names = groupChecks('pi').map(c => c.name);
+    const names = groupChecks('scripts').map(c => c.name);
     assert.ok(names.length > 3);
     const ran = [];
     let t = 0;
     const logs = [];
-    const code = runGroup('pi', {
+    const code = runGroup('scripts', {
       exec: c => {
         ran.push(c.name);
         return c.name === names[1] ? 3 : 0;
@@ -326,14 +352,14 @@ test('runGroup: runs every check after a red one, names failures, writes the sum
       logs.some(
         l =>
           l ===
-          `::error title=${names[1]}::${names[1]} failed (exit 3): ${[groupChecks('pi')[1].cmd, ...groupChecks('pi')[1].args].join(' ')}`
+          `::error title=${names[1]}::${names[1]} failed (exit 3): ${[groupChecks('scripts')[1].cmd, ...groupChecks('scripts')[1].args].join(' ')}`
       )
     );
     const summary = fs.readFileSync(summaryFile, 'utf8');
-    assert.match(summary, /### pi: 1 of \d+ failed/);
+    assert.match(summary, /### scripts: 1 of \d+ failed/);
     assert.match(summary, new RegExp(`\\| ${names[1]} \\| \\*\\*FAILED\\*\\* \\| 1\\.0 \\|`));
     assert.match(summary, new RegExp(`\\| ${names[0]} \\| passed \\| 1\\.0 \\|`));
-    assert.equal(runGroup('pi', { exec: () => 0, log: () => {}, summaryFile }), 0);
+    assert.equal(runGroup('scripts', { exec: () => 0, log: () => {}, summaryFile }), 0);
     assert.throws(() => runGroup('nope', { exec: () => 0 }), /unknown group/);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
@@ -424,9 +450,7 @@ test('lightFirst: light steps run before the first heavy one, the post-build ste
   const lastLight = names.findLastIndex(n => LIGHT_FIRST.has(n));
   assert.ok(lastLight < firstHeavy, 'every light step is ahead of the first heavy step');
   assert.ok(
-    LIGHT_FIRST.has('pi-stage-safety') &&
-      LIGHT_FIRST.has('docs-lint') &&
-      LIGHT_FIRST.has('changelog')
+    LIGHT_FIRST.has('pi-tests') && LIGHT_FIRST.has('docs-lint') && LIGHT_FIRST.has('changelog')
   );
   for (const n of [
     'typecheck',

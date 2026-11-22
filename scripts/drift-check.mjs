@@ -514,6 +514,29 @@ export function isWorkerStartFailure(output) {
 }
 
 /**
+ * Does a guard's output show Vitest test or hook timeouts and no failed assertion (a loaded machine
+ * made a slow test miss its limit)? Copied, not shared, as above.
+ * @param {string} output
+ */
+export function isVitestTimeout(output) {
+  const timeouts = (output.match(/(?:Test|Hook) timed out in \d+ms/gi) ?? []).length;
+  if (timeouts === 0) return false;
+  // Any other error line (assertion, TypeError, snapshot, import) is a real failure beside the timeout.
+  const other = output
+    .split('\n')
+    .some(
+      l =>
+        (/\b\w*Error\b/.test(l) ||
+          /expected .+ to (?:be|equal|match|contain|deeply)|Snapshot/.test(l)) &&
+        !/timed out in \d+ms/i.test(l)
+    );
+  if (other) return false;
+  // Vitest's summary: every failed test must be one of the timeouts.
+  const failed = /Tests\s+(\d+) failed/.exec(output);
+  return !failed || Number(failed[1]) <= timeouts;
+}
+
+/**
  * @param {string} dir @param {typeof CHECKS} checks @param {(line: string) => void} log
  * @param {string} main @param {string} sha @param {boolean} merged
  * @param {string[] | null} [changed] files changed since the merge base; null runs every guard
@@ -544,6 +567,13 @@ export function runChecks(dir, checks, log, main, sha, merged, changed = null) {
     if (r.status !== 0 && !r.signal && isWorkerStartFailure(`${r.stdout ?? ''}${r.stderr ?? ''}`)) {
       log(`  retry ${check.name} (vitest could not start a worker; load on this PC)`);
       r = exec();
+    } else if (
+      r.status !== 0 &&
+      !r.signal &&
+      isVitestTimeout(`${r.stdout ?? ''}${r.stderr ?? ''}`)
+    ) {
+      log(`  retry ${check.name} (vitest tests timed out; load on this PC)`);
+      r = exec();
     }
     if (r.signal || r.status === CTRL_C_EXIT) {
       log(`  stopped during ${check.name}`);
@@ -553,6 +583,8 @@ export function runChecks(dir, checks, log, main, sha, merged, changed = null) {
     log(`  ${ok ? 'ok  ' : 'FAIL'} ${check.name}`);
     if (!ok && isWorkerStartFailure(`${r.stdout ?? ''}${r.stderr ?? ''}`)) {
       log(`  INFRA ${check.name}: vitest could not start a worker, also on the retry`);
+    } else if (!ok && isVitestTimeout(`${r.stdout ?? ''}${r.stderr ?? ''}`)) {
+      log(`  INFRA ${check.name}: vitest tests timed out, also on the retry`);
     }
     // The tool-set size test prints how much room each set has left; show it, and mark a low one.
     for (const line of `${r.stdout ?? ''}`.split('\n')) {

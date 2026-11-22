@@ -229,7 +229,8 @@ test('plannerSections assembles every section from a vault dir and a fake gh', (
   assert.match(s, /Merge train: 1 of 4/);
   assert.match(s, /Main's CI: success/);
   assert.match(s, /W9 Do it/);
-  assert.match(s, /Nightly kit: NO NIGHTLY RUN RECORDED/);
+  assert.match(s, /Kit: latest run passed/);
+  assert.doesNotMatch(s, /NO NIGHTLY RUN RECORDED/);
   const dark = plannerSections({
     devDir: dev,
     kitHome: dev,
@@ -249,7 +250,7 @@ test('plannerSections assembles every section from a vault dir and a fake gh', (
   assert.ok(gone.includes('Waiting due: not readable'));
 });
 
-test('kitLine reports the last run, its age, failures, staleness and a later skip', () => {
+test('kitLine reports the latest run, its age, failures and a later skip', () => {
   const now = Date.parse('2026-11-17T12:00:00Z');
   const ran = {
     at: '2026-11-17T09:00:00Z',
@@ -257,63 +258,25 @@ test('kitLine reports the last run, its age, failures, staleness and a later ski
     git: 'abc1234',
     text: 'FAILED: 1 of 25 failed, 24 passed (26 min)',
     state: 'failed',
-    nightly: true,
     failing: ['bridge-health'],
   };
-  const doc = { version: 1, last: ran, lastRun: ran, lastNightly: ran, lastNightlyRun: ran };
-  const line = kitLine(JSON.stringify(doc), now);
-  assert.match(line, /last nightly FAILED: 1 of 25.*, 3 h ago, on abc1234; failing: bridge-health/);
-  assert.doesNotMatch(line, /lane's/);
-  // A lane's later run is named as a lane's and does not replace the nightly.
-  const lane = {
-    at: '2026-11-17T10:00:00Z',
-    state: 'passed',
-    text: 'passed: 30 of 30',
-    git: 'def5678',
-  };
-  const mixed = kitLine(
-    JSON.stringify({
-      version: 1,
-      last: lane,
-      lastRun: lane,
-      lastNightly: ran,
-      lastNightlyRun: ran,
-    }),
-    now
-  );
-  assert.match(mixed, /last nightly FAILED/);
-  assert.match(mixed, /latest kit run was a lane's, not the nightly: passed: 30 of 30 on def5678/);
-  // Only a lane's runs on file: no nightly is recorded.
+  const line = kitLine(JSON.stringify({ version: 1, last: ran, lastRun: ran }), now);
   assert.match(
-    kitLine(JSON.stringify({ version: 1, last: lane, lastRun: lane }), now),
-    /NO NIGHTLY RUN RECORDED.*lane's/
+    line,
+    /^Kit: latest run FAILED: 1 of 25.*, 3 h ago, on abc1234; failing: bridge-health/
   );
-  assert.doesNotMatch(line, /STALE/);
-  assert.match(kitLine(JSON.stringify(doc), now + 40 * 3600000), /STALE/);
+  // Never a nightly line, a stale flag or a "no nightly" warning, also with only a lane's run.
+  for (const l of [line, kitLine(JSON.stringify({ version: 1, last: ran }), now + 90 * 3600000)])
+    assert.doesNotMatch(l, /nightly|NIGHTLY|STALE/i);
   const skipped = {
     at: '2026-11-17T11:00:00Z',
     state: 'skipped',
-    nightly: true,
     text: 'skipped: the lock was not free',
   };
-  const withSkip = JSON.stringify({
-    version: 1,
-    last: skipped,
-    lastRun: ran,
-    lastNightly: skipped,
-    lastNightlyRun: ran,
-  });
-  assert.match(
-    kitLine(withSkip, now),
-    /last nightly FAILED.*latest nightly attempt skipped: the lock was not free \(1 h ago\)/
-  );
-  // A skipped nightly must not hide staleness of the last finished one.
-  assert.match(kitLine(withSkip, now + 40 * 3600000), /STALE/);
-  // An older file without lastNightly/lastNightlyRun falls back to the flag on lastRun.
   assert.match(
     kitLine(JSON.stringify({ version: 1, last: skipped, lastRun: ran }), now),
-    /last nightly FAILED/
+    /latest run FAILED.*latest attempt skipped: the lock was not free \(1 h ago\)/
   );
-  assert.match(kitLine(null, now), /no last-run\.json yet/);
+  assert.match(kitLine(null, now), /no last-run.json yet/);
   assert.match(kitLine('{bad', now), /unreadable/);
 });

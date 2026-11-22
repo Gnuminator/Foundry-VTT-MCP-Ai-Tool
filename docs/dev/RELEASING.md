@@ -112,3 +112,9 @@ newer release tag on the Pi; a deliberate rollback needs `TOOL_REF`. The refusal
 
 A build of a tag that lists `playwright-core` as a runtime dependency drops its dev packages; v0.21.0 and older do
 not, so the first release built on the Pi with the pruned layout is v0.22.0.
+
+**Stage 33 right after stage 5.** `scripts/pi/remote/33-obsidian-plugin.sh` writes the new build's Obsidian plugin files
+into the GM vault, and Syncthing carries them to the GM's PC. Stage 5 ends with stage 33's read-only `CHECK=1` result as
+one warning line; when it warns, run stage 33 (`dietpi-backup 1` and the user's OK first, see
+[the vaults page](pi/vaults-and-recordings.md#the-obsidian-plugin-through-the-gm-vault-stage-33)). The plugin shows
+"Restart Obsidian" in the status bar while the synced manifest is newer than the running plugin.

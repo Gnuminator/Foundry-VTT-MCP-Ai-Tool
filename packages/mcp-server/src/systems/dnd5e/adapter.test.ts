@@ -8,7 +8,11 @@
 import { describe, expect, it } from 'vitest';
 
 import { DnD5eAdapter } from './adapter.js';
+import type { Rec } from '../data.js';
 import type { DnD5eCreatureIndex, SystemCreatureIndex } from '../types.js';
+
+/** The `stats` object of a formatted creature (`Rec` types it as unknown). */
+const statsOf = (result: Rec): Rec | undefined => result.stats as Rec | undefined;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -289,49 +293,49 @@ describe('DnD5eAdapter', () => {
 
     it('includes stats.challengeRating', () => {
       const result = adapter.formatCreatureForList(dragon);
-      expect(result.stats?.challengeRating).toBe(17);
+      expect(statsOf(result)?.challengeRating).toBe(17);
     });
 
     it('includes stats.creatureType', () => {
       const result = adapter.formatCreatureForList(dragon);
-      expect(result.stats?.creatureType).toBe('dragon');
+      expect(statsOf(result)?.creatureType).toBe('dragon');
     });
 
     it('includes stats.size', () => {
       const result = adapter.formatCreatureForList(dragon);
-      expect(result.stats?.size).toBe('huge');
+      expect(statsOf(result)?.size).toBe('huge');
     });
 
     it('includes stats.alignment', () => {
       const result = adapter.formatCreatureForList(dragon);
-      expect(result.stats?.alignment).toBe('chaotic evil');
+      expect(statsOf(result)?.alignment).toBe('chaotic evil');
     });
 
     it('includes stats.hitPoints', () => {
       const result = adapter.formatCreatureForList(dragon);
-      expect(result.stats?.hitPoints).toBe(256);
+      expect(statsOf(result)?.hitPoints).toBe(256);
     });
 
     it('includes stats.armorClass', () => {
       const result = adapter.formatCreatureForList(dragon);
-      expect(result.stats?.armorClass).toBe(19);
+      expect(statsOf(result)?.armorClass).toBe(19);
     });
 
     it('sets stats.hasLegendaryActions=true for legendary creature', () => {
       const result = adapter.formatCreatureForList(dragon);
-      expect(result.stats?.hasLegendaryActions).toBe(true);
+      expect(statsOf(result)?.hasLegendaryActions).toBe(true);
     });
 
     it('does NOT include hasLegendaryActions for non-legendary creature', () => {
       const simple = makeDragon({ hasLegendaryActions: false });
       const result = adapter.formatCreatureForList(simple);
-      expect(result.stats?.hasLegendaryActions).toBeUndefined();
+      expect(statsOf(result)?.hasLegendaryActions).toBeUndefined();
     });
 
     it('sets stats.spellcaster=true for spellcasting creature', () => {
       const caster = makeDragon({ hasSpellcasting: true });
       const result = adapter.formatCreatureForList(caster);
-      expect(result.stats?.spellcaster).toBe(true);
+      expect(statsOf(result)?.spellcaster).toBe(true);
     });
 
     it('sets hasImage=true when creature has img', () => {
@@ -619,7 +623,7 @@ describe('DnD5eAdapter', () => {
       const actorWithSpells = makeNpcActorData();
       actorWithSpells.system.spells = { spell1: { value: 2, max: 2 } };
       const stats = adapter.extractCharacterStats(actorWithSpells);
-      expect(stats.spellcasting?.hasSpells).toBe(true);
+      expect((stats.spellcasting as Rec | undefined)?.hasSpells).toBe(true);
     });
 
     it('detects spellcasting from a spell item even with no casting ability and zeroed slots', () => {
@@ -631,7 +635,7 @@ describe('DnD5eAdapter', () => {
         { name: 'Misty Step', type: 'spell' },
       ];
       const stats = adapter.extractCharacterStats(caster);
-      expect(stats.spellcasting?.hasSpells).toBe(true);
+      expect((stats.spellcasting as Rec | undefined)?.hasSpells).toBe(true);
     });
 
     it('does not report spellcasting for a casting ability alone (2024 monsters set one on every NPC)', () => {

@@ -9,6 +9,7 @@ import { TOOL_CALL_LOG_DIR, type ToolCallLine } from './tool-call-log.js';
 import {
   ClientsFile,
   buildWhoUsesWhat,
+  findDownWindows,
   handleWhoUsesWhat,
   readCallLines,
 } from './who-uses-what.js';
@@ -58,6 +59,22 @@ describe('ClientsFile', () => {
     const list = await b.list();
     expect(list).toHaveLength(3);
     expect(list.find(e => e.piece === 'player-extension')?.version).toBe('0.29.2');
+  });
+
+  it('keeps the auto-update state per install and drops values it does not know', async () => {
+    const a = new ClientsFile(dataDir);
+    await a.record({ piece: 'connectors', who: 'gm', install: 'aaaa1111', autoUpdate: 'on' }, NOW);
+    await a.record({ piece: 'connectors', who: 'gm', install: 'bbbb2222', autoUpdate: 'off' }, NOW);
+    await a.record(
+      { piece: 'connectors', who: 'gm', install: 'cccc3333', autoUpdate: 'maybe' },
+      NOW
+    );
+    const list = await new ClientsFile(dataDir).list();
+    expect(list.map(e => [e.install, e.autoUpdate])).toEqual([
+      ['aaaa1111', 'on'],
+      ['bbbb2222', 'off'],
+      ['cccc3333', null],
+    ]);
   });
 
   it('refuses unknown pieces, odd names and free text', async () => {
@@ -117,6 +134,7 @@ describe('buildWhoUsesWhat', () => {
           install: '',
           version: '0.20.0',
           name: '',
+          autoUpdate: null,
           lastSeen: NOW,
         },
         {
@@ -125,7 +143,37 @@ describe('buildWhoUsesWhat', () => {
           install: 'abc123abc123',
           version: '0.29.2',
           name: '',
+          autoUpdate: null,
           lastSeen: NOW,
+        },
+        // Two GM PCs on one version: separate sightings, each with its own auto-update state.
+        {
+          piece: 'connectors',
+          who: 'gm',
+          install: 'aaaa1111',
+          version: '0.31.0',
+          name: '',
+          autoUpdate: 'on',
+          lastSeen: NOW,
+        },
+        {
+          piece: 'connectors',
+          who: 'gm',
+          install: 'bbbb2222',
+          version: '0.31.0',
+          name: '',
+          autoUpdate: 'off',
+          lastSeen: NOW,
+        },
+        // A stale sighting from a client without ids, older than the id-bearing ones: hidden.
+        {
+          piece: 'connectors',
+          who: 'gm',
+          install: '',
+          version: '0.29.0',
+          name: '',
+          autoUpdate: null,
+          lastSeen: NOW - 60_000,
         },
       ],
       usageEvents: events,
@@ -137,8 +185,43 @@ describe('buildWhoUsesWhat', () => {
     expect(report.people.map(p => p.key)).toEqual(['gm', 'P1']);
     const gm = report.people[0];
     expect(gm.calls).toBe(2);
+    const connectors = gm.versions.filter(v => v.piece === 'connectors');
+    expect(connectors.map(v => [v.install, v.autoUpdate])).toEqual([
+      ['aaaa1111', 'on'],
+      ['bbbb2222', 'off'],
+    ]);
+    // A newer id-less sighting is a different PC on an old client: it stays visible.
+    const newer = buildWhoUsesWhat({
+      calls: [],
+      clients: [
+        {
+          piece: 'connectors',
+          who: 'gm',
+          install: 'aaaa1111',
+          version: '0.31.0',
+          name: '',
+          autoUpdate: 'on',
+          lastSeen: NOW - 60_000,
+        },
+        {
+          piece: 'connectors',
+          who: 'gm',
+          install: '',
+          version: '0.29.0',
+          name: '',
+          autoUpdate: null,
+          lastSeen: NOW,
+        },
+      ],
+      usageEvents: [],
+      toolNames: [],
+      current: '0.31.0',
+      days: 7,
+      now: NOW,
+    });
+    expect(newer.people[0].versions.map(v => v.install)).toEqual(['', 'aaaa1111']);
     expect(gm.skills).toEqual([{ skill: 'gm-coach', stub: 1, calls: 1 }]);
-    expect(gm.versions[0]).toMatchObject({
+    expect(gm.versions.find(v => v.piece === 'obsidian')).toMatchObject({
       piece: 'obsidian',
       install: 'abc123abc123',
       behind: false,
@@ -178,18 +261,106 @@ describe('buildWhoUsesWhat', () => {
       days: 7,
       now: NOW,
     });
-    expect(Object.keys(report.people[0]).sort()).toEqual([
-      'calls',
-      'controls',
-      'errors',
-      'key',
-      'lastSeen',
-      'name',
-      'role',
-      'skills',
-      'topTools',
-      'versions',
+    expect(Object.keys(report.people[0]).sort()).toEqual(
+      [
+        'calls',
+        'claudeCalls',
+        'controls',
+        'dashboardCalls',
+        'dashboardTools',
+        'errors',
+        'key',
+        'lastSeen',
+        'name',
+        'realErrors',
+        'role',
+        'skills',
+        'topTools',
+        'versions',
+      ].sort()
+    );
+  });
+
+  it('splits dashboard refreshes from calls made through Claude', () => {
+    const report = buildWhoUsesWhat({
+      calls: [
+        call({ tool: 'get-combat-state', via: 'dashboard' }),
+        call({ tool: 'get-combat-state', via: 'dashboard' }),
+        call({ tool: 'get-character', via: 'connector' }),
+        call({ tool: 'list-scenes' }),
+      ],
+      clients: [],
+      usageEvents: [],
+      toolNames: null,
+      current: '0.29.2',
+      days: 7,
+      now: NOW,
+    });
+    const gm = report.people[0];
+    expect(gm).toMatchObject({ calls: 4, claudeCalls: 2, dashboardCalls: 2 });
+    expect(gm.topTools.map(t => t.name).sort()).toEqual(['get-character', 'list-scenes']);
+    expect(gm.dashboardTools).toEqual([{ name: 'get-combat-state', calls: 2 }]);
+  });
+
+  it('groups errors: a run of immediate failures is a Foundry-down window, the rest is real', () => {
+    const fail = (t: string): ToolCallLine =>
+      call({ t, ok: false, ms: 0, size: 0, via: 'dashboard' });
+    const report = buildWhoUsesWhat({
+      calls: [
+        fail('2026-11-17T03:30:00.000Z'),
+        fail('2026-11-17T03:30:04.000Z'),
+        fail('2026-11-17T03:30:08.000Z'),
+        fail('2026-11-17T08:00:00.000Z'),
+        call({ t: '2026-11-17T09:00:00.000Z', ok: false, ms: 900, size: 40, err: 'validation' }),
+        call({ t: '2026-11-17T09:30:00.000Z', ok: false, ms: 3, size: 20, err: 'not-connected' }),
+      ],
+      clients: [],
+      usageEvents: [],
+      toolNames: null,
+      current: '0.29.2',
+      days: 7,
+      now: NOW,
+    });
+    expect(report.errorCauses.total).toBe(6);
+    expect(report.errorCauses.foundryDown.calls).toBe(4);
+    expect(report.errorCauses.foundryDown.windows).toEqual([
+      { from: '2026-11-17T03:30:00.000Z', to: '2026-11-17T03:30:08.000Z', calls: 3 },
     ]);
+    expect(report.errorCauses.real).toEqual([
+      { cause: 'unclassified', calls: 1 },
+      { cause: 'validation', calls: 1 },
+    ]);
+    expect(report.people[0]).toMatchObject({ errors: 6, realErrors: 2 });
+    expect(report.tools.errorRates).toEqual([{ name: 'get-world-info', calls: 6, errors: 2 }]);
+  });
+});
+
+describe('findDownWindows', () => {
+  const fail = (t: string, over: Partial<ToolCallLine> = {}): ToolCallLine =>
+    call({ t, ok: false, ms: 0, size: 0, ...over });
+
+  it('needs three failures, sorts its input and keeps a gap of exactly two minutes in the run', () => {
+    const two = findDownWindows([fail('2026-11-17T03:00:00Z'), fail('2026-11-17T03:00:05Z')]);
+    expect(two.windows).toEqual([]);
+    const three = findDownWindows([
+      fail('2026-11-17T03:04:00Z'),
+      fail('2026-11-17T03:00:00Z'),
+      fail('2026-11-17T03:02:00Z'),
+    ]);
+    expect(three.windows).toHaveLength(1);
+    expect(three.windows[0]).toMatchObject({ calls: 3 });
+  });
+
+  it('skips bad times, and counts a slow not-connected failure as down without a window', () => {
+    const slow = fail('2026-11-17T05:00:00Z', { ms: 400, size: 30, err: 'not-connected' });
+    const r = findDownWindows([
+      fail('not a time'),
+      slow,
+      fail('2026-11-17T04:00:00Z', { err: 'other' }),
+    ]);
+    expect(r.windows).toEqual([]);
+    expect(r.down.has(slow)).toBe(true);
+    expect(r.down.size).toBe(1);
   });
 });
 

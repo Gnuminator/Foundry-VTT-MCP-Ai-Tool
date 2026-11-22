@@ -138,7 +138,7 @@ import {
   renderMirrorStatusNote,
   sameMirrorContent,
 } from './mirror-render.js';
-import { scanCampaign, type MirrorScan } from './mirror-scan.js';
+import { noteMirrorWrites, scanCampaign, type MirrorScan } from './mirror-scan.js';
 import { readMirrorSettings } from './mirror-settings.js';
 import {
   campaignDir,
@@ -2055,7 +2055,7 @@ export class ObsidianMirrorPump {
     const trashed = writer.trashed.length;
     const written = writer.written.length - cycle.created;
     const moved = writer.moved.length;
-    const changed = writer.written.length + trashed + moved > 0;
+    const changed = noteMirrorWrites(state.worldId, writer.written.length, trashed, moved);
     const abort = error instanceof CycleAbort ? error : null;
     if (this.state !== state) {
       // The world changed under the cycle: its state is gone.

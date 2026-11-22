@@ -281,7 +281,7 @@ describe('CombatResolutionTools.handleManageRest', () => {
 // ---------------------------------------------------------------------------
 
 describe('CombatResolutionTools parameter descriptions (M3)', () => {
-  const props = (name: string): Record<string, { description?: string }> => {
+  const props = (name: string): Record<string, { description?: string; enum?: string[] }> => {
     const { tools } = makeTools(CombatResolutionTools);
     const def = tools.getToolDefinitions().find(d => d.name === name)!;
     return (def.inputSchema as any).properties;

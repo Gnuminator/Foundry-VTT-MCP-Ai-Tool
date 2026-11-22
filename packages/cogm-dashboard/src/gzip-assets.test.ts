@@ -75,7 +75,7 @@ beforeAll(async () => {
   app.use('/next/assets', limit, gzipAssets(path.join(dir, 'assets')));
   app.use('/next', (_req, res) => res.status(404).send('fell through'));
   await new Promise<void>(resolve => {
-    server = app.listen(0, '127.0.0.1', resolve);
+    server = app.listen(0, '127.0.0.1', () => resolve());
   });
   port = (server.address() as AddressInfo).port;
 });

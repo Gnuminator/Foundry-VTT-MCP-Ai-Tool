@@ -162,7 +162,8 @@ describe('tool catalog', () => {
         '\n'
       );
     const num = (text: string): number => Number(text.replace(/,/g, ''));
-    const size = (value: unknown): number => JSON.stringify(stripToolRefs(value)).length;
+    const size = (value: unknown): number =>
+      JSON.stringify(stripToolRefs(value as Parameters<typeof stripToolRefs>[0])).length;
     const within10 = (file: string, what: string, written: number, actual: number): void => {
       expect(
         Math.abs(written - actual) / actual,

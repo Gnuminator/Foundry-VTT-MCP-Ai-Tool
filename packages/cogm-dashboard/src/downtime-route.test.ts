@@ -33,7 +33,7 @@ async function start(client: DowntimeClient): Promise<string> {
     } as unknown as PlayerDirectory,
     worldId: () => 'w',
   });
-  await new Promise<void>(r => (server = app.listen(0, '127.0.0.1', r)));
+  await new Promise<void>(r => (server = app.listen(0, '127.0.0.1', () => r())));
   return `http://127.0.0.1:${(server!.address() as AddressInfo).port}`;
 }
 
@@ -74,7 +74,7 @@ describe('downtime route', () => {
       } as unknown as PlayerDirectory,
       worldId: () => world,
     });
-    await new Promise<void>(r => (server = app.listen(0, '127.0.0.1', r)));
+    await new Promise<void>(r => (server = app.listen(0, '127.0.0.1', () => r())));
     const base = `http://127.0.0.1:${(server!.address() as AddressInfo).port}`;
     const h = { 'X-CoGM-Me': 'good' };
     expect((await fetch(`${base}/api/me/downtime`, { headers: h })).status).toBe(503);
@@ -100,7 +100,7 @@ describe('downtime route', () => {
       } as unknown as PlayerDirectory,
       worldId: () => null,
     });
-    await new Promise<void>(r => (server = app.listen(0, '127.0.0.1', r)));
+    await new Promise<void>(r => (server = app.listen(0, '127.0.0.1', () => r())));
     const base = `http://127.0.0.1:${(server!.address() as AddressInfo).port}`;
     // A leftover link from an old world does not pin the world for everyone after it.
     expect(

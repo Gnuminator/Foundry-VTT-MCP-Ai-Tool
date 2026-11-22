@@ -186,6 +186,8 @@ export const GM_ACTIONS = {
   startCombat: 'startCombat',
   /** () => {ended: number} ends every combat on kit scenes */
   endCombats: 'endCombats',
+  /** ({sceneId, tokenId?}) => {targeted: string[]} the Kit GM targets that token (what pressing T does) and only it; no tokenId clears the targets */
+  targetToken: 'targetToken',
   /**
    * ({sceneId, tokenId}) => {name, item, before: {max, spent}, after: {max, spent}, messageId} the token's
    * actor uses its first usable legendary activity with action consumption on, so the system spends the

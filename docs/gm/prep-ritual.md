@@ -14,7 +14,8 @@ without your yes.
 
 The skill is the file `foundry-prep-ritual.zip`, attached to each release download. Add it like the [GM coach](setup-gm-coach.md): Claude
 Desktop, Settings, Plugins, and add the file. Then start a new chat and switch on the Foundry connectors
-**foundry-mcp** and **foundry-mcp-prep** in the **+** menu, then **Plugins**.
+**foundry-mcp** and **foundry-mcp-prep** in the **+** menu, then **Plugins**. If you added the connectors
+[by web address](connect-claude-web.md), they are the ones you named Core and Prep.
 
 ## The five steps
 

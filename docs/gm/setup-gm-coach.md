@@ -10,7 +10,7 @@ tool. It works on the free Claude plan. What it can do and how to ask it is in
 [Your GM coach in Claude](gm-coach.md). About 5 minutes, once.
 
 **You need:** a Claude account (the desktop app or claude.ai) with the Foundry connector switched
-on in your chats. On a Pro or Max plan you add the coach as a plugin (first section below). On a
+on in your chats (added with the Windows client or [by web address](connect-claude-web.md)). On a Pro or Max plan you add the coach as a plugin (first section below). On a
 free plan you use the file `foundry-gm-coach.zip` from the person who built the tool.
 
 <!-- wiki:coach-download -->

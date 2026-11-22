@@ -19,7 +19,7 @@ import {
 } from './tool-sets.js';
 
 function dump(): {
-  tools: { name: string; description?: string; inputSchema: unknown; set: string }[];
+  tools: { name: string; description?: string | undefined; inputSchema: unknown; set: string }[];
   instructions: Record<string, string>;
 } {
   const tools = stripToolRefs(collectToolDefinitions(stubToolRouterDeps())).map(t => ({

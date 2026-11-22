@@ -595,6 +595,12 @@ test('main tip with no run: a failed CI start posts one line asking a person to 
   assert.deepEqual(h.calls.gate, []);
 });
 
+test('gateOutcome: a drift refusal from Vitest timeouts ("gate timeout, not drift") is transient', () => {
+  const slow =
+    'drift: drift-check failed (guards: server tests) [infrastructure, not the PR: gate timeout, not drift: vitest tests timed out, also on a retry] (log x); last lines below';
+  assert.equal(gateOutcome(1, `lane:merge: refused because ${slow}`, 5).kind, 'transient');
+});
+
 test('gateOutcome: a drift refusal marked infrastructure is transient, a plain guard failure is not', () => {
   const infra =
     'drift: drift-check failed (guards: server tests) [infrastructure, not the PR: vitest could not start a worker, also on a retry] (log x); last lines below';

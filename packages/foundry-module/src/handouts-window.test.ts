@@ -368,7 +368,7 @@ describe('the window class on a fake ApplicationV2', () => {
       target: unknown
     ) => void;
     handler.call(rendered[0], {} as Event, { dataset: data });
-    return vi.advanceTimersByTimeAsync(0);
+    return vi.advanceTimersByTimeAsync(0).then(() => undefined);
   }
 
   /** The GM ticks or unticks "Show it now": the browser fires a change event that bubbles to the content. */

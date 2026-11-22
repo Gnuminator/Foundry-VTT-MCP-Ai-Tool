@@ -505,7 +505,9 @@ describe('getSetupInfo', () => {
   it('reloads the windows once, after the whole apply, only when the module list changed', async () => {
     installModules([mkModule('alpha', true), mkModule('beta', false)]);
     vi.useFakeTimers();
-    onTestFinished(() => vi.useRealTimers());
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
     const emitted: string[] = [];
     const gm = globalThis as any;
     const mockGame = gm.game;
@@ -722,7 +724,9 @@ describe('module toggles: apply-time checks', () => {
 describe('module toggles: failure and reload', () => {
   function reloadSpy(): string[] {
     vi.useFakeTimers();
-    onTestFinished(() => vi.useRealTimers());
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
     const emitted: string[] = [];
     const mockGame = g.game;
     const { user, socket } = mockGame;

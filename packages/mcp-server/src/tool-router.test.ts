@@ -124,7 +124,7 @@ function makeDeps(): ToolRouterDeps {
 function tool(deps: ToolRouterDeps, id: string): any {
   const module = TOOL_MODULES.find(m => m.id === id);
   if (!module) throw new Error(`no tool module ${id}`);
-  return deps.get(module);
+  return deps.get(module as unknown as ToolModule<never>);
 }
 
 describe('buildToolRouter', () => {

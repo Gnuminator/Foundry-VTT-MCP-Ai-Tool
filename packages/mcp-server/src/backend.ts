@@ -520,6 +520,7 @@ async function startBackend(): Promise<void> {
               version?: unknown;
               client?: unknown;
               install?: unknown;
+              autoUpdate?: unknown;
             };
             if (hp.client === 'dashboard') dashboardConnection = true;
             else {
@@ -527,6 +528,7 @@ async function startBackend(): Promise<void> {
                 piece: 'connectors',
                 who: 'gm',
                 install: hp.install,
+                autoUpdate: hp.autoUpdate,
                 version: hp.version,
               });
             }

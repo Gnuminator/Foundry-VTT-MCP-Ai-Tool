@@ -969,12 +969,144 @@ test('with a guide, initialize carries instructions and tools/list the guide too
   }
 });
 
+test('get-helper-guide asks the table first and serves its text', async () => {
+  const { buildGuide } = await import('./build.mjs');
+  const guide = buildGuide();
+  const { handleMessage } = loadServer();
+  const seen = [];
+  const forwarder = fakeForwarder();
+  forwarder.forward = async req => {
+    seen.push(req.params);
+    return { message: { result: { content: [{ type: 'text', text: `live ${SECRET}` }] } } };
+  };
+  const call = args =>
+    handleMessage(
+      {
+        jsonrpc: '2.0',
+        id: 3,
+        method: 'tools/call',
+        params: { name: 'get-helper-guide', arguments: args },
+      },
+      forwarder,
+      guide
+    );
+  const over = await call({});
+  assert.match(over.result.content[0].text, /^live \[hidden\]/);
+  assert.match(over.result.content[0].text, /Topics you can also ask/);
+  assert.deepEqual(seen[0], { name: 'get-player-skill-guide', arguments: {} });
+  const page = await call({ topic: 'join' });
+  assert.match(page.result.content[0].text, /^live/);
+  assert.equal(seen[1].arguments.page, 'references/join.md');
+  // An unknown topic never reaches the table.
+  const before = seen.length;
+  assert.equal((await call({ topic: '../x' })).result.isError, true);
+  assert.equal(seen.length, before);
+});
+
+test('get-helper-guide falls back to the bundled copy when the table has no live guide', async () => {
+  const { buildGuide } = await import('./build.mjs');
+  const guide = buildGuide();
+  const { handleMessage } = loadServer();
+  const call = (forward, args) =>
+    handleMessage(
+      {
+        jsonrpc: '2.0',
+        id: 3,
+        method: 'tools/call',
+        params: { name: 'get-helper-guide', arguments: args },
+      },
+      { secrets: [SECRET], forward },
+      guide
+    );
+  for (const forward of [
+    async () => ({ failure: 'HTTP 500' }),
+    async () => ({ message: { result: { isError: true, content: [{ type: 'text', text: 'no' }] } } }),
+    async () => ({ message: { error: { code: -32601, message: 'no tool' } } }),
+    async () => {
+      throw new Error('boom');
+    },
+  ]) {
+    assert.match((await call(forward, {})).result.content[0].text, /^# D&D helper/);
+    assert.match(
+      (await call(forward, { topic: 'character-creation' })).result.content[0].text,
+      /^# Character creation flow/
+    );
+  }
+});
+
+test('get-helper-guide tries the second page name, stops on a transport failure and is time-bounded', async () => {
+  const { buildGuide } = await import('./build.mjs');
+  const guide = buildGuide();
+  const { handleMessage } = loadServer();
+  const call = (forwarder, args) =>
+    handleMessage(
+      {
+        jsonrpc: '2.0',
+        id: 3,
+        method: 'tools/call',
+        params: { name: 'get-helper-guide', arguments: args },
+      },
+      forwarder,
+      guide
+    );
+  // First page name is an error, the second answers.
+  const pages = [];
+  const second = await call(
+    {
+      secrets: [SECRET],
+      forward: async req => {
+        pages.push(req.params.arguments.page);
+        return pages.length === 1
+          ? { message: { result: { isError: true, content: [{ type: 'text', text: 'no page' }] } } }
+          : { message: { result: { content: [{ type: 'text', text: 'second page' }] } } };
+      },
+    },
+    { topic: 'join' }
+  );
+  assert.deepEqual(pages, ['references/join.md', 'references/player/join.md']);
+  assert.match(second.result.content[0].text, /^second page/);
+  // A transport failure stops after one try and serves the bundled copy.
+  let tries = 0;
+  const down = await call(
+    {
+      secrets: [SECRET],
+      forward: async () => {
+        tries++;
+        return { failure: 'timeout' };
+      },
+    },
+    { topic: 'join' }
+  );
+  assert.equal(tries, 1);
+  assert.ok(down.result.content[0].text.length > 0 && !down.result.isError);
+  // A table that never answers: the bundled copy arrives within the bound.
+  const started = Date.now();
+  const slow = await call(
+    { secrets: [SECRET], guideMs: 50, forward: () => new Promise(() => undefined) },
+    { topic: 'character-creation' }
+  );
+  assert.ok(Date.now() - started < 2000);
+  assert.match(slow.result.content[0].text, /^# Character creation flow/);
+  // Empty text and a non-array content fall back too.
+  for (const result of [{ content: [{ type: 'text', text: '  ' }] }, { content: 'x' }]) {
+    const r = await call({ secrets: [SECRET], forward: async () => ({ message: { result } }) }, {});
+    assert.match(r.result.content[0].text, /^# D&D helper/);
+  }
+});
+
+test('the bundled instructions no longer claim a closed tool list', async () => {
+  const { buildGuide } = await import('./build.mjs');
+  const g = buildGuide();
+  assert.ok(!/are all of them|Do not look for others/.test(JSON.stringify(g)));
+  assert.match(g.instructions, /may offer more or newer ones/);
+});
+
 test('get-helper-guide answers locally per topic and refuses an unknown one', async () => {
   const { buildGuide } = await import('./build.mjs');
   const guide = buildGuide();
   const { handleMessage } = loadServer();
   const forwarder = fakeForwarder();
-  forwarder.forward = async () => assert.fail('the guide tool is not forwarded');
+  forwarder.forward = async () => ({ failure: 'offline' });
   const call = args =>
     handleMessage(
       {

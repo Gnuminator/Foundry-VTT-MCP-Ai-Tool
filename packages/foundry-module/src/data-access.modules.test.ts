@@ -249,7 +249,7 @@ describe('FoundryDataAccess: getModules compatibility issues', () => {
       id: 'gen-12',
       title: 'Gen 12',
       active: true,
-      compatibility: { maximum: 12 },
+      compatibility: { maximum: 12 as unknown as string },
     });
     // A literal comparison would call 13.331 newer than 13.
     (globalThis as any).foundry.utils.isNewerVersion = (): boolean => true;

@@ -18,9 +18,11 @@ export const DRIFT_RUNNER =
  */
 export function infraCause(output, guards) {
   const infra = [...output.matchAll(/^ {2}INFRA .+?: vitest could not start a worker/gm)].length;
-  return infra > 0 && infra === guards.length
+  const timeouts = [...output.matchAll(/^ {2}INFRA .+?: vitest tests timed out/gm)].length;
+  if (infra + timeouts === 0 || infra + timeouts !== guards.length) return '';
+  return timeouts === 0
     ? ' [infrastructure, not the PR: vitest could not start a worker, also on a retry]'
-    : '';
+    : ' [infrastructure, not the PR: gate timeout, not drift: vitest tests timed out, also on a retry]';
 }
 
 /** Does a module import another file of the repo (relative specifier)? @param {string} text */

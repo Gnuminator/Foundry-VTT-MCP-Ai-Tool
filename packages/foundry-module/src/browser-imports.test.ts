@@ -5,7 +5,7 @@
  * memory and checks that no import is left over.
  */
 import { fileURLToPath } from 'node:url';
-import { build } from 'esbuild';
+import { build, type BuildOptions } from 'esbuild';
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error plain .mjs build options without type declarations
 import { moduleBuildOptions } from '../build-options.mjs';
@@ -29,7 +29,7 @@ function importSpecifiers(code: string): string[] {
 describe('browser-loadable module build', () => {
   it('bundles main.js with no import left to resolve', async () => {
     const result = await build({
-      ...moduleBuildOptions(MODULE_DIR),
+      ...(moduleBuildOptions(MODULE_DIR) as BuildOptions),
       write: false,
       sourcemap: false,
       outfile: 'main.js',

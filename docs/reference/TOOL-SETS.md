@@ -14,14 +14,14 @@ So the tools are split into five sets. Each set is its own entry in Claude Deskt
 configuration, so Claude Desktop shows one switch per set in the **+** menu, then **Plugins**. Turn on
 what the conversation needs. The switches are remembered for new chats.
 
-| Set        | Claude Desktop entry      | Tools | Size (characters) | For                                                                                                                                                                                                                                                        |
-| ---------- | ------------------------- | ----- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **core**   | `foundry-mcp`             | 25    | about 19,000      | Look things up (world, characters, scenes, journals, compendiums, combat) and review, apply or undo planned changes. Always on.                                                                                                                            |
-| **play**   | `foundry-mcp-play`        | 41    | about 44,200      | Run the table live: tokens, combat turns, rolls, damage, conditions, resources, chat, scene mood, map notes and loot.                                                                                                                                      |
-| **prep**   | `foundry-mcp-prep`        | 21    | about 23,250      | Prepare sessions and write recaps: quests and journals, encounter budgets, the Tarokka reading, handouts, the session log, play stats and the pre-flight check.                                                                                            |
-| **build**  | `foundry-mcp-build`       | 10    | about 28,900      | Make and change NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells. Set up rooms: teleports and tokens in a room.                                                                                              |
-| **admin**  | `foundry-mcp-admin`       | 11    | about 11,000      | Set up and troubleshoot: installed modules and their errors, Foundry settings, modules on or off, user roles, who can open a pack, journal or scene, who owns which actor, round token rings, and the Obsidian mirror settings.                            |
-| **player** | none (`/mcp/player` only) | 8     | about 3,050       | A player's own read-only view: their character sheet, what their next level grants, short passages from the books their Foundry user can see, their revealed handouts, recap and quests, and their play stats. Served only on /mcp/player, never on stdio. |
+| Set        | Claude Desktop entry      | Tools | Size (characters) | For                                                                                                                                                                                                                                                           |
+| ---------- | ------------------------- | ----- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **core**   | `foundry-mcp`             | 25    | about 19,000      | Look things up (world, characters, scenes, journals, compendiums, combat) and review, apply or undo planned changes. Always on.                                                                                                                               |
+| **play**   | `foundry-mcp-play`        | 41    | about 44,200      | Run the table live: tokens, combat turns, rolls, damage, conditions, resources, chat, scene mood, map notes and loot.                                                                                                                                         |
+| **prep**   | `foundry-mcp-prep`        | 21    | about 23,250      | Prepare sessions and write recaps: quests and journals, encounter budgets, the Tarokka reading, handouts, the session log, play stats and the pre-flight check.                                                                                               |
+| **build**  | `foundry-mcp-build`       | 10    | about 24,700      | Make and change NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells. Set up rooms: teleports and tokens in a room.                                                                                                 |
+| **admin**  | `foundry-mcp-admin`       | 11    | about 11,000      | Set up and troubleshoot: installed modules and their errors, Foundry settings, modules on or off, user roles, who can open a compendium pack, a journal or a scene, who owns which actor, round token rings for all actors, and the Obsidian mirror settings. |
+| **player** | none (`/mcp/player` only) | 8     | about 3,050       | A player's own read-only view: their character sheet, what their next level grants, short passages from the books their Foundry user can see, their revealed handouts, recap and quests, and their play stats. Served only on /mcp/player, never on stdio.    |
 
 A prep chat with core and prep on carries about 42,250 characters instead of 129,250. Core alone is
 about 15% of everything.
@@ -103,10 +103,9 @@ Every entry runs a small wrapper process; they all share one bridge. Settings su
 `MCP_CONTROL_HOST` or `FOUNDRY_AI_OBSIDIAN_DIR` belong in every entry (the installer keeps what the old
 `foundry-mcp` entry had and copies it to the others).
 
-The Core connector tells Claude which sets exist and what each holds; the other connectors send a
-short text (their own set, the switch-first rule, the reply language) and point to Core. So when a
-request needs a set that is off, Claude says which switch to turn on instead of reaching for the
-wrong tool.
+Each wrapper also tells Claude which sets it serves and which other sets exist, so when a request
+needs a set that is off, Claude says which switch to turn on instead of reaching for the wrong
+tool.
 
 ## Adding a tool
 

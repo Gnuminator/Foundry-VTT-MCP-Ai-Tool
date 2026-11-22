@@ -129,8 +129,18 @@ export function compare(live, expected) {
   );
   const names = l => (Array.isArray(l) ? l.map(name => ({ name })) : l);
   diffMaps('tunnel', 'name', names(live.tunnel?.names), names(expected.tunnel?.names), []);
-  const rule = list =>
-    Array.isArray(list) ? list.map(x => ({ ...x, key: `${x?.phase} ${x?.description}` })) : list;
+  // Rules without a description share a key inside one phase: the nth repeat gets " #n", so they
+  // compare in order instead of being reported as "listed twice" in both files.
+  const rule = list => {
+    if (!Array.isArray(list)) return list;
+    const seen = new Map();
+    return list.map(x => {
+      const base = `${x?.phase} ${x?.description}`;
+      const n = (seen.get(base) ?? 0) + 1;
+      seen.set(base, n);
+      return { ...x, key: n === 1 ? base : `${base} #${n}` };
+    });
+  };
   diffMaps(
     'transform rule',
     'key',

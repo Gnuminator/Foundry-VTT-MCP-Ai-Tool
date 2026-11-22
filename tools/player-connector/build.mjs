@@ -52,7 +52,7 @@ export function buildGuide() {
     .slice(0, cut)
     .replace(
       from,
-      'These seven tools, plus `get-helper-guide` (this guide), are all of them. Do not look for others,'
+      'These are the tools this guide describes, plus `get-helper-guide` (this guide). The table may offer more or newer ones: check the tool list you were given, and only say a tool does not exist when it is missing from that list,'
     )
     .trimEnd();
   const topics = [...files.keys()].filter(n => n.startsWith('references/')).map(topicOf);

@@ -27,6 +27,7 @@ import { ORIGIN_GM_FUNCTIONS } from './gm-origins.mjs';
 import { inspectBuild } from './inspect-build.mjs';
 import { settleCreated } from './settle-created.mjs';
 import { studioPump } from './studio-pump.mjs';
+import { targetToken } from './target-token.mjs';
 
 /** @param {object} _args */
 async function worldStatus(_args) {
@@ -1963,6 +1964,7 @@ export const GM_ACTION_FUNCTIONS = {
   placeToken,
   startCombat,
   endCombats,
+  targetToken,
   spendLegendary,
   restoreLegendary,
   readActor,

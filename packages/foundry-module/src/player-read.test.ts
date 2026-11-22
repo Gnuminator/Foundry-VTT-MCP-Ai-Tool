@@ -501,7 +501,7 @@ describe('playerRead: books', () => {
 
   it('a GM search that ran first does not put secrets or the true name in the player answers', async () => {
     g.game.settings = { get: (): string => '' };
-    const gmFirst = await deps.rulesSearch.searchRules({ query: 'fireball', excerptChars: 4000 });
+    const gmFirst = await rulesSearch.searchRules({ query: 'fireball', excerptChars: 4000 });
     expect(JSON.stringify(gmFirst)).toContain('CANARY-GM-SECRET-ITEM');
     for (const query of ['fireball', 'grappling', 'ring iron']) {
       assertNoCanary(await as('searchBooks', { query, excerptChars: 600 }));
@@ -557,7 +557,7 @@ describe('playerRead: books', () => {
   it('the GM search keeps the full text, separate from the player index', async () => {
     g.game.settings = { get: (): string => '' };
     await as('searchBooks', { query: 'fireball' });
-    const gmResult = await deps.rulesSearch.searchRules({ query: 'fireball', excerptChars: 4000 });
+    const gmResult = await rulesSearch.searchRules({ query: 'fireball', excerptChars: 4000 });
     expect(JSON.stringify(gmResult)).toContain('CANARY-GM-SECRET-ITEM');
   });
 

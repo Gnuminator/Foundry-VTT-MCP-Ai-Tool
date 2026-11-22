@@ -27,22 +27,42 @@ export function renderWhoUsesWhat(report) {
       'Counts only: never typed text, tool arguments or results. The group knows features are counted.'
   );
   out.push('');
-  out.push('| Person | Calls | Errors | Last seen | Top tools | Skills | Dashboard and Foundry controls |');
-  out.push('| --- | ---: | ---: | --- | --- | --- | --- |');
+  out.push(
+    'Claude calls are what people asked Claude to do; Dashboard calls are the GM dashboard refreshing itself. ' +
+      'Errors leave out Foundry-down windows (backup, update, restart).'
+  );
+  out.push('');
+  out.push(
+    '| Person | Claude calls | Dashboard calls | Errors | Last seen | Top tools (Claude) | Skills | Dashboard and Foundry controls |'
+  );
+  out.push('| --- | ---: | ---: | ---: | --- | --- | --- | --- |');
   for (const p of report.people) {
     const name = p.role === 'gm' ? 'GM' : p.name ?? (p.role === 'unknown' ? 'Unknown (older lines)' : p.key);
     out.push(
-      `| ${cell(name)} | ${p.calls} | ${p.errors} | ${when(p.lastSeen)} | ` +
+      `| ${cell(name)} | ${p.claudeCalls ?? p.calls} | ${p.dashboardCalls ?? 0} | ${p.realErrors ?? p.errors} | ${when(p.lastSeen)} | ` +
         `${cell(p.topTools.map(t => `${t.name} ${t.calls}`).join(', ') || 'none')} | ` +
         `${cell(p.skills.map(s => `${s.skill} (stub ${s.stub ?? '?'}) ${s.calls}`).join(', ') || 'none')} | ` +
         `${cell(p.controls.top.map(c => `${c.name} ${c.uses}`).join(', ') || 'none')} |`
     );
   }
   out.push('');
+  const causes = report.errorCauses;
+  if (causes && causes.total > 0) {
+    out.push('## Errors by cause');
+    out.push('');
+    out.push(
+      `${causes.total} failed calls: ${causes.foundryDown.calls} while Foundry was down or not linked, ${Math.max(0, causes.total - causes.foundryDown.calls)} other.`
+    );
+    for (const w of causes.foundryDown.windows.slice(-10)) {
+      out.push(`- Foundry down ${when(w.from)} to ${when(w.to)} UTC: ${w.calls} calls`);
+    }
+    for (const r of causes.real) out.push(`- ${cell(r.cause)}: ${r.calls}`);
+    out.push('');
+  }
   out.push('## Versions');
   out.push('');
-  out.push('| Person | Piece | Version | Install | Status | Last seen |');
-  out.push('| --- | --- | --- | --- | --- | --- |');
+  out.push('| Person | Piece | Version | Install | Auto-update | Status | Last seen |');
+  out.push('| --- | --- | --- | --- | --- | --- | --- |');
   let any = false;
   for (const p of report.people) {
     const name = p.role === 'gm' ? 'GM' : p.name ?? p.key;
@@ -51,11 +71,11 @@ export function renderWhoUsesWhat(report) {
       const piece = v.piece === 'claude' && v.name ? `claude (${v.name})` : v.piece;
       out.push(
         `| ${cell(name)} | ${cell(piece)} | ${cell(v.version ?? 'unknown')} | ${cell(v.install || '-')} | ` +
-          `${v.behind ? 'BEHIND' : 'ok'} | ${when(v.lastSeen)} |`
+          `${v.autoUpdate ?? '-'} | ${v.behind ? 'BEHIND' : 'ok'} | ${when(v.lastSeen)} |`
       );
     }
   }
-  if (!any) out.push('| none yet | | | | | |');
+  if (!any) out.push('| none yet | | | | | | |');
   out.push('');
   out.push('## Tools');
   out.push('');

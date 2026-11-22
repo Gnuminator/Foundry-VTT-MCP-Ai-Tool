@@ -26,6 +26,7 @@ services:
       args:
         # 1 adds torch 2.14.1 (cu130) and transformers for hviske-v6 and saga-2-m; use TRANSCRIBER_TAG=extras
         WITH_TRANSFORMERS: ${TRANSCRIBER_EXTRAS:-0}
+        SOURCE_HASH: ${TRANSCRIBER_SOURCE_HASH:-unknown}
     # The scripts run it as a job: docker compose run --rm transcriber /session ...
     command: ['--help']
     deploy:
@@ -52,6 +53,8 @@ services:
     image: fvtt-session-pipeline:latest
     build:
       context: ../session-pipeline
+      args:
+        SOURCE_HASH: ${PIPELINE_SOURCE_HASH:-unknown}
     command: ['--help']
     volumes:
       - type: bind

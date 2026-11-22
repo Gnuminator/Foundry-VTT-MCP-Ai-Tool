@@ -74,15 +74,15 @@ Parameters:
 
 ## dnd5e-add-feature
 
-Direct write. D&D 5e only. Add a feature, attack, spellcasting setup or spells to an existing actor. featureType picks the mode; each parameter says which modes use it. Required besides actor:
+Direct write. D&D 5e only. Add a feature, attack, spellcasting setup or spells to an existing actor. featureType picks the mode. Parameters per mode (all need actor):
 
-- passive: a trait with no roll (Magic Resistance): featureName
-- save: forces a saving throw (breath weapon): featureName, saveAbility, saveDC, damageParts
-- attack: weapon attack (Claw, Bite): featureName, attackType, damageParts (rangeFt when ranged)
-- attack-with-save: a hit plus a save for bonus damage (Stinger): the attack ones plus saveAbility, saveDC, saveDamageParts
-- aura: damage to all in range, no roll: featureName, damageParts, areaType, areaSize
-- spellcasting: slots and casting ability, run before "spells": spellcastingClass, spellcastingLevel
-- spells: import named spells from the compendium: spellNames (English, max 50)
+- passive (a trait with no roll): featureName, description
+- save (breath weapon): featureName, saveAbility, saveDC, damageParts; area, halfOnSave optional
+- attack (Claw, Bite): featureName, attackType, damageParts, rangeFt when ranged; weapon fields optional
+- attack-with-save (hit plus save, Stinger): the attack ones plus saveAbility, saveDC, saveDamageParts
+- aura (damage in range, no roll): featureName, damageParts, areaType, areaSize
+- spellcasting (run before "spells"): spellcastingClass, spellcastingLevel
+- spells (from the compendium): spellNames
 
 Find the actor with list-characters or get-character.
 
@@ -90,95 +90,95 @@ Kind: changes something. Title: Add feature to actor.
 
 Parameters:
 
-- `featureType` (string, required): Mode: decides which parameters are used. One of: `passive`, `save`, `attack`, `attack-with-save`, `aura`, `spellcasting`, `spells`.
-- `actor` (string, required): Name or ID of the target actor (partial name match works). Always required.
-- `featureName` (string): Name for the new feature/item; must be unique on the actor. Required for: passive, save, attack, attack-with-save, aura.
-- `description` (string): HTML description of the feature (optional). Used by: passive, save, attack, attack-with-save, aura. Default: `""`.
-- `activationType` (string): Action economy type. Used by: save, attack, attack-with-save, aura. Default: "action". One of: `action`, `bonus`, `reaction`, `legendary`, `lair`, `special`. Default: `action`.
-- `damageParts` (array of object): Damage components. For attack: first entry is base weapon die, extra entries stack on top. For save and aura: all damage dealt on trigger. For attack-with-save: the attack roll damage (on hit). Required for: save, attack, attack-with-save, aura. Items: at least 1.
-  - `number` (number, required): Number of dice (e.g. 4). Range: at least 1.
-  - `denomination` (number, required): Die size. One of: `4`, `6`, `8`, `10`, `12`, `20`, `100`.
-  - `type` (string, required): Damage type (e.g. "fire", "slashing", "cold")
-- `saveAbility` (string): Ability used for the saving throw. Required for: save, attack-with-save. One of: `str`, `dex`, `con`, `int`, `wis`, `cha`.
-- `saveDC` (number): Saving throw DC (1–30). Required for: save, attack-with-save. Range: 1 to 30.
-- `halfOnSave` (boolean): Whether the target takes half damage on a successful save. Used by: save. Default: true. Default: `true`.
-- `saveDamageParts` (array of object): Damage dealt by the save effect on a failed save (independent of attack damage). Required for: attack-with-save. Items: at least 1.
-  - `number` (number, required): Number of dice (e.g. 4). Range: at least 1.
-  - `denomination` (number, required): Die size. One of: `4`, `6`, `8`, `10`, `12`, `20`, `100`.
-  - `type` (string, required): Damage type (e.g. "fire", "slashing", "cold")
-- `saveOnSave` (string): "none": no damage on a successful save (default). "half": half save damage on a successful save. Used by: attack-with-save. One of: `half`, `none`. Default: `none`.
-- `areaType` (string): Area-of-effect template shape. For save: optional (omit or use "" for no template); if set, areaSize is required. For aura: required; use "emanation" or "sphere" for radial auras. One of: `cone`, `cube`, `cylinder`, `emanation`, `line`, `radius`, `sphere`, `""`. Default: `""`.
-- `areaSize` (number): Template size in areaUnits (e.g. 30 for a 30 ft cone). Must be > 0. Required for: aura. Required for save when areaType is set. Range: above 0.
-- `areaUnits` (string): Units for areaSize. Used by: save, aura. Default: "ft". One of: `ft`, `m`. Default: `ft`.
-- `affectsType` (string): What the area targets. Used by: save, aura. Default: "creature". One of: `creature`, `object`, `space`, `""`. Default: `creature`.
-- `attackType` (string): "melee" for reach-based attacks; "ranged" for bow/thrown attacks. Required for: attack, attack-with-save. One of: `melee`, `ranged`.
-- `weaponClass` (string): Weapon category. Use "natural" for monster attacks (claws, bite, touch). Used by: attack, attack-with-save. Default: "natural". One of: `natural`, `simpleM`, `martialM`, `simpleR`, `martialR`. Default: `natural`.
-- `abilityModifier` (string): Ability used for to-hit and damage rolls. Omit to use default: STR for melee, DEX for ranged. Used by: attack, attack-with-save. One of: `str`, `dex`, `con`, `int`, `wis`, `cha`.
-- `attackBonus` (number): Flat bonus to the attack roll only, not damage (e.g. 1 for +1 to hit). Used by: attack, attack-with-save. Default: 0. Range: 0 to 10. Default: `0`.
-- `proficient` (boolean): Adds the proficiency bonus to hit. Used by: attack, attack-with-save. Default: true. Default: `true`.
-- `equipped` (boolean): Weapon is equipped. Used by: attack, attack-with-save. Default: true. Default: `true`.
-- `reachFt` (number): Melee reach in feet. Used by: attack, attack-with-save (melee only). Default: 5. Range: at least 5. Default: `5`.
-- `rangeFt` (number): Normal range in feet. Used by: attack, attack-with-save. Required when attackType is "ranged". Range: at least 1.
-- `longRangeFt` (number): Long range in feet; attacks beyond rangeFt up to this distance are at disadvantage. Must be greater than rangeFt. Used by: attack, attack-with-save (ranged only). Range: at least 1.
-- `properties` (array of string): Weapon property codes: ada, amm, fin, fir, foc, hvy, lgt, lod, mgc, rch, ret, spc, thr, two, ver. Used by: attack, attack-with-save. Default: `[]`.
-- `spellcastingClass` (string): The spellcasting class; determines slot table and default casting ability. Warlock uses Pact Magic. Required for: spellcasting. One of: `artificer`, `bard`, `cleric`, `druid`, `paladin`, `ranger`, `sorcerer`, `warlock`, `wizard`.
-- `spellcastingLevel` (number): Class level (1–20). Determines how many slots the actor receives. Required for: spellcasting. Range: 1 to 20.
-- `spellcastingAbility` (string): Casting ability. Omit for the class default (wizard, artificer INT; cleric, druid, ranger WIS; sorcerer, warlock, bard, paladin CHA). Used by: spellcasting. One of: `str`, `dex`, `con`, `int`, `wis`, `cha`.
-- `spellNames` (array of string): English spell names to import (exact match, case-insensitive). Max 50 per call. Required for: spells. Items: 1 to 50.
-- `compendiumPacks` (array of string): Compendium pack IDs to search, in priority order (first match wins). Default: ["dnd5e.spells"] (SRD 2014). Use "dnd5e.spells24" for 2024 rules. Used by: spells. Default: `["dnd5e.spells"]`.
-- `sourceRules` (string): Rules edition. Used by: passive, attack, attack-with-save, aura, spellcasting. Default: "2014". One of: `2014`, `2024`. Default: `2014`.
-- `sourceBook` (string): Source book abbreviation (e.g. "MM'14"). Used by: passive, attack, attack-with-save, aura. Default: `""`.
-- `sourcePage` (string): Page number in the source book. Used by: passive, attack, attack-with-save, aura. Default: `""`.
+- `featureType` (string, required): One of: `passive`, `save`, `attack`, `attack-with-save`, `aura`, `spellcasting`, `spells`.
+- `actor` (string, required): Name or ID of the target actor (partial name works).
+- `featureName` (string): Name of the new feature; unique on the actor.
+- `description` (string): HTML description (optional).
+- `activationType` (string): Action economy type. Default "action". One of: `action`, `bonus`, `reaction`, `legendary`, `lair`, `special`.
+- `damageParts` (array of object): Damage dice. attack: first entry is the base weapon die, extras stack. attack-with-save: the on-hit damage. Items: at least 1.
+  - `number` (number, required): Range: at least 1.
+  - `denomination` (number, required): One of: `4`, `6`, `8`, `10`, `12`, `20`, `100`.
+  - `type` (string, required): e.g. "fire"
+- `saveAbility` (string): One of: `str`, `dex`, `con`, `int`, `wis`, `cha`.
+- `saveDC` (number): Saving throw DC (1–30). Range: 1 to 30.
+- `halfOnSave` (boolean): Half damage on a successful save (save mode). Default true.
+- `saveDamageParts` (array of object): Damage on a failed save (attack-with-save). Items: at least 1.
+  - `number` (number, required): Range: at least 1.
+  - `denomination` (number, required): One of: `4`, `6`, `8`, `10`, `12`, `20`, `100`.
+  - `type` (string, required): e.g. "fire"
+- `saveOnSave` (string): Damage on a successful save (attack-with-save). Default "none". One of: `half`, `none`.
+- `areaType` (string): Template shape. save: optional, and areaSize is then required. aura: required ("emanation" or "sphere" for radial). One of: `cone`, `cube`, `cylinder`, `emanation`, `line`, `radius`, `sphere`, `""`.
+- `areaSize` (number): Template size in areaUnits (e.g. 30). Required for aura, and for save with areaType. Range: above 0.
+- `areaUnits` (string): Units for areaSize. Default "ft". One of: `ft`, `m`.
+- `affectsType` (string): What the area targets. Default "creature". One of: `creature`, `object`, `space`, `""`.
+- `attackType` (string): One of: `melee`, `ranged`.
+- `weaponClass` (string): Weapon category; "natural" for claws, bite, touch. Default "natural". One of: `natural`, `simpleM`, `martialM`, `simpleR`, `martialR`.
+- `abilityModifier` (string): Ability for to-hit and damage. Default STR melee, DEX ranged. One of: `str`, `dex`, `con`, `int`, `wis`, `cha`.
+- `attackBonus` (number): Flat bonus to the attack roll only (not damage). Default 0. Range: 0 to 10.
+- `proficient` (boolean): Adds the proficiency bonus to hit. Default true.
+- `equipped` (boolean): Default true.
+- `reachFt` (number): Melee reach in feet. Default 5. Range: at least 5.
+- `rangeFt` (number): Normal range in feet. Required when ranged. Range: at least 1.
+- `longRangeFt` (number): Long range in feet (disadvantage beyond rangeFt); above rangeFt. Range: at least 1.
+- `properties` (array of string): Weapon property codes: ada, amm, fin, fir, foc, hvy, lgt, lod, mgc, rch, ret, spc, thr, two, ver.
+- `spellcastingClass` (string): Spellcasting class: sets the slot table and default ability. One of: `artificer`, `bard`, `cleric`, `druid`, `paladin`, `ranger`, `sorcerer`, `warlock`, `wizard`.
+- `spellcastingLevel` (number): Class level (1–20); sets the slots. Range: 1 to 20.
+- `spellcastingAbility` (string): Casting ability. Default: the class default. One of: `str`, `dex`, `con`, `int`, `wis`, `cha`.
+- `spellNames` (array of string): English spell names (exact, case-insensitive), max 50. Items: 1 to 50.
+- `compendiumPacks` (array of string): Pack IDs in priority order. Default ["dnd5e.spells"] (2014); "dnd5e.spells24" for 2024.
+- `sourceRules` (string): Rules edition. Default "2014". One of: `2014`, `2024`.
+- `sourceBook` (string): Source book abbreviation (e.g. "MM'14").
+- `sourcePage` (string)
 
 ## dnd5e-create-npc
 
-Direct write. D&D 5e only. Create an NPC from scratch with a full stat block: identity, ability scores, saves, HP, AC, speeds, senses, skills, damage and condition traits, languages and biography. It adds no items, actions, features or spells: add them afterwards with dnd5e-add-feature. The actor goes in the "Foundry MCP Creatures" folder.
+Direct write. D&D 5e only. Create an NPC from scratch with a full stat block (no items, actions or spells: add them afterwards with dnd5e-add-feature). The actor goes in the "Foundry MCP Creatures" folder.
 
 Kind: changes something. Title: Create NPC.
 
 Parameters:
 
-- `name` (string, required): Name of the NPC
-- `creatureType` (string, required): Creature type. One of: `humanoid`, `undead`, `beast`, `dragon`, `aberration`, `construct`, `elemental`, `fey`, `fiend`, `giant`, `monstrosity`, `ooze`, `plant`, `celestial`, `swarm`.
-- `creatureSubtype` (string): Optional subtype (e.g. "Goblinoid", "Shapechanger"). Default: `""`.
-- `size` (string, required): Creature size. One of: `tiny`, `small`, `medium`, `large`, `huge`, `gargantuan`.
-- `alignment` (string): Alignment string (e.g. "Neutral Evil", "Chaotic Good"). Default: `""`.
+- `name` (string, required)
+- `creatureType` (string, required): One of: `humanoid`, `undead`, `beast`, `dragon`, `aberration`, `construct`, `elemental`, `fey`, `fiend`, `giant`, `monstrosity`, `ooze`, `plant`, `celestial`, `swarm`.
+- `creatureSubtype` (string): Subtype (e.g. "Goblinoid")
+- `size` (string, required): One of: `tiny`, `small`, `medium`, `large`, `huge`, `gargantuan`.
+- `alignment` (string): Alignment (e.g. "Neutral Evil")
 - `cr` (string or number, required): Challenge Rating: whole number (0, 1, 5), fraction string ("1/8", "1/4", "1/2"), or decimal number (0.25, 0.5)
 - `hpAverage` (number, required): Average (fixed) hit points. Range: at least 1.
-- `hpFormula` (string, required): Hit dice formula used for re-rolls (e.g. "2d6", "3d8+9")
-- `acMode` (string, required): "default": Foundry calculates AC from equipped items and abilities; "flat": set a fixed AC value via acValue. One of: `default`, `flat`.
-- `acValue` (number): Fixed AC value (0–30). Required when acMode is "flat". Range: 0 to 30.
+- `hpFormula` (string, required): Hit dice formula (e.g. "3d8+9")
+- `acMode` (string, required): "default": Foundry calculates AC; "flat": use acValue. One of: `default`, `flat`.
+- `acValue` (number): Fixed AC (0–30) for acMode "flat". Range: 0 to 30.
 - `abilities` (object, required): The six ability scores (1–30 each)
-  - `str` (number, required): Range: 1 to 30.
-  - `dex` (number, required): Range: 1 to 30.
-  - `con` (number, required): Range: 1 to 30.
-  - `int` (number, required): Range: 1 to 30.
-  - `wis` (number, required): Range: 1 to 30.
-  - `cha` (number, required): Range: 1 to 30.
-- `savingThrows` (array of string): Abilities with saving throw proficiency. One of: `str`, `dex`, `con`, `int`, `wis`, `cha`. Default: `[]`.
-- `walkSpeed` (number): Walk speed in feet. Range: at least 0. Default: `30`.
-- `flySpeed` (number): Fly speed in feet. Range: at least 0. Default: `0`.
-- `swimSpeed` (number): Swim speed in feet. Range: at least 0. Default: `0`.
-- `climbSpeed` (number): Climb speed in feet. Range: at least 0. Default: `0`.
-- `burrowSpeed` (number): Burrow speed in feet. Range: at least 0. Default: `0`.
-- `hover` (boolean): Whether the creature hovers (cannot fall). Default: `false`.
-- `darkvision` (number): Darkvision range in feet. Range: at least 0. Default: `0`.
-- `blindsight` (number): Blindsight range in feet. Range: at least 0. Default: `0`.
-- `tremorsense` (number): Tremorsense range in feet. Range: at least 0. Default: `0`.
-- `truesight` (number): Truesight range in feet. Range: at least 0. Default: `0`.
-- `specialSenses` (string): Any additional senses not covered by the standard fields. Default: `""`.
-- `skills` (array of object): Skills with proficiency or expertise. Default: `[]`.
+  - `str` (number, required)
+  - `dex` (number, required)
+  - `con` (number, required)
+  - `int` (number, required)
+  - `wis` (number, required)
+  - `cha` (number, required)
+- `savingThrows` (array of string): Save proficiencies. One of: `str`, `dex`, `con`, `int`, `wis`, `cha`.
+- `walkSpeed` (number): Walk speed, ft. Range: at least 0.
+- `flySpeed` (number): Fly speed, ft. Range: at least 0.
+- `swimSpeed` (number): Swim speed, ft. Range: at least 0.
+- `climbSpeed` (number): Climb speed, ft. Range: at least 0.
+- `burrowSpeed` (number): Burrow speed, ft. Range: at least 0.
+- `hover` (boolean): Hovers (cannot fall)
+- `darkvision` (number): Darkvision, ft. Range: at least 0.
+- `blindsight` (number): Blindsight, ft. Range: at least 0.
+- `tremorsense` (number): Tremorsense, ft. Range: at least 0.
+- `truesight` (number): Truesight, ft. Range: at least 0.
+- `specialSenses` (string): Other senses as text
+- `skills` (array of object): Skill proficiencies
   - `skill` (string, required): One of: `Acrobatics`, `Animal Handling`, `Arcana`, `Athletics`, `Deception`, `History`, `Insight`, `Intimidation`, `Investigation`, `Medicine`, `Nature`, `Perception`, `Performance`, `Persuasion`, `Religion`, `Sleight of Hand`, `Stealth`, `Survival`.
-  - `proficiency` (string, required): "proficient" = proficiency bonus once; "expert" = double proficiency. One of: `proficient`, `expert`.
-- `damageImmunities` (array of string): Damage types the creature is immune to (e.g. ["necrotic", "poison"]), lowercase 5e names. Other values are accepted with a warning. Default: `[]`.
-- `damageResistances` (array of string): Damage types the creature is resistant to. Same canonical set as damageImmunities. Default: `[]`.
-- `damageVulnerabilities` (array of string): Damage types the creature is vulnerable to. Same canonical set as damageImmunities. Default: `[]`.
-- `conditionImmunities` (array of string): Conditions the creature is immune to (e.g. ["charmed", "frightened"]), lowercase 5e names. Other values are accepted with a warning. Default: `[]`.
-- `languages` (array of string): Languages the creature speaks (e.g. ["Common", "Goblin"]). Default: `[]`.
-- `languagesCustom` (string): Free-text language note (e.g. "telepathy 60 ft."). Default: `""`.
-- `biography` (string): HTML biography text shown in the character sheet. Default: `""`.
-- `sourceBook` (string): Source book abbreviation (e.g. "MM'14", "VGM"). Default: `""`.
-- `sourcePage` (string): Page number in the source book. Default: `""`.
+  - `proficiency` (string, required): proficient or expert (double). One of: `proficient`, `expert`.
+- `damageImmunities` (array of string): Lowercase 5e damage types (e.g. ["necrotic"]); others warn
+- `damageResistances` (array of string): Damage types, as damageImmunities
+- `damageVulnerabilities` (array of string): Damage types, as damageImmunities
+- `conditionImmunities` (array of string): Lowercase 5e conditions (e.g. ["charmed"]); others warn
+- `languages` (array of string): Languages (e.g. ["Common"])
+- `languagesCustom` (string): Language note (e.g. "telepathy 60 ft.")
+- `biography` (string): HTML biography
+- `sourceBook` (string): Source book (e.g. "MM'14")
+- `sourcePage` (string): Source page
 - `sourceRules` (string): Rules edition. One of: `2014`, `2024`. Default: `2014`.
 
 ## dnd5e-add-features-from-compendium

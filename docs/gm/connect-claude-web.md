@@ -63,9 +63,9 @@ connected. With Prep switched on, ask _"Run get-preflight"_ for the full check.
 - **Plan, confirm and undo are the same.** A change is planned first, shown to you, applied after
   your yes and kept in Recent Changes with an Undo, exactly as with the installer.
 - **A slow change can look like an error.** If a change takes more than about a minute and a half,
-  Claude may show an error (a Cloudflare 524) although it landed. Before you try it again, ask Claude
+  Claude may say the call is still running, or show an error (a Cloudflare 524), although it landed. Before you try it again, ask Claude
   to list the latest changes, or open **Recent Changes** in the dashboard.
-- **If the tool admin takes you off the list,** the connectors stop working within a few minutes.
+- **If the tool admin takes you off the list,** the connectors stop working soon after, the next time Claude calls a tool.
 - **On a plan B night** the server is not reachable and these connectors do not work, like the rest
   ([Game night runbook](game-night-runbook.md#the-server-is-down)).
 

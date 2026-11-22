@@ -15,7 +15,7 @@ Then, in this order:
    time you play.
 
 On a new PC, [connect Claude Desktop to the server](connect-claude-desktop.md) first, or
-[add the connectors by web address](connect-claude-web.md) (no installer, Pro plan). A word you do
+[add the connectors by web address](connect-claude-web.md) (no installer, paid plan). A word you do
 not know is in the [glossary](glossary.md).
 
 **From inside Foundry:** Settings tab, **Game Settings**, category **Foundry AI Tool**, the

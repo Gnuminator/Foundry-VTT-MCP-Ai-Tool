@@ -1,6 +1,6 @@
 ---
 source: gm/README.md
-sourceHash: ad2e1b81b4e5
+sourceHash: 25b51bb6a9de
 title: GM-guides
 description: Guides til en GM, der kører et spil med Foundry AI Tool, skrevet til en, der er ny i Foundry og i værktøjet.
 ---
@@ -17,7 +17,7 @@ Så i denne rækkefølge:
    du spiller.
 
 På en ny PC [forbinder du først Claude Desktop til serveren](connect-claude-desktop.md), eller
-[tilføjer connectorerne med webadresse](connect-claude-web.md) (uden installer, Pro-plan). Et ord, du
+[tilføjer connectorerne med webadresse](connect-claude-web.md) (uden installer, betalt plan). Et ord, du
 ikke kender, står i [ordlisten](glossary.md).
 
 **Inde fra Foundry:** fanen Settings, **Game Settings**, kategorien **Foundry AI Tool**, knappen

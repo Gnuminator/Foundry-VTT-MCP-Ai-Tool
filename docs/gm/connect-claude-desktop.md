@@ -12,7 +12,7 @@ you need your **tunnel key** (two pieces of text) from the person who built the 
 
 There is a second way with no installer and no tunnel key: add the connectors to Claude by their web
 address and an email sign-in. See [Connect Claude by web address](connect-claude-web.md). It needs a
-Pro plan, because a free plan allows only one custom connector; the installer works on Free.
+paid plan (Pro or Max), because a free plan allows only one custom connector; the installer works on Free.
 
 You need: a Windows PC, Claude Desktop installed and signed in, and the tunnel key. About 10 minutes.
 The free Claude plan is enough to connect, but it has a limit per five hours and one per week; see

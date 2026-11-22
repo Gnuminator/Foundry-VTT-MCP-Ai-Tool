@@ -1,6 +1,6 @@
 ---
 source: gm/connect-claude-web.md
-sourceHash: 56e9cebdad10
+sourceHash: e0922e99a002
 title: Forbind Claude med webadresse (uden installer)
 description: Tilføj de fem Foundry-connectors til Claude som custom connectors med en adresse og et login med din e-mail, uden Windows-klienten og uden tunnelnøgle.
 ---
@@ -47,7 +47,7 @@ Gør det én gang pr. connector.
    eventuelle avancerede felter stå tomme. Tryk **Add**, så **Connect**.
 3. En Cloudflare-side beder om din e-mail. Brug den e-mail, tool admin har til dig som GM. Cloudflare
    sender dig en kode; skriv den ind. Claude siger så, at den er forbundet.
-4. Gentag for de andre connectors. Loginnet går hurtigt efter den første.
+4. Gentag for de andre connectors. Det går hurtigt efter den første.
 5. Åbn en ny chat, klik på **+**, vælg **Plugins** og slå dem til, du vil bruge i den chat, som i
    [Spørg Claude](asking-claude.md#tool-sets-hvilke-kontakter-du-skal-tænde).
 
@@ -66,9 +66,9 @@ forbundet. Med Prep slået til kan du spørge _"Run get-preflight"_ for det fuld
 - **Plan, bekræft og fortryd er det samme.** En ændring planlægges først, vises for dig, udføres efter
   dit ja og gemmes i Recent Changes med en Undo, præcis som med installeren.
 - **En langsom ændring kan ligne en fejl.** Hvis en ændring tager mere end halvanden minut, kan Claude
-  vise en fejl (en Cloudflare 524), selv om ændringen gik igennem. Før du prøver igen, så bed Claude
+  sige, at kaldet stadig kører, eller vise en fejl (en Cloudflare 524), selv om ændringen gik igennem. Før du prøver igen, så bed Claude
   om at vise de seneste ændringer, eller åbn **Recent Changes** på dashboardet.
-- **Hvis tool admin tager dig af listen,** holder connectorerne op med at virke inden for få minutter.
+- **Hvis tool admin fjerner dig fra listen,** holder connectorerne kort efter op med at virke, næste gang Claude kalder et tool.
 - **På en plan B-aften** kan serveren ikke nås, og connectorerne virker ikke, som resten
   ([Game night runbook](game-night-runbook.md#serveren-er-nede)).
 

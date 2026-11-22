@@ -1,6 +1,6 @@
 ---
 source: gm/README.md
-sourceHash: 25b51bb6a9de
+sourceHash: ba7ea0c73f38
 title: GM-guides
 description: Guides til en GM, der kører et spil med Foundry AI Tool, skrevet til en, der er ny i Foundry og i værktøjet.
 ---
@@ -65,6 +65,7 @@ du gør, hvis det ikke gjorde.
 | [Før hver session](before-session.md)                            | En tjekliste til de 15 minutter før spil.                                                                        |
 | [Quest: før en session](before-session-quest.md)                 | De 15 minutter før spil som fire trin.                                                                           |
 | [Efter hver session](after-session.md)                           | En tjekliste til lige efter spil.                                                                                |
+| [Efter en session: noterne](after-session-notes.md)              | Fra Discord-optagelsen til spillerne læser recap'en: hvor noterne lander, hvad du godkender.                     |
 | [Når en karakter dør](death-and-new-characters.md)               | Dødsøjeblikket, en dødslog og at tage en ny karakter ind.                                                        |
 | [Gør aldrig dette, gør kun dette hvis](never-and-only-if.md)     | Korte regler, hver med sin begrundelse.                                                                          |
 | [Runbook til spilaftenen](game-night-runbook.md)                 | Én side til aftenen: hvad du gør, når noget fejler, og hvornår du skal bede om hjælp.                            |

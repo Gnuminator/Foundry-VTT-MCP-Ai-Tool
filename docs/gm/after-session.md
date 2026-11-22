@@ -34,7 +34,8 @@ is one action.
 - [ ] If the evening was recorded on Discord, the notes and a draft player recap come from the
       recording, not from the `session-recap` prompt. Read them under **Session notes** in the
       After view ([Session notes (After)](dashboard-panels.md#session-notes-after)) before you
-      approve them.
+      approve them. The whole path, including how the recap reaches the players, is in
+      [After a session: notes](after-session-notes.md).
 - [ ] In Obsidian, open this session's note (`Campaigns/<world id>/AI Tool/Sessions/`) and check it
       has the evening's events and stats.
 - [ ] Write your own notes in your own files (for example in `Campaigns/<world id>/Prep/`), not in

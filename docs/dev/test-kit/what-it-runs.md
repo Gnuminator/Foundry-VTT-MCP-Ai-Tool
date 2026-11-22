@@ -253,5 +253,5 @@ older than 7 hours, and the start alerts hook shows it until then.
 **Reading the result:** `<kit home>\last-run.json` has `last` (the latest attempt, including a
 skip) and `lastRun` (the latest run that got to a report: `state`, `passed`, `failed`, `failing`
 scenario ids, `at`, `git`, `reportDir`). `node scripts/backlog.mjs status --planner` prints it as
-one "Nightly kit:" line (result, age, failing ids, `STALE` after 36 hours, a later skip), so the
-planner reads it at each sitting.
+one "Kit:" line (latest run, age, failing ids, a later skip), so the planner reads it at each
+sitting. No schedule is expected, so there is no stale or missing-nightly warning.

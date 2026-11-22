@@ -164,7 +164,7 @@ export function parseProgress(text) {
 /** @typedef {(args: string[]) => { status: number | null, stdout: string }} Git */
 
 /**
- * The Backlog file as the vault's upstream branch has it: fetch, then `git show @{u}:<path>`. Never
+ * The Backlog file as the vault's upstream branch has it: fetch, then `git show <upstream>:<path>`. Never
  * touches the working tree (the vault is shared with the planner, lanes and open Obsidian notes, and
  * may be dirty). A failed fetch is reported through `warn` and the last fetched copy is read.
  * Returns null (after a `warn` line) when unreadable.

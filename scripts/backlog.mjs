@@ -19,8 +19,7 @@
  *   node scripts/backlog.mjs release <id>                  removes the claimed and link lines
  *   node scripts/backlog.mjs set <id> "<field>" "<value>"  replaces one planning field (title, link, board, gate, area,
  *                                         "blocked by", "depends on", touches, source, "done when"); "" removes it
- *   node scripts/backlog.mjs done <id> <PR> [--sha <sha>] [--summary <text>] [--by <who>]
- *                                         [--pi-run <text>]
+ *   node scripts/backlog.mjs done <id> <PR> [--sha <sha>] [--summary <text>] [--by <who>] [--pi-run <text>]
  *   node scripts/backlog.mjs add --id <slug> --size S|M|L --title <t> --board <area>
  *        --done-when <t> [--area --gate --blocked-by --touches --depends-on --source <t>]
  *        [--pi] [--private] [--after <id> | --chapter <heading text>]   or   add --file <block.md>
@@ -619,8 +618,7 @@ export function writeWithRetry(o) {
  * Bring the vault up to its upstream without touching other sessions' uncommitted files: a
  * fast-forward when there is nothing local, a plain rebase only when the vault already has unpushed
  * commits and no tracked file is dirty (a rebase would have to stash it), else it refuses.
- * @param {(args: string[], what: string) => { stdout: string }} must @param {(s: string) => void} log
- * @param {string} marker
+ * @param {(args: string[], what: string) => { stdout: string }} must @param {(s: string) => void} log @param {string} marker
  */
 function syncVault(must, log, marker) {
   must(['fetch', '-q'], 'git fetch');
@@ -649,8 +647,7 @@ function syncVault(must, log, marker) {
 
 /**
  * @param {Parameters<typeof writeWithRetry>[0]} o
- * @param {(args: string[], what: string) => { stdout: string }} must
- * @param {string} marker
+ * @param {(args: string[], what: string) => { stdout: string }} must @param {string} marker
  */
 function writeLocked(o, must, marker) {
   const log = o.log ?? (s => console.error(s));
@@ -812,15 +809,13 @@ export function run(argv, env = {}) {
             )
           : pos.slice(1).join(' ');
         if (!text) throw new Usage('progress <id> <text>');
-        /** @type {{ pr: number, head: string } | undefined} */
-        let ifReady;
+        let ifReady = /** @type {{ pr: number, head: string } | undefined} */ (undefined);
         if (typeof flags['if-ready'] === 'string') {
           const m = /^(\d+)@([0-9a-f]{40})$/.exec(flags['if-ready']);
           if (!m) throw new Usage('--if-ready <PR>@<40-character sha>');
           ifReady = { pr: Number(m[1]), head: m[2] };
         }
-        /** @type {number | undefined} */
-        let pr;
+        let pr = /** @type {number | undefined} */ (undefined);
         if (typeof flags.pr === 'string') {
           if (!/^\d+$/.test(flags.pr)) throw new Usage('--pr <PR number>');
           pr = Number(flags.pr);

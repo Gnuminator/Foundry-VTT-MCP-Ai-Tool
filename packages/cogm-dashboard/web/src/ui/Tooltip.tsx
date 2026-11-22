@@ -1,18 +1,34 @@
-import { Tooltip as RadixTooltip } from 'radix-ui';
 import {
   cloneElement,
   createContext,
   useContext,
   useEffect,
   useRef,
+  useState,
   type FocusEvent,
+  type PointerEvent,
   type RefObject,
   type JSX,
   type ReactElement,
   type ReactNode,
 } from 'react';
 
-import styles from './Tooltip.module.css';
+type Impl = typeof import('../components/TooltipImpl').TooltipImpl;
+
+// The Radix tooltip is a lazy chunk (the first load budget): it is fetched a moment after the page
+// loads, or at once when a tooltip's control is first touched. Until then a control shows as is.
+let implPromise: Promise<Impl> | null = null;
+let loaded: Impl | null = null;
+function loadImpl(): Promise<Impl> {
+  implPromise ??= import('../components/TooltipImpl').then(m => {
+    loaded = m.TooltipImpl;
+    return loaded;
+  });
+  return implPromise;
+}
+
+/** The chunk is fetched this long after a first tooltip mounts. */
+const PRELOAD_DELAY_MS = 1000;
 
 /**
  * Under a TooltipProvider: whether the last thing the person did was press Tab (see Tooltip).
@@ -21,8 +37,8 @@ import styles from './Tooltip.module.css';
 const ProviderContext = createContext<RefObject<boolean> | null>(null);
 
 /**
- * The one provider for every Tooltip, at the app root (main.tsx). It sets the delays: a tooltip
- * opens after a short rest of the pointer, and the next one right away.
+ * The one provider for every Tooltip, at the app root (main.tsx). It follows whether the last
+ * input was Tab; the delays are set by each tooltip (TooltipImpl).
  */
 export function TooltipProvider({ children }: { children: ReactNode }): JSX.Element {
   const tabbing = useRef(false);
@@ -40,13 +56,7 @@ export function TooltipProvider({ children }: { children: ReactNode }): JSX.Elem
       window.removeEventListener('pointerdown', onPointer, true);
     };
   }, []);
-  return (
-    <ProviderContext.Provider value={tabbing}>
-      <RadixTooltip.Provider delayDuration={400} skipDelayDuration={300}>
-        {children}
-      </RadixTooltip.Provider>
-    </ProviderContext.Provider>
-  );
+  return <ProviderContext.Provider value={tabbing}>{children}</ProviderContext.Provider>;
 }
 
 interface TooltipProps {
@@ -54,7 +64,10 @@ interface TooltipProps {
   content: ReactNode;
   side?: 'top' | 'right' | 'bottom' | 'left';
   /** The one element that gets the tooltip; it must take a ref and the usual DOM props. */
-  children: ReactElement<{ onFocus?: (event: FocusEvent<HTMLElement>) => void }>;
+  children: ReactElement<{
+    onFocus?: (event: FocusEvent<HTMLElement>) => void;
+    onPointerEnter?: (event: PointerEvent<HTMLElement>) => void;
+  }>;
 }
 
 /**
@@ -69,23 +82,40 @@ interface TooltipProps {
  */
 export function Tooltip({ content, side = 'top', children }: TooltipProps): JSX.Element {
   const tabbing = useContext(ProviderContext);
+  const [Impl, setImpl] = useState<Impl | null>(loaded);
+  useEffect(() => {
+    if (!tabbing || Impl) return;
+    let live = true;
+    const start = (): void => {
+      void loadImpl().then(
+        impl => {
+          if (live) setImpl(() => impl);
+        },
+        () => undefined
+      );
+    };
+    const timer = window.setTimeout(start, PRELOAD_DELAY_MS);
+    return (): void => {
+      live = false;
+      window.clearTimeout(timer);
+    };
+  }, [tabbing, Impl]);
   if (!tabbing) return children;
   const own = children.props.onFocus;
+  const ownEnter = children.props.onPointerEnter;
   const guarded = cloneElement(children, {
     onFocus: (event: FocusEvent<HTMLElement>): void => {
       own?.(event);
       // Radix skips its own handler when the event is default-prevented.
       if (!tabbing.current) event.preventDefault();
     },
+    onPointerEnter: (event: PointerEvent<HTMLElement>): void => {
+      ownEnter?.(event);
+      void loadImpl().then(
+        impl => setImpl(() => impl),
+        () => undefined
+      );
+    },
   });
-  return (
-    <RadixTooltip.Root>
-      <RadixTooltip.Trigger asChild>{guarded}</RadixTooltip.Trigger>
-      <RadixTooltip.Portal>
-        <RadixTooltip.Content className={styles.content} side={side} sideOffset={6}>
-          {content}
-        </RadixTooltip.Content>
-      </RadixTooltip.Portal>
-    </RadixTooltip.Root>
-  );
+  return Impl ? <Impl content={content} side={side} trigger={guarded} /> : guarded;
 }

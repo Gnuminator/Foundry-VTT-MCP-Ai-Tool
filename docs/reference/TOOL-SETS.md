@@ -103,9 +103,10 @@ Every entry runs a small wrapper process; they all share one bridge. Settings su
 `MCP_CONTROL_HOST` or `FOUNDRY_AI_OBSIDIAN_DIR` belong in every entry (the installer keeps what the old
 `foundry-mcp` entry had and copies it to the others).
 
-Each wrapper also tells Claude which sets it serves and which other sets exist, so when a request
-needs a set that is off, Claude says which switch to turn on instead of reaching for the wrong
-tool.
+The Core connector tells Claude which sets exist and what each holds; the other connectors send a
+short text (their own set, the switch-first rule, the reply language) and point to Core. So when a
+request needs a set that is off, Claude says which switch to turn on instead of reaching for the
+wrong tool.
 
 ## Adding a tool
 

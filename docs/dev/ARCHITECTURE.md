@@ -351,7 +351,8 @@ stdio** and does almost nothing itself:
   its own config entry with its own on/off switch, so a chat carries only the definitions it
   needs. The filter lives in the wrapper only: the backend's `list_tools` still returns every tool,
   which the dashboard uses. The wrapper also filters the prompt list by set and sends MCP
-  `instructions` naming the sets it serves and the ones that are off. Several wrappers start at
+  `instructions`: the core wrapper sends the full text (plan story and every set), the others a short
+  one with their own set, the switch-first rule and the language line. Several wrappers start at
   once and may each spawn a backend; a spawned backend that loses the lock exits (code 3) and its
   wrapper connects to the one that won.
 - **Version hello.** On connect the wrapper sends `hello` `{version, build, sets}`; the dashboard

@@ -33,7 +33,11 @@ function dump(): {
   for (let mask = 0; mask < 1 << others.length; mask++) {
     const sets = ['core', ...others.filter((_, i) => mask & (1 << i))] as ServedToolSetName[];
     const all = sets.length === TOOL_SET_NAMES.length;
-    instructions[sets.join(',')] = toolSetInstructions({ sets, all });
+    // What Claude Desktop sees: core's full text plus the short text of each other connector
+    // that is switched on (one text per connector, not one text for the whole combination).
+    instructions[sets.join(',')] = all
+      ? toolSetInstructions({ sets, all })
+      : sets.map(set => toolSetInstructions({ sets: [set], all: false })).join('\n\n');
   }
   return { tools, instructions };
 }

@@ -432,7 +432,9 @@ PORTS = json.loads((Path(__file__).resolve().parents[3] / "shared" / "ports.json
 
 def run_session(sessions: Path, bin_dir: Path, *args: str) -> tuple[int, str]:
     """session.ps1 with the stand-in python and a log of the env the publish step saw."""
-    env = {k: v for k, v in os.environ.items() if k != "FVTT_PI_HOST" and not k.startswith(("DISCORD_", "GAMENIGHT_"))}
+    env = {k: v for k, v in os.environ.items() if k not in ("FVTT_PI_HOST", "FOUNDRY_AI_CONTROL_HOST", "FOUNDRY_AI_CONTROL_PORT", "MCP_CONTROL_PORT")
+        and not k.startswith(("DISCORD_", "GAMENIGHT_"))
+    }
     env["ANNOUNCE_ENV_FILE"] = str(sessions.parent / "no-such-discord-bot.env")
     env["FVTT_SESSIONS_DIR"] = str(sessions)
     env["MCP_CONTROL_HOST"] = "pi.example"
@@ -467,7 +469,8 @@ def test_session_ps1_port_and_host(tmp_path: Path, sessions: Path, folder_with_n
     _code, out = run_session(sessions, bin_dir, *args)
     want = PORTS["live" if real else "testA"]["control"]
     assert f"on port {want}" in out
-    if log.exists():
+    assert log.exists(), out
+    if True:
         line = log.read_text("utf-8").split()
         assert line[0] == str(want)
         # Without -Real the host is pinned to this PC; with it, MCP_CONTROL_HOST stays in charge.
@@ -484,3 +487,37 @@ def test_session_ps1_stale_status_is_not_a_run(tmp_path: Path, sessions: Path, f
     bin_dir, _calls = make_bin(tmp_path)
     code, out = run_session(sessions, bin_dir, folder_with_timeline.name)
     assert code == 1 and "No new run" in out and "published" not in out
+
+
+def test_pull_only_takes_that_session_and_never_prunes(tmp_path: Path, sessions: Path) -> None:
+    bin_dir = tmp_path / "bin-ssh"
+    bin_dir.mkdir()
+    log = tmp_path / "ssh-log.txt"
+    lines = [
+        "@echo off",
+        f'echo %* >> "{log}"',
+        "echo wanted-session",
+        "echo other-session",
+        "echo ./old-session",
+        "exit /b 0",
+    ]
+    (bin_dir / "ssh.cmd").write_text("\r\n".join(lines) + "\r\n", encoding="ascii")
+    env = {k: v for k, v in os.environ.items() if k != "FVTT_PI_HOST"}
+    env["FVTT_SESSIONS_DIR"] = str(sessions)
+    env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+    pull = AUTO.parent / "pull.ps1"
+    assert PWSH is not None
+
+    def run(*extra: str) -> str:
+        done = subprocess.run(
+            [PWSH, "-NoProfile", "-NonInteractive", "-File", str(pull), "-PiHost", "pi", "-DryRun", *extra],
+            env=env, capture_output=True, text=True, timeout=120,
+        )
+        return done.stdout + done.stderr
+
+    only = run("-Only", "wanted-session")
+    assert "wanted-session: would copy" in only
+    assert "other-session" not in only and "old-session" not in only
+    assert "mindepth" not in log.read_text("utf-8")
+    log.unlink()
+    assert "old-session: would delete" in run()  # without -Only the prune step still runs

@@ -53,7 +53,7 @@ if (-not (Test-Path $folder)) { Write-Host "No folder $Session in $sessions (not
 $status = Join-Path $folder 'notes\status.json'
 # A status file older than this run is from an earlier pass (another pass held the lock, or consent was missing).
 if ((Test-Path $status) -and (Get-Item $status).LastWriteTime -lt $started) {
-  Write-Host 'No new run: another pass holds the lock, or consent is missing. See auto.log in the sessions folder.'
+  Write-Host 'No new run: another pass holds the lock, consent is missing, or the notes are already approved. See auto.log in the sessions folder.'
   exit 1
 }
 if (Test-Path $status) {

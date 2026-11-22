@@ -1,6 +1,6 @@
 ---
 source: gm/claude-plans.md
-sourceHash: 2fd74bab4a23
+sourceHash: c9f0d4bff3c9
 title: Claude Free eller Pro
 description: Hvad der virker med den gratis Claude-plan, og hvad Claude Pro giver dig, når du kører et spil med Foundry AI Tool, med kilder og datoer.
 ---
@@ -37,7 +37,7 @@ måde at uploade en skill på, så tjek den først.
   brug.
 - **Værktøjer er dyre.** Hvert værktøjssæt, der er slået til, koster brug i hver besked, også når
   Claude ikke bruger det. Slå kun de sæt til, du skal bruge, på spilaftenen (core og play), og slå
-  resten fra under **+**, **Connectors**. Se
+  resten fra i **+**-menuen, så **Plugins**. Se
   [Asking Claude](asking-claude.md#tool-sets-hvilke-kontakter-du-skal-tænde).
 - **Start nye chats.** En lang chat koster mere for hver besked. Start en ny chat til hver
   forberedelsesopgave og til hver spilaften.

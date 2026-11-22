@@ -85,7 +85,17 @@ describe('UnpulledNotifier', () => {
       'notice'
     );
     expect(h.sent[1]).toContain('- c');
-    expect(h.sent[1]).not.toContain('- a');
+    expect(h.sent[1]).toContain('- a');
+  });
+
+  it('keeps a long backlog under the Discord 2000 character limit', async () => {
+    const h = harness();
+    const many = Array.from({ length: 40 }, (_, i) =>
+      session(`2026-11-0${i % 9}-session-${i}`, 30)
+    );
+    await h.notifier.check(many);
+    expect(h.sent[0].length).toBeLessThan(2000);
+    expect(h.sent[0]).toContain('and 32 more');
   });
 });
 

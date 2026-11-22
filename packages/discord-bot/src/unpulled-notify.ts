@@ -12,6 +12,7 @@ import { join } from 'node:path';
 
 import { bi } from './i18n.js';
 
+const MAX_LISTED = 8;
 const UNPULLED_AFTER_MS = 24 * 60 * 60 * 1000;
 const UNPULLED_REMINDER_MS = 24 * 60 * 60 * 1000;
 
@@ -42,8 +43,15 @@ export function findUnpulled(sessionsDir: string): UnpulledSession[] {
 function unpulledMessage(sessions: UnpulledSession[], now: number, reminder: boolean): string {
   const hours = (s: UnpulledSession): number =>
     Math.max(0, Math.floor((now - s.convertedAtMs) / 3_600_000));
+  // Discord caps a DM at 2000 characters, so a long backlog shows the oldest few and a count.
+  const shown = [...sessions]
+    .sort((a, b) => a.convertedAtMs - b.convertedAtMs)
+    .slice(0, MAX_LISTED);
   const list = (da: boolean): string =>
-    sessions.map(s => `- ${s.name} (${hours(s)} ${da ? 'timer' : 'hours'})`).join('\n');
+    shown.map(s => `- ${s.name} (${hours(s)} ${da ? 'timer' : 'hours'})`).join('\n') +
+    (sessions.length > shown.length
+      ? `\n${da ? `og ${sessions.length - shown.length} til` : `and ${sessions.length - shown.length} more`}`
+      : '');
   const tag = (da: boolean): string => (reminder ? (da ? ' (påmindelse)' : ' (reminder)') : '');
   return bi(
     `Der ligger optagelser på Pi'en, som ikke er hentet til PC'en endnu${tag(true)}:\n${list(true)}\n` +
@@ -80,13 +88,15 @@ export class UnpulledNotifier {
     for (const name of [...this.lastNoticeAt.keys()]) {
       if (!present.has(name)) this.lastNoticeAt.delete(name); // pulled (or gone): forget it
     }
-    const due = sessions.filter(s => {
-      if (now - s.convertedAtMs < this.afterMs) return false;
+    const old = sessions.filter(s => now - s.convertedAtMs >= this.afterMs);
+    const anyDue = old.some(s => {
       const last = this.lastNoticeAt.get(s.name);
       return last === undefined || now - last >= this.reminderMs;
     });
-    if (due.length === 0) return null;
-    const reminder = due.some(s => this.lastNoticeAt.has(s.name));
+    if (!anyDue) return null;
+    // One DM a day for the whole backlog: when any session is due, list every old one.
+    const due = old;
+    const reminder = due.every(s => this.lastNoticeAt.has(s.name));
     if (!(await this.options.send(unpulledMessage(due, now, reminder)))) return null;
     for (const s of due) this.lastNoticeAt.set(s.name, now);
     return reminder ? 'reminder' : 'notice';

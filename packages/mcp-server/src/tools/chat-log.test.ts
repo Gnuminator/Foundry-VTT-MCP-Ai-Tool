@@ -210,41 +210,35 @@ describe('ChatLogTools.handleSendChatMessage', () => {
     consoleErr.mockRestore();
   });
 
-  it('returns a parameter-error string (not a throw) when message is missing', async () => {
+  it('throws a parameter error when message is missing', async () => {
     const { tools, query } = makeTools(ChatLogTools);
-    const result = await tools.handleSendChatMessage({});
-    expect(typeof result).toBe('string');
-    expect(result as string).toMatch(/Parameter error/i);
+    await expect(tools.handleSendChatMessage({})).rejects.toThrow(/Parameter error/i);
     expect(query).not.toHaveBeenCalled();
     consoleErr.mockRestore();
   });
 
-  it('returns a parameter-error string (not a throw) when args are null/undefined', async () => {
+  it('throws a parameter error when args are null/undefined', async () => {
     const { tools, query } = makeTools(ChatLogTools);
-    const result = await tools.handleSendChatMessage(undefined);
-    expect(typeof result).toBe('string');
-    expect(result as string).toMatch(/Parameter error/i);
+    await expect(tools.handleSendChatMessage(undefined)).rejects.toThrow(/Parameter error/i);
     expect(query).not.toHaveBeenCalled();
     consoleErr.mockRestore();
   });
 
-  it('returns a parameter-error string (not a throw) when message is an empty string', async () => {
+  it('throws a parameter error when message is an empty string', async () => {
     const { tools, query } = makeTools(ChatLogTools);
-    const result = await tools.handleSendChatMessage({ message: '' });
-    expect(typeof result).toBe('string');
-    expect(result as string).toMatch(/Parameter error/i);
+    await expect(tools.handleSendChatMessage({ message: '' })).rejects.toThrow(/Parameter error/i);
     expect(query).not.toHaveBeenCalled();
     consoleErr.mockRestore();
   });
 
-  it('returns a parameter-error string (not a throw) when messageType is invalid', async () => {
+  it('throws a parameter error when messageType is invalid', async () => {
     const { tools, query } = makeTools(ChatLogTools);
-    const result = await tools.handleSendChatMessage({
-      message: 'hi',
-      messageType: 'shout',
-    });
-    expect(typeof result).toBe('string');
-    expect(result as string).toMatch(/Parameter error/i);
+    await expect(
+      tools.handleSendChatMessage({
+        message: 'hi',
+        messageType: 'shout',
+      })
+    ).rejects.toThrow(/Parameter error/i);
     expect(query).not.toHaveBeenCalled();
     consoleErr.mockRestore();
   });

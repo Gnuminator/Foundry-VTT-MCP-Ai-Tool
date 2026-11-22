@@ -12,7 +12,7 @@
  * Exit codes: 0 all passed, 1 a scenario failed (or the run broke), 2 environment not ready,
  * 3 the lock was not free.
  */
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
@@ -24,6 +24,13 @@ import { loadProfile } from './lib/profiles.mjs';
 import { kitHome, TEST_SERVERS, testServer } from './lib/targets.mjs';
 import { newConsoleGroups, newRunDir } from './lib/report.mjs';
 import { pushPaths, vaultDirFrom } from './lib/vault-push.mjs';
+import {
+  FLAKY_HEAD,
+  flakyIds,
+  flakyRows,
+  recordRun,
+  updateFlakySection,
+} from './lib/flake-ledger.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(here, '..', '..');
@@ -294,7 +301,8 @@ export function resultText(r) {
 }
 
 export function noteRow(r) {
-  const failing = r.failing || [];
+  const flaky = new Set(r.flaky || []);
+  const failing = (r.failing || []).map(id => (flaky.has(id) ? `${id} (flaky)` : id));
   const shown =
     failing.slice(0, 5).join(', ') + (failing.length > 5 ? ` and ${failing.length - 5} more` : '');
   return `| ${[
@@ -333,7 +341,10 @@ export function updateNote(text, row) {
   if (sep !== -1) {
     for (let i = sep + 1; i < lines.length && lines[i].startsWith('|'); i += 1) rows.push(lines[i]);
   }
-  return `${NOTE_HEAD}${[row, ...rows].slice(0, MAX_ROWS).join('\n')}\n`;
+  // The flaky section (flake-ledger.mjs) sits after the table; a new row keeps it.
+  const at = lines.findIndex(l => l.trim() === FLAKY_HEAD);
+  const flaky = at === -1 ? '' : `\n${lines.slice(at).join('\n').replace(/\s+$/, '')}\n`;
+  return `${NOTE_HEAD}${[row, ...rows].slice(0, MAX_ROWS).join('\n')}\n${flaky}`;
 }
 
 /**
@@ -384,6 +395,43 @@ export function writeLastRun(home, r) {
   writeFileSync(tmp, `${JSON.stringify(doc, null, 2)}\n`, 'utf8');
   renameSync(tmp, file);
   return file;
+}
+
+/** True when the repo has uncommitted changes (the run did not test exactly its git sha). */
+function treeIsDirty() {
+  try {
+    return (
+      execFileSync('git', ['status', '--porcelain'], {
+        cwd: REPO_ROOT,
+        encoding: 'utf8',
+      }).trim() !== ''
+    );
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * Adds the run to the per-scenario history (<kit home>/scenario-history.json) and puts the flaky
+ * marking on the result: `flaky` (ids flaky on this sha and world) and `flakyRows` (the note's
+ * table rows for this PC). Never fails a run.
+ */
+export function recordFlakes(home, dir, r, dirty = treeIsDirty()) {
+  try {
+    const report = JSON.parse(readFileSync(path.join(dir, 'report.json'), 'utf8'));
+    if (report?.run?.fake) return r;
+    const runs = recordRun(home, report, dir, dirty);
+    const sha = String(report.run?.gitSha || 'unknown');
+    const world = String(report.run?.target?.world || '');
+    const size = String(report.run?.size || '');
+    return {
+      ...r,
+      flaky: [...flakyIds(runs, sha, world, size)],
+      flakyRows: flakyRows(runs, r.pc),
+    };
+  } catch {
+    return r;
+  }
 }
 
 /** Reads the kit's report.json into the result. */
@@ -571,6 +619,7 @@ export async function kitRun(o, deps = {}) {
       { echo: true, signal: abort.signal }
     );
     r = readReport(dir, r);
+    r = recordFlakes(home, dir, r);
     const envLine = kit.stderr.split(/\r?\n/).find(l => l.startsWith('ENV '));
     if (kit.code === 2)
       r = { ...r, state: 'env', detail: (envLine || '').replace(/^ENV /, '').slice(0, 160) };
@@ -624,7 +673,9 @@ export async function writeVaultNote(r, { dir = vaultDirFrom() } = {}) {
       const file = path.join(vault, ...NOTE.split('/'));
       const old = existsSync(file) ? readFileSync(file, 'utf8') : '';
       mkdirSync(path.dirname(file), { recursive: true });
-      writeFileSync(file, updateNote(old, noteRow(r)), 'utf8');
+      let text = updateNote(old, noteRow(r));
+      if (r.flakyRows) text = updateFlakySection(text, r.pc, r.flakyRows);
+      writeFileSync(file, text, 'utf8');
     },
   });
 }

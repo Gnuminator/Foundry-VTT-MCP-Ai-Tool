@@ -310,6 +310,15 @@ test('done keeps a private marker and refuses a PR that is not a number', () => 
   );
 });
 
+test('done writes Unsorted, not the area field, when an item has no board line', () => {
+  const text = FIXTURE.replace(
+    '- board: Docs\n- blocked by: item:gone-already',
+    '- area: MCP tools\n- blocked by: item:gone-already'
+  );
+  const r = doneEdit(text, DONE_FIXTURE, { id: 'fifth', pr: '7', date: D });
+  assert.match(r.line, /\| Unsorted \| private$/);
+});
+
 test('add refuses a used id, a bad block and an unknown chapter; places --after and --chapter', () => {
   const add = (/** @type {string[]} */ b, /** @type {object} */ o = {}) =>
     addEdit(FIXTURE, DONE_FIXTURE, { block: b, date: D, ...o });

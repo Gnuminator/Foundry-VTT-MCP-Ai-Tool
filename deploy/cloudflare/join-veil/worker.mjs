@@ -43,6 +43,8 @@ export async function handle(request, env = {}, deps = {}) {
       })
       .transform(response.clone())
       .text();
+    // The clone was read, the original body was not: release it so the origin connection is not held open.
+    await response.body?.cancel?.().catch?.(() => {});
     const headers = new Headers(response.headers);
     // The body changed: drop validators and the old length so a browser never keeps a stale look.
     for (const name of ['etag', 'last-modified', 'content-length']) headers.delete(name);

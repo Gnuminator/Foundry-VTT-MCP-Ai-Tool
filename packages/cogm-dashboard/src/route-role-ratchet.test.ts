@@ -201,7 +201,7 @@ describe('route roles', () => {
     for (const key of PLAYER) {
       const [method, path] = key.split(' ');
       if (method !== 'GET' || path === '/api/stream' || path === '/api/player/stream') continue;
-      const code = await status(port, 'GET', path!, { 'x-cogm-token': PLAYER_TOKEN });
+      const code = await status(port, 'GET', path, { 'x-cogm-token': PLAYER_TOKEN });
       expect(code, key).toBe(200);
     }
   });

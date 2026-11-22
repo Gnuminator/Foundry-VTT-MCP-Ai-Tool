@@ -23,6 +23,7 @@ import {
   moduleSkips,
   readUsageCatalog,
 } from '../lib/dashboard-controls.mjs';
+import { coverageReport } from '../lib/control-coverage.mjs';
 import { waitReady } from '../lib/dashboard-page.mjs';
 import { sweepGroups } from '../lib/dashboard-sweep.mjs';
 import { tokenHeroes, waitFor } from '../lib/helpers.mjs';
@@ -63,6 +64,7 @@ export default {
     const results = [];
     const catalog = readUsageCatalog();
     t.attach('classes', countByHow(CONTROLS));
+    t.attach('coverage of the rows the sweep never clicks', coverageReport(CONTROLS));
 
     try {
       /** @type {import('playwright-core').Page} */

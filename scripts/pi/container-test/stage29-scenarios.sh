@@ -25,6 +25,7 @@ require_test_container
 
 STAGE="${STAGE:-/repo/scripts/pi/remote/29-gamenight-watch.sh}"
 LIB=/repo/scripts/pi/remote/lib.sh
+LIBGM=/repo/scripts/pi/remote/lib-gm-passwords.sh
 
 FOUNDRY_USER=foundry
 TOOL_ETC=/etc/foundry-ai-tool
@@ -43,6 +44,7 @@ token="FAKEtoken.0123456789abcdefghijklmnopqrstuvwxyz.ABCDEFGHIJKLMNOPQRSTUVWX"
 cf_secret="CFSECRETabcdef0123456789"
 mkdir -p "$unit_dir"
 
+REAL_NODE="$(command -v node)"
 # A stand-in Node: --check passes, --once prints one clean round (or a FAIL line when FAKE_FAIL=1). Never prints its env.
 cat >"$NODE_DIR/bin/node" <<'EOF'
 #!/usr/bin/env bash
@@ -58,6 +60,19 @@ case "$*" in
 esac
 EOF
 chmod 0755 "$NODE_DIR/bin/node"
+# CHECK also runs the GM password check (lib-gm-passwords.sh), whose node snippet needs a real node: the stand-in hands
+# --input-type=module over to it. The fake classic-level and the fixtures come from fake-gm-check.sh.
+sed -i "s|^case \"\$\*\" in\$|case \"\$*\" in\n  *--input-type=module*) exec $REAL_NODE \"\$@\" ;;|" "$NODE_DIR/bin/node"
+FOUNDRY_APP=/opt/foundry
+FOUNDRY_DATA=/var/lib/foundry
+rm -rf "$FOUNDRY_DATA/Data/worlds" "$FOUNDRY_DATA/Config"
+mkdir -p "$FOUNDRY_DATA/Data/worlds/strahd"
+echo '{"id":"strahd"}' >"$FOUNDRY_DATA/Data/worlds/strahd/world.json"
+# shellcheck source=fake-gm-check.sh
+. "$(dirname "${BASH_SOURCE[0]}")/fake-gm-check.sh"
+fake_classic_level
+fake_gm_user strahd "a-real-password"
+fake_admin_password
 
 fresh() {
   rm -rf "$dest" "$unit_file" "$watch_env" /tmp/fake-fail
@@ -76,7 +91,7 @@ EOF
 # run [VAR=value ...]: the stage as the user runs it (lib.sh and the stage on one stdin); output in OUT, its exit code returned.
 run() {
   local code
-  OUT="$(cat "$LIB" "$STAGE" | env SRC_DIR="$src" UNIT_DIR="$unit_dir" "$@" bash -s 2>&1)"
+  OUT="$(cat "$LIB" "$LIBGM" "$STAGE" | env SRC_DIR="$src" UNIT_DIR="$unit_dir" "$@" bash -s 2>&1)"
   code=$?
   return "$code"
 }
@@ -159,6 +174,34 @@ rc=$?
 rm -f /tmp/fake-fail
 if [ "$rc" -eq 1 ] && echo "$OUT" | grep -q 'at least one check failed'; then pass "CHECK exits 1 when a check fails"; else fail "check fail: rc=$rc $OUT"; fi
 if ! echo "$OUT" | grep -q "$token" && ! echo "$OUT" | grep -q "$cf_secret"; then pass "CHECK prints no secret"; else fail "secret in check output"; fi
+
+# 6b. The password checks inside CHECK (gm-password-watch): clean, a GM without a password, no administrator password,
+# no lib-gm-passwords.sh in the pipe. Read-only: the worlds and admin.txt are the same afterwards, and no hash is printed.
+run CHECK=1
+rc=$?
+if [ "$rc" -eq 0 ] && echo "$OUT" | grep -q 'Foundry has an administrator password' && echo "$OUT" | grep -q 'ok: strahd: every Gamemaster and Assistant GM has a password'; then
+  pass "CHECK reports the administrator password and the GM passwords as fine"; else fail "pw clean: rc=$rc $OUT"; fi
+fake_gm_user strahd ""
+run CHECK=1
+rc=$?
+if [ "$rc" -eq 1 ] && echo "$OUT" | grep -q 'FOUND: strahd: Gamemaster "Gamemaster" has no password' && echo "$OUT" | grep -q 'a password check found something'; then
+  pass "CHECK names the GM without a password and exits 1"; else fail "pw gm: rc=$rc $OUT"; fi
+fake_gm_user strahd "a-real-password"
+mv "$FOUNDRY_DATA/Config/admin.txt" /tmp/admin.txt.gone
+run CHECK=1
+rc=$?
+mv /tmp/admin.txt.gone "$FOUNDRY_DATA/Config/admin.txt"
+if [ "$rc" -eq 1 ] && echo "$OUT" | grep -q 'FOUND: no administrator password'; then pass "CHECK names a missing administrator password and exits 1"; else fail "pw admin: rc=$rc $OUT"; fi
+OUT="$(cat "$LIB" "$STAGE" | env SRC_DIR="$src" UNIT_DIR="$unit_dir" CHECK=1 bash -s 2>&1)"
+rc=$?
+if [ "$rc" -eq 1 ] && echo "$OUT" | grep -q 'pipe lib-gm-passwords.sh'; then pass "CHECK without lib-gm-passwords.sh in the pipe fails and says so"; else fail "pw no lib: rc=$rc $OUT"; fi
+fake_gm_user strahd ""
+before="$(find "$FOUNDRY_DATA" -type f -exec sha256sum {} + | sort | sha256sum)"
+run CHECK=1
+after="$(find "$FOUNDRY_DATA" -type f -exec sha256sum {} + | sort | sha256sum)"
+if [ "$before" = "$after" ]; then pass "the password checks changed nothing under Foundry's data"; else fail "data changed by CHECK"; fi
+if ! echo "$OUT" | grep -q '00112233445566778899aabbccddeeff'; then pass "no salt or hash is printed"; else fail "salt in output"; fi
+fake_gm_user strahd "a-real-password"
 
 # 7.
 fresh

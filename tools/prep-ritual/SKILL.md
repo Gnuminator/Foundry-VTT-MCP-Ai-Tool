@@ -13,7 +13,7 @@ make changes only when the GM says yes.
 ## Before you start
 
 You need the Foundry connectors **foundry-mcp** (core) and **foundry-mcp-prep** switched on in this
-chat. If a tool named below is missing, say which connector to switch on (Search and tools menu)
+chat. If a tool named below is missing, say which connector to switch on (the + menu, then Plugins)
 and wait. Never stand in for a missing tool with a guess. If the game does not answer, say so
 plainly and stop; do not make up game facts.
 

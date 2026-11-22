@@ -15,7 +15,11 @@ Start from a clean, up-to-date checkout of `main` (the main checkout, or a workt
    headline in words the previous release's headline did not use. Repeated headings in the fragments fold under one
    base heading (a trailing `(...)` tag is dropped for new sections; Testing, Test kit and Test environment go
    under `### Tests`). Duplicates already in Unreleased are left as they are: tidy them by hand.
-2. **Set the version.** `npm run version:sync -- --set X.Y.Z`, then `npm run version:check`.
+2. **Set the version.** `npm run version:sync -- --set X.Y.Z`, then `npm run version:check`. When the Foundry
+   build or dnd5e version the release was tested on changed, add `--tested <foundry> <dnd5e>` (for example
+   `--tested 14.370 6.0.6`): it rewrites `shared/src/tested-versions.ts`, which the pre-flight check "Tested
+   Foundry and dnd5e versions" reads. A release PR that changes it is not a pure version bump, so it carries a
+   `changelog.d` fragment.
 3. **Check.** `npm run green`.
 4. **Land it.** Commit on a branch (`Release vX.Y.Z`), open a PR, merge through the normal gate (the `lane` skill).
    The PR needs no `changelog.d` fragment: the gate sees a release PR and passes its changelog check

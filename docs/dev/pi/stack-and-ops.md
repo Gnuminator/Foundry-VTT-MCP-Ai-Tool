@@ -20,7 +20,7 @@ and the last measured NTP `clock.offsetMs`, null when systemd-timesyncd does not
 Foundry up or down with the Foundry and dnd5e versions from `localhost:30000/api/status`, and
 a `deployed` object (the ref from `.tool-ref`, the missing environment variables as `file:NAME`, whether
 libicu is present, the compose container state, its health and restart count, `containers` null
-while docker.service is stopped; names and states only). No log lines, no world or user names, no host name but `foundry-pi`. The board stores it and shows it on
+while docker.service is stopped; names and states only; `stageFilesDiffer` and `differingStageFiles`: how many files a stage copied from the repo, listed in `deploy/pi/stage-files.txt`, differ from the same file in the deployed build, and their file names; null when the deployed build predates the list). No log lines, no world or user names, no host name but `foundry-pi`. The board stores it and shows it on
 Today, red when the backup is older than 30 hours or no report came for 3 hours.
 
 - **Token file (the user creates it, once):** `/etc/foundry-ai-tool/board-status.conf`, owner root,

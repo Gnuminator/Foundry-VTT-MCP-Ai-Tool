@@ -240,6 +240,8 @@ export interface MirrorStatus {
   movedByGm: Array<{ path: string; uuid: string }>;
   /** Extra notes with a uuid that already has a note. */
   duplicates: Array<{ path: string; uuid: string }>;
+  /** Syncthing conflict copies the scan ignored: safe to delete. */
+  syncConflicts: string[];
   /** Deleted in Foundry, kept because the GM edited the note. */
   keptDeleted: Array<{ path: string; uuid: string }>;
   truncated: ExportIndexResponse['truncated'];
@@ -285,6 +287,7 @@ export function emptyMirrorStatus(
     skipped: [],
     movedByGm: [],
     duplicates: [],
+    syncConflicts: [],
     keptDeleted: [],
     truncated: [],
     errors: [],

@@ -13,6 +13,12 @@
 #               Assistant GM helper against EXPECT_ASSISTANT_GM_SHA256 (deployed-state.ps1 fills both from the repo)
 # EXPECT_ASSISTANT_GM_SOURCE says where that hash came from ("the v0.25.0 copy", "main's copy"), for the line.
 # Without EXPECT_* the build lines say what is deployed and nothing more.
+#   stage files every file a stage copies verbatim from the repo (deploy/pi/stage-files.txt) is hashed and compared with the
+#               copy the release (or main) would write; one WARNING per stale file names the stage to rerun
+#               (backlog pi-deployed-file-hashes). The wrapper passes the list and the expected hashes as STAGE_FILES_B64
+#               and EXPECT_STAGE_SHAS_B64 (lines "repo-path sha256", from EXPECT_STAGE_SOURCE) plus
+#               EXPECT_STAGE_MAIN_SHAS_B64 (main's copies: stages 29 and 35 install from main, so a match is "ahead", not behind); on the Pi alone the list comes from the deployed
+#               build ($TOOL_DIR/app/deploy/pi/stage-files.txt) and the expected copy is that build's own file.
 #
 # Paths and commands can be overridden by environment for the tests: TOOL_DIR, TOOL_ETC, COMPOSE_PROJECT, and
 # SYSTEMCTL, DOCKER, LDCONFIG (command names looked up on PATH).
@@ -223,6 +229,65 @@ if [ -f "$helper" ]; then
   fi
 else
   warn "no Assistant GM helper at $helper"
+fi
+
+# ---- stage files ---------------------------------------------------------------------------------------------
+# A stage that copies a file from the repo (a browser driver, a watcher) leaves it where it is until the stage is run
+# again, so a newer release can sit next to an older driver. A missing file means that stage has not run (not "behind").
+say "stage files"
+list=""
+if [ -n "${STAGE_FILES_B64:-}" ]; then
+  list="$(printf '%s' "$STAGE_FILES_B64" | base64 -d 2>/dev/null)" || list=""
+elif [ -f "$app/deploy/pi/stage-files.txt" ]; then
+  list="$(cat "$app/deploy/pi/stage-files.txt")"
+fi
+expect_shas=""
+[ -z "${EXPECT_STAGE_SHAS_B64:-}" ] || expect_shas="$(printf '%s' "$EXPECT_STAGE_SHAS_B64" | base64 -d 2>/dev/null)" || expect_shas=""
+expect_main_shas=""
+[ -z "${EXPECT_STAGE_MAIN_SHAS_B64:-}" ] || expect_main_shas="$(printf '%s' "$EXPECT_STAGE_MAIN_SHAS_B64" | base64 -d 2>/dev/null)" || expect_main_shas=""
+if [ -z "$list" ]; then
+  warn "no stage file list (the deployed build has no deploy/pi/stage-files.txt and none was passed): the stage files were not compared"
+else
+  behind=0
+  ahead=0
+  current=0
+  absent=0
+  while IFS='|' read -r stage rel repo_path; do
+    case "$stage" in '' | '#'*) continue ;; esac
+    [ -n "$rel" ] && [ -n "$repo_path" ] || continue
+    installed="$TOOL_DIR/$rel"
+    if [ ! -f "$installed" ]; then
+      absent=$((absent + 1))
+      continue
+    fi
+    want="$(printf '%s\n' "$expect_shas" | awk -v p="$repo_path" '$1 == p {print $2; exit}')"
+    from="${EXPECT_STAGE_SOURCE:-the release copy}"
+    main_want="$(printf '%s\n' "$expect_main_shas" | awk -v p="$repo_path" '$1 == p {print $2; exit}')"
+    if [ -z "$want" ] && [ -f "$app/$repo_path" ]; then
+      want="$(sha256sum "$app/$repo_path" | awk '{print $1}')"
+      from="the deployed build's copy"
+    fi
+    if [ -z "$want" ]; then
+      warn "$installed: no copy of $repo_path to compare with"
+      continue
+    fi
+    have="$(sha256sum "$installed" | awk '{print $1}')"
+    if [ "$have" = "$want" ]; then
+      current=$((current + 1))
+    elif [ -n "$main_want" ] && [ "$have" = "$main_want" ]; then
+      # Stages 29 and 35 install from main at the merge commit, so a file can be newer than the release.
+      ahead=$((ahead + 1))
+      ok "$installed matches main's copy of $repo_path (ahead of $from)"
+    else
+      behind=$((behind + 1))
+      warn "$installed differs from $from of $repo_path${main_want:+ and from main}: run stage $stage again"
+    fi
+  done <<<"$list"
+  if [ "$behind" -eq 0 ]; then
+    ok "stage files: $current match, $ahead ahead of the release, $absent not installed, 0 behind"
+  else
+    printf '    stage files: %d behind, %d match, %d ahead, %d not installed\n' "$behind" "$current" "$ahead" "$absent"
+  fi
 fi
 
 printf 'deployed-state: %d ok, %d warning(s), %d failed\n' "$n_ok" "$n_warn" "$n_fail"

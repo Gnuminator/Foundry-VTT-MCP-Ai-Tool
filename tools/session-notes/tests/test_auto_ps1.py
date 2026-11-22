@@ -411,3 +411,113 @@ def test_notes_with_missing_depth_layer_are_not_done(
     bin_dir, _calls = make_bin(tmp_path, run=76, publish=0)
     _code, out = run_pass(sessions, bin_dir)
     assert ("writing notes" in out) is writes
+
+
+def test_session_flag_works_on_that_folder_only(
+    tmp_path: Path, sessions: Path, folder_with_timeline: Path
+) -> None:
+    other = sessions / "2026-10-02-other"
+    (other / "timeline").mkdir(parents=True)
+    (other / "timeline" / "timeline.jsonl").write_text("{}\n", encoding="utf-8")
+    bin_dir, _calls = make_bin(tmp_path, run=0, publish=0)
+    _code, out = run_pass(sessions, bin_dir, args=("-Session", folder_with_timeline.name))
+    assert "2026-10-01-test: writing notes" in out
+    assert "2026-10-02-other" not in out
+
+
+
+SESSION_PS1 = Path(__file__).resolve().parents[1] / "session.ps1"
+PORTS = json.loads((Path(__file__).resolve().parents[3] / "shared" / "ports.json").read_text("utf-8"))["ports"]
+
+
+def run_session(sessions: Path, bin_dir: Path, *args: str) -> tuple[int, str]:
+    """session.ps1 with the stand-in python and a log of the env the publish step saw."""
+    env = {k: v for k, v in os.environ.items() if k not in ("FVTT_PI_HOST", "FOUNDRY_AI_CONTROL_HOST", "FOUNDRY_AI_CONTROL_PORT", "MCP_CONTROL_PORT")
+        and not k.startswith(("DISCORD_", "GAMENIGHT_"))
+    }
+    env["ANNOUNCE_ENV_FILE"] = str(sessions.parent / "no-such-discord-bot.env")
+    env["FVTT_SESSIONS_DIR"] = str(sessions)
+    env["MCP_CONTROL_HOST"] = "pi.example"
+    env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+    assert PWSH is not None
+    done = subprocess.run(
+        [PWSH, "-NoProfile", "-NonInteractive", "-File", str(SESSION_PS1), *args],
+        env=env, capture_output=True, text=True, timeout=120,
+    )
+    return done.returncode, done.stdout + done.stderr
+
+
+def publish_env_bin(tmp: Path) -> tuple[Path, Path]:
+    """A python.cmd whose publish step logs the control port and host it was given."""
+    bin_dir, _calls = make_bin(tmp, run=0, publish=0)
+    log = tmp / "publish-env.txt"
+    lines = [
+        "@echo off",
+        'if "%~3"=="consent" exit /b 0',
+        'if "%~3"=="run" exit /b 0',
+        f'if "%~3"=="publish" (echo %FOUNDRY_AI_CONTROL_PORT% %FOUNDRY_AI_CONTROL_HOST%>> "{log}" & exit /b 0)',
+        "exit /b 0",
+    ]
+    (bin_dir / "python.cmd").write_text("\r\n".join(lines) + "\r\n", encoding="ascii")
+    return bin_dir, log
+
+
+@pytest.mark.parametrize("real", [False, True])
+def test_session_ps1_port_and_host(tmp_path: Path, sessions: Path, folder_with_notes: Path, real: bool) -> None:
+    bin_dir, log = publish_env_bin(tmp_path)
+    args = (folder_with_notes.name, *(("-Real",) if real else ()))
+    _code, out = run_session(sessions, bin_dir, *args)
+    want = PORTS["live" if real else "testA"]["control"]
+    assert f"on port {want}" in out
+    assert log.exists(), out
+    if True:
+        line = log.read_text("utf-8").split()
+        assert line[0] == str(want)
+        # Without -Real the host is pinned to this PC; with it, MCP_CONTROL_HOST stays in charge.
+        assert line[1:] == ([] if real else ["127.0.0.1"])
+
+
+def test_session_ps1_stale_status_is_not_a_run(tmp_path: Path, sessions: Path, folder_with_timeline: Path) -> None:
+    notes = folder_with_timeline / "notes"
+    notes.mkdir()
+    (notes / "status.json").write_text('{"state": "published", "message": "old"}', encoding="utf-8")
+    old = time.time() - 3600
+    os.utime(notes / "status.json", (old, old))
+    make_lock(sessions, str(os.getpid()))  # another pass holds the lock: auto.ps1 exits 0 without running
+    bin_dir, _calls = make_bin(tmp_path)
+    code, out = run_session(sessions, bin_dir, folder_with_timeline.name)
+    assert code == 1 and "No new run" in out and "published" not in out
+
+
+def test_pull_only_takes_that_session_and_never_prunes(tmp_path: Path, sessions: Path) -> None:
+    bin_dir = tmp_path / "bin-ssh"
+    bin_dir.mkdir()
+    log = tmp_path / "ssh-log.txt"
+    lines = [
+        "@echo off",
+        f'echo %* >> "{log}"',
+        "echo wanted-session",
+        "echo other-session",
+        "echo ./old-session",
+        "exit /b 0",
+    ]
+    (bin_dir / "ssh.cmd").write_text("\r\n".join(lines) + "\r\n", encoding="ascii")
+    env = {k: v for k, v in os.environ.items() if k != "FVTT_PI_HOST"}
+    env["FVTT_SESSIONS_DIR"] = str(sessions)
+    env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+    pull = AUTO.parent / "pull.ps1"
+    assert PWSH is not None
+
+    def run(*extra: str) -> str:
+        done = subprocess.run(
+            [PWSH, "-NoProfile", "-NonInteractive", "-File", str(pull), "-PiHost", "pi", "-DryRun", *extra],
+            env=env, capture_output=True, text=True, timeout=120,
+        )
+        return done.stdout + done.stderr
+
+    only = run("-Only", "wanted-session")
+    assert "wanted-session: would copy" in only
+    assert "other-session" not in only and "old-session" not in only
+    assert "mindepth" not in log.read_text("utf-8")
+    log.unlink()
+    assert "old-session: would delete" in run()  # without -Only the prune step still runs

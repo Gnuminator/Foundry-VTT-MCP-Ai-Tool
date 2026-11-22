@@ -11,7 +11,7 @@ player set (see below), which no Claude Desktop entry carries: the GM's Claude D
 most the other 108, about 126,150 characters.
 
 So the tools are split into five sets. Each set is its own entry in Claude Desktop's
-configuration, so Claude Desktop shows one switch per set in the **Search and tools** menu. Turn on
+configuration, so Claude Desktop shows one switch per set in the **+** menu, then **Plugins**. Turn on
 what the conversation needs. The switches are remembered for new chats.
 
 | Set        | Claude Desktop entry      | Tools | Size (characters) | For                                                                                                                                                                                                                                                           |

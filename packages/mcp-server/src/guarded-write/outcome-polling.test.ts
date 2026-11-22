@@ -43,7 +43,7 @@ beforeEach(async () => {
  * the event loop (the gate runs many suites at once) longer than a short deadline made them
  * give up ("no answer within 0 s"). Only the give-up test uses the short one.
  */
-const GENEROUS_DEADLINE_MS = 30_000;
+const GENEROUS_DEADLINE_MS = 5_000;
 const SHORT_DEADLINE_MS = 80;
 
 function makeService(outcomeDeadlineMs: number): GuardedWriteService {

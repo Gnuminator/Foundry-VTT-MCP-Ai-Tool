@@ -53,9 +53,17 @@
  * split on), SWEEP_PLAYER (user name for the roll requests, default "Player").
  */
 
+import { parseServerArg } from './sweep-server.mjs';
 import { parseWorldArg, TEST_WORLDS } from './test-worlds.mjs';
 
-const TEST_DASHBOARD_PORT = 3100;
+// The test dashboards of servers A, B and C; --server picks one (ports from shared/ports.json).
+let TEST_DASHBOARD_PORT;
+try {
+  TEST_DASHBOARD_PORT = parseServerArg(process.argv.slice(2)).port;
+} catch (err) {
+  console.error(String(err.message ?? err));
+  process.exit(2);
+}
 let EXPECTED_WORLD;
 try {
   EXPECTED_WORLD = parseWorldArg(process.argv.slice(2));
@@ -74,13 +82,14 @@ const EXIT_ENV = 2;
 if (process.argv.includes('--help') || process.argv.includes('-h')) {
   console.log(`live-write-sweep: run the direct-write tools once on the TEST world, then clean up.
 
-Usage: node scripts/live-write-sweep.mjs [--world <id>] [--help]
+Usage: node scripts/live-write-sweep.mjs [--world <id>] [--server A|B|C] [--help]
 
 Only talks to the test dashboard on 127.0.0.1:${TEST_DASHBOARD_PORT} (COGM_BASE may name
 localhost, 127.0.0.1 or [::1], but only port ${TEST_DASHBOARD_PORT}). Never the live bridge (31414-31416).
 Start the test environment first: pwsh scripts/test-env/start.ps1 (see the foundry-test-env skill)
 and join the world as "Claude". Everything it makes is named "${PREFIX} ..." and deleted at the end.
 
+  --server A|B|C   the test server whose dashboard to use (default A; the dashboard ports are in shared/ports.json)
   --world <id>     the test world to run in: ${TEST_WORLDS.join(', ')} (default ai-tool-test)
 
 Exit codes: 0 nothing failed (skips are fine), 1 a step failed, 2 environment not ready.
@@ -301,6 +310,7 @@ const ctx = {
   templatesBefore: 0, // this tool's templates on the starting scene (so the clean-up knows what is not ours)
   switchedScene: false,
   groupId: null, // the sweep's party group (a test-helper fixture)
+  playlist: null, // the sweep's test playlist (a test-helper fixture), made on first use
   switchesBefore: null, // the feature switches as they were, put back at the end
   pending: [], // changes applied and not yet undone (a failed step leaves them; the clean-up undoes them)
   queuedPage: null, // uuid of a handout page the sweep queued and has not unqueued
@@ -843,6 +853,30 @@ async function combatTools() {
     assert(r && r.round >= 1, brief(r));
     return `round ${r.round}, turn ${r.turn}`;
   });
+  await step('plan-npc-turn (read the turn, plan a move two squares on, undo)', async () => {
+    needCombat();
+    const context = await tool('plan-npc-turn', {});
+    assert(context && context.context && !context.plan, `a read planned: ${brief(context)}`);
+    const start = await wolfToken();
+    assert(start, 'the sweep token is not on the scene');
+    const goal = { gridX: start.gridX + 2, gridY: start.gridY };
+    // This tool answers with the turn's context and, inside it, the guarded plan.
+    const planned = await tool('plan-npc-turn', { token: ctx.wolfName, moveTo: goal });
+    const plan = planned && planned.plan;
+    assert(plan && plan.planId, `no plan: ${brief(planned)}`);
+    const change = await tool('apply-planned-change', { planId: plan.planId });
+    assert(change && change.changeId, `not applied: ${brief(change)}`);
+    ctx.pending.push(change);
+    const moved = await wolfToken();
+    assert(moved && moved.gridX === goal.gridX, `the token is at ${brief(moved && moved.gridX)}`);
+    await undo(change);
+    const back = await wolfToken();
+    assert(
+      back && back.gridX === start.gridX,
+      `after the undo the token is at ${back && back.gridX}`
+    );
+    return `${brief(plan.summary, 90)}; undone (back on square ${back.gridX})`;
+  });
   await step('plan-token-change delete (with its combatant, undo restores both)', async () => {
     needCombat();
     const wolfCombatant = async () => {
@@ -1116,11 +1150,22 @@ async function guardedWrite(planTool, args) {
 
 async function guardedFeatureTools() {
   await step(
-    'feature switches on for the run (party, Tarokka, handouts, Obsidian mirror)',
+    'feature switches on for the run (party, Tarokka, handouts, Obsidian mirror, NPC turn, scene mood, paper sync, room setup, macro forge, Foundry setup)',
     async () => {
       const r = await helper({
         mode: 'switches',
-        switches: { party: true, tarokka: true, handouts: true, 'obsidian-mirror': true },
+        switches: {
+          party: true,
+          tarokka: true,
+          handouts: true,
+          'obsidian-mirror': true,
+          'npc-turn': true,
+          'scene-mood': true,
+          'paper-sync': true,
+          'room-setup': true,
+          'macro-forge': true,
+          'foundry-setup': true,
+        },
       });
       ctx.switchesBefore = r.before;
       ctx.tarokkaBefore = await tool('get-tarokka-reading', {});
@@ -1129,7 +1174,7 @@ async function guardedFeatureTools() {
   );
 
   await step('play-playlist (play, stop)', async () => {
-    const fixture = await helper({ mode: 'fixture', kind: 'playlist' });
+    const fixture = await sweepPlaylist();
     const state = async () => (await helper({ mode: 'playlist-state', id: fixture.id })).playing;
     assert((await state()) === false, 'the new playlist already plays');
     await tool('play-playlist', { playlistName: fixture.name, action: 'play' });
@@ -1143,6 +1188,121 @@ async function guardedFeatureTools() {
   await tarokkaSteps();
   await handoutSteps();
   await obsidianSteps();
+  await newerPlanSteps();
+}
+
+/** The sweep's one test playlist (a second one of the same name would not be the one a tool finds). */
+async function sweepPlaylist() {
+  ctx.playlist ??= await helper({ mode: 'fixture', kind: 'playlist' });
+  return ctx.playlist;
+}
+
+/** The newer guarded plan tools (write-sweep-new-plans): plan, apply, read back, undo, read back. */
+async function newerPlanSteps() {
+  await step('plan-scene-mood set and music (darkness, a sweep playlist, undo each)', async () => {
+    if (!ctx.mood || ctx.mood.darkness === null) skip('scene lighting unknown, left alone');
+    const target = ctx.mood.darkness >= 0.5 ? 0.1 : 0.9;
+    const set = await guardedWrite('plan-scene-mood', { action: 'set', darkness: target });
+    const during = await helper({ mode: 'snapshot' });
+    assert(Math.abs(during.darkness - target) < 0.01, `darkness ${during.darkness}`);
+    await undo(set.change);
+    const back = await helper({ mode: 'snapshot' });
+    assert(
+      Math.abs(back.darkness - ctx.mood.darkness) < 0.01,
+      `darkness ${back.darkness} after the undo, was ${ctx.mood.darkness}`
+    );
+
+    const fixture = await sweepPlaylist();
+    const playing = async () => (await helper({ mode: 'playlist-state', id: fixture.id })).playing;
+    assert(!(await playing()), 'the new playlist already plays');
+    const music = await guardedWrite('plan-scene-mood', {
+      action: 'music',
+      playlist: fixture.name,
+      mode: 'play',
+    });
+    let started = false;
+    for (let i = 0; i < 10 && !started; i++) {
+      started = await playing();
+      if (!started) await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    assert(started, `the music plan did not start the playlist: ${brief(music.plan.summary)}`);
+    await undo(music.change);
+    let stopped = false;
+    for (let i = 0; i < 10 && !stopped; i++) {
+      stopped = !(await playing());
+      if (!stopped) await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    assert(stopped, 'undoing the music left the playlist playing');
+    return `darkness ${ctx.mood.darkness} -> ${target} -> undone; ${fixture.name} played, then undone`;
+  });
+
+  await step('plan-paper-sync (one stat on a player character, undo)', async () => {
+    const listed = await tool('list-characters', {});
+    const hero = ((listed && listed.characters) || []).find(
+      c => c.type === 'character' && c.name === 'Test Hero'
+    );
+    if (!hero) skip('the world has no "Test Hero" player character');
+    const read = async () => (await tool('get-character', { identifier: hero.name })).basicInfo;
+    const before = await read();
+    const temp = (before.hitPoints.temp ?? 0) === 4 ? 5 : 4;
+    const { plan, change } = await guardedWrite('plan-paper-sync', {
+      actor: hero.name,
+      tempHp: temp,
+    });
+    const during = await read();
+    assert(during.hitPoints.temp === temp, `temp HP ${during.hitPoints.temp}, wanted ${temp}`);
+    await undo(change);
+    const after = await read();
+    assert(
+      (after.hitPoints.temp ?? 0) === (before.hitPoints.temp ?? 0),
+      `temp HP ${after.hitPoints.temp} after the undo, was ${before.hitPoints.temp}`
+    );
+    return `${brief(plan.summary, 90)}; undone (temp HP ${after.hitPoints.temp ?? 0})`;
+  });
+
+  await step('plan-room-setup whisper (a trigger area on the scene, undo)', async () => {
+    const { plan, change } = await guardedWrite('plan-room-setup', {
+      action: 'whisper',
+      name: `${PREFIX} whisper`,
+      area: { x: 0, y: 0, width: 1, height: 1 },
+      text: `${PREFIX}: this text is never read aloud.`,
+      once: true,
+    });
+    await undo(change);
+    return `${brief(plan.summary, 100)}; undone`;
+  });
+
+  await step('plan-macro (a script macro for the GM, undo)', async () => {
+    const { plan, change } = await guardedWrite('plan-macro', {
+      name: `${PREFIX} Macro`,
+      description:
+        'Made by the live write sweep. Whispers one line to the GM; deleted by its undo.',
+      source: "ui.notifications.info('AI Tool Sweep macro');",
+    });
+    await undo(change);
+    return `${brief(plan.summary, 100)}; undone`;
+  });
+
+  await step('plan-foundry-setup (a world setting, undo)', async () => {
+    const id = 'dnd5e.allowSummoning';
+    const valueOf = async () => {
+      const r = await tool('plan-foundry-setup', { mode: 'read', area: 'setting', target: id });
+      const row = ((r && r.settings) || []).find(s => s.id === id);
+      assert(row && typeof row.value === 'boolean', `no boolean setting ${id}: ${brief(r)}`);
+      return row.value;
+    };
+    const before = await valueOf();
+    const { plan, change } = await guardedWrite('plan-foundry-setup', {
+      mode: 'plan',
+      area: 'setting',
+      target: id,
+      value: !before,
+    });
+    assert((await valueOf()) === !before, `${id} did not change`);
+    await undo(change);
+    assert((await valueOf()) === before, `${id} is not back to ${before} after the undo`);
+    return `${brief(plan.summary, 90)}; undone (${before})`;
+  });
 }
 
 async function partySteps() {

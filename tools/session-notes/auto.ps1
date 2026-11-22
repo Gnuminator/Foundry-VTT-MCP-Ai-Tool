@@ -102,7 +102,10 @@ function Test-NotesDone([string]$folder) {
   # With the Danish layers (I-066) notes.json carries layers.depth_complete; older notes have no layers part.
   try {
     $n = Get-Content $json -Raw -Encoding utf8 | ConvertFrom-Json
-    return ($null -ne $n.session) -and (-not $n.layers -or [bool]$n.layers.depth_complete)
+    # characters_complete and remember_complete exist only in newer notes; a missing key counts as done.
+    $l = $n.layers
+    $extrasDone = (-not $l) -or (($null -eq $l.characters_complete -or [bool]$l.characters_complete) -and ($null -eq $l.remember_complete -or [bool]$l.remember_complete))
+    return ($null -ne $n.session) -and (-not $l -or [bool]$l.depth_complete) -and $extrasDone
   } catch { return $false }
 }
 

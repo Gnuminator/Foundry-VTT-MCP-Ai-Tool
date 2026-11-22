@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from . import extras
 from .claude_runner import AuthError, ClaudeError, Runner, UsageLimitError
 from .layers import (
     DEPTH_SCHEMA,
@@ -54,6 +55,8 @@ class Options:
     layers: bool = False
     depth_model: str = "sonnet"
     depth_effort: str = "medium"
+    extras_model: str = "sonnet"  # character and worth-remembering layers (with layers)
+    extras_effort: str = "medium"
 
 
 @dataclass(slots=True)
@@ -64,6 +67,7 @@ class RunResult:
     login_needed: bool = False  # the stop was a logged-out claude, not a usage limit
     pending: int = 0  # raw fallback scenes that the next run tries again
     depth_missing: int = 0  # scenes without in-depth notes yet (layers only); the next run tries
+    extras_missing: int = 0  # character / worth-remembering layers not written yet; next run tries
     audit: list[dict[str, Any]] = field(default_factory=list)
 
 
@@ -203,15 +207,22 @@ class Writer:
                 paused_reason = self.session_pause
         depth: dict[int, dict[str, Any]] | None = None
         depth_missing = 0
+        extra: dict[str, dict[str, Any] | None] = {}
+        extras_missing = 0
         if self.opts.layers:
             depth = {}
             if complete and session_notes is not None:
                 depth, depth_missing, depth_pause = self._depth_notes(notes, roster, lines)
                 paused_reason = paused_reason or depth_pause
+                if not paused_reason:
+                    extra, extras_pause = self._extra_notes(notes, roster, lines)
+                    paused_reason = extras_pause
+                extras_missing = sum(1 for k in extras.LAYERS if extra.get(k) is None)
             else:
                 depth_missing = sum(1 for n in notes if not n.get("fallback"))
+                extras_missing = len(extras.LAYERS)
         # Written even when the session summary is missing: the scene notes are useful alone.
-        write_outputs(self.notes_dir, lines, roster, notes, session_notes, depth)
+        write_outputs(self.notes_dir, lines, roster, notes, session_notes, depth, extra)
         self._flush_audit()
         return RunResult(
             scenes=len(notes),
@@ -220,8 +231,92 @@ class Writer:
             login_needed=self.login_needed,
             pending=len(retry),
             depth_missing=depth_missing,
+            extras_missing=extras_missing,
             audit=self.audit,
         )
+
+    # --- character and worth-remembering layers ------------------------------------------------
+
+    def _extra_notes(
+        self, notes: list[dict[str, Any]], roster: Roster, lines: list[Line]
+    ) -> tuple[dict[str, dict[str, Any] | None], str | None]:
+        """One call per layer (per chunk of scenes when the session is very long).
+
+        Returns ({layer: result or None when not written}, pause text). Finished chunks are
+        cached in ``.work`` so a rerun only does what is missing."""
+        known = extras.known_ids(lines)
+        chunks = extras.chunk_scenes(notes)
+        out: dict[str, dict[str, Any] | None] = {}
+        for layer in extras.LAYERS:
+            parts: list[dict[str, Any]] = []
+            for n, chunk in enumerate(chunks, 1):
+                got = self._extra_chunk(layer, n, len(chunks), chunk, roster, known)
+                if isinstance(got, str):  # a usage limit or login pause
+                    return out, got
+                if got is None:
+                    parts = []
+                    break
+                parts.append(got)
+            if parts:
+                merge = extras.merge_characters if layer == "characters" else extras.merge_remember
+                out[layer] = merge(parts) if len(parts) > 1 else parts[0]
+            else:
+                out[layer] = None
+        return out, None
+
+    def _extra_chunk(
+        self,
+        layer: str,
+        n: int,
+        total: int,
+        chunk: list[dict[str, Any]],
+        roster: Roster,
+        known: set[str],
+    ) -> dict[str, Any] | str | None:
+        """A finished chunk result, the pause text (str), or None when both tries failed."""
+        path = self.work / f"extra-{layer}-{n:02d}.json"
+        key = extras.chunk_key(layer, chunk, roster)
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if data.get("key") == key and isinstance(data["notes"], dict):
+                return data["notes"]
+        except (ValueError, KeyError, OSError, AttributeError, TypeError):
+            pass
+        started = time.monotonic()
+        hint = ""
+        is_chars = layer == "characters"
+        build = extras.characters_prompt if is_chars else extras.remember_prompt
+        for _attempt in range(2):
+            try:
+                result = self.runner(
+                    build(chunk, roster, extras.part_note(n, total)) + hint,
+                    extras.CHARACTERS_SCHEMA if is_chars else extras.REMEMBER_SCHEMA,
+                    self.opts.extras_model,
+                    self.opts.extras_effort,
+                )
+            except UsageLimitError as exc:
+                self.login_needed = self.login_needed or isinstance(exc, AuthError)
+                self._log("paused", scene=layer, reason=str(exc), layer=layer)
+                return str(exc)
+            except ClaudeError as exc:
+                self._log(f"{layer}_error", part=n, error=str(exc))
+                continue
+            problems = (
+                extras.check_characters(result, roster, known)
+                if is_chars
+                else extras.check_remember(result, known)
+            )
+            if problems:
+                self._log(f"{layer}_invalid", part=n, problems=problems)
+                hint = "\n\nYour previous answer was rejected: " + "; ".join(problems) + ". Fix this."
+                continue
+            fixes = extras.repair(result, known)
+            tmp = path.with_suffix(".tmp")
+            tmp.write_text(json.dumps({"key": key, "notes": result}, ensure_ascii=False), encoding="utf-8")
+            os.replace(tmp, path)
+            self._log(f"{layer}_ok", part=n, seconds=round(time.monotonic() - started, 1), fixes=fixes)
+            return result
+        return None
 
     # --- in-depth layer ------------------------------------------------------------------------
 

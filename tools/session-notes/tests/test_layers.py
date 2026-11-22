@@ -42,10 +42,22 @@ def test_layers_write_raw_depth_and_index(session: Path) -> None:
     assert "u999999" not in depth  # unknown citation dropped
     assert "Ufærdige" not in depth
     index = (notes / "index.da.md").read_text(encoding="utf-8")
-    for target in ("summary.da", "depth.da", "scenes.da", "transcript.da", "raw.da"):
+    for target in (
+        "summary.da",
+        "depth.da",
+        "scenes.da",
+        "transcript.da",
+        "raw.da",
+        "characters.da",
+        "remember.da",
+    ):
         assert f"[[{target}|" in index
     data = json.loads((notes / "notes.json").read_text(encoding="utf-8"))
-    assert data["layers"] == {"depth_complete": True}
+    assert data["layers"] == {
+        "depth_complete": True,
+        "characters_complete": True,
+        "remember_complete": True,
+    }
 
 
 def test_depth_is_cached_and_resumes_after_a_limit(session: Path) -> None:
@@ -57,7 +69,8 @@ def test_depth_is_cached_and_resumes_after_a_limit(session: Path) -> None:
     again = FakeClaude()
     result2 = Writer(session, again, opts()).run()
     assert result2.depth_missing == 0
-    assert [k for k, _ in again.calls] == ["depth"]  # only the missing scene is written
+    # only the missing scene is written, then the two session-wide layers
+    assert [k for k, _ in again.calls] == ["depth", "characters", "remember"]
 
 
 def test_a_bad_depth_answer_is_retried_then_left_missing(session: Path) -> None:

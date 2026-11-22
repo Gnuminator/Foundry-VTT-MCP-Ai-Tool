@@ -130,6 +130,21 @@ usage limit finishes the in-depth notes on the next hourly pass. A scene whose i
 the checks on three runs at least 30 minutes apart is accepted without them (`depth.da.md` says
 so); to try it again, delete `notes/.work/depth-NNN.json` and `depth-NNN.fail.json`.
 
+### Character and worth-remembering notes
+
+With `--layers`, a run also writes four GM-only files, in Danish and English:
+`characters.<lang>.md` (one section per player character: what they revealed, choices, ties to
+others, open personal hooks) and `remember.<lang>.md` (facts, names, places, promises, hooks and
+table agreements worth keeping, grouped by kind; session 0 talk counts). Every point cites
+transcript lines like the scene notes. Each layer is one Claude call for the whole session
+(`Options.extras_model` and `extras_effort`, Sonnet at medium); a session too long for one prompt
+is split by scene and the parts are merged. Results are cached in
+`notes/.work/extra-<layer>-NN.json`, so a rerun or a usage limit only redoes what is missing.
+`index.da.md` links both, and `notes.json` gets `characters`, `remember` and
+`layers.characters_complete` / `remember_complete` (a missing key counts as done, so older notes
+stay done). `publish` adds them as sections to the GM summary page only; they are never in the
+player recap.
+
 ## Into Foundry (D-087)
 
 ```bash

@@ -126,11 +126,63 @@ def recap_html(session: dict[str, Any]) -> str:
     return both(lambda lang: blocks(session.get(f"recap_player_{lang}", "")))
 
 
-def summary_html(session: dict[str, Any]) -> str:
+EXTRA_TITLES = {
+    "da": {
+        "characters": "Personer",
+        "remember": "Værd at huske",
+        "revealed": "Afslørede om sig selv",
+        "choices": "Valg",
+        "ties": "Bånd til andre",
+        "hooks": "Åbne personlige hooks",
+    },
+    "en": {
+        "characters": "Characters",
+        "remember": "Worth remembering",
+        "revealed": "Revealed about themselves",
+        "choices": "Choices",
+        "ties": "Ties to others",
+        "hooks": "Open personal hooks",
+    },
+}
+KIND_ORDER = ("fact", "name", "place", "promise", "hook", "agreement")
+
+
+def extras_html(lang: str, characters: dict[str, Any] | None, remember: dict[str, Any] | None) -> str:
+    """GM-only character and worth-remembering sections for the GM summary page (the recap and
+    the player-facing pages never get them); citation links are left out like in the scenes."""
+    titles = EXTRA_TITLES[lang]
+    out: list[str] = []
+    chars = (characters or {}).get("characters") or []
+    if chars:
+        out.append(f"<h3>{titles['characters']}</h3>")
+        for c in chars:
+            out.append(f"<p><strong>{inline(str(c.get('name', '')))}</strong></p>")
+            for key in ("revealed", "choices", "ties", "hooks"):
+                listed = bullets([p.get(lang) or "" for p in c.get(key) or []])
+                if listed:
+                    out.append(f"<p><em>{titles[key]}</em></p>{listed}")
+    items = (remember or {}).get("items") or []
+    if items:
+        out.append(f"<h3>{titles['remember']}</h3>")
+        out.append(bullets([i.get(lang) or "" for k in KIND_ORDER for i in items if i.get("kind") == k]
+                           + [i.get(lang) or "" for i in items if i.get("kind") not in KIND_ORDER]))
+    return "".join(out)
+
+
+def summary_html(
+    session: dict[str, Any],
+    characters: dict[str, Any] | None = None,
+    remember: dict[str, Any] | None = None,
+) -> str:
     def render(lang: str) -> str:
         changed = bullets(list(session.get(f"changed_{lang}") or []))
         head = f"<h3>{SECTION_TITLES[lang]['changed']}</h3>" if changed else ""
-        return blocks(session.get(f"summary_{lang}", "")) + head + changed
+        return (
+            blocks(session.get(f"summary_{lang}", ""))
+            + head
+            + changed
+            + extras_html(lang, characters, remember)
+        )
 
     return both(render)
 
@@ -187,7 +239,7 @@ def build(session: Path) -> Staged:
     title = (s.get("title_da") or s.get("title_en") or session.name).strip()
     pages = [
         {"key": "recap", "title": PAGE_TITLES["recap"], "html": recap_html(s)},
-        {"key": "summary", "title": PAGE_TITLES["summary"], "html": summary_html(s)},
+        {"key": "summary", "title": PAGE_TITLES["summary"], "html": summary_html(s, data.get("characters"), data.get("remember"))},
     ]
     scenes = data.get("scenes") or []
     if scenes:

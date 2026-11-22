@@ -220,18 +220,25 @@ def render_depth(
     return "\n".join(out)
 
 
-def render_index(session: dict[str, Any] | None, depth_complete: bool) -> str:
+def render_index(
+    session: dict[str, Any] | None,
+    depth_complete: bool,
+    characters_complete: bool = True,
+    remember_complete: bool = True,
+) -> str:
     title = session["title_da"] if session else HEAD["index"]
     rows = [
         ("Resumé (kort, til GM)", "summary.da"),
         ("Resumé til spillerne (kladde)", "recap.player.da"),
         (HEAD["depth"] + " (kun GM)", "depth.da"),
+        ("Personer (kun GM)", "characters.da"),
+        ("Værd at huske (kun GM)", "remember.da"),
         ("Scener (kortfattet pr. scene)", "scenes.da"),
         ("Rettet transskription", "transcript.da"),
         (HEAD["raw"], "raw.da"),
     ]
     out = [f"# {title}", "", "Tre lag, fra kort til ordret:", ""]
     out += [f"- [[{target}|{label}]]" for label, target in rows]
-    if not depth_complete:
+    if not (depth_complete and characters_complete and remember_complete):
         out += ["", f"> {HEAD['incomplete']}"]
     return "\n".join(out) + "\n"

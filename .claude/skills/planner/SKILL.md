@@ -91,8 +91,7 @@ process or background run from it, no other lane on that branch. Subagent worktr
 targets. A rule or tool that moves neither is removed. **Pace** is judged by hours worked, not
 14% a day: `usage:now` writes `pace-delta` (on pace: within 8 points), `pace-projected-percent` and
 `pace-active-hours-left`. Pace is information only: it never holds or adds a lane.
-The reset is Saturday 06:00 local in winter. On the Saturday after it run `npm run usage:week -- --write-vault --days 7`
-and push vault `Weekly check.md` (the board's Week page).
+`usage:now` writes the closed week into vault `Weekly check.md` (the Week page) on its first run after the reset; push the vault.
 Monthly: list the workflow action pins (`uses:` lines in `.github/workflows`) with their age; bump or leave.
 Glance at upstream Actor Studio releases after 2.10.5: a lane rebases it onto our fork,
 the module kit passes, then stage 13 installs it.

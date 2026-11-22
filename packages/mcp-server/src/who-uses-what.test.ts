@@ -9,6 +9,7 @@ import { TOOL_CALL_LOG_DIR, type ToolCallLine } from './tool-call-log.js';
 import {
   ClientsFile,
   buildWhoUsesWhat,
+  findDownWindows,
   handleWhoUsesWhat,
   readCallLines,
 } from './who-uses-what.js';
@@ -249,6 +250,35 @@ describe('buildWhoUsesWhat', () => {
     ]);
     expect(report.people[0]).toMatchObject({ errors: 6, realErrors: 2 });
     expect(report.tools.errorRates).toEqual([{ name: 'get-world-info', calls: 6, errors: 2 }]);
+  });
+});
+
+describe('findDownWindows', () => {
+  const fail = (t: string, over: Partial<ToolCallLine> = {}): ToolCallLine =>
+    call({ t, ok: false, ms: 0, size: 0, ...over });
+
+  it('needs three failures, sorts its input and keeps a gap of exactly two minutes in the run', () => {
+    const two = findDownWindows([fail('2026-11-17T03:00:00Z'), fail('2026-11-17T03:00:05Z')]);
+    expect(two.windows).toEqual([]);
+    const three = findDownWindows([
+      fail('2026-11-17T03:04:00Z'),
+      fail('2026-11-17T03:00:00Z'),
+      fail('2026-11-17T03:02:00Z'),
+    ]);
+    expect(three.windows).toHaveLength(1);
+    expect(three.windows[0]).toMatchObject({ calls: 3 });
+  });
+
+  it('skips bad times, and counts a slow not-connected failure as down without a window', () => {
+    const slow = fail('2026-11-17T05:00:00Z', { ms: 400, size: 30, err: 'not-connected' });
+    const r = findDownWindows([
+      fail('not a time'),
+      slow,
+      fail('2026-11-17T04:00:00Z', { err: 'other' }),
+    ]);
+    expect(r.windows).toEqual([]);
+    expect(r.down.has(slow)).toBe(true);
+    expect(r.down.size).toBe(1);
   });
 });
 

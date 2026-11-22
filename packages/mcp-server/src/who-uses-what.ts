@@ -480,6 +480,7 @@ export function buildWhoUsesWhat(input: {
       b.calls - a.calls ||
       a.key.localeCompare(b.key)
   );
+  // Deliberate: a tool counts as used when anything called it, the dashboard's timers included.
   const used = new Set(toolTotals.keys());
   return {
     schema: 1,

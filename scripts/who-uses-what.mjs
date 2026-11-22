@@ -51,7 +51,7 @@ export function renderWhoUsesWhat(report) {
     out.push('## Errors by cause');
     out.push('');
     out.push(
-      `${causes.total} failed calls: ${causes.foundryDown.calls} while Foundry was down or not linked, ${causes.total - causes.foundryDown.calls} other.`
+      `${causes.total} failed calls: ${causes.foundryDown.calls} while Foundry was down or not linked, ${Math.max(0, causes.total - causes.foundryDown.calls)} other.`
     );
     for (const w of causes.foundryDown.windows.slice(-10)) {
       out.push(`- Foundry down ${when(w.from)} to ${when(w.to)} UTC: ${w.calls} calls`);

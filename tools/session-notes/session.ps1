@@ -39,14 +39,23 @@ Write-Host "Session $Session; publish goes to the $(if ($Real) { 'REAL' } else {
 
 $autoArgs = @('-Session', $Session, '-Port', $port)
 if ($DryRun) { $autoArgs += '-DryRun' }
+# Without -Real the publish must stay on this PC, even when MCP_CONTROL_HOST points at the Pi.
+if (-not $Real) { $env:FOUNDRY_AI_CONTROL_HOST = '127.0.0.1' }
+$started = Get-Date
 & pwsh -NoProfile -File (Join-Path $here 'auto.ps1') @autoArgs
 $code = $LASTEXITCODE
+if ($DryRun) { exit $code }
 
 . (Join-Path $here '..\..\scripts\data-folder.ps1')
 $sessions = if ($env:FVTT_SESSIONS_DIR) { $env:FVTT_SESSIONS_DIR } else { Get-DataFolder 'FoundrySessions' }
 $folder = Join-Path $sessions $Session
 if (-not (Test-Path $folder)) { Write-Host "No folder $Session in $sessions (not pulled yet, or a wrong name)."; exit 1 }
 $status = Join-Path $folder 'notes\status.json'
+# A status file older than this run is from an earlier pass (another pass held the lock, or consent was missing).
+if ((Test-Path $status) -and (Get-Item $status).LastWriteTime -lt $started) {
+  Write-Host 'No new run: another pass holds the lock, or consent is missing. See auto.log in the sessions folder.'
+  exit 1
+}
 if (Test-Path $status) {
   $s = Get-Content $status -Raw -Encoding utf8 | ConvertFrom-Json
   Write-Host "Status: $($s.state) - $($s.message)"

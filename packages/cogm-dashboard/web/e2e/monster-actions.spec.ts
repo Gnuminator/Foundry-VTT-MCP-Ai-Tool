@@ -3,9 +3,8 @@
 // bridge and the stream are faked; nothing here needs a world.
 import { expect, test, type Page } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes, fakeTools, ok, type ToolCall } from './support';
+import { GM_TOKEN, fakeCommonRoutes, fakeStream, fakeTools, ok, type ToolCall } from './support';
 
-const NL = String.fromCharCode(10);
 const FIGHT = [
   {
     id: 'g1',
@@ -38,7 +37,12 @@ const HIT = {
 
 async function setup(
   page: Page,
-  opts: { targets: unknown[]; activity: Record<string, unknown>; autoApply?: boolean }
+  opts: {
+    targets: unknown[];
+    selected?: unknown[];
+    activity: Record<string, unknown>;
+    autoApply?: boolean;
+  }
 ): Promise<ToolCall[]> {
   await fakeCommonRoutes(page);
   const calls = await fakeTools(
@@ -54,7 +58,7 @@ async function setup(
         case 'search-character-items':
           return ok({ matches: [{ id: 'w1', name: 'Shortsword' }], totalMatches: 1 });
         case 'get-targets':
-          return ok({ targets: opts.targets, selected: [] });
+          return ok({ targets: opts.targets, selected: opts.selected ?? [] });
         case 'use-npc-activity':
           return ok(opts.activity);
         case 'plan-actor-change':
@@ -72,34 +76,23 @@ async function setup(
     },
     { playSession: true }
   );
-  await page.route('**/api/stream**', route =>
-    route.fulfill({
-      status: 200,
-      contentType: 'text/event-stream',
-      body: [
-        { event: 'settings', data: { gmActionsEnabled: true } },
-        {
-          event: 'status',
-          data: {
-            controlChannel: 'connected',
-            foundry: 'reachable',
-            lastError: null,
-            lastPollAt: null,
-            foundryDownSince: null,
-          },
-        },
-        {
-          event: 'combat',
-          data: {
-            combat: { active: true, round: 1, turn: 0, current: FIGHT[0], combatants: FIGHT },
-          },
-        },
-      ].reduce(
-        (s, e) => `${s}event: ${e.event}${NL}data: ${JSON.stringify(e.data)}${NL}${NL}`,
-        `retry: 600000${NL}${NL}`
-      ),
-    })
-  );
+  await fakeStream(page, [
+    { event: 'settings', data: { gmActionsEnabled: true } },
+    {
+      event: 'status',
+      data: {
+        controlChannel: 'connected',
+        foundry: 'reachable',
+        lastError: null,
+        lastPollAt: null,
+        foundryDownSince: null,
+      },
+    },
+    {
+      event: 'combat',
+      data: { combat: { active: true, round: 1, turn: 0, current: FIGHT[0], combatants: FIGHT } },
+    },
+  ]);
   await page.goto(`/next/?strip=1&token=${GM_TOKEN}`);
   await expect(page.locator('#live-strip')).toBeVisible();
   await page.getByRole('button', { name: 'Ilvara', exact: true }).click();
@@ -116,6 +109,11 @@ test('a hit asks one confirm for all damage parts, then applies each part', asyn
   const dialog = page.getByRole('dialog');
   await expect(dialog).toContainText('Deal 7 piercing and 5 poison damage to Brannoc?');
   await expect(dialog).not.toContainText('Hit not confirmed');
+  expect(calls.find(c => c.name === 'use-npc-activity')?.args).toEqual({
+    actor: 'tk-g1',
+    itemName: 'w1',
+    isPublic: true,
+  });
   // Nothing is applied before the answer.
   expect(names(calls)).not.toContain('apply-planned-change');
   await dialog.getByRole('button', { name: 'Apply damage' }).click();
@@ -130,7 +128,7 @@ test('a hit asks one confirm for all damage parts, then applies each part', asyn
   await expect(page.locator('#live-action-result')).toContainText('hit');
 });
 
-test('a confirmed hit with the apply-without-confirming switch on applies without a question', async ({
+test('a known hit with the apply-without-confirming switch on applies without a question', async ({
   page,
 }) => {
   const calls = await setup(page, { targets: [TARGET], activity: HIT, autoApply: true });
@@ -160,6 +158,11 @@ test('a miss plans no damage', async ({ page }) => {
   });
   await press(page);
   await expect(page.locator('#live-action-result')).toContainText('miss');
+  // The press has settled (the line is set before the damage step runs).
+  await expect(page.getByRole('button', { name: 'Shortsword', exact: true })).not.toHaveAttribute(
+    'aria-busy',
+    'true'
+  );
   expect(names(calls)).not.toContain('plan-actor-change');
   await expect(page.getByRole('dialog')).toHaveCount(0);
 });
@@ -171,4 +174,11 @@ test('with no target in Foundry the button rolls nothing', async ({ page }) => {
   expect(names(calls)).toContain('get-targets');
   expect(names(calls)).not.toContain('use-npc-activity');
   expect(names(calls)).not.toContain('plan-actor-change');
+});
+
+test('a creature only selected in Foundry, not targeted, rolls nothing', async ({ page }) => {
+  const calls = await setup(page, { targets: [], selected: [TARGET], activity: HIT });
+  await press(page);
+  await expect(page.locator('#live-action-result')).toContainText('Target one creature in Foundry');
+  expect(names(calls)).not.toContain('use-npc-activity');
 });

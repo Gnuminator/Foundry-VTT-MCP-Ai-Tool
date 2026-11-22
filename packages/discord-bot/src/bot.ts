@@ -28,6 +28,7 @@ import { convertSession } from './convert/convert.js';
 import { RecordingSession, hrtimeClock, type SpeakerInfo } from './rec/session.js';
 import { VoiceRecorder } from './rec/voice.js';
 import { RecorderHealth } from './rec/health.js';
+import { RecordNudge } from './rec/record-nudge.js';
 import { startStatusServer } from './status-server.js';
 import { bi, da, plural } from './i18n.js';
 import { alertTarget, isMuted, statusText, voiceAction } from './bot-health.js';
@@ -161,6 +162,8 @@ export class RecorderBot {
   private active: Active | undefined;
   private spaceTimer: NodeJS.Timeout | undefined;
   private sessionPostTimer: NodeJS.Timeout | undefined;
+  private readonly nudge = new RecordNudge();
+  private nudgeTimer: NodeJS.Timeout | undefined;
   private omensTimer: NodeJS.Timeout | undefined;
   private statusServer: Server | undefined;
   /** DM to the owner; set once the owner is known. */
@@ -238,6 +241,7 @@ export class RecorderBot {
         (err: unknown) => log.error('Registering /record failed', err)
       );
       this.startSessionPost(c);
+      this.startRecordNudge();
       this.startOmens(c);
       void this.startSpaceNotices(c)
         .catch((err: unknown) => log.error('Space notices could not start', err))
@@ -288,7 +292,10 @@ export class RecorderBot {
       port,
       () => ({
         recording: this.active !== undefined,
-        problems: this.active?.health.problems(Date.now()) ?? [],
+        problems: [
+          ...(this.active?.health.problems(Date.now()) ?? []),
+          ...this.nudge.problems(Date.now(), this.active !== undefined),
+        ],
         speaking: this.active?.health.speaking() ?? [],
       }),
       err =>
@@ -361,6 +368,31 @@ export class RecorderBot {
     log.info(
       `Space and backup copy notices: checking every ${SPACE_CHECK_INTERVAL_MS / 60000} minutes (backup copies are stale after ${this.config.backupStaleDays ?? DEFAULT_BACKUP_STALE_DAYS} days).`
     );
+  }
+
+  /**
+   * Record-start nudge (rec/record-nudge.ts): a play session open for 5 minutes with no
+   * recording, or a recording still running 30 minutes after the session ended, gives one line
+   * in #gm-bot and a dot on the health line. Independent of the session post channel.
+   */
+  private startRecordNudge(): void {
+    const read = createSessionFlagReader({
+      dashboardUrl: this.dashboardUrl(),
+      token: this.config.playerToken,
+      log: log.info,
+    });
+    const tick = (): void => {
+      void read()
+        .then(flag => {
+          for (const line of this.nudge.check(flag, this.active !== undefined, Date.now())) {
+            void this.alertGm(line);
+          }
+        })
+        .catch((err: unknown) => log.error('Record nudge check failed', err));
+    };
+    tick();
+    this.nudgeTimer = setInterval(tick, SESSION_POST_INTERVAL_MS);
+    this.nudgeTimer.unref();
   }
 
   /**
@@ -675,6 +707,7 @@ export class RecorderBot {
   async shutdown(): Promise<void> {
     if (this.spaceTimer) clearInterval(this.spaceTimer);
     if (this.sessionPostTimer) clearInterval(this.sessionPostTimer);
+    if (this.nudgeTimer) clearInterval(this.nudgeTimer);
     if (this.omensTimer) clearInterval(this.omensTimer);
     this.statusServer?.close();
     if (this.active) log.info(await this.stop('shutdown'));

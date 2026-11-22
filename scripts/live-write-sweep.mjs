@@ -53,23 +53,17 @@
  * split on), SWEEP_PLAYER (user name for the roll requests, default "Player").
  */
 
+import { parseServerArg } from './sweep-server.mjs';
 import { parseWorldArg, TEST_WORLDS } from './test-worlds.mjs';
 
-// The test dashboards of servers A, B and C (scripts/test-env/servers.json); --server picks one.
-const SERVER_PORTS = { A: 3100, B: 3101, C: 3102 };
-const serverArg = (() => {
-  const argv = process.argv.slice(2);
-  const i = argv.findIndex(a => a === '--server' || a.startsWith('--server='));
-  if (i < 0) return 'A';
-  return (argv[i].includes('=') ? argv[i].split('=')[1] : argv[i + 1]) ?? '';
-})();
-if (!(serverArg in SERVER_PORTS)) {
-  console.error(
-    `--server must be one of ${Object.keys(SERVER_PORTS).join(', ')} (got "${serverArg}")`
-  );
+// The test dashboards of servers A, B and C; --server picks one (ports from shared/ports.json).
+let TEST_DASHBOARD_PORT;
+try {
+  TEST_DASHBOARD_PORT = parseServerArg(process.argv.slice(2)).port;
+} catch (err) {
+  console.error(String(err.message ?? err));
   process.exit(2);
 }
-const TEST_DASHBOARD_PORT = SERVER_PORTS[serverArg];
 let EXPECTED_WORLD;
 try {
   EXPECTED_WORLD = parseWorldArg(process.argv.slice(2));
@@ -95,7 +89,7 @@ localhost, 127.0.0.1 or [::1], but only port ${TEST_DASHBOARD_PORT}). Never the 
 Start the test environment first: pwsh scripts/test-env/start.ps1 (see the foundry-test-env skill)
 and join the world as "Claude". Everything it makes is named "${PREFIX} ..." and deleted at the end.
 
-  --server A|B|C   the test server whose dashboard to use (default A: 3100, B: 3101, C: 3102)
+  --server A|B|C   the test server whose dashboard to use (default A; the dashboard ports are in shared/ports.json)
   --world <id>     the test world to run in: ${TEST_WORLDS.join(', ')} (default ai-tool-test)
 
 Exit codes: 0 nothing failed (skips are fine), 1 a step failed, 2 environment not ready.

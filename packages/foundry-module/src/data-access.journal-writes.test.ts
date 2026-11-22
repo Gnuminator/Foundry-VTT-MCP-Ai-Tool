@@ -221,7 +221,7 @@ describe('FoundryDataAccess: updateJournalContent: permission gate', () => {
     ]);
 
     await expect(
-      da.updateJournalContent({ journalId: journal.id!, content: 'New.' })
+      da.updateJournalContent({ journalId: journal.id, content: 'New.' })
     ).rejects.toThrow(/^Journal update denied:/);
   });
 });

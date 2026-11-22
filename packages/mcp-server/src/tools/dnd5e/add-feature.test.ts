@@ -200,7 +200,7 @@ describe('DnD5eAddFeatureTool: passive', () => {
 
     await tools.handleAddFeature({ ...BASE_ARGS });
 
-    const methods = query.mock.calls.map(([m]: [string]) => m);
+    const methods = query.mock.calls.map(([m]) => m);
     const worldIdx = methods.indexOf('foundry-mcp-bridge.getWorldInfo');
     const addIdx = methods.indexOf('foundry-mcp-bridge.addPassiveFeatureToActor');
     expect(worldIdx).toBeGreaterThanOrEqual(0);

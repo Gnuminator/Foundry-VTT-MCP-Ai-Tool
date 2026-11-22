@@ -661,6 +661,13 @@ describe('the stages', () => {
     assert.ok(text.indexOf('announce.mjs" deploy') < text.indexOf('say "stage 5 done'));
   });
 
+  test('stage 5 ends with the read-only stage 33 check as a warning, never fatal', () => {
+    const text = read('scripts/pi/remote/5-tool.sh');
+    assert.match(text, /CHECK=1 timeout 60 bash -s/);
+    assert.match(text, /warn "stage 33 check: /);
+    assert.ok(text.indexOf('stage 33 check') < text.indexOf('say "stage 5 done'));
+  });
+
   test('stage 5 and 12 warn when the dashboard split is off', () => {
     assert.match(read('scripts/pi/remote/5-tool.sh'), /warn_dashboard_split/);
     assert.match(read('scripts/pi/remote/12-tunnel.sh'), /warn_dashboard_split/);

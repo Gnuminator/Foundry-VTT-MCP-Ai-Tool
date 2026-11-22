@@ -20,7 +20,10 @@
 import { MockCollection, type Identified } from './collection.js';
 
 /** Anything shaped enough to live in a {@link MockCollection}. */
-type AnyDoc = Record<string, any> & { id?: string | null; name?: string | null };
+type AnyDoc = Record<string, any> & {
+  id?: string | null | undefined;
+  name?: string | null | undefined;
+};
 
 function deepClone<T>(value: T): T {
   return value === undefined ? value : JSON.parse(JSON.stringify(value));
@@ -477,9 +480,9 @@ export interface MakeUserOptions {
   [extra: string]: any;
 }
 
-export function makeUser(opts: MakeUserOptions = {}): AnyDoc {
+export function makeUser(opts: MakeUserOptions = {}): AnyDoc & { id: string } {
   const { id = randomId('user'), name = 'User', active = true, isGM = false, ...rest } = opts;
-  const user: AnyDoc = { id, _id: id, name, active, isGM, ...rest };
+  const user: AnyDoc & { id: string } = { id, _id: id, name, active, isGM, ...rest };
   // Real `User#isBanned` is `role === USER_ROLES.NONE` (`common/documents/user.mjs:113`);
   // derived live from `role` when a test sets a role and no explicit `isBanned`.
   if (typeof user.role === 'number' && !Object.prototype.hasOwnProperty.call(rest, 'isBanned')) {
@@ -628,7 +631,7 @@ export interface MakeCombatOptions {
   id?: string;
   /** Combatants in initiative order; read as `combat.turns`. */
   turns?: AnyDoc[];
-  turn?: number;
+  turn?: number | null;
   round?: number;
   started?: boolean;
   [extra: string]: any;

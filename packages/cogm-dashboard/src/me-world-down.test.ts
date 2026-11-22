@@ -41,7 +41,7 @@ async function start(live: boolean): Promise<string> {
     publicDir: '.',
     pageHeaders: () => undefined,
   });
-  await new Promise<void>(r => (server = app.listen(0, '127.0.0.1', r)));
+  await new Promise<void>(r => (server = app.listen(0, '127.0.0.1', () => r())));
   return `http://127.0.0.1:${(server!.address() as AddressInfo).port}`;
 }
 

@@ -46,6 +46,7 @@ const DASHBOARD_PATH = ['packages/cogm-dashboard/', 'shared/']; // the web bundl
  */
 export const HEAVY_STEPS = new Set([
   'typecheck',
+  'typecheck-tests',
   'lint-ratchet',
   'build',
   'kit-test',
@@ -166,6 +167,7 @@ const workspaceTest = (/** @type {string} */ name, /** @type {string} */ ws) => 
  */
 export const CHECKS = [
   { name: 'typecheck', group: 'static', cmd: 'npm', args: ['run', 'typecheck'] },
+  npmRun('typecheck-tests', 'static', 'typecheck:tests'),
   npmRun('lint-ratchet', 'static', 'lint:ratchet', { drift: { name: 'lint baseline', order: 1 } }),
   npmRun('emdash-ratchet', 'static', 'emdash:ratchet', {
     drift: { name: 'em-dash baseline', order: 2 },

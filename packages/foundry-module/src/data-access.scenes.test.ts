@@ -94,9 +94,9 @@ describe('FoundryDataAccess: listScenes', () => {
   it('produces background "" when no img is supplied (null _source.background.src + no scene.img)', async () => {
     world.addScene({ id: 'scene-no-img', name: 'Dark Room', active: false });
 
-    const result = await da.listScenes();
+    const result = (await da.listScenes()) as Array<Record<string, unknown>>;
 
-    expect(result[0]!.background).toBe('');
+    expect(result[0].background).toBe('');
   });
 
   it('reads a v14 scene (Scene Levels) background via sceneBackgroundSrc', async () => {
@@ -115,9 +115,9 @@ describe('FoundryDataAccess: listScenes', () => {
       initialLevel: 'lvl0',
     });
 
-    const result = await da.listScenes();
+    const result = (await da.listScenes()) as Array<Record<string, unknown>>;
 
-    expect(result[0]!.background).toBe('crypt-floor.webp');
+    expect(result[0].background).toBe('crypt-floor.webp');
   });
 
   it('returns all scenes when neither filter is applied', async () => {
@@ -134,11 +134,13 @@ describe('FoundryDataAccess: listScenes', () => {
     world.addScene({ id: 's1', name: 'Active Scene', active: true });
     world.addScene({ id: 's2', name: 'Inactive Scene', active: false });
 
-    const result = await da.listScenes({ include_active_only: true });
+    const result = (await da.listScenes({ include_active_only: true })) as Array<
+      Record<string, unknown>
+    >;
 
     expect(result).toHaveLength(1);
-    expect(result[0]!.id).toBe('s1');
-    expect(result[0]!.active).toBe(true);
+    expect(result[0].id).toBe('s1');
+    expect(result[0].active).toBe(true);
   });
 
   it('include_active_only returns empty when no scene is active', async () => {
@@ -182,10 +184,12 @@ describe('FoundryDataAccess: listScenes', () => {
     world.addScene({ id: 's2', name: 'Active Dungeon', active: true });
     world.addScene({ id: 's3', name: 'Inactive Throne Room', active: false });
 
-    const result = await da.listScenes({ include_active_only: true, filter: 'throne' });
+    const result = (await da.listScenes({ include_active_only: true, filter: 'throne' })) as Array<
+      Record<string, unknown>
+    >;
 
     expect(result).toHaveLength(1);
-    expect(result[0]!.id).toBe('s1');
+    expect(result[0].id).toBe('s1');
   });
 });
 

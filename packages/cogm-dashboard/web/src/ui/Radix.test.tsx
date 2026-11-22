@@ -57,13 +57,26 @@ describe('Tooltip', () => {
     expect(html).toBe('<button type="button">x</button>');
   });
 
-  it('marks the trigger closed under the provider, and renders no tip', () => {
+  it('shows the button as it is until the Radix chunk has loaded, and renders no tip', () => {
     const html = renderToStaticMarkup(
       <TooltipProvider>
         <Tooltip content="Closes the drawer">
           <button type="button">x</button>
         </Tooltip>
       </TooltipProvider>
+    );
+    expect(html).toBe('<button type="button">x</button>');
+    expect(html).not.toContain('Closes the drawer');
+  });
+
+  it('marks the trigger closed once the Radix chunk is in', async () => {
+    const { TooltipImpl } = await import('../components/TooltipImpl');
+    const html = renderToStaticMarkup(
+      <TooltipImpl
+        content="Closes the drawer"
+        side="top"
+        trigger={<button type="button">x</button>}
+      />
     );
     expect(html).toContain('data-state="closed"');
     expect(html).not.toContain('Closes the drawer');

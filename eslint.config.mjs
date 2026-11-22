@@ -204,6 +204,27 @@ export default defineConfig(
     },
   },
   {
+    // A value import from the main shared entry drags the whole package (and zod) into the first
+    // load; values come from `@gnuminator/shared/browser`, the main entry is for `import type`.
+    files: ['packages/cogm-dashboard/web/src/**/*.ts', 'packages/cogm-dashboard/web/src/**/*.tsx'],
+    ignores: ['**/*.test.ts', '**/*.test.tsx', '**/*.stories.tsx'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@gnuminator/shared',
+              allowTypeImports: true,
+              message:
+                'Value imports from the main shared entry bloat the dashboard first load: use `import type`, or import values from `@gnuminator/shared/browser`.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ['packages/cogm-dashboard/web/**/*.ts', 'packages/cogm-dashboard/web/**/*.tsx'],
     languageOptions: { globals: globals.browser },
     plugins: { 'react-hooks': reactHooks },

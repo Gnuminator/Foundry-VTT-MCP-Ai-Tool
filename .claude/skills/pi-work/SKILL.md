@@ -37,6 +37,10 @@ Plan B (game night on the PC): `docs/dev/PLAN-B.md`.
   just the exit code.
 - Stage scripts: `${var:?}` in every `rm -rf`; `node --test .claude/hooks/guard-remote-commands.test.mjs`
   passes before pushing.
+- **Deploy order after a new release: stage 5, then stage 33 right after it.** Stage 33
+  (`33-obsidian-plugin.sh`) puts the build's Obsidian plugin into the GM vault so Syncthing carries it to the PCs. Stage 5
+  ends with stage 33's read-only `CHECK=1` result as a warning line; a warning means run stage 33 (snapshot and the user's OK
+  first). The plugin tells the GM "Restart Obsidian" when the synced manifest is newer than the running one.
 - Pi deploys go after a green merge-train `live:roundtrip` on main (see the `planner` skill).
 
 ## Current state and holds

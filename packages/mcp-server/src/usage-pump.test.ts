@@ -189,7 +189,7 @@ describe('UsagePump.pollOnce', () => {
   it('writes the events that waited for a world (dashboard batches before Foundry connected)', async () => {
     const worldIds = {
       current: vi
-        .fn<[], Promise<string>>()
+        .fn<() => Promise<string>>()
         .mockRejectedValueOnce(new Error('Foundry is not connected'))
         .mockResolvedValue('w1'),
     };

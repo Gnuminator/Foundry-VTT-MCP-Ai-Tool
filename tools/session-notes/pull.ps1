@@ -33,6 +33,9 @@
 .PARAMETER SshConfig
   An ssh config file to use instead of the user's (for tests against a stand-in Pi).
 
+.PARAMETER Only
+  Pull just this session folder (by name) and skip the clean-up of old pulled sessions on the Pi.
+
 .PARAMETER DryRun
   Only list what would be copied and deleted.
 #>
@@ -41,6 +44,7 @@ param(
   [string]$RemoteDir = '/var/lib/foundry-ai-tool/recordings',
   [int]$KeepDays = 7,
   [string]$SshConfig = '',
+  [string]$Only = '',
   [switch]$DryRun
 )
 
@@ -63,7 +67,7 @@ function Invoke-Pi([string]$command) {
 $listCmd = "cd '$RemoteDir' 2>/dev/null || exit 0; for d in */; do d=`${d%/}; " +
   "[ -f `"`$d/raw/convert-report.json`" ] && [ ! -e `"`$d/.pulled`" ] && echo `"`$d`"; done; true"
 try {
-  $ready = @(Invoke-Pi $listCmd | Where-Object { $_ -match $namePattern })
+  $ready = @(Invoke-Pi $listCmd | Where-Object { $_ -match $namePattern -and (-not $Only -or $_ -eq $Only) })
 } catch {
   Write-Host "Pi not reachable, nothing pulled: $($_.Exception.Message)"
   exit 3
@@ -108,7 +112,7 @@ foreach ($name in $ready) {
 # Pulled sessions older than -KeepDays leave the Pi.
 $pruneCmd = "cd '$RemoteDir' 2>/dev/null || exit 0; " +
   "find . -mindepth 2 -maxdepth 2 -name .pulled -mmin +$([Math]::Max($KeepDays, 0) * 1440) -printf '%h\n'"
-$old = @(Invoke-Pi $pruneCmd | Where-Object { $_ -match '^\./[A-Za-z0-9][A-Za-z0-9_.-]*$' })
+$old = if ($Only) { @() } else { @(Invoke-Pi $pruneCmd | Where-Object { $_ -match '^\./[A-Za-z0-9][A-Za-z0-9_.-]*$' }) }
 foreach ($dir in $old) {
   $n = $dir.Substring(2)
   if ($DryRun) { Write-Host "$n`: would delete on the Pi (pulled over $KeepDays days ago)"; continue }

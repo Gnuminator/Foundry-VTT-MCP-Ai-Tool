@@ -486,7 +486,9 @@ describe.each<Shape>(['v13', 'v14'])('module Set fields (%s shape)', shape => {
   it('getModuleManifest keeps authors and relationships instead of flattening the Sets to {}', async () => {
     addSetModule();
 
-    const { manifest } = await da.getModuleManifest({ moduleId: 'set-mod' });
+    const { manifest } = (await da.getModuleManifest({ moduleId: 'set-mod' })) as {
+      manifest: Record<string, any>;
+    };
 
     expect(manifest.authors).toEqual([
       { name: 'Bob', email: 'bob@example.com' },

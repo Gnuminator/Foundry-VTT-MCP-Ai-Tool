@@ -9,6 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  boardAreas,
   checkEdit,
   isMerged,
   newestProgress,
@@ -291,10 +292,18 @@ test('set retitles an item and repairs the link of a claimed one', () => {
   });
   assert.equal(((block(again.text, 'first') ?? '').match(/- link:/g) ?? []).length, 1);
   assert.throws(
-    () => setFieldEdit(FIXTURE, { id: 'first', name: 'link', value: 'claude://claude.ai/epitaphy/local_x' }),
+    () =>
+      setFieldEdit(FIXTURE, {
+        id: 'first',
+        name: 'link',
+        value: 'claude://claude.ai/epitaphy/local_x',
+      }),
     /link must look like/
   );
-  assert.throws(() => setFieldEdit(FIXTURE, { id: 'second', name: 'link', value: good }), /not claimed/);
+  assert.throws(
+    () => setFieldEdit(FIXTURE, { id: 'second', name: 'link', value: good }),
+    /not claimed/
+  );
 });
 
 test('release refuses an unclaimed item', () => {
@@ -1088,4 +1097,44 @@ test('progress: one ready line per PR; a new one or a runner write keeps the oth
   // Plain text takes the lane's own ready lines back (nothing is left for the runner).
   const plain = progressEdit(two, { id: 'second', text: 'fixing a review finding', date: D }).text;
   assert.deepEqual(readyOf(plain), []);
+});
+
+test('boardAreas reads the ### headings under ## Areas only', () => {
+  const board = [
+    '## Intro',
+    '### Not an area',
+    '## Areas',
+    'text',
+    '### Orange Pi',
+    '### Dev',
+    '## Later',
+    '### Other',
+  ];
+  assert.deepEqual(boardAreas(board.join('\r\n')), ['Orange Pi', 'Dev']);
+  assert.deepEqual(boardAreas(''), []);
+});
+
+test('set and add refuse a board value that is not a Board.md area; no areas means no check', () => {
+  const areas = ['Orange Pi', 'Process and tooling'];
+  assert.throws(
+    () => setFieldEdit(FIXTURE, { id: 'first', name: 'board', value: 'Pi', areas }),
+    /not an area in Board\.md/
+  );
+  const ok = setFieldEdit(FIXTURE, { id: 'first', name: 'board', value: 'Orange Pi', areas });
+  assert.match(block(ok.text, 'first') ?? '', /- board: Orange Pi/);
+  assert.doesNotThrow(() => setFieldEdit(FIXTURE, { id: 'first', name: 'board', value: 'Pi' }));
+  const newBlock = (/** @type {string} */ b) => [
+    '## S N',
+    '',
+    '- id: n-item',
+    `- board: ${b}`,
+    '- done when: x',
+  ];
+  assert.throws(
+    () => addEdit(FIXTURE, DONE_FIXTURE, { block: newBlock('MCP tools'), date: D, areas }),
+    /not an area in Board\.md/
+  );
+  assert.doesNotThrow(() =>
+    addEdit(FIXTURE, DONE_FIXTURE, { block: newBlock('Orange Pi'), date: D, areas })
+  );
 });

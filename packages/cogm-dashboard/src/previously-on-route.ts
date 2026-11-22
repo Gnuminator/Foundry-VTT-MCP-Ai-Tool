@@ -211,29 +211,34 @@ function defaultNarrate(scriptPath: string, outDir: string): Promise<void> {
       // On Windows kill() only ends pwsh, not the python it started: end the whole tree.
       if (process.platform === 'win32' && child.pid) {
         const pid = child.pid;
+        // The wrapper's `finally` does not run when its tree is killed (or when taskkill cannot
+        // start and only pwsh is killed): free the GPU lock (its session id is
+        // `gpu-job-<wrapper pid>`) either way, so the next job is not blocked.
+        const releaseGpuLock = (): void => {
+          spawn(
+            'pwsh',
+            [
+              '-NoProfile',
+              '-File',
+              GPU_LOCK_SCRIPT,
+              'release',
+              '-Server',
+              'GPU',
+              '-Session',
+              `gpu-job-${pid}`,
+            ],
+            { windowsHide: true, ...SILENT }
+          ).on('error', () => undefined);
+        };
         spawn('taskkill', ['/pid', String(pid), '/T', '/F'], {
           windowsHide: true,
           ...SILENT,
         })
-          .on('error', () => child.kill())
-          // The wrapper's `finally` does not run when its tree is killed: free the GPU lock
-          // (its session id is `gpu-job-<wrapper pid>`) so the next job is not blocked.
-          .on('exit', () => {
-            spawn(
-              'pwsh',
-              [
-                '-NoProfile',
-                '-File',
-                GPU_LOCK_SCRIPT,
-                'release',
-                '-Server',
-                'GPU',
-                '-Session',
-                `gpu-job-${pid}`,
-              ],
-              { windowsHide: true, ...SILENT }
-            ).on('error', () => undefined);
-          });
+          .on('error', () => {
+            child.kill();
+            releaseGpuLock();
+          })
+          .on('exit', releaseGpuLock);
       } else {
         child.kill();
       }

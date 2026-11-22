@@ -72,7 +72,7 @@ describe('FoundryDataAccess: getModuleErrors: filters passed to diagnostics.getE
     await da.getModuleErrors({});
 
     expect(getErrorsSpy).toHaveBeenCalledWith({});
-    expect(Object.keys(getErrorsSpy.mock.calls[0][0])).toHaveLength(0);
+    expect(Object.keys(getErrorsSpy.mock.calls[0][0] as object)).toHaveLength(0);
   });
 
   it('passes only level when level is provided', async () => {
@@ -84,7 +84,7 @@ describe('FoundryDataAccess: getModuleErrors: filters passed to diagnostics.getE
     await da.getModuleErrors({ level: 'error' });
 
     expect(getErrorsSpy).toHaveBeenCalledWith({ level: 'error' });
-    expect(Object.keys(getErrorsSpy.mock.calls[0][0])).toEqual(['level']);
+    expect(Object.keys(getErrorsSpy.mock.calls[0][0] as object)).toEqual(['level']);
   });
 
   it('passes only moduleId when moduleId is provided', async () => {
@@ -94,7 +94,7 @@ describe('FoundryDataAccess: getModuleErrors: filters passed to diagnostics.getE
     await da.getModuleErrors({ moduleId: 'my-module' });
 
     expect(getErrorsSpy).toHaveBeenCalledWith({ moduleId: 'my-module' });
-    expect(Object.keys(getErrorsSpy.mock.calls[0][0])).toEqual(['moduleId']);
+    expect(Object.keys(getErrorsSpy.mock.calls[0][0] as object)).toEqual(['moduleId']);
   });
 
   it('passes only sinceTimestamp when sinceTimestamp is provided', async () => {
@@ -105,7 +105,7 @@ describe('FoundryDataAccess: getModuleErrors: filters passed to diagnostics.getE
     await da.getModuleErrors({ sinceTimestamp: ts });
 
     expect(getErrorsSpy).toHaveBeenCalledWith({ sinceTimestamp: ts });
-    expect(Object.keys(getErrorsSpy.mock.calls[0][0])).toEqual(['sinceTimestamp']);
+    expect(Object.keys(getErrorsSpy.mock.calls[0][0] as object)).toEqual(['sinceTimestamp']);
   });
 
   it('passes only limit when limit is provided', async () => {
@@ -115,7 +115,7 @@ describe('FoundryDataAccess: getModuleErrors: filters passed to diagnostics.getE
     await da.getModuleErrors({ limit: 25 });
 
     expect(getErrorsSpy).toHaveBeenCalledWith({ limit: 25 });
-    expect(Object.keys(getErrorsSpy.mock.calls[0][0])).toEqual(['limit']);
+    expect(Object.keys(getErrorsSpy.mock.calls[0][0] as object)).toEqual(['limit']);
   });
 
   it('passes all four keys when all are provided', async () => {
@@ -135,7 +135,7 @@ describe('FoundryDataAccess: getModuleErrors: filters passed to diagnostics.getE
       sinceTimestamp: '2026-01-01T00:00:00.000Z',
       limit: 50,
     });
-    expect(Object.keys(getErrorsSpy.mock.calls[0][0]).sort()).toEqual(
+    expect(Object.keys(getErrorsSpy.mock.calls[0][0] as object).sort()).toEqual(
       ['level', 'limit', 'moduleId', 'sinceTimestamp'].sort()
     );
   });

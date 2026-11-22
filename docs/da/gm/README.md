@@ -1,6 +1,6 @@
 ---
 source: gm/README.md
-sourceHash: 636b3f4c7fc4
+sourceHash: 25b51bb6a9de
 title: GM-guides
 description: Guides til en GM, der kører et spil med Foundry AI Tool, skrevet til en, der er ny i Foundry og i værktøjet.
 ---
@@ -16,7 +16,8 @@ Så i denne rækkefølge:
 3. Tjeklisterne [før en session](before-session.md) og [efter en session](after-session.md), hver gang
    du spiller.
 
-På en ny PC [forbinder du først Claude Desktop til serveren](connect-claude-desktop.md). Et ord, du
+På en ny PC [forbinder du først Claude Desktop til serveren](connect-claude-desktop.md), eller
+[tilføjer connectorerne med webadresse](connect-claude-web.md) (uden installer, betalt plan). Et ord, du
 ikke kender, står i [ordlisten](glossary.md).
 
 **Inde fra Foundry:** fanen Settings, **Game Settings**, kategorien **Foundry AI Tool**, knappen
@@ -27,14 +28,15 @@ ikke kender, står i [ordlisten](glossary.md).
 Hver af disse er en kort side, du kan klare alene. Hver ender med, hvad du skal se, når det lykkedes, og hvad
 du gør, hvis det ikke gjorde.
 
-| Opsætning                                                             | Hvad du gør                                                              | Tid    |
-| --------------------------------------------------------------------- | ------------------------------------------------------------------------ | ------ |
-| [Forbind Claude Desktop til serveren](connect-claude-desktop.md)      | Installer den lille Windows-klient og tunnelnøglen; opdater den senere.  | 10 min |
-| [Dashboardet](setup-dashboard.md)                                     | Åbn det, log ind gennem Cloudflare, sæt bogmærke og vælg et layout.      | 10 min |
-| [GM-coachen](setup-gm-coach.md)                                       | Læg Foundry GM coach-skillen ind på din Claude-konto.                    | 5 min  |
-| [Din vault på din pc (Obsidian og Syncthing)](setup-obsidian-sync.md) | Installer begge, par med serveren og tjek, at en note rejser begge veje. | 20 min |
-| [Obsidian-pluginet](setup-obsidian-plugin.md)                         | Installer pluginet og forbind det til dashboardet.                       | 10 min |
-| [Tv'et ved bordet](setup-tv-table.md)                                 | Kun til spil i samme rum: lav Table-spilleren og log tv'et ind.          | 15 min |
+| Opsætning                                                             | Hvad du gør                                                                | Tid    |
+| --------------------------------------------------------------------- | -------------------------------------------------------------------------- | ------ |
+| [Forbind Claude Desktop til serveren](connect-claude-desktop.md)      | Installer den lille Windows-klient og tunnelnøglen; opdater den senere.    | 10 min |
+| [Forbind Claude med webadresse](connect-claude-web.md)                | De fem connectors som custom connectors med e-mail-login; ingen installer. | 5 min  |
+| [Dashboardet](setup-dashboard.md)                                     | Åbn det, log ind gennem Cloudflare, sæt bogmærke og vælg et layout.        | 10 min |
+| [GM-coachen](setup-gm-coach.md)                                       | Læg Foundry GM coach-skillen ind på din Claude-konto.                      | 5 min  |
+| [Din vault på din pc (Obsidian og Syncthing)](setup-obsidian-sync.md) | Installer begge, par med serveren og tjek, at en note rejser begge veje.   | 20 min |
+| [Obsidian-pluginet](setup-obsidian-plugin.md)                         | Installer pluginet og forbind det til dashboardet.                         | 10 min |
+| [Tv'et ved bordet](setup-tv-table.md)                                 | Kun til spil i samme rum: lav Table-spilleren og log tv'et ind.            | 15 min |
 
 ## Alle guides
 
@@ -69,6 +71,7 @@ du gør, hvis det ikke gjorde.
 | [TV'et ved bordet](tv-table-viewer.md)                           | Vis kortet på et TV ved en session ansigt til ansigt; det logger ind én gang som en spiller ved navn Table.      |
 | [Fejlfinding](troubleshooting.md)                                | Symptom, sandsynlig årsag og løsning.                                                                            |
 | [Forbind Claude Desktop til serveren](connect-claude-desktop.md) | Installer den lille Windows-klient og tunnelnøglen, så Claude Desktop når serveren.                              |
+| [Forbind Claude med webadresse](connect-claude-web.md)           | Tilføj de fem connectors med adresse og e-mail-login, uden installer og uden tunnelnøgle.                        |
 | [Claude Free eller Pro](claude-plans.md)                         | Hvad der virker på den gratis Claude-plan, dens grænser, og hvad Pro giver dig.                                  |
 
 Hvad spillerne ser, og hvad værktøjet registrerer om dem: [spillerguiden](../player/README.md) og

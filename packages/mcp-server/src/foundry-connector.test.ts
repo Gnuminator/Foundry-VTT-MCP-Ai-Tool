@@ -375,7 +375,9 @@ describe('module requests (I-108)', () => {
     id,
     data: { tool, args, requestedBy: { userId: 'u1', userName: 'Danni' } },
   });
-  const flush = (): Promise<void> => vi.advanceTimersByTimeAsync(0);
+  const flush = async (): Promise<void> => {
+    await vi.advanceTimersByTimeAsync(0);
+  };
 
   it('runs an allowed tool through the dispatcher and replies on the same socket', async () => {
     const handler = vi.fn(async () => ({ changes: [] }));

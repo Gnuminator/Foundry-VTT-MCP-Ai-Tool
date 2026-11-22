@@ -1,0 +1,3 @@
+### Orange Pi
+
+- **The deployed-state check compares every stage-installed file:** `deploy/pi/deployed-state.ps1` now hashes each file a stage copies from the repo (the Assistant GM driver, the world and player-creation drivers, the kit session driver, the game-night watcher, who-uses-what; listed in `deploy/pi/stage-files.txt`) against the copy the newest release would write, and prints one warning per stale file naming the stage to rerun. The hourly stage 16 report adds `deployed.stageFilesBehind` and `deployed.staleStageFiles` (file names only), so the board Pi card can show "N stage files behind" once the board reads them; rerun stage 16 after the next release (backlog `pi-deployed-file-hashes`).

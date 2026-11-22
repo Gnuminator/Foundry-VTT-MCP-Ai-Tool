@@ -61,9 +61,34 @@ if (-not $sha) {
   Write-Warning 'Could not read assistant-gm.mjs from the release tag or main: the helper is not compared.'
   $sha = ''
 }
+
+# Every file a stage copies verbatim (deploy/pi/stage-files.txt): the list and the sha256 of each repo copy, from the tag
+# when it has the list (older tags do not), else from main. The Pi compares them with what is installed.
+$listPath = 'deploy/pi/stage-files.txt'
+$stageB64 = ''
+$stageShasB64 = ''
+$listRef = ''
+foreach ($candidate in @($tag, "$Remote/main")) {
+  if (-not $candidate) { continue }
+  $text = git -C $repo show "${candidate}:${listPath}" 2>$null
+  if ($LASTEXITCODE -eq 0 -and $text) { $listRef = $candidate; break }
+}
+if ($listRef) {
+  $lines = @($text | Where-Object { $_ -and -not $_.StartsWith('#') })
+  $shaLines = foreach ($l in $lines) {
+    $repoPath = ($l -split '\|')[2]
+    if (-not $repoPath) { continue }
+    $h = Get-GitBlobSha256 $listRef $repoPath
+    if ($h) { "$repoPath $h" }
+  }
+  $stageB64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes((($text -join "`n") + "`n")))
+  $stageShasB64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes((($shaLines -join "`n") + "`n")))
+} else {
+  Write-Warning 'No deploy/pi/stage-files.txt in the release tag or main: the Pi falls back to the list in its deployed build, if it has one.'
+}
 $ErrorActionPreference = 'Stop'
 
 # bash -s reads the script from stdin. PowerShell ends piped text with CRLF, so the Pi strips every CR first.
 $script = (Get-Content (Join-Path $PSScriptRoot 'deployed-state.sh') -Raw) -replace "`r`n", "`n"
-$script | ssh $Target "tr -d '\r' | EXPECT_REF=$tag EXPECT_MAIN_AHEAD=$ahead EXPECT_ASSISTANT_GM_SHA256=$sha EXPECT_ASSISTANT_GM_SOURCE='$source' bash -s"
+$script | ssh $Target "tr -d '\r' | EXPECT_REF=$tag EXPECT_MAIN_AHEAD=$ahead EXPECT_ASSISTANT_GM_SHA256=$sha EXPECT_ASSISTANT_GM_SOURCE='$source' STAGE_FILES_B64=$stageB64 EXPECT_STAGE_SHAS_B64=$stageShasB64 bash -s"
 exit $LASTEXITCODE

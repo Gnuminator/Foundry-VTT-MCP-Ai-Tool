@@ -11,7 +11,8 @@
 # nothing, and sends: up, uptime, disk free, the last nightly backup (result and time), the time of the newest
 # dietpi-backup snapshot, Foundry up or down (and whether foundry.service is active), the clock (NTP synchronized and the
 # measured offset), the Foundry and dnd5e versions and the deployed state (the deployed ref from .tool-ref, env names a
-# stage should have written but are missing, whether libicu is installed, and each compose container's state, health and
+# stage should have written but are missing, how many stage-installed files differ from the deployed build's copy and
+# their file names (stageFilesBehind, staleStageFiles; null when the build has no deploy/pi/stage-files.txt), whether libicu is installed, and each compose container's state, health and
 # restart count: names and states only, the short form of deploy/pi/deployed-state.sh). No log lines, no secrets, no host name but the constant "foundry-pi".
 
 require_root
@@ -139,6 +140,24 @@ env_missing bridge.env FOUNDRY_AI_OBSIDIAN_DIR
 env_missing bridge.env FOUNDRY_AI_OPEN_BASE
 env_missing dashboard-access.env 'GM_DASHBOARD_TOKEN|GM_EMAILS'
 env_missing assistant-gm.env ASSISTANT_GM_PASSWORD
+# Stage files behind (deploy/pi/stage-files.txt, as deployed-state.sh): every file a stage copies from the repo is hashed and
+# compared with the same file in the deployed build. The list comes from that build too, so a build older than the list
+# reports null (unknown), not 0. The names are the installed file names, never a path or a hash.
+stage_behind=""
+stale_files=""
+stage_list="$tool_dir/app/deploy/pi/stage-files.txt"
+if [ -f "$stage_list" ]; then
+  stage_behind=0
+  while IFS='|' read -r s_stage s_rel s_repo; do
+    case "$s_stage" in '' | '#'*) continue ;; esac
+    [ -n "$s_rel" ] && [ -n "$s_repo" ] || continue
+    [ -f "$tool_dir/$s_rel" ] || continue
+    if [ ! -f "$tool_dir/app/$s_repo" ] || [ "$(sha256sum "$tool_dir/$s_rel" | cut -d' ' -f1)" != "$(sha256sum "$tool_dir/app/$s_repo" | cut -d' ' -f1)" ]; then
+      stage_behind=$((stage_behind + 1))
+      stale_files="$stale_files $(basename "$s_rel")"
+    fi
+  done <"$stage_list"
+fi
 libs="$(ldconfig -p 2>/dev/null || true)"
 libicu=no
 case "$libs" in *libicuuc.so*) libicu=yes ;; esac
@@ -159,7 +178,7 @@ payload="$(
   DISK_TOTAL_KB="$disk_total_kb" DISK_FREE_KB="$disk_free_kb" UPTIME_S="$uptime_s" BACKUP_RESULT="$backup_result" \
     BACKUP_AT="$backup_at" API_JSON="$api_json" SNAPSHOT_EPOCH="$snapshot_epoch" FOUNDRY_UNIT_STATE="$foundry_unit_state" \
     CLOCK_SYNCED="$clock_synced" CLOCK_OFFSET="$clock_offset" DEPLOYED_REF="$deployed_ref" MISSING_ENV="$missing_env" \
-    LIBICU="$libicu" CONTAINERS_QUERIED="$containers_queried" CONTAINER_ROWS="$container_rows" "$node" -e '
+    STAGE_BEHIND="$stage_behind" STALE_FILES="$stale_files" LIBICU="$libicu" CONTAINERS_QUERIED="$containers_queried" CONTAINER_ROWS="$container_rows" "$node" -e '
 const e = process.env;
 const num = v => (/^\d+$/.test(v || "") ? Number(v) : null);
 const word = (v, max) => (typeof v === "string" && /^[A-Za-z0-9._-]+$/.test(v) && v.length <= max ? v : null);
@@ -214,6 +233,8 @@ process.stdout.write(JSON.stringify({
     ref: word(e.DEPLOYED_REF, 40),
     missingEnv: (e.MISSING_ENV || "").split(" ").filter(x => /^[A-Za-z0-9._-]+:[A-Za-z0-9_|]+$/.test(x)),
     libicu: e.LIBICU === "yes" ? true : e.LIBICU === "no" ? false : null,
+    stageFilesBehind: num(e.STAGE_BEHIND),
+    staleStageFiles: (e.STALE_FILES || "").split(" ").filter(x => /^[A-Za-z0-9._-]+$/.test(x)).slice(0, 20),
     containers:
       e.CONTAINERS_QUERIED !== "yes"
         ? null

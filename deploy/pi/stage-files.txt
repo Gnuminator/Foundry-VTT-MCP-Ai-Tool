@@ -1,0 +1,12 @@
+# Files a Pi stage copies verbatim from the repo onto the Pi (read by deploy/pi/deployed-state.sh and stage 16's hourly
+# status script; backlog pi-deployed-file-hashes). One line per file: stage to rerun | installed path under /opt/foundry-ai-tool | path in the repo.
+# A file a stage writes from a here-document (units, env files, the crash-guard scripts) is not listed: it has no repo copy to hash.
+# A stage that has not run yet leaves its file missing; that is "not installed", not "behind".
+5 or 28|gm-browser/assistant-gm.mjs|scripts/pi/remote/assistant-gm.mjs
+11|gm-browser/world-switches.mjs|scripts/pi/remote/world-switches.mjs
+13|gm-browser/player-creation-settings.mjs|scripts/pi/remote/player-creation-settings.mjs
+kit-session|gm-browser/kit-session.mjs|scripts/pi/remote/kit-session.mjs
+29|gamenight-watch/gamenight-watch.mjs|scripts/gamenight-watch.mjs
+29|gamenight-watch/gamenight-watch-pi.mjs|scripts/gamenight-watch-pi.mjs
+35|who-uses-what/who-uses-what.mjs|scripts/who-uses-what.mjs
+35|who-uses-what/who-uses-what-push.sh|scripts/pi/who-uses-what-push.sh

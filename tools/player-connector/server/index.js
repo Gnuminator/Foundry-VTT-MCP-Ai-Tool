@@ -337,6 +337,46 @@ function guideResult(guide, topic) {
   return { isError: true, content: [{ type: 'text', text: `No such topic. Topics: ${topics}` }] };
 }
 
+/**
+ * Ask the table for its current guide (its `get-player-skill-guide` tool) so the guide never
+ * goes stale against the table's tool list. Returns a tool result, or null on any failure (no
+ * answer, an error, an empty text, an unknown topic): the caller then serves the bundled copy.
+ */
+async function liveGuide(forwarder, topic, guide) {
+  const overview = !topic || topic === 'overview';
+  if (!overview && !Object.prototype.hasOwnProperty.call(guide.pages, topic)) return null;
+  const pages = overview
+    ? [undefined]
+    : [`references/${topic}.md`, `references/player/${topic}.md`];
+  for (const page of pages) {
+    try {
+      const out = await forwarder.forward({
+        jsonrpc: '2.0',
+        id: `guide-${Date.now()}`,
+        method: 'tools/call',
+        params: {
+          name: 'get-player-skill-guide',
+          arguments: page ? { page } : {},
+        },
+      });
+      const r = out && !out.failure && out.message && out.message.result;
+      if (!r || r.isError || !Array.isArray(r.content)) continue;
+      const text = r.content
+        .filter(c => c && c.type === 'text' && typeof c.text === 'string')
+        .map(c => c.text)
+        .join('\n');
+      if (!text.trim()) continue;
+      const note = overview
+        ? `\n\nTopics you can also ask this tool for: ${Object.keys(guide.pages).join(', ')}`
+        : '';
+      return { content: [{ type: 'text', text: scrub(text, forwarder.secrets) + note }] };
+    } catch {
+      /* fall back to the bundled copy */
+    }
+  }
+  return null;
+}
+
 /** Add the guide to an initialize or tools/list result (forwarded or local). */
 function withGuide(method, result, guide) {
   if (!guide || !result || typeof result !== 'object') return result;
@@ -366,7 +406,8 @@ async function handleMessage(msg, forwarder, guide = GUIDE) {
     msg.params.name === 'get-helper-guide'
   ) {
     const topic = msg.params.arguments && msg.params.arguments.topic;
-    return { jsonrpc: '2.0', id: msg.id, result: guideResult(guide, topic) };
+    const live = await liveGuide(forwarder, topic, guide);
+    return { jsonrpc: '2.0', id: msg.id, result: live || guideResult(guide, topic) };
   }
   const statusCall =
     msg.method === 'tools/call' && msg.params && msg.params.name === 'connection-status';

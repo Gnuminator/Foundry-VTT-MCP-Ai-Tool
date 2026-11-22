@@ -9,7 +9,7 @@
   bridge. It is auto.ps1 for one session, so every rule there holds: consent gate, nothing is
   deleted, a pause by the usage limit is run again later with the same command.
 
-  Publishing goes to the TEST bridge (control port 31514) unless -Real is given. Use -Real only
+  Publishing goes to the TEST bridge (testA control port in shared/ports.json) unless -Real is given. Use -Real only
   on the user's word: it puts the notes into the campaign world's GM journal.
 
   Roster of who plays whom: not applied here yet (Backlog item notes-roster).
@@ -18,7 +18,7 @@
   The session folder name, for example 2026-11-22_190000-discord.
 
 .PARAMETER Real
-  Publish to the real bridge (port 31414, or MCP_CONTROL_HOST's) instead of the test bridge.
+  Publish to the real bridge (live control port in shared/ports.json, or MCP_CONTROL_HOST's) instead of the test bridge.
 
 .PARAMETER DryRun
   Only print what would be done.
@@ -32,7 +32,9 @@ param(
 $ErrorActionPreference = 'Stop'
 if ($Session -notmatch '^[A-Za-z0-9][A-Za-z0-9_.-]*$') { Write-Host "Not a session folder name: $Session"; exit 2 }
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
-$port = if ($Real) { 31414 } else { 31514 }
+# The ports live in shared/ports.json (generated from shared/src/ports.ts).
+$portTable = (Get-Content (Join-Path (Split-Path -Parent (Split-Path -Parent $here)) 'shared/ports.json') -Raw | ConvertFrom-Json).ports
+$port = if ($Real) { $portTable.live.control } else { $portTable.testA.control }
 Write-Host "Session $Session; publish goes to the $(if ($Real) { 'REAL' } else { 'test' }) bridge on port $port."
 
 $autoArgs = @('-Session', $Session, '-Port', $port)

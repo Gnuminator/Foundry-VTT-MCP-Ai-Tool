@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * The merge runner's merge queue parts: reading the queue state from the backlog, the ghost check,
  * and the real dependencies that talk to GitHub and the merge train file (`queueOn`, `ghosts`,

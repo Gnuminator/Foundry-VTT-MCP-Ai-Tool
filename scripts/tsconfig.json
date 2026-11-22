@@ -13,5 +13,26 @@
     "lib": ["ES2023"],
     "types": ["node"]
   },
-  "files": ["checks.mjs", "green.mjs", "lane-merge.mjs", "drift-check.mjs"]
+  "files": [
+    "checks.mjs",
+    "green.mjs",
+    "lane-merge.mjs",
+    "drift-check.mjs",
+    "merge-runner.mjs",
+    "backlog.mjs",
+    "backlog-items.mjs",
+    "backlog-waiting.mjs",
+    "main-red-revert.mjs",
+    "merge-runner/base-current.mjs",
+    "merge-runner/liveness.mjs",
+    "merge-runner/open-steps.mjs",
+    "merge-runner/queue.mjs",
+    "merge-runner/refresh.mjs",
+    "merge-runner/release-ready.mjs",
+    "merge-runner/runner-lock.mjs",
+    "merge-runner/self-check.mjs",
+    "merge-runner/train-run.mjs",
+    "merge-runner/train-worker.mjs",
+    "merge-runner/unready.mjs"
+  ]
 }

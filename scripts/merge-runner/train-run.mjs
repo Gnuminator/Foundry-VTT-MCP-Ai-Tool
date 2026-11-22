@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * The merge runner's own train roundtrip (D-140; the user, 2026-11-17: the runner does it, not a
  * session). When the gate has turned a PR away for the full merge train, `step` is called once per

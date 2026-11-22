@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * The progress line for a merged item that must stay open (a Pi run or Waiting blocker left, or a
  * done-when step the merge does not finish), or '' when the merge finishes it.

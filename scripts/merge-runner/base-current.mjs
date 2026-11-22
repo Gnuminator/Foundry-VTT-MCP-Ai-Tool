@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Was a ready PR's green CI run on top of main's current tip? Then main's own CI for that tip, still
  * running, has nothing to add for this PR, and the merge runner does not wait for it (the gate still

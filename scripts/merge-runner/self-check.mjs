@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * The merge runner keeps its own code in memory (D-140): after a PR changes scripts/merge-runner.mjs
  * or a module it imports, a runner that was started earlier keeps running the old code. This module

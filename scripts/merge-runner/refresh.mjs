@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * The merge runner refreshes a lane branch that the gate refused only because it is behind main
  * (a conflict-free merge, or a moved package-lock.json): it merges `aitool/main` into the branch in

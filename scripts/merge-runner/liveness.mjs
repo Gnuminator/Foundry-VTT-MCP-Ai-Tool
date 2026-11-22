@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Merge runner liveness: a heartbeat file beside the lock (~/.foundry-ai-tool/merge-runner.heartbeat.json)
  * that the runner rewrites every minute while it lives (a gate run can take half an hour, so a per-round

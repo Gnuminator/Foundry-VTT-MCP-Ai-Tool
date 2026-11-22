@@ -178,18 +178,77 @@ describe('buildWhoUsesWhat', () => {
       days: 7,
       now: NOW,
     });
-    expect(Object.keys(report.people[0]).sort()).toEqual([
-      'calls',
-      'controls',
-      'errors',
-      'key',
-      'lastSeen',
-      'name',
-      'role',
-      'skills',
-      'topTools',
-      'versions',
+    expect(Object.keys(report.people[0]).sort()).toEqual(
+      [
+        'calls',
+        'claudeCalls',
+        'controls',
+        'dashboardCalls',
+        'dashboardTools',
+        'errors',
+        'key',
+        'lastSeen',
+        'name',
+        'realErrors',
+        'role',
+        'skills',
+        'topTools',
+        'versions',
+      ].sort()
+    );
+  });
+
+  it('splits dashboard refreshes from calls made through Claude', () => {
+    const report = buildWhoUsesWhat({
+      calls: [
+        call({ tool: 'get-combat-state', via: 'dashboard' }),
+        call({ tool: 'get-combat-state', via: 'dashboard' }),
+        call({ tool: 'get-character', via: 'connector' }),
+        call({ tool: 'list-scenes' }),
+      ],
+      clients: [],
+      usageEvents: [],
+      toolNames: null,
+      current: '0.29.2',
+      days: 7,
+      now: NOW,
+    });
+    const gm = report.people[0]!;
+    expect(gm).toMatchObject({ calls: 4, claudeCalls: 2, dashboardCalls: 2 });
+    expect(gm.topTools.map(t => t.name).sort()).toEqual(['get-character', 'list-scenes']);
+    expect(gm.dashboardTools).toEqual([{ name: 'get-combat-state', calls: 2 }]);
+  });
+
+  it('groups errors: a run of immediate failures is a Foundry-down window, the rest is real', () => {
+    const fail = (t: string): ToolCallLine =>
+      call({ t, ok: false, ms: 0, size: 0, via: 'dashboard' });
+    const report = buildWhoUsesWhat({
+      calls: [
+        fail('2026-11-17T03:30:00.000Z'),
+        fail('2026-11-17T03:30:04.000Z'),
+        fail('2026-11-17T03:30:08.000Z'),
+        fail('2026-11-17T08:00:00.000Z'),
+        call({ t: '2026-11-17T09:00:00.000Z', ok: false, ms: 900, size: 40, err: 'validation' }),
+        call({ t: '2026-11-17T09:30:00.000Z', ok: false, ms: 3, size: 20, err: 'not-connected' }),
+      ],
+      clients: [],
+      usageEvents: [],
+      toolNames: null,
+      current: '0.29.2',
+      days: 7,
+      now: NOW,
+    });
+    expect(report.errorCauses.total).toBe(6);
+    expect(report.errorCauses.foundryDown.calls).toBe(4);
+    expect(report.errorCauses.foundryDown.windows).toEqual([
+      { from: '2026-11-17T03:30:00.000Z', to: '2026-11-17T03:30:08.000Z', calls: 3 },
     ]);
+    expect(report.errorCauses.real).toEqual([
+      { cause: 'unclassified', calls: 1 },
+      { cause: 'validation', calls: 1 },
+    ]);
+    expect(report.people[0]).toMatchObject({ errors: 6, realErrors: 2 });
+    expect(report.tools.errorRates).toEqual([{ name: 'get-world-info', calls: 6, errors: 2 }]);
   });
 });
 

@@ -91,3 +91,18 @@ def test_spellings_across_scenes_take_the_first_name() -> None:
     assert third[0]["aliases"] == ["Vesperhult"]
     assert third[1]["name_en"] == "The Doubter"
     assert Roster().pronouns == {}
+
+
+def test_numbered_npcs_stay_apart() -> None:
+    assert len(merge_scene_npcs([_npc("Soldat 1", "Soldier 1"), _npc("Soldat 2", "Soldier 2")])) == 2
+
+
+def test_pronouns_change_the_cache_keys() -> None:
+    from session_notes.extras import chunk_key
+    from session_notes.layers import scene_key
+
+    scene = {"index": 1, "lines": [], "title_da": "", "summary_da": ""}
+    assert scene_key(scene, "{}") != scene_key(scene, '{"GM": "he/him"}')
+    a = Roster(players={"GM": "GM"})
+    b = Roster(players={"GM": "GM"}, pronouns={"GM": "he/him"})
+    assert chunk_key("remember", [], a) != chunk_key("remember", [], b)

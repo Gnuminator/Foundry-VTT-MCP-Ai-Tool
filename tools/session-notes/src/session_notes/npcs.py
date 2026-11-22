@@ -41,6 +41,8 @@ def same_npc(a: dict[str, Any], b: dict[str, Any]) -> bool:
                 continue
             if kx == ky:
                 return True
+            if re.findall(r"\d+", x) != re.findall(r"\d+", y):
+                continue  # "Soldier 1" and "Soldier 2" are two people
             if min(len(kx), len(ky)) >= MIN_FUZZY_LEN and SequenceMatcher(None, kx, ky).ratio() >= SIMILAR:
                 return True
     return False

@@ -127,6 +127,12 @@ Use only what is in the notes. Leave out table talk that did not happen in the g
 """
 
 
+PRONOUN_RULE = (
+    "Pronouns: use the ones the roster gives; where it gives none use they/them or the name. "
+    "Never guess from a name or a role."
+)
+
+
 def _pron(roster: Roster, player: str) -> str:
     pr = roster.pronouns.get(player)
     return f" ({pr})" if pr else " (pronouns not given: use they/them)"

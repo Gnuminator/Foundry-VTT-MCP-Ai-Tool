@@ -495,4 +495,16 @@ if [ "${built_new:-}" = 1 ] && [ "${dash_ok:-}" = 1 ] && printf '%s' "$ref" | gr
   timeout 15 "$NODE_DIR/bin/node" "$app/packages/discord-bot/announce/announce.mjs" deploy "$ref" || true
 fi
 
+# Stage 33 follows stage 5 (the GM vault's Obsidian plugin must match this build): its read-only CHECK result ends this
+# stage as one warning line, so a forgotten stage 33 shows up here. Never fatal; it changes nothing.
+stage33="$app/scripts/pi/remote/33-obsidian-plugin.sh"
+if [ -f "$stage33" ] && [ -f "$app/scripts/pi/remote/lib.sh" ]; then
+  if cat "$app/scripts/pi/remote/lib.sh" "$stage33" | CHECK=1 timeout 60 bash -s >/tmp/stage33-check.$$ 2>&1; then
+    ok "stage 33 check: the GM vault's Obsidian plugin matches this build"
+  else
+    warn "stage 33 check: the GM vault's Obsidian plugin is not in step with this build: run stage 33 next (snapshot and the user's OK first); details: $(tail -n 3 /tmp/stage33-check.$$ | tr '\n' ' ')"
+  fi
+  rm -f /tmp/stage33-check.$$
+fi
+
 say "stage 5 done: run 5-check-world.sh for the throwaway check world, or set up the Assistant GM in the real world"

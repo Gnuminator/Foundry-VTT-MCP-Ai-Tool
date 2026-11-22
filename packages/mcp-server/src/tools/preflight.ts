@@ -1,5 +1,7 @@
 import {
   PREFLIGHT_QUERY,
+  TESTED_DND5E_VERSION,
+  TESTED_FOUNDRY_BUILD,
   TOOL_VERSION,
   type GuardedFeatureState,
   type PreflightCharacterBuilding,
@@ -177,6 +179,7 @@ export class PreflightTools {
           }
     );
     checks.push(this.versionCheck(connected, moduleVersion));
+    checks.push(await this.testedVersionsCheck(connected));
     checks.push(this.wrapperCheck());
 
     let scan: PreflightScanResult | null = null;
@@ -387,6 +390,59 @@ export class PreflightTools {
       status: 'fail',
       detail: `The Foundry module is ${moduleVersion} but the bridge is ${this.bridgeVersion}. Update the older one (Foundry's Add-on Modules tab, or the installer) so both match.`,
     };
+  }
+
+  /**
+   * Foundry's build and the dnd5e version against the pair this release was tested on. One line;
+   * a difference is a "to fix" so nobody plays on an untested pair by accident. A world that did not
+   * report its versions is "unknown", never a failure.
+   */
+  private async testedVersionsCheck(connected: boolean): Promise<PreflightCheck> {
+    const label = 'Tested Foundry and dnd5e versions';
+    const tested = `Foundry ${TESTED_FOUNDRY_BUILD} with dnd5e ${TESTED_DND5E_VERSION}`;
+    if (!connected) {
+      return { id: 'tested-versions', label, status: 'unknown', detail: 'Needs the Foundry link.' };
+    }
+    try {
+      const info = unwrap<{
+        foundryVersion?: unknown;
+        systemVersion?: unknown;
+        system?: unknown;
+      } | null>(
+        await this.options.foundryClient.query('foundry-mcp-bridge.getWorldInfo'),
+        'World info refused'
+      );
+      const foundry = typeof info?.foundryVersion === 'string' ? info.foundryVersion.trim() : '';
+      const system = info?.system === 'dnd5e' && typeof info.systemVersion === 'string';
+      const dnd5e = system ? (info?.systemVersion as string).trim() : '';
+      if (!foundry || !dnd5e) {
+        return {
+          id: 'tested-versions',
+          label,
+          status: 'unknown',
+          detail: `The world did not report Foundry and dnd5e versions. This release was tested on ${tested}.`,
+        };
+      }
+      const differs: string[] = [];
+      if (foundry !== TESTED_FOUNDRY_BUILD) differs.push(`Foundry ${foundry}`);
+      if (dnd5e !== TESTED_DND5E_VERSION) differs.push(`dnd5e ${dnd5e}`);
+      if (differs.length === 0) {
+        return {
+          id: 'tested-versions',
+          label,
+          status: 'ok',
+          detail: `Foundry ${foundry} with dnd5e ${dnd5e}, the pair this release was tested on.`,
+        };
+      }
+      return {
+        id: 'tested-versions',
+        label,
+        status: 'fail',
+        detail: `This world runs ${differs.join(' and ')}, but this release was tested on ${tested}. Switch to the tested pair, or update the tool, before playing.`,
+      };
+    } catch (error) {
+      return { id: 'tested-versions', label, status: 'unknown', detail: message(error) };
+    }
   }
 
   private wrapperCheck(): PreflightCheck {

@@ -35,6 +35,7 @@ export function mountDowntime(root, key) {
   });
   box.setAttribute('aria-label', 'Downtime entry');
   const save = el('button', { type: 'button' }, 'Save');
+  save.setAttribute('data-track', 'me.downtime.save');
   const cancel = el('button', { type: 'button', hidden: true }, 'Cancel');
   const hint = el(
     'p',
@@ -49,6 +50,7 @@ export function mountDowntime(root, key) {
         const li = el('li');
         li.append(el('span', { className: 'dt-text' }, e.text));
         const edit = el('button', { type: 'button' }, 'Edit');
+        edit.setAttribute('data-track', 'me.downtime.edit');
         edit.addEventListener('click', () => {
           editing = e.id;
           box.value = e.text;
@@ -56,6 +58,7 @@ export function mountDowntime(root, key) {
           box.focus();
         });
         const del = el('button', { type: 'button' }, 'Delete');
+        del.setAttribute('data-track', 'me.downtime.delete');
         del.addEventListener('click', () => void call('DELETE', `/${e.id}`));
         li.append(' ', edit, ' ', del);
         return li;

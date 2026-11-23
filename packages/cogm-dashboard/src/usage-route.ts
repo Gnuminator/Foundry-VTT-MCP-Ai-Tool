@@ -6,6 +6,8 @@
  * - `POST /api/player/usage`: the player page (any resolved role; a GM token still counts as a
  *   player here). The server forces the surface (`player`, so only `player.*` names) and sets
  *   `who` from the claimed user id only when it is a known non-GM user.
+ * - `POST /api/me/usage`: the My character page (`/me`). The player's private key (`X-CoGM-Me`)
+ *   says who; an unknown key gets 401. Surface `player`, names `me.*`.
  * - `GET /api/player/names`: the non-GM user names the page offers for its one-time name pick.
  * There is no route that returns usage data. Accepted events go on to the bridge with the
  * control method `record_usage`; a backend without it is noted once and the events dropped.
@@ -132,6 +134,8 @@ export interface UsageRouteOptions {
   directory: PlayerDirectory;
   /** The dashboard's 401/403 guard for the GM role. */
   requireGm: (req: Request, res: Response, next: () => void) => void;
+  /** The user a `/me` private key belongs to in the live world, or null (item me-usage-tracking). */
+  meUserFor?: (key: string | undefined) => string | null;
 }
 
 /** Mount the usage routes. Call before the app-wide JSON parser: these parse their own body. */
@@ -196,6 +200,22 @@ export function mountUsageRoute(app: Express, options: UsageRouteOptions): void 
       surface: 'player',
       who: playerWho(asRecord(req.body).who, directory),
     });
+  });
+
+  app.post('/api/me/usage', parseBody, (req: Request, res: Response) => {
+    const raw = req.headers['x-cogm-me'];
+    const key = Array.isArray(raw) ? raw[0] : raw;
+    const userId = options.meUserFor?.(key) ?? null;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+    void directory
+      .refreshIfStale()
+      .catch(() => undefined)
+      .then(() =>
+        respond(res, req.body, { surface: 'player', who: playerWho({ userId }, directory) })
+      );
   });
 
   app.get('/api/player/names', playerAuth, (_req: Request, res: Response) => {

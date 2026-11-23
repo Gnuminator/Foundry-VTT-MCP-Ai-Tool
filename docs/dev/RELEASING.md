@@ -7,6 +7,10 @@ The Orange Pi builds a release tag, never `main` (D-126), so game nights run a k
 
 Start from a clean, up-to-date checkout of `main` (the main checkout, or a worktree on `aitool/main`).
 
+0. **Refresh the lane kit plugin** (own small PR, merged before the release PR, which may change only the
+   version places): `npm run plugin:build`, commit `plugin/` and `.claude-plugin/`. Its version carries a hash of
+   the kit, so the next `plugin update` on every PC picks it up ([LANE-PLUGIN.md](LANE-PLUGIN.md)). Skip it
+   when `npm run plugin:check` says it is in sync.
 1. **Fold the changelog.** `npm run changelog:fold -- --dry-run` shows the result, then `npm run changelog:fold`
    moves every fragment in `changelog.d/` into CHANGELOG "Unreleased" and deletes the files (D-089). Rename the
    `## Unreleased` heading to `## vX.Y.Z (released YYYY-MM-DD): <short summary>` and add a fresh empty

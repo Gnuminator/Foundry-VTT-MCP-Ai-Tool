@@ -4,7 +4,7 @@ import { cpSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
-import { NAME, REPO, drift, hooksJson, plan, retargetHook, write } from './build-lane-plugin.mjs';
+import { NAME, REPO, drift, hooksJson, plan, pluginVersion, retargetHook, write } from './build-lane-plugin.mjs';
 
 test('a fresh write has no drift, and a changed file is reported', () => {
   const dir = mkdtempSync(path.join(tmpdir(), 'lane-plugin-'));
@@ -66,6 +66,15 @@ test('a stale file and a missing marketplace are reported', () => {
 test('retargetHook rewrites both REPO_ROOT shapes', () => {
   assert.match(retargetHook("path.resolve(here, '..', '..')"), /CLAUDE_PROJECT_DIR/);
   assert.match(retargetHook("path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')"), /CLAUDE_PROJECT_DIR/);
+});
+
+test('the plugin version is the tool version plus a hash that moves with the content', () => {
+  const a = pluginVersion('1.2.3', new Map([['skills/a.md', Buffer.from('x')]]));
+  assert.match(a, /^1\.2\.3\+[0-9a-f]{8}$/);
+  assert.equal(a, pluginVersion('1.2.3', new Map([['skills/a.md', Buffer.from('x')]])));
+  assert.notEqual(a, pluginVersion('1.2.3', new Map([['skills/a.md', Buffer.from('y')]])));
+  assert.notEqual(a, pluginVersion('1.2.3', new Map([['skills/b.md', Buffer.from('x')]])));
+  assert.match(plan().get('.claude-plugin/plugin.json'), /"version": "\d+\.\d+\.\d+\+[0-9a-f]{8}"/);
 });
 
 test('the plan carries the skills, agents and hooks', () => {

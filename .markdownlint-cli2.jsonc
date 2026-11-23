@@ -47,6 +47,8 @@
     "docs/history/**",
     // Claude's own skills and their unverified reference drafts.
     ".claude/**",
+    // The generated copy of the lane kit (scripts/build-lane-plugin.mjs).
+    "plugin/**",
     // Narration scripts: each "# " heading is a scene of the spoken script, not a document title.
     "tools/narration/examples/**",
   ],

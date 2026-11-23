@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import urllib.error
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -92,7 +93,24 @@ def build_parser() -> argparse.ArgumentParser:
     )
     n.add_argument("--out", type=Path, required=True, help="names file to write, e.g. <session>/names.txt")
     n.add_argument("--extra", type=Path, help="hand-kept extra names, one per line (goes first)")
-    n.add_argument("--dashboard", default=namelist.DEFAULT_DASHBOARD, help="co-GM dashboard URL")
+    n.add_argument(
+        "--dashboard",
+        default=namelist.default_dashboard(),
+        help=f"co-GM dashboard URL (default: ${namelist.DASHBOARD_ENV}, else {namelist.DEFAULT_DASHBOARD})",
+    )
+    n.add_argument(
+        "--world",
+        default=None,
+        help=f"world id the dashboard must serve (default: ${namelist.CAMPAIGN_WORLD_ENV}, else {namelist.CAMPAIGN_WORLD})",
+    )
+    n.add_argument(
+        "--any-world", action="store_true", help="take names from whatever world the dashboard serves (test worlds)"
+    )
+    n.add_argument(
+        "--cache",
+        type=Path,
+        help="campaign names file: written after each good read of the campaign world, read when the dashboard is down",
+    )
     n.add_argument(
         "--offline", action="store_true", help="do not contact the dashboard: the extra list only"
     )
@@ -162,10 +180,28 @@ def run_names(args: argparse.Namespace) -> int:
     extra = namelist.read_extra(args.extra)
     if args.extra and not args.extra.exists():
         print(f"warning: extra list {args.extra} does not exist", file=sys.stderr)
-    fetch = None if args.offline else namelist.dashboard_fetch(args.dashboard, namelist.default_token())
+    token = namelist.default_token()
+    fetch = None if args.offline else namelist.dashboard_fetch(args.dashboard, token)
+    if fetch is not None and not args.any_world:
+        expected = args.world or namelist.campaign_world()
+        try:
+            problem = namelist.world_problem(namelist.fetch_world_id(args.dashboard, token), expected)
+        except (urllib.error.URLError, OSError, ValueError):
+            problem = None  # not reachable: build() warns and the cache or extra list is used
+        if problem:
+            raise InputError(f"{problem}; no names written (use --any-world for a test world)")
     names, world, warning = namelist.build(fetch, extra, items=args.items, journals=args.journals)
+    if world is None and not args.offline and args.cache and args.cache.exists():
+        names = namelist.merge_names(names, namelist.read_extra(args.cache))
+        print(f"using the saved campaign names from {args.cache}", file=sys.stderr)
     if warning:
         print(f"warning: {warning}", file=sys.stderr)
+    campaign = [*world.pcs, *world.groups, *world.npcs, *world.scenes] if world else []
+    if campaign and args.cache and not args.any_world:
+        args.cache.parent.mkdir(parents=True, exist_ok=True)
+        tmp = args.cache.with_name(args.cache.name + ".tmp")
+        tmp.write_text(namelist.render(campaign), encoding="utf-8", newline="\n")
+        tmp.replace(args.cache)
     if not names:
         raise InputError("no names: the world gave none and there is no extra list")
     args.out.parent.mkdir(parents=True, exist_ok=True)

@@ -228,7 +228,15 @@ is the same tunnel; only the port differs.
 | `push-back.ps1` build and check (played flag set by hand) | 27 s                                             |
 | `connectors.ps1 -To planb -Rehearsal -DryRun`             | 5 connector values would change, nothing written |
 
-Not rehearsed: a person logging in (Claude has no credentials, and the backup has no player
+2026-11-23, this PC, same ports, tool v0.31.0, Foundry 14.370, dnd5e 6.0.6, backup `6932416a` of
+2026-11-23 04:30 (14.6 hours old; nothing written to the Pi, the restic copy or the test server):
+`restore.ps1` restored 3.7 GB in about a minute and installed Foundry 14.370 from the zip, `start.ps1`
+brought up Foundry, bridge, dashboard and the Assistant GM, `check.ps1` was all OK (module link up
+through port 31615, world `curse-of-strahd` active), `stop.ps1` freed every port. The join page lists
+seven users, all with passwords, so no GM login was done (Claude never types one). No spare tunnel
+(decision 2026-11-20: if the Pi is down, the GM cannot play either).
+
+Not rehearsed in 2026-10-12: a person logging in (Claude has no credentials, and the backup has no player
 accounts yet), `-GameNight` (game night only), `-Tunnel` (Part C is not live), changing Claude
 Desktop's connectors for real, and the rollback on the Pi itself (a snapshot and your OK first).
 

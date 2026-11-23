@@ -236,8 +236,8 @@ through port 31615, world `curse-of-strahd` active), `stop.ps1` freed every port
 seven users, all with passwords, so no GM login was done (Claude never types one). No spare tunnel
 (decision 2026-11-20: if the Pi is down, the GM cannot play either).
 
-Not rehearsed in 2026-10-12: a person logging in (Claude has no credentials, and the backup has no player
-accounts yet), `-GameNight` (game night only), `-Tunnel` (Part C is not live), changing Claude
+Not rehearsed on 2026-10-12 or 2026-11-23: a person logging in (Claude has no credentials, and every
+user has a password), `-GameNight` (game night only), `-Tunnel` (Part C is not live), changing Claude
 Desktop's connectors for real, and the rollback on the Pi itself (a snapshot and your OK first).
 
 ## Restoring one scene from the backup (I-128, off by default)

@@ -11,6 +11,8 @@ Part of [The dashboard](dashboard.md).
 
 ### During layouts
 
+![The During screen in the Cards layout: the Live Feed with Recent Changes and Handouts beside it](../images/dashboard/dashboard-during-cards.png)
+
 The game happens in Foundry; the **During** screen sits next to it and keeps an eye on things.
 It comes in three layouts. Pick one with **Layout** at the top of the screen:
 
@@ -226,6 +228,8 @@ The server (the Orange Pi) checks its own free disk space every hour: under 20% 
 Discord message to the person who runs the server.
 
 ### Recent Changes
+
+![Recent Changes with three rows, two of them with an Undo button](../images/dashboard/dashboard-recent-changes.png)
 
 Every guarded change that was applied, newest first, up to 20. Each row shows:
 

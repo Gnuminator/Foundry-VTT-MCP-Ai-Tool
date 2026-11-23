@@ -5,6 +5,8 @@ description: A tour of every panel and button on the dashboard, what each does a
 
 # The dashboard
 
+![The During screen of the dashboard: the combat order strip, Party, Handouts and Recent Changes with Undo](../images/dashboard/dashboard-during.png)
+
 The dashboard is your control panel for live play. This page used to hold the whole tour; the text now lives in these pages (every old section link still lands here and points on):
 
 - [The dashboard: views and header](dashboard-header.md): The three views and the header: connection mark, Pre-flight, theme, session buttons, GM Actions and the Advanced menu.

@@ -1,6 +1,6 @@
 ---
 source: gm/live-views.md
-sourceHash: d050d5cc30df
+sourceHash: 6708bd4fee0c
 title: Live-visningerne
 description: De tre måder at have combat-strippen ved siden af Foundry (Live screen, GM page, Live window), hvor knappen Live views er, og hvornår du bruger hvilken.
 ---
@@ -22,6 +22,8 @@ skrivebeskyttet side med party, kampen og scenen, til en telefon. Se
 [Table at a glance](dashboard.md#table-at-a-glance).
 
 > **Usikker? Spørg Claude.** Spørg GM coach: "Hvilken live view passer til min opsætning, når jeg kører en combat?" ([sådan tilføjer du GM coach](gm-coach.md))
+
+![Combat-strimlen med en kamp i gang: fire kæmpende, tur-mærket og en Prone-condition](../../images/dashboard/dashboard-strip.png)
 
 ## Monster-angreb på strimlen
 

@@ -157,6 +157,31 @@ MODE=down` (which deletes the actors made after `up`). Unit tests cover the argu
    the arrow moves and the refusals; the live run needs a running kit session (the next Pi day) or
    the PC test world with Actor Studio set to standard array only.
 
+### The Strahd layer (this PC only, in the G1 kit list)
+
+Four licensed scenarios in `<kit home>\licensed\scenarios` (`strahd-barovia`, `strahd-boss`, `strahd-handouts`,
+`strahd-tarokka`) run on `strahd-kit`, the throwaway copy of the campaign world. They are part of the full kit
+before each gate and the G1 list, run after every refresh of the campaign copy or change of the live module set.
+
+1. Pull a fresh copy: `pwsh scripts/test-env/campaign-copy.ps1 refresh` (or `-Root <folder> -Port <free port>` for a
+   private copy when the shared one is running).
+2. On a test server on the Pi's dnd5e version (6.0.6 until the Pi switches; B runs 6.1.1), with its lock: replace
+   `worlds\strahd-kit` with the copy of `curse-of-strahd` (world.json: id `strahd-kit`, the kit title,
+   `flags.foundry-ai-tool.kitOf` = `curse-of-strahd`, pack package names and the join background path), copy the
+   copy's `modules` over the server's (keep its `foundry-mcp-bridge`), then `sync-module.ps1`.
+3. `start.ps1 -World strahd-kit`, then `kit.mjs init --profile strahd` and `kit.mjs build --profile strahd --size full`
+   (the boss scenario needs the kit arena scene), with `FOUNDRY_TEST_SERVER` set to that server.
+4. `kit.mjs run --profile strahd --size full --scenarios <kit home>\licensed\scenarios --only strahd-barovia,strahd-boss,strahd-handouts,strahd-tarokka`.
+   Close every other browser joined to the server first: a second GM tab holds a second bridge link and the
+   "open a page" check goes to it.
+
+Last run: 2026-11-23 on server C at `8d9f31959`, 4 of 4 green. What the live world looks like to the scenarios:
+the castle floors are not in the world yet (their checks say so and skip until the castle import); the book pin
+counts are a minimum because the world carries GM prep pins; 14 pins name five journals that no longer exist (a
+known finding listed in the scenario, any other count fails); handout reveals are an ordinary write with Undo since
+2026-10-30. The Tarokka scenario also checks the flip ceremony: the overlay turns the card on the GM screen, shows
+that card and no other name, Escape closes it, and an undo plays nothing.
+
 ### Three test servers
 
 This PC has three test servers (C is described below) with the same Foundry install and licence

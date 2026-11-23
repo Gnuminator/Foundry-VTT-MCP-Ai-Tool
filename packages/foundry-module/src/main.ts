@@ -25,6 +25,7 @@ import { ACTOR_IMAGE_FEATURE_ID } from './actor-image.js';
 import { TOKEN_RINGS_FEATURE_ID } from './token-rings.js';
 import { SCENE_RESTORE_FEATURE_ID } from './scene-state.js';
 import { NPC_TURN_FEATURE_ID } from './npc-turn.js';
+import { CHARACTER_DIARY_FEATURE_ID } from './character-diary-feature.js';
 import { PAPER_SYNC_FEATURE_ID } from './paper-sync-plan.js';
 import { PC_CREATION_FEATURE_ID } from './pc-creation.js';
 import { ROOM_SETUP_FEATURE_ID } from './room-setup.js';
@@ -260,6 +261,11 @@ class FoundryMCPBridge {
         id: PAPER_SYNC_FEATURE_ID,
         name: 'AI Tool: Paper sync (writes)',
         hint: 'Lets the AI write the numbers from a paper sheet back into a character after a night played on paper, one plan per character after you confirm.',
+      });
+      registerGuardedFeature({
+        id: CHARACTER_DIARY_FEATURE_ID,
+        name: 'AI Tool: Character diaries (writes)',
+        hint: "Lets the AI add a private diary journal for each player's character after a session, visible only to that player and the GM, after you confirm.",
       });
       registerGuardedFeature({
         id: WHO_NOTICES_FEATURE_ID,

@@ -1,6 +1,6 @@
 ---
 source: gm/features.md
-sourceHash: 25592e85d393
+sourceHash: f5539a47f796
 title: Funktioner og hvornår du slår dem til
 description: De funktionsknapper i Foundry AI Tool, du bruger ved bordet, hvad hver af dem gør, og hvornår du skal slå dem til.
 ---
@@ -243,6 +243,10 @@ udført, når du har bekræftet en plan, og den står i Recent Changes med Undo.
 - **Paper sync** ("AI Tool: Paper sync (writes)"): skriver tallene fra et papirark tilbage på en
   karakter efter en aften spillet på papir. XP, level og klasse bliver aldrig ændret. Starter
   slået fra. Slå den til efter en papiraften.
+- **Character diaries** ("AI Tool: Character diaries (writes)"): lader Claude lægge en privat
+  dagbogsjournal til hver spillers karakter efter en session, kun synlig for den spiller og dig.
+  Ét fortryd fjerner alle dagbøger i den plan. Starter slået fra. Slå den til, når du vil have dagbogsudkast efter en
+  session.
 - **Character creation** ("AI Tool: Character creation (writes)"): lader Claude lave en ny
   spillerkarakter og kopiere items fra packs over på den. Class features lægges på i hånden, fordi
   level-up advancement ikke kører. Starter slået fra. Slå den til, når du bygger karakterer med Claude.

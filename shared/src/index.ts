@@ -44,6 +44,7 @@ export * from './token-rings.js';
 export * from './scene-restore.js';
 export * from './npc-turn.js';
 export * from './paper-sync.js';
+export * from './character-diary.js';
 export * from './pc-creation.js';
 export * from './room-setup.js';
 export * from './rules-check.js';

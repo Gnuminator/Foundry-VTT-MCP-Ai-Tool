@@ -154,6 +154,10 @@ def main(argv: list[str] | None = None) -> int:
     con_check.add_argument(
         "--write-status", action="store_true", help="when blocked, say so in notes/status.json"
     )
+    ros = sub.add_parser("roster", help="roster.json: Discord user id to character, and who is GM")
+    ros_sub = ros.add_subparsers(dest="roster_cmd", required=True)
+    ros_check = ros_sub.add_parser("check", help="list the speakers of a session that the roster does not know")
+    ros_check.add_argument("session")
     inb = sub.add_parser(
         "inbox", help="recap inbox for a cloud routine (I-132); needs FVTT_RECAP_INBOX"
     )
@@ -164,6 +168,12 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "consent":
         return run_consent(args)
+    if args.cmd == "roster":
+        from . import roster
+
+        result = roster.check(resolve_session(args.session), sessions_root())
+        print(result.message)
+        return 0 if result.ok else 1
     if args.cmd == "inbox":
         raw = os.environ.get("FVTT_RECAP_INBOX")
         if not raw or not Path(raw).is_dir():

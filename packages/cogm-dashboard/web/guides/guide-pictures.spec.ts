@@ -7,8 +7,8 @@ import { fileURLToPath } from 'node:url';
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { PLAYER_SCREENS, showPlayerScreen } from './player-screens';
-import { SCREENS, showScreen } from './screens';
+import { PLAYER_SCREENS, showPlayerScreen } from '../visual/player-screens';
+import { SCREENS, showScreen } from '../visual/screens';
 
 const OUT = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -80,11 +80,6 @@ test('Recent Changes and the strip', async ({ page }) => {
   await expect(page.locator('#pane-changes')).toBeVisible();
   await shootPart(page.locator('#pane-changes'), 'dashboard-recent-changes.png');
   await shootPart(page.locator('#live-strip'), 'dashboard-strip.png');
-});
-
-test('After', async ({ page }) => {
-  await showScreen(page, gm('after'), 'neutral');
-  await shootPage(page, 'dashboard-after.png', true);
 });
 
 test('Tool Runner', async ({ page }) => {

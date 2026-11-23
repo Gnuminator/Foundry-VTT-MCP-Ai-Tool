@@ -9,6 +9,8 @@ const servers = Array.isArray(base.webServer) ? base.webServer : [];
 
 export default defineConfig({
   ...base,
+  // Its own folder, so the visual config (testDir ./visual) and CI never run it.
+  testDir: './guides',
   testMatch: /guide-pictures\.spec/,
   reporter: 'list',
   projects: [{ name: 'guides', use: { viewport: { width: 1280, height: 900 } } }],

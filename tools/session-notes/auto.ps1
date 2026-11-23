@@ -39,6 +39,9 @@
 #>
 param([switch]$DryRun, [string]$Session = '', [int]$Port = 0)
 
+# -Session names one folder in the sessions folder: a path or a wildcard is refused.
+if ($Session -and $Session -notmatch '^[^\\/*?:<>|]+$') { Write-Host "-Session must be a folder name, not a path: $Session"; exit 2 }
+
 $ErrorActionPreference = 'Stop'
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repo = Resolve-Path (Join-Path $here '..\..')

@@ -64,9 +64,13 @@ export function blockers(state, world, id) {
 
 // What the setting must look like at the end of MODE=off or MODE=on.
 export function mismatch(after, enabled) {
-  return after.configured === enabled
-    ? null
-    : `core.moduleConfiguration says ${JSON.stringify(after.configured)} for the module, expected ${enabled}`;
+  if (after.configured !== enabled) {
+    return `core.moduleConfiguration says ${JSON.stringify(after.configured)} for the module, expected ${enabled}`;
+  }
+  if (after.active !== enabled) {
+    return `the module is ${after.active ? 'active' : 'not active'} after the reload, expected ${enabled ? 'active' : 'not active'}`;
+  }
+  return null;
 }
 
 // Foundry 14.368 types the user name into a text field; 14.369 picks it from a list (same as world-switches.mjs).
@@ -87,6 +91,9 @@ async function typeJoinUser(page, user) {
   }
   return 'ok';
 }
+
+// A dropped SSH pipe must not kill the run between the write and the read-back.
+for (const stream of [process.stdout, process.stderr]) stream.on('error', () => {});
 
 async function main() {
   const mode = env('MODE');

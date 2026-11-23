@@ -9,7 +9,8 @@ Part of [PI-SETUP](../PI-SETUP.md).
 
 ## Licensed content (the books and Curse of Strahd)
 
-D&D Beyond imports stay a job for this PC: DDB Importer calls its proxy from the GM's browser, and the
+D&D Beyond imports stay a job for this PC (DDB Importer is dropped since 2026-11-20, see "DDB Importer switched off" below; a future import
+means installing it again on the PC only): DDB Importer calls its proxy from the GM's browser, and the
 proxy holds your D&D Beyond login cookie, so it must never be reachable through Cloudflare or from
 another machine. Import on the PC (the proxy and Adventure Muncher against the PC's Foundry). Then two
 scripts move the result to the Pi, in two steps so that you can look in between:
@@ -396,7 +397,7 @@ turns up (it never kills a process).
 
 - **Run it** (never on a game night; after G0): `scp scripts/pi/remote/module-switch.mjs foundry-pi:/root/`, then
   `cat lib.sh 36-drop-ddb-importer.sh | ssh foundry-pi 'bash -s'` (a dry run: checks only), `CHECK=1` (joins as the GM and prints the
-  module's state), then, after a `dietpi-backup 1` snapshot and the user's OK, the same with `APPLY=1`. `UNDO=1` switches it on
+  module's state; it changes no setting, its only write is copying the driver file), then, after a `dietpi-backup 1` snapshot and the user's OK, the same with `APPLY=1`. `UNDO=1` switches it on
   again. It needs the world running with nobody online and no recording (`FORCE=1` skips only that check).
 - The stage joins as the GM with the login in `/etc/foundry-ai-tool/world-<world>.env`, sets `core.moduleConfiguration` for the one
   module, reloads and reads the value back from the server. The Assistant GM browser keeps the module in memory until its next

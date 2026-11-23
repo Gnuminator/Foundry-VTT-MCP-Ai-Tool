@@ -98,9 +98,10 @@ describe('the in-browser part', () => {
   });
 
   test('the read-back check', () => {
-    assert.equal(mismatch({ configured: false }, false), null);
-    assert.match(mismatch({ configured: true }, false), /expected false/);
-    assert.match(mismatch({ configured: null }, false), /null/);
+    assert.equal(mismatch({ configured: false, active: false }, false), null);
+    assert.match(mismatch({ configured: true, active: true }, false), /expected false/);
+    assert.match(mismatch({ configured: null, active: false }, false), /null/);
+    assert.match(mismatch({ configured: false, active: true }, false), /after the reload/);
   });
 });
 
@@ -118,7 +119,9 @@ describe('stage 36 as text', () => {
   });
 
   test('it deletes nothing and starts, stops or restarts no unit', () => {
-    assert.doesNotMatch(code, /\brm\b|\bmv\b|\bkill\b|systemctl|svc_|docker|enable_unit/);
+    // The one rm removes the uploaded copy of the driver in /root after a real run (as stage 11 does).
+    const rest = code.replace('rm -f "${SRC_DRIVER:?}"', '');
+    assert.doesNotMatch(rest, /\brm\b|\bmv\b|\bkill\b|systemctl|svc_|docker|enable_unit/);
   });
 
   test('the snapshot and quiet checks come before the browser, and a dry run exits before it', () => {
@@ -130,7 +133,7 @@ describe('stage 36 as text', () => {
   });
 
   test('the driver gets the login through the environment, not a command line', () => {
-    assert.doesNotMatch(code, /GM_PASSWORD="\$GM_PASSWORD"[^\n]*\bps\b/);
+    assert.doesNotMatch(code, /GM_PASSWORD=/);
     assert.match(code, /runuser -u "\$FOUNDRY_USER" -- env /);
   });
 

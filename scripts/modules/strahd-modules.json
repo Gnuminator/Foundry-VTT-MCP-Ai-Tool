@@ -82,6 +82,7 @@
     "racooze-map-library",
     "combat-spell-timer",
     "monks-player-settings",
-    "quick-insert"
+    "quick-insert",
+    "ddb-importer"
   ]
 }

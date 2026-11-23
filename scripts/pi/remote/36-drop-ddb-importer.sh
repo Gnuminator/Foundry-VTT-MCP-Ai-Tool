@@ -16,12 +16,13 @@
 # The Assistant GM browser keeps the module loaded in memory until its next reload (the next Foundry or GM-browser restart, for
 # example the nightly backup); the setting itself is stored at once, so a new login no longer loads the module.
 #
-# Needs the world running with nobody online (the stage joins as the GM and Foundry asks every client to reload when a module changes)
+# Needs the world running with nobody online (the stage joins as the GM, which players would see, and a world setting changes under them)
 # and no recording. A real run and UNDO need a dietpi-backup snapshot from today and the user's OK. Never on a game night.
 #
 # Modes (environment, before bash):
 #   (none)     a dry run: the checks only, joins nothing, changes nothing, needs no snapshot
-#   CHECK=1    read-only: joins as the GM and prints the module's state (installed, active, configured); changes nothing
+#   CHECK=1    joins as the GM and prints the module's state (installed, active, configured); changes no setting. Its only
+#              write is the driver file copied into $TOOL_DIR/gm-browser (the same copy a real run uses)
 #   APPLY=1    switch the module off and read it back
 #   UNDO=1     switch the module on again and read it back
 # Env: WORLD (default curse-of-strahd; the world that must be running), MODULE_ID (default ddb-importer), FORCE=1 (players and
@@ -65,7 +66,12 @@ if [ -d "$data/modules/$MODULE_ID" ]; then
 else
   warn "no $data/modules/$MODULE_ID: the module is not installed here, so there is nothing to switch"
 fi
-listener="$(ss -ltnH 2>/dev/null | awk '$4 ~ /:31517$/ {print $4}' | head -n1)" || listener=""
+if ! command -v ss >/dev/null 2>&1; then
+  warn "ss is not installed: cannot tell whether something listens on port 31517"
+  listener=""
+else
+  listener="$(ss -ltnH 2>/dev/null | awk '$4 ~ /:31517$/ {print $4}' | head -n1)" || listener=""
+fi
 if [ -n "$listener" ]; then
   warn "something listens on $listener (port 31517, the DDB proxy's port). This stage never stops a process: find it with 'ss -ltnp | grep 31517' and bring it to the user"
 else
@@ -75,7 +81,8 @@ fi
 [ -f "$DRIVER" ] || [ -f "$SRC_DRIVER" ] || die "no $SRC_DRIVER and no $DRIVER: scp scripts/pi/remote/module-switch.mjs foundry-pi:/root/ first. Nothing was changed"
 
 # /join answers 200 even when no world runs, so look for the join form's template (as stage 11 does).
-curl -fs --max-time 10 http://127.0.0.1:30000/join 2>/dev/null | grep -q 'id="join-game"' ||
+join_page="$(curl -fs --max-time 10 http://127.0.0.1:30000/join 2>/dev/null)" || join_page=""
+[[ "$join_page" == *'id="join-game"'* ]] ||
   die "no world is running on port 30000. Nothing was changed"
 ok "a world is running on port 30000"
 
@@ -87,13 +94,14 @@ elif [ -z "$CHECK" ]; then
   exit 0
 fi
 
+trap '' HUP PIPE # a dropped SSH session must not cut the run between the write and the read-back
+
 # ---- the in-browser part -------------------------------------------------------------------------------------------------------------
 if [ -f "$SRC_DRIVER" ]; then
-  if [ -n "$APPLY$UNDO" ] || [ ! -f "$DRIVER" ]; then
-    install -d -m 755 "$TOOL_DIR/gm-browser"
-    install -m 0644 "$SRC_DRIVER" "$DRIVER"
-    ok "installed $DRIVER"
-  fi
+  install -d -m 755 "$TOOL_DIR/gm-browser"
+  install -m 0644 "$SRC_DRIVER" "$DRIVER"
+  ok "installed $DRIVER"
+  [ -z "$APPLY$UNDO" ] || rm -f "${SRC_DRIVER:?}"
 fi
 [ -f "$DRIVER" ] || die "no $DRIVER. Nothing was changed"
 say "joining $WORLD as the GM ($mode)"
@@ -106,16 +114,15 @@ say "joining $WORLD as the GM ($mode)"
     out "ERROR: $envf has no GM_USER and GM_PASSWORD" 1
     exit 1
   }
-  # The login stays in the environment, never on a command line.
+  # The login stays in the environment (exported by set -a above), never on a command line: runuser stays as the parent.
   runuser -u "$FOUNDRY_USER" -- env HOME="$TOOL_DATA" TOOL_APP="$TOOL_DIR/app" \
     FOUNDRY_URL=http://127.0.0.1:30000 CHROMIUM=/usr/bin/chromium \
     WORLD="$WORLD" MODULE_ID="$MODULE_ID" MODE="$mode" \
-    GM_USER="$GM_USER" GM_PASSWORD="$GM_PASSWORD" \
     "$NODE_DIR/bin/node" "$DRIVER"
 ) || die "the module switch failed or did not verify (see the lines above). The setting may be half done: run CHECK=1 to read it, or the same mode again (a second run changes nothing that is already right)"
 
 case "$mode" in
   off) ok "$MODULE_ID is switched off in $WORLD and read back; its files are untouched. UNDO=1 switches it on again" ;;
   on) ok "$MODULE_ID is switched on in $WORLD and read back" ;;
-  read) ok "state read (CHECK=1 changed nothing)" ;;
+  read) ok "state read (CHECK=1 changed no setting)" ;;
 esac

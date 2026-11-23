@@ -231,6 +231,10 @@ export interface MirrorStatus {
   openBase: string;
   lastCycleAt: string | null;
   lastReconcileAt: string | null;
+  /** How long the last completed reconcile took (ms), or null before the first. */
+  lastReconcileMs: number | null;
+  /** How long the whole cycle that ran that reconcile took (ms), or null before the first. */
+  lastReconcileCycleMs: number | null;
   lastError: string | null;
   /** Mirror notes managed, per note type. */
   counts: Record<MirrorNoteType, number>;
@@ -282,6 +286,8 @@ export function emptyMirrorStatus(
     ...init,
     lastCycleAt: null,
     lastReconcileAt: null,
+    lastReconcileMs: null,
+    lastReconcileCycleMs: null,
     lastError: null,
     counts: { pc: 0, npc: 0, scene: 0, journal: 0, 'journal-page': 0, 'story-item': 0 },
     skipped: [],
@@ -336,4 +342,22 @@ export function propertyWikilink(worldId: string, notePath: string, label: strin
   const target = `Campaigns/${worldId}/${notePath.replace(/\.md$/, '')}`;
   const alias = wikilinkLabel(label);
   return alias ? `[[${target}|${alias}]]` : `[[${target}]]`;
+}
+
+// ---------------------------------------------------------------------------
+// Timing lines of the status note
+// ---------------------------------------------------------------------------
+
+function seconds(ms: number): string {
+  return `${(ms / 1000).toFixed(ms < 10_000 ? 1 : 0)} s`;
+}
+
+/** How long the last full check took; empty before the first one. */
+export function timingLines(status: MirrorStatus): string[] {
+  const { lastReconcileMs: check, lastReconcileCycleMs: cycle } = status;
+  if (check === null || cycle === null) return [];
+  return [
+    `Last full check: ${seconds(check)} to compare the vault with Foundry, ${seconds(cycle)} for the whole cycle.`,
+    '',
+  ];
 }

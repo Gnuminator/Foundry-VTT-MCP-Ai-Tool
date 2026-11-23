@@ -5,6 +5,7 @@
 import type { Server } from 'http';
 import type { AddressInfo } from 'net';
 
+import type { UsageEvent } from '@gnuminator/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createDashboard, PLAYER_CSP, type Dashboard } from './app.js';
@@ -39,15 +40,15 @@ async function start(
   asked: string[];
   rolled: string[][];
   portraits: string[][];
-  usage: Array<Record<string, unknown>>;
+  usage: UsageEvent[];
 }> {
-  const usage: Array<Record<string, unknown>> = [];
+  const usage: UsageEvent[] = [];
   const asked: string[] = [];
   const rolled: string[][] = [];
   const portraits: string[][] = [];
   const client = {
     isConnected: true,
-    recordUsage: (events: Array<Record<string, unknown>>): Promise<unknown> => {
+    recordUsage: (events: UsageEvent[]): Promise<{ accepted: number; dropped: number }> => {
       usage.push(...events);
       return Promise.resolve({ accepted: events.length, dropped: 0 });
     },

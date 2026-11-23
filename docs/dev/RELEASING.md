@@ -48,6 +48,10 @@ Start from a clean, up-to-date checkout of `main` (the main checkout, or a workt
    builds the release files, then waits for approval before it publishes (assets and checks:
    [DEPLOYMENT](DEPLOYMENT.md#cutting-a-new-release-maintainers)).
 
+   The release files include the skill zips `foundry-dnd-helper-player.zip`, `foundry-dnd-helper.zip`,
+   `foundry-gm-coach.zip`, `foundry-prep-ritual.zip` and `foundry-backstory-buddy.zip`; each is built in the
+   `player-files` job and listed in `SHA256SUMS.txt`.
+
    **Approve the release in the Actions run:** open the run, press "Review deployments", tick `release` and
    Approve (also works on the phone in the GitHub app). The publish job is in the GitHub environment `release`,
    and only the user is its reviewer (Settings, Environments, `release`: required reviewer the user, "Prevent

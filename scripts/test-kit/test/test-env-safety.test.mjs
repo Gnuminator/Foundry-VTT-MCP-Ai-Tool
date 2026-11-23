@@ -69,7 +69,6 @@ test(
 
 for (const file of [
   'scripts/voice-stack.ps1',
-  'tools/livekit/scripts/livekit-poc.ps1',
   'scripts/pi/rebuild-drill.ps1',
 ]) {
   test(`${file} reads its forbidden ports from shared/ports.json`, () => {

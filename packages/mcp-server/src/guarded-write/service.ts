@@ -58,8 +58,7 @@ import { isLostAnswerMessage } from '../direct-write-timeout.js';
 import type { FoundryClient } from '../foundry-client.js';
 import type { Logger } from '../logger.js';
 import { removedRiderLines, riderUndoOps, type BatchRiderSource } from './rider-undo.js';
-import { mergeChangeHistory } from '../obsidian/audit-merge.js';
-import { changeNoteNames, changeNoteParts } from '../obsidian/change-note-parts.js';
+import { changeNoteLookup } from '../obsidian/change-note-parts.js';
 import type { AuditEntry, AuditLog, VaultOpRecord } from '../vault/audit.js';
 import { AUDIT_FILE, AUDIT_HISTORY_FILE, AUDIT_RING_SIZE } from '../vault/audit.js';
 import { assertFileName } from '../vault/paths.js';
@@ -263,6 +262,8 @@ export interface RecentChange extends AppliedChange {
   ownData?: boolean;
   /** The Obsidian Changes/ note (file name without .md) that holds this change: `2026-10`, `2026-10-p2`, ... */
   notePart?: string;
+  /** With `notePart`: whether the last export wrote it (false right after a month tips into a new part). */
+  notePartWritten?: boolean;
 }
 
 export interface GuardedWriteServiceOptions {
@@ -907,23 +908,14 @@ export class GuardedWriteService {
     const shown = ring.slice(-Math.min(Math.max(limit, 1), AUDIT_RING_SIZE)).reverse();
     // Which Changes/ note the Obsidian export files each change in (a long month rolls over to
     // -p2, -p3): the same split as the export, over the full history. Best effort.
-    let noteNames = new Map<string, string>();
-    if (options.noteParts) {
-      try {
-        const jsonl = await this.store.readLines(worldId, 'gm', AUDIT_HISTORY_FILE);
-        noteNames = changeNoteNames(changeNoteParts(mergeChangeHistory(ring, jsonl)));
-      } catch (error) {
-        this.logger.warn('Changes note parts unavailable; links open the month note', {
-          error: errorMessage(error),
-        });
-      }
-    }
+    const noteFields = options.noteParts
+      ? await changeNoteLookup(this.store, worldId, ring, this.logger)
+      : (): Record<string, never> => ({});
     return shown.map(e => {
       const undone = state.get(e.changeId);
-      const notePart = noteNames.get(e.changeId);
       return {
         ...this.appliedView(e),
-        ...(notePart ? { notePart } : {}),
+        ...noteFields(e.changeId),
         ...(undone ? { undoneBy: undone.undoneBy, undoneAt: undone.undoneAt } : {}),
         canUndo: !undone && ((e.results?.length ?? 0) > 0 || (e.vaultOps?.length ?? 0) > 0),
         ...((e.vaultOps?.length ?? 0) > 0 ? { ownData: true } : {}),

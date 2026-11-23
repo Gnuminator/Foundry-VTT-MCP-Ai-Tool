@@ -10,7 +10,7 @@
     "packages/foundry-module/src/play-recorder.ts": 2127,
     "packages/foundry-module/src/session-events.ts": 1301,
     "packages/mcp-server/src/change-history.ts": 1446,
-    "packages/mcp-server/src/guarded-write/service.ts": 1548,
+    "packages/mcp-server/src/guarded-write/service.ts": 1540,
     "packages/mcp-server/src/handouts/service.ts": 1296,
     "packages/mcp-server/src/obsidian/library-sync.ts": 1240,
     "packages/mcp-server/src/obsidian/mirror-pump.ts": 2170,

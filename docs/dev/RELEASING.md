@@ -102,6 +102,18 @@ Start from a clean, up-to-date checkout of `main` (the main checkout, or a workt
    if Discord cannot be reached. The two channel ids and the GM role id belong in the PC's
    `%APPDATA%\foundry-ai-tool\discord-bot.env` (template: `packages/discord-bot/deploy/discord-bot.env.example`).
 
+## Obsidian plugin smoke list
+
+Run before a tag that changes the plugin or the mirror, on the test vault (`npm run build -w
+packages/obsidian-plugin`, then `node scripts/test-env/small-obsidian-vault.mjs`, open that folder in
+Obsidian). The mirror itself is covered by the kit scenario `obsidian-mirror-live` (full size, server A).
+
+1. Obsidian lists "AI Tool" under Community plugins as enabled, with no error on start (Ctrl+Shift+I, Console).
+2. The status bar shows the plugin and no "Restart Obsidian" line after a restart.
+3. An NPC note opens and its "Open in Foundry" link is present.
+4. The command "Hide / Show the Library in the graph" changes the graph view and "Apply AI Tool graph colours" colours it.
+5. A note edited by hand stays as typed after the mirror's next cycle (the `_status` note lists it as edited).
+
 ## The Pi
 
 Stage 5 (`scripts/pi/remote/5-tool.sh`) and `scripts/pi/rebuild-drill.ps1` take the newest plain `vX.Y.Z` tag

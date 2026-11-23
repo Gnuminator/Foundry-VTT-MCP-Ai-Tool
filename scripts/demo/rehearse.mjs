@@ -22,7 +22,7 @@
 //
 // Exit codes: 0 every take passed, 1 a take failed, 2 usage or environment, 3 lock not free.
 
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -91,24 +91,61 @@ export function failureOf(output) {
   return { step, message };
 }
 
-function runProc(file, args, { env = {}, echo = false } = {}) {
+/** Children still running, and whether a stop signal came in. */
+const children = new Set();
+let interrupted = false;
+
+/** Stops a child and everything it started (demo.mjs owns the browser). */
+function treeKill(child) {
+  if (process.platform === 'win32' && child.pid)
+    spawnSync('taskkill', ['/T', '/F', '/PID', String(child.pid)], { windowsHide: true });
+  else child.kill('SIGKILL');
+}
+
+/** A take that takes longer than this is hung: it fails and gives the lock back. */
+const TAKE_TIMEOUT_MS = 10 * 60000;
+
+function runProc(file, args, { env = {}, echo = false, timeoutMs = 0 } = {}) {
   return new Promise(resolve => {
     const child = spawn(file, args, {
       cwd: REPO_ROOT,
       env: { ...process.env, ...env },
       windowsHide: true,
     });
+    children.add(child);
     let out = '';
+    let stdout = '';
+    let timedOut = false;
+    const timer = timeoutMs
+      ? setTimeout(() => {
+          timedOut = true;
+          treeKill(child);
+        }, timeoutMs)
+      : null;
     child.stdout.on('data', b => {
       out += b;
+      stdout += b;
       if (echo) process.stdout.write(b);
     });
     child.stderr.on('data', b => {
       out += b;
       if (echo) process.stderr.write(b);
     });
-    child.on('error', err => resolve({ code: 1, out: `${out}${err.message}` }));
-    child.on('close', code => resolve({ code: code ?? 1, out }));
+    const done = result => {
+      clearTimeout(timer);
+      children.delete(child);
+      resolve(result);
+    };
+    child.on('error', err =>
+      done({ code: err.code === 'ENOENT' ? 127 : 1, out: `${out}${err.message}`, stdout })
+    );
+    child.on('close', code =>
+      done({
+        code: timedOut ? 1 : (code ?? 1),
+        out: timedOut ? `${out}\nTake timed out after ${timeoutMs / 60000} minutes.` : out,
+        stdout,
+      })
+    );
   });
 }
 
@@ -127,10 +164,11 @@ const lastLine = text =>
 /** One take: PASS or FAIL with the step. Never throws. */
 export async function rehearseTake(name, o) {
   const started = Date.now();
-  const args = [join(DEMO_DIR, 'demo.mjs'), 'take', name, '--no-record'];
+  const args = [join(DEMO_DIR, 'demo.mjs'), 'take', name, '--no-record', '--res', '1080'];
   if (o.world) args.push('--world', o.world);
   const r = await runProc(process.execPath, args, {
     env: { FOUNDRY_TEST_SERVER: o.server, DEMO_HEADLESS: '1' },
+    timeoutMs: TAKE_TIMEOUT_MS,
   });
   const seconds = Math.round((Date.now() - started) / 1000);
   const folder = /^Take folder:\s*(.+)$/m.exec(r.out)?.[1]?.trim();
@@ -177,6 +215,17 @@ async function main() {
   const unknown = takes.filter(t => !all.includes(t));
   if (unknown.length) throw new Error(`No such take: ${unknown.join(', ')} (see --list)`);
 
+  // Ctrl+C, a closed console or a kill: stop the take (and its browser), then let the finally
+  // block stop the server and release the lock. A second signal exits at once.
+  for (const sig of ['SIGINT', 'SIGTERM', 'SIGBREAK']) {
+    process.on(sig, () => {
+      if (interrupted) process.exit(1);
+      interrupted = true;
+      console.error(`${sig}: stopping, then releasing the lock ...`);
+      for (const c of children) treeKill(c);
+    });
+  }
+
   const onServer = ['-Server', o.server];
   const session = o.session ?? `demo-rehearse-${Date.now()}`;
   let took = false;
@@ -195,11 +244,13 @@ async function main() {
     let queued = false;
     for (;;) {
       const r = await pwsh('lock.ps1', lockArgs);
+      if (r.code === 127) throw new Error('pwsh is not on PATH; the test environment scripts need it.');
       if (r.code === 0) {
-        took = !/already/i.test(r.out);
+        took = !/already hold/i.test(r.stdout);
         break;
       }
-      if (Date.now() >= deadline) {
+      if (interrupted || Date.now() >= deadline) {
+        if (interrupted) console.error('Interrupted while waiting for the lock.');
         if (queued) await pwsh('lock.ps1', ['leave', '-Session', session, ...onServer]);
         console.error(`The test server lock is not free:\n${r.out.trim()}`);
         return 3;
@@ -225,6 +276,7 @@ async function main() {
   const results = [];
   try {
     for (const name of takes) {
+      if (interrupted) break;
       console.log(`--- ${name}`);
       const r = await rehearseTake(name, o);
       results.push(r);
@@ -237,6 +289,10 @@ async function main() {
     if (took) await pwsh('lock.ps1', ['release', '-Session', session, ...onServer]);
   }
   console.log(`\n${summary(results)}`);
+  if (interrupted) {
+    console.log('Interrupted: the takes not run are not counted as passed.');
+    return 1;
+  }
   return results.some(r => !r.ok) ? 1 : 0;
 }
 

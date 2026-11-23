@@ -50,7 +50,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { OMENS_CONTROLS } from './dashboard-controls-omens.mjs';
+import { EXTRA_CONTROLS } from './dashboard-controls-me.mjs';
 
 export const HOWS = [
   'open',
@@ -1213,46 +1213,8 @@ export const PLAYER_CONTROLS = [
     why: 'only shown with the Veil theme',
   },
 ];
-
-/**
- * The My character page (/me, item me-usage-tracking) is a different page behind a private key;
- * the sweep reloads /player only, so these are reported as skipped. The unit tests (usage-names,
- * me-route) and the server A check cover them.
- */
-export const ME_CONTROLS = [
-  ...[
-    'me.view.at-table',
-    'me.view.paper-2024',
-    'me.view.paper-2014',
-    'me.view.night',
-    'me.character.switch',
-    'me.turn-card.toggle',
-    'me.print',
-    'me.diary.open',
-    'me.diary.save',
-    'me.diary.edit',
-    'me.diary.delete',
-    'me.downtime.save',
-    'me.downtime.edit',
-    'me.downtime.delete',
-    'me.connector.copy',
-    'me.connector.show',
-    'me.connector.download',
-    'me.connector.retry',
-  ].map(name => ({
-    name,
-    how: /** @type {const} */ ('skip'),
-    why: 'on the My character page (/me, a private link), which the player sweep does not open',
-  })),
-  { name: 'me.page.open', how: 'view', expect: '#me-main' },
-];
 /** Both tables, dashboard first (the omens rows are in their own file). */
-export const CONTROLS = [
-  ...DASHBOARD_CONTROLS,
-  ...OMENS_CONTROLS,
-  ...PLAYER_CONTROLS,
-  ...ME_CONTROLS,
-];
+export const CONTROLS = [...DASHBOARD_CONTROLS, ...EXTRA_CONTROLS, ...PLAYER_CONTROLS];
 
 /** The surface a control name belongs to, from its prefix. */
 export function surfaceOf(name) {

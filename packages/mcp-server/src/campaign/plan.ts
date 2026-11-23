@@ -57,7 +57,7 @@ export interface HeldEntry {
   reason: string;
 }
 
-export interface CampaignPlanParts {
+interface CampaignPlanParts {
   additions: GuardedOp[];
   changes: GuardedOp[];
   additionLines: string[];

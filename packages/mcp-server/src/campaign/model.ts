@@ -28,7 +28,7 @@ export const CAMPAIGN_KINDS = [
 export type CampaignKind = (typeof CAMPAIGN_KINDS)[number];
 
 export const CAMPAIGN_LANGS = ['da', 'en'] as const;
-export type CampaignLang = (typeof CAMPAIGN_LANGS)[number];
+type CampaignLang = (typeof CAMPAIGN_LANGS)[number];
 
 /**
  * The journal of each kind. `name` is the Foundry journal name and, through the mirror, the vault
@@ -54,12 +54,8 @@ const HEADINGS: Record<
   en: { lang: 'English', relations: 'Relations', timeline: 'Timeline', new: 'new' },
 };
 
-export function isCampaignKind(value: unknown): value is CampaignKind {
-  return typeof value === 'string' && (CAMPAIGN_KINDS as readonly string[]).includes(value);
-}
-
 /** A Foundry document id (16 letters and digits) that is the same for the same seed. */
-export function stableId(seed: string): string {
+function stableId(seed: string): string {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   const digest = createHash('sha256').update(seed).digest();
   let id = '';
@@ -71,7 +67,7 @@ export function journalId(kind: CampaignKind): string {
   return stableId(`campaign:journal:${kind}`);
 }
 
-export function pageKey(name: string): string {
+function pageKey(name: string): string {
   return name.normalize('NFC').trim().toLocaleLowerCase('da');
 }
 
@@ -79,7 +75,7 @@ export function pageId(kind: CampaignKind, name: string): string {
   return stableId(`campaign:page:${kind}:${pageKey(name)}`);
 }
 
-export function escapeHtml(text: string): string {
+function escapeHtml(text: string): string {
   return text
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')

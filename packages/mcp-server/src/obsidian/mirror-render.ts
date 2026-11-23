@@ -52,7 +52,7 @@ import {
   type HubMember,
   type LooseSectionType,
 } from './adventure-hubs.js';
-import { isCampaignPageHtml, prepareCampaignHtml } from './campaign-mirror.js';
+import { pageHtmlToMarkdown } from './campaign-mirror.js';
 import { htmlToMarkdown, markdownPageText } from './html-to-md.js';
 import {
   MIRROR_NOTE_TYPES,
@@ -878,16 +878,10 @@ function renderJournalPage(
       );
     }
     const link = linkContext(ctx, page.uuid, pagePath, null, journal.actorLinks ?? []);
-    let converted: string;
-    if (text.format === 'html' && isCampaignPageHtml(text.content)) {
-      const prepared = prepareCampaignHtml(text.content);
-      converted = prepared.restore(htmlToMarkdown(prepared.html, link));
-    } else {
-      converted =
-        text.format === 'html'
-          ? htmlToMarkdown(text.content, link)
-          : markdownPageText(text.content, link);
-    }
+    const converted =
+      text.format === 'html'
+        ? pageHtmlToMarkdown(text.content, h => htmlToMarkdown(h, link))
+        : markdownPageText(text.content, link);
     lines.push(
       converted.trim() === '' ? '(This page has no text.)' : converted.replace(/\s+$/, '')
     );

@@ -41,6 +41,13 @@ export interface PreparedCampaignHtml {
   restore(markdown: string): string;
 }
 
+/** HTML page text to Markdown; a campaign page gets its wikilinks, any other page goes straight through. */
+export function pageHtmlToMarkdown(html: string, convert: (html: string) => string): string {
+  if (!isCampaignPageHtml(html)) return convert(html);
+  const prepared = prepareCampaignHtml(html);
+  return prepared.restore(convert(prepared.html));
+}
+
 export function prepareCampaignHtml(html: string): PreparedCampaignHtml {
   const links: string[] = [];
   const token = (link: string): string => {

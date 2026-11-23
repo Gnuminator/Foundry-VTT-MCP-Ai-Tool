@@ -19,7 +19,7 @@ import type { FoundryClient } from '../foundry-client.js';
 import type { GuardedWriteService, PlanView } from '../guarded-write/service.js';
 import type { Logger } from '../logger.js';
 
-export interface CampaignMergeToolsOptions {
+interface CampaignMergeToolsOptions {
   foundryClient: Pick<FoundryClient, 'query'>;
   guardedWrites: Pick<GuardedWriteService, 'createPlan' | 'autoApplyEnabled'>;
   logger: Logger;
@@ -59,7 +59,7 @@ const planParams = z.object({
   markSeen: z.boolean().optional(),
 });
 
-export interface CampaignMergeResult {
+interface CampaignMergeResult {
   /** New pages and lines. `autoApply: true` means apply it at once (the GM's switch is on). */
   additions: (PlanView & { autoApply: boolean }) | null;
   /** Anything that rewrites text; always waits for the GM's confirm. */

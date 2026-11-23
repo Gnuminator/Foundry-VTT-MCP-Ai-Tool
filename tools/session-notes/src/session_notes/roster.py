@@ -37,14 +37,17 @@ def track_key(file: str) -> str:
 
 
 def load(sessions: Path) -> dict[str, dict[str, str]]:
-    """User id -> {name, character, pronouns} (only the keys that are set). Empty without a file."""
+    """User id -> {name, character, pronouns} (only the keys that are set). Empty without a file;
+    a file that is there but unreadable raises ValueError (a typo must not silently drop the roster)."""
     path = sessions / ROSTER_FILE
+    if not path.exists():
+        return {}
     try:
         data = json.loads(path.read_text(encoding="utf-8-sig"))
-    except (OSError, ValueError):
-        return {}
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"{path} is not valid JSON ({exc})") from exc
     if not isinstance(data, dict):
-        return {}
+        raise ValueError(f"{path} must be an object with \"gm\" and \"players\"")
     out: dict[str, dict[str, str]] = {}
     players = data.get("players")
     for uid, entry in (players.items() if isinstance(players, dict) else []):
@@ -83,7 +86,10 @@ def check(session: Path, sessions: Path | None = None) -> Check:
     found = tracks(session)
     if not found:
         return Check(False, "No raw/session.json, so the speakers cannot be checked against the roster.")
-    roster = load(sessions)
+    try:
+        roster = load(sessions)
+    except ValueError as exc:
+        return Check(False, str(exc), [_label(t) for t in found])
     if not roster:
         return Check(False, f"There is no roster ({sessions / ROSTER_FILE}); every speaker is missing.",
                      [_label(t) for t in found])
@@ -91,8 +97,9 @@ def check(session: Path, sessions: Path | None = None) -> Check:
     parts = []
     if missing:
         parts.append(f"Not in the roster (no character): {', '.join(missing)}.")
-    if not any(e.get("character", "").lower() == GM.lower() for e in roster.values()):
-        parts.append('The roster names no GM ("gm": "<user id>").')
+    here = [roster.get(str(t.get("userId", "")), {}) for t in found]
+    if not any(e.get("character", "").strip().lower() in {"gm", "dm", "game master", "dungeon master"} for e in here):
+        parts.append('No GM among this recording\'s speakers ("gm": "<user id>" in the roster).')
     if parts:
         return Check(False, " ".join(parts), missing)
     return Check(True, f"All {len(found)} speaker(s) are in the roster.")

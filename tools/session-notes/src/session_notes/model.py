@@ -142,9 +142,10 @@ def load_roster(session: Path, lines: list[Line]) -> Roster:
             player = str(entry.get("player") or "")
             if player in roster.players:
                 roster.pronouns[player] = str(entry["pronouns"]).strip()
-    for entry in roster_for_speakers(session).values():
-        if entry.get("pronouns") and entry.get("name") in roster.players:
-            roster.pronouns.setdefault(entry["name"], entry["pronouns"])
+    player_of = {line.speaker: line.player for line in lines}
+    for key, entry in roster_for_speakers(session).items():
+        if entry.get("pronouns") and player_of.get(key):
+            roster.pronouns.setdefault(player_of[key], entry["pronouns"])
     names_file = session / "names.txt"
     if names_file.exists():
         for raw in names_file.read_text(encoding="utf-8-sig").splitlines():

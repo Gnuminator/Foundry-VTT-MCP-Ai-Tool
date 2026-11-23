@@ -111,7 +111,8 @@ recording; the key is the Discord user id, the same one `consent.json` uses:
 
 `raw/session.json` lists each track with its user id, so the notes run gives Claude the GM line and the
 character names without a `speakers.json` edit. A `character` in a session's own `speakers.json`
-still wins for that session. `python -m session_notes roster check <session>` lists the speakers
+still wins for that session; the roster's `name` replaces the Discord display name the recorder wrote
+there. A broken `roster.json` stops the run with the reason (it is never ignored). `python -m session_notes roster check <session>` lists the speakers
 the roster does not know (and says if no GM is named); exit 1 when something is missing.
 Changing the roster rewrites the scenes on the next run.
 

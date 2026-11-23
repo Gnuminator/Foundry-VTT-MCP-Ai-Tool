@@ -77,7 +77,7 @@ def test_check_without_a_roster_or_a_gm(tmp_path: Path) -> None:
     _, session = make(tmp_path, None)
     assert not roster.check(session).ok and len(roster.check(session).missing) == 3
     _, session2 = make(tmp_path / "b", {"players": {u: {"character": "X"} for u in ("111", "222", "333")}})
-    assert "no GM" in roster.check(session2).message
+    assert "No GM" in roster.check(session2).message
 
 
 def test_no_roster_leaves_everything_as_before(tmp_path: Path) -> None:
@@ -85,3 +85,28 @@ def test_no_roster_leaves_everything_as_before(tmp_path: Path) -> None:
     fake = FakeClaude()
     Writer(session, fake, Options(workers=1)).run()
     assert "- Anna plays Ilvara" in fake.calls[0][1]  # the test timeline's own character
+
+
+def test_malformed_roster_is_reported_not_ignored(tmp_path: Path) -> None:
+    sessions, session = make(tmp_path, None)
+    (sessions / "roster.json").write_text('{"gm": "333",}', encoding="utf-8")
+    assert "not valid JSON" in roster.check(session).message
+    (sessions / "roster.json").write_text("[]", encoding="utf-8")
+    assert "must be an object" in roster.check(session).message
+    import pytest
+
+    with pytest.raises(ValueError):
+        Writer(session, FakeClaude(), Options(workers=1)).run()
+
+
+def test_pronouns_without_a_name_and_a_changed_roster_rewrites_scenes(tmp_path: Path) -> None:
+    sessions, session = make(tmp_path, {"gm": "333", "players": {"111": {"character": "Ilvara", "pronouns": "she/her"}}})
+    fake = FakeClaude()
+    Writer(session, fake, Options(workers=1)).run()
+    assert "- Anna plays Ilvara (she/her)" in fake.calls[0][1]
+    first = len(fake.calls)
+    (sessions / "roster.json").write_text(
+        json.dumps({"gm": "333", "players": {"111": {"character": "Mira"}}}), encoding="utf-8"
+    )
+    Writer(session, fake, Options(workers=1)).run()
+    assert len(fake.calls) > first and "- Anna plays Mira" in fake.calls[-1][1]

@@ -41,7 +41,7 @@ def test_schemas_require_every_property() -> None:
         assert schema["additionalProperties"] is False
         assert set(schema["required"]) == set(schema["properties"])
     char = extras.CHARACTER["properties"]
-    assert set(char) == {"name", "player", "revealed", "choices", "ties", "hooks"}
+    assert set(char) == {"name", "player", "revealed", "choices", "ties", "hooks", "wishes", "gm_only"}
     assert set(extras.REMEMBER_ITEM["properties"]) == {"kind", "da", "en", "cites"}
 
 
@@ -104,10 +104,11 @@ def lines() -> list[Line]:
 def test_render_characters_and_remember_with_cites_in_both_languages() -> None:
     result = {"characters": [character(ties=[point()], hooks=[point()])]}
     da = extras.render_characters("da", lines(), ROSTER, result)
-    assert "## Ilvara (spilles af Anna)" in da and "### Bånd til andre" in da
-    assert "[[transcript.da#^u000001|00:00:10]]" in da and "Kun for GM" in da
+    assert "## Ilvara, spillet af Anna" in da and "#### Bånd" in da and "### I historien" in da
+    assert "[[transcript.da#^u000001|00:00:10]]" in da and "### Kun for GM" in da
     en = extras.render_characters("en", lines(), ROSTER, result)
-    assert "### Open personal hooks" in en and "- Point ([[transcript.en#^u000001" in en
+    assert "## Ilvara, played by Anna" in en and "#### Hooks" in en
+    assert "- Point ([[transcript.en#^u000001" in en
     assert "Ikke skrevet" in extras.render_characters("da", lines(), ROSTER, None)
     rem = {"items": [{"kind": "promise", **point()}, {"kind": "zzz", **point()}]}
     text = extras.render_remember("en", lines(), rem)

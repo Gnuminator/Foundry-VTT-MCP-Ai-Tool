@@ -31,7 +31,15 @@ from .layers import (
 from .model import Line, Roster, Scene, apply_speakers, load_roster, load_timeline
 from .prompts import SCENE_RULES, SCENE_SCHEMA, SESSION_RULES, SESSION_SCHEMA, roster_block, scene_prompt, session_prompt
 from .scenes import split_scenes
-from .validate import check_lines, combine, raw_fallback, repair
+from .validate import (
+    check_lines,
+    check_session,
+    check_summaries,
+    combine,
+    raw_fallback,
+    repair,
+    repair_session,
+)
 
 MIN_SPLIT_LINES = 6
 # A scene that fell back to raw text is tried again on the next runs (a sleeping PC or a dropped
@@ -101,7 +109,7 @@ class Writer:
         except ClaudeError as exc:
             self._log("scene_error", scene=scene.index, lines=len(scene.lines), error=str(exc))
             return None
-        problems = check_lines(result, scene)
+        problems = check_lines(result, scene) + check_summaries(result)
         if problems:
             self._log("scene_invalid", scene=scene.index, lines=len(scene.lines), problems=problems)
             return None
@@ -540,14 +548,29 @@ class Writer:
             if data.get("scenes") == key and data.get("digest") == digest:
                 return data["notes"]
         out: dict[str, Any] | None = None
+        hint = ""
         for _attempt in range(2):  # seen once: error_max_structured_output_retries on a test clip
             try:
-                out = self.runner(
-                    session_prompt(notes, roster),
+                got = self.runner(
+                    session_prompt(notes, roster) + hint,
                     SESSION_SCHEMA,
                     self.opts.session_model,
                     self.opts.session_effort,
                 )
+                fixes = repair_session(got)
+                problems = check_session(got)
+                if problems:
+                    self._log("session_invalid", problems=problems)
+                    hint = (
+                        "\n\nYour previous answer was rejected: "
+                        + "; ".join(problems)
+                        + ". Fix this."
+                    )
+                    out = got  # kept when the second try fails as well: better than no summary
+                    continue
+                if fixes:
+                    self._log("session_repaired", fixes=fixes)
+                out = got
                 break
             except UsageLimitError as exc:
                 self._log("paused", scene="session", reason=str(exc))

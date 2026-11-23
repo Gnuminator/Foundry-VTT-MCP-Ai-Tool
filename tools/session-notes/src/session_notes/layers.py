@@ -8,7 +8,7 @@
   One extra Claude call per scene on the subscription (D-066), written for the GM.
 * summary: ``summary.da.md``, written by the existing session call.
 
-``index.da.md`` links the layers (and the cleaned transcript and scene notes between them).
+The start page (``index.<lang>.md``) is written by ``render.py`` and links the layers.
 """
 
 from __future__ import annotations
@@ -148,7 +148,6 @@ HEAD = {
     "depth_missing": "Scenen mangler dybdegående noter (kør session-notes igen).",
     "depth_fallback": "Scenen kunne ikke behandles, så der er ingen dybdegående noter.",
     "incomplete": "Ufærdige noter: nogle scener mangler. Kør session-notes igen.",
-    "index": "Sessionens noter",
 }
 
 
@@ -169,8 +168,25 @@ def mark_uncertain(line: Line) -> str:
     return " ".join(out)
 
 
-def render_raw(lines: list[Line], scenes: list[dict[str, Any]]) -> str:
-    out = [f"# {HEAD['raw']}", "", f"> {HEAD['raw_note']}", ""]
+RAW_EN = {
+    "title": "Raw transcript",
+    "note": (
+        "The speech recogniser's text as it came: not corrected, not translated, with errors. "
+        "Words it was unsure about are marked [word?]. Word by word with times is in "
+        "timeline/timeline.jsonl."
+    ),
+    "scene": "Scene",
+}
+
+
+def render_raw(lines: list[Line], scenes: list[dict[str, Any]], lang: str = "da") -> str:
+    """The same spoken text in both languages; only the header and the note are translated."""
+    title, note, scene_word = (
+        (RAW_EN["title"], RAW_EN["note"], RAW_EN["scene"])
+        if lang == "en"
+        else (HEAD["raw"], HEAD["raw_note"], "Scene")
+    )
+    out = [f"# {title}", "", f"> {note}", ""]
     scene_of: dict[str, int] = {}
     for sc in scenes:
         for entry in sc["lines"]:
@@ -181,7 +197,7 @@ def render_raw(lines: list[Line], scenes: list[dict[str, Any]]) -> str:
         if idx != current:
             current = idx
             if idx is not None:
-                out += [f"## Scene {idx}", ""]
+                out += [f"## {scene_word} {idx}", ""]
         who = ln.player if ln.character == ln.player else f"{ln.character} ({ln.player})"
         out += [f"**[{clock(ln.start)}] {who}:** {mark_uncertain(ln)} ^{ln.id}", ""]
     return "\n".join(out)
@@ -219,27 +235,3 @@ def render_depth(
             cites = _cite(beat.get("cites", []), starts)
             out += [f"### {beat.get('heading', '')}", "", f"{beat.get('text', '')}{cites}", ""]
     return "\n".join(out)
-
-
-def render_index(
-    session: dict[str, Any] | None,
-    depth_complete: bool,
-    characters_complete: bool = True,
-    remember_complete: bool = True,
-) -> str:
-    title = session["title_da"] if session else HEAD["index"]
-    rows = [
-        ("Resumé (kort, til GM)", "summary.da"),
-        ("Resumé til spillerne (kladde)", "recap.player.da"),
-        (HEAD["depth"] + " (kun GM)", "depth.da"),
-        ("Personer (kun GM)", "characters.da"),
-        ("Værd at huske (kun GM)", "remember.da"),
-        ("Scener (kortfattet pr. scene)", "scenes.da"),
-        ("Rettet transskription", "transcript.da"),
-        (HEAD["raw"], "raw.da"),
-    ]
-    out = [f"# {title}", "", "Tre lag, fra kort til ordret:", ""]
-    out += [f"- [[{target}|{label}]]" for label, target in rows]
-    if not (depth_complete and characters_complete and remember_complete):
-        out += ["", f"> {HEAD['incomplete']}"]
-    return "\n".join(out) + "\n"

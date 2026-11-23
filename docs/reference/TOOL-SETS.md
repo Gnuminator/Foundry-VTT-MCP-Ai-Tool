@@ -4,11 +4,11 @@ description: The five tool sets Claude Desktop loads (core, play, prep, build, a
 
 # Tool sets
 
-The bridge has 116 tools. Their definitions are about 129,250 characters of JSON, about 30,800 to
+The bridge has 117 tools. Their definitions are about 129,250 characters of JSON, about 30,800 to
 40,400 tokens that Claude reads at the start of every conversation, before anyone types. Many
-tools also look alike, which makes Claude pick the wrong one more often. Eight of the 116 are the
+tools also look alike, which makes Claude pick the wrong one more often. Eight of the 117 are the
 player set (see below), which no Claude Desktop entry carries: the GM's Claude Desktop can load at
-most the other 108, about 126,150 characters.
+most the other 109, about 126,150 characters.
 
 So the tools are split into five sets. Each set is its own entry in Claude Desktop's
 configuration, so Claude Desktop shows one switch per set in the **+** menu, then **Plugins**. Turn on
@@ -17,7 +17,7 @@ what the conversation needs. The switches are remembered for new chats.
 | Set        | Claude Desktop entry      | Tools | Size (characters) | For                                                                                                                                                                                                                                                        |
 | ---------- | ------------------------- | ----- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **core**   | `foundry-mcp`             | 25    | about 19,000      | Look things up (world, characters, scenes, journals, compendiums, combat) and review, apply or undo planned changes. Always on.                                                                                                                            |
-| **play**   | `foundry-mcp-play`        | 41    | about 44,200      | Run the table live: tokens, combat turns, rolls, damage, conditions, resources, chat, scene mood, map notes and loot.                                                                                                                                      |
+| **play**   | `foundry-mcp-play`        | 42    | about 45,000      | Run the table live: tokens, combat turns, rolls, damage, conditions, resources, chat, scene mood, map notes and loot.                                                                                                                                      |
 | **prep**   | `foundry-mcp-prep`        | 21    | about 23,250      | Prepare sessions and write recaps: quests and journals, encounter budgets, the Tarokka reading, handouts, the session log, play stats and the pre-flight check.                                                                                            |
 | **build**  | `foundry-mcp-build`       | 10    | about 24,700      | Make and change NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells. Set up rooms: teleports and tokens in a room.                                                                                              |
 | **admin**  | `foundry-mcp-admin`       | 11    | about 11,000      | Set up and troubleshoot: installed modules and their errors, Foundry settings, modules on or off, user roles, who can open a pack, journal or scene, who owns which actor, round token rings, and the Obsidian mirror settings.                            |
@@ -56,7 +56,7 @@ Each tool's set is the `set` field of its entry in the `tools` map of its module
   `plan-undo-changes`, `check-secret-terms`, `get-skill-guide`
 - **play:** `use-item`, `switch-scene`, `request-player-rolls`, `request-ability-check`,
   `request-attack-roll`, `roll-npc-check`, `plan-scene-restore`, `plan-npc-turn`, `plan-paper-sync`,
-  `plan-handout-press`, `plan-scene-mood`, `list-scene-moods`, `check-action`, `get-token-details`,
+  `plan-character-diaries`, `plan-handout-press`, `plan-scene-mood`, `list-scene-moods`, `check-action`, `get-token-details`,
   `get-available-conditions`, `get-chat-log`, `get-combat-play-by-play`, `send-chat-message`,
   `get-character-resources`, `get-active-effects`, `advance-combat-turn`, `set-initiative`,
   `roll-initiative-for-npcs`, `measure-distance`, `get-targets`, `get-recent-events`,

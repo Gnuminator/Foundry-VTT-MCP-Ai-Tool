@@ -262,6 +262,11 @@ class FoundryMCPBridge {
         hint: 'Lets the AI write the numbers from a paper sheet back into a character after a night played on paper, one plan per character after you confirm.',
       });
       registerGuardedFeature({
+        id: 'character-diary',
+        name: 'AI Tool: Character diaries (writes)',
+        hint: "Lets the AI add a private diary journal for each player's character after a session, visible only to that player and the GM, after you confirm.",
+      });
+      registerGuardedFeature({
         id: WHO_NOTICES_FEATURE_ID,
         name: 'AI Tool: Who would notice',
         hint: "Adds a row to the dashboard's Party drawer that shows which characters would notice a DC (GM only).",

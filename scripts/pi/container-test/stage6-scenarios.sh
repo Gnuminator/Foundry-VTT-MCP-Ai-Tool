@@ -90,9 +90,13 @@ line='[assistant-gm] joined world curse-of-strahd as Assistant GM (GM: true, mod
 for a in "$@"; do
   case "$a" in
     _SYSTEMD_INVOCATION_ID=*) [ -f "/tmp/s6/joined-inv-${a#_SYSTEMD_INVOCATION_ID=}" ] && echo "$line" ;;
-    _PID=*) [ -f "/tmp/s6/joined-pid-${a#_PID=}" ] && echo "$line" ;;
+    _PID=*) pidarg="${a#_PID=}" ;;
+    -b) boot=1 ;;
+    _SYSTEMD_UNIT=foundry-ai-tool-gm-browser.service) unitarg=1 ;;
   esac
 done
+# By PID only with this boot (-b) and the unit named, as the script asks.
+[ -z "${pidarg:-}" ] || [ -z "${boot:-}" ] || [ -z "${unitarg:-}" ] || [ ! -f "/tmp/s6/joined-pid-$pidarg" ] || echo "$line"
 exit 0
 EOF
 cat >"$BIN/curl" <<'EOF'
@@ -103,7 +107,8 @@ url="${*: -1}"
 case "$url" in
   */api/status)
     [ ! -f /tmp/s6/down-foundry.service ] && [ ! -f /tmp/foundry-container-down ] || exit 7
-    if [ -f /tmp/s6/setup-screen ]; then echo '{"active":false,"version":"14"}'; exit 0; fi
+    # setup-screen: the world ran before the backup, but after Foundry was started again it answers without one
+    if [ -f /tmp/s6/setup-screen ] && grep -q '^systemctl start foundry.service' /tmp/s6/calls; then echo '{"active":false,"version":"14"}'; exit 0; fi
     echo "{\"active\":true,\"world\":\"curse-of-strahd\",\"users\":$(cat /tmp/s6/users)}"
     ;;
   *) exit 22 ;;
@@ -146,7 +151,7 @@ export SNAP
 
 # reset: a fresh state; STACK=systemd (no docker) or containers (the stage 25 docker stand-in)
 reset() {
-  rm -rf "$S" /tmp/dk /tmp/foundry-container-down /tmp/stopfail /tmp/calls "$BIN/docker"
+  rm -rf "${S:?}" /tmp/dk /tmp/foundry-container-down /tmp/stopfail /tmp/calls "${BIN:?}/docker"
   mkdir -p "$S/sysd" "$S/marker" /tmp/dk/c
   echo 0 >"$S/users"
   : >"$S/calls"
@@ -159,7 +164,7 @@ skip=0
 for a in "$@"; do
   if [ "$skip" = 1 ]; then skip=0; elif [ "$a" = -t ]; then skip=1; else args+=("$a"); fi
 done
-exec /repo/scripts/pi/container-test/bin/fake-docker "${args[@]}"
+exec bash /repo/scripts/pi/container-test/bin/fake-docker "${args[@]}"
 EOF
     chmod +x "$BIN/docker"
     echo running >/tmp/dk/c/foundry
@@ -192,7 +197,8 @@ copy_n="$(first_line 'restic backup')"
 if [ -n "$stop_n" ] && [ -n "$copy_n" ] && [ -n "$start_n" ] && [ "$stop_n" -lt "$copy_n" ] && [ "$copy_n" -lt "$start_n" ]; then
   pass "1 stop, copy, start in that order"; else fail "1 order: $(cat "$S/calls")"; fi
 systemd_up && pass "1 Foundry is running afterwards" || fail "1 Foundry is down afterwards"
-grep -q 'restic forget --keep-daily 7 --prune' "$S/calls" && pass "1 the clean-up ran after Foundry was back" || fail "1 no clean-up"
+forget_n="$(first_line 'restic forget --keep-daily 7 --prune')"
+if [ -n "$forget_n" ] && [ -n "$start_n" ] && [ "$start_n" -lt "$forget_n" ]; then pass "1 the clean-up ran after Foundry was back"; else fail "1 clean-up order: $(cat "$S/calls")"; fi
 [ "$(sleeps)" = 0 ] && pass "1 nothing to wait for" || fail "1 waited"
 
 # 2. a player online, then gone
@@ -284,5 +290,22 @@ run_night
 echo "$out" | grep -q 'started again while the worlds were being copied' && pass "8 the ERROR line names it" || fail "8 message: $out"
 grep -q "restic forget $SNAP" "$S/calls" && echo "$out" | grep -q "the torn snapshot ${SNAP:0:8} was removed" && pass "8 the torn snapshot is forgotten" || fail "8 torn snapshot: $out"
 container_up && pass "8 the container is running afterwards" || fail "8 the container is down"
+# A container that restarted and was stopped again during the copy: only its new start time gives it away.
+reset containers
+cat >"$S/restic-hook" <<'EOF'
+#!/usr/bin/env bash
+docker start cid-foundry
+docker stop cid-foundry
+EOF
+chmod +x "$S/restic-hook"
+run_night
+[ "$rc" = 1 ] && echo "$out" | grep -q 'started again while the worlds were being copied' && pass "8 a restart that stopped again is caught by its start time" || fail "8 restart and stop: rc $rc: $out"
+container_up && pass "8 the container is running afterwards (restart and stop)" || fail "8 the container is down (restart and stop)"
+
+# 6b. Foundry answers but is back on the setup screen
+reset
+touch "$S/setup-screen"
+run_night
+[ "$rc" = 1 ] && echo "$out" | grep -q 'Foundry may be on the setup screen' && pass "6 a Foundry back on the setup screen fails the night" || fail "6 setup screen: rc $rc: $out"
 
 [ "$fails" -eq 0 ] && echo "ALL SCENARIOS OK" || exit 1

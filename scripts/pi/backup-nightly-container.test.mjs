@@ -1,7 +1,7 @@
 /**
  * The installed nightly backup script of Pi stage 6 (foundry-backup.sh, written by scripts/pi/remote/6-backup.sh) in a
  * Debian 13 ARM64 container: a clean run, a player online and then gone, the GM browser restarted before the run, restic
- * failing, Foundry restarting during the copy. The host-side tests of the same script are in pi-stage-safety.test.mjs.
+ * failing, Foundry restarting during the copy (container stack). The host-side tests of the same script are in pi-stage-safety.test.mjs.
  *   PI_STAGE6_CONTAINER=1 node --test scripts/pi/backup-nightly-container.test.mjs   (needs Docker)
  */
 import assert from 'node:assert/strict';

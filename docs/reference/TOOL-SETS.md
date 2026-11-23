@@ -18,9 +18,9 @@ what the conversation needs. The switches are remembered for new chats.
 | ---------- | ------------------------- | ----- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **core**   | `foundry-mcp`             | 25    | about 19,000      | Look things up (world, characters, scenes, journals, compendiums, combat) and review, apply or undo planned changes. Always on.                                                                                                                            |
 | **play**   | `foundry-mcp-play`        | 41    | about 44,200      | Run the table live: tokens, combat turns, rolls, damage, conditions, resources, chat, scene mood, map notes and loot.                                                                                                                                      |
-| **prep**   | `foundry-mcp-prep`        | 21    | about 23,250      | Prepare sessions and write recaps: quests and journals, encounter budgets, the Tarokka reading, handouts, the session log, play stats and the pre-flight check.                                                                                            |
+| **prep**   | `foundry-mcp-prep`        | 22    | about 25,200      | Prepare sessions and write recaps: quests and journals, encounter budgets, the Tarokka reading, handouts, the session log, play stats and the pre-flight check.                                                                                            |
 | **build**  | `foundry-mcp-build`       | 10    | about 24,700      | Make and change NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells. Set up rooms: teleports and tokens in a room.                                                                                              |
-| **admin**  | `foundry-mcp-admin`       | 12    | about 12,700      | Set up and troubleshoot: installed modules and their errors, Foundry settings, modules on or off, user roles, who can open a pack, journal or scene, who owns which actor, round token rings, and the Obsidian mirror settings.                            |
+| **admin**  | `foundry-mcp-admin`       | 11    | about 10,750      | Set up and troubleshoot: installed modules and their errors, Foundry settings, modules on or off, user roles, who can open a pack, journal or scene, who owns which actor, round token rings, and the Obsidian mirror settings.                            |
 | **player** | none (`/mcp/player` only) | 8     | about 3,050       | A player's own read-only view: their character sheet, what their next level grants, short passages from the books their Foundry user can see, their revealed handouts, recap and quests, and their play stats. Served only on /mcp/player, never on stdio. |
 
 A prep chat with core and prep on carries about 42,250 characters instead of 129,250. Core alone is
@@ -66,7 +66,7 @@ Each tool's set is the `set` field of its entry in the `tools` map of its module
 - **prep:** `create-quest-journal`, `link-quest-to-npc`, `update-quest-journal`,
   `create-campaign-dashboard`, `get-session-log`, `suggest-balanced-encounter`,
   `get-tarokka-reading`, `plan-tarokka-import`, `suggest-tarokka-links`, `plan-tarokka-links`,
-  `plan-tarokka-reveal`, `get-play-session`, `draft-omens`, `get-play-stats`, `get-player-visibility`,
+  `plan-tarokka-reveal`, `get-play-session`, `draft-omens`, `get-play-stats`, `plan-campaign-merge`, `get-player-visibility`,
   `list-revealed-pages`, `get-player-handouts`, `plan-page-reveal`, `get-preflight`,
   `get-prep-digest`, `list-ref-choices`
 - **build:** `manage-world-items`, `list-creatures-by-criteria`, `create-actor-from-compendium`,
@@ -74,7 +74,7 @@ Each tool's set is the `set` field of its entry in the `tools` map of its module
   `dnd5e-add-features-from-compendium`, `plan-room-setup`, `plan-pc-creation`, `plan-actor-image`, `plan-macro`
 - **admin:** `plan-ownership-change`, `list-actor-ownership`, `plan-token-rings`,
   `plan-table-viewer`, `plan-foundry-setup`, `get-modules`, `get-module-errors`,
-  `clear-module-errors`, `get-module-manifest`, `get-obsidian-mirror`, `plan-obsidian-mirror`, `plan-campaign-merge`
+  `clear-module-errors`, `get-module-manifest`, `get-obsidian-mirror`, `plan-obsidian-mirror`
 - **player:** `get-my-character`, `get-my-level-up-options`, `search-books`, `find-book-entries`,
   `get-book-entry`, `get-my-handouts`, `get-my-play-stats`, `get-player-skill-guide`
 

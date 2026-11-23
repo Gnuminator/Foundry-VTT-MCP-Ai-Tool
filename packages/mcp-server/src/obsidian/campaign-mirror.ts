@@ -35,7 +35,7 @@ function safeTarget(text: string): string {
     .trim();
 }
 
-export interface PreparedCampaignHtml {
+interface PreparedCampaignHtml {
   html: string;
   /** Put the wikilinks into the Markdown the converter made. */
   restore(markdown: string): string;

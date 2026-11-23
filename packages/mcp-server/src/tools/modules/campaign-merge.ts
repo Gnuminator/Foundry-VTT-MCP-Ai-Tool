@@ -14,6 +14,6 @@ export const campaignMergeModule = defineToolModule({
     'plan-campaign-merge': (tools, args) => tools.handlePlanCampaignMerge(args),
   },
   tools: {
-    'plan-campaign-merge': { set: 'admin', title: 'Plan campaign page merge', kind: 'read' },
+    'plan-campaign-merge': { set: 'prep', title: 'Plan campaign page merge', kind: 'read' },
   },
 });

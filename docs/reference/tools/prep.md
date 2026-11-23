@@ -210,6 +210,38 @@ Parameters:
 - `session` (integer or string): Which play session to return stats for: a 1-based session number (same numbering as the Obsidian session notes), or "latest" (default).
 - `pcName` (string): Only this PC's stats (partial, case-insensitive match on the name). Omit for every PC.
 
+## plan-campaign-merge
+
+Plan adding facts to the GM-only Campaign journals (kind: brothers, npcs, creatures, locations, lore, threads, sessions, table). Each entry is one page; give Danish and English. Returns additions (new pages and lines, marked new; apply at once when autoApply is true) and changes (rewrites; need confirm). Names not confirmed yet: nameConfirmed false holds the entry back. setup creates the eight journals; markSeen clears the new marks.
+
+Kind: read-only. Title: Plan campaign page merge.
+
+Parameters:
+
+- `entries` (array of object)
+  - `kind` (string, required): One of: `brothers`, `npcs`, `creatures`, `locations`, `lore`, `threads`, `sessions`, `table`.
+  - `name` (string, required): The page: an NPC, place, session.
+  - `nameConfirmed` (boolean)
+  - `summary` (object)
+    - `da` (string): Danish (da) and English (en) text.
+    - `en` (string): Danish (da) and English (en) text.
+  - `replaceSummary` (boolean): Replace an existing summary.
+  - `statBlock` (object)
+    - `uuid` (string)
+    - `name` (string)
+  - `relations` (array of object)
+    - `to` (string)
+    - `da` (string): Danish (da) and English (en) text.
+    - `en` (string): Danish (da) and English (en) text.
+  - `timeline` (array of object)
+    - `session` (string, required): e.g. "Session 00".
+    - `ref` (string): e.g. transcript.en#^u000556.
+    - `time` (string)
+    - `da` (string): Danish (da) and English (en) text.
+    - `en` (string): Danish (da) and English (en) text.
+- `setup` (boolean)
+- `markSeen` (boolean)
+
 ## get-player-visibility
 
 GM ONLY. What the players currently see, computed on the Foundry client: actor ids at least one player owns, the active scene as players know it (or a generic label), and which tokens on it players can see and by what name. Read-only.

@@ -615,7 +615,7 @@ describe('FoundryDataAccess: roll request event', () => {
 });
 
 describe('FoundryDataAccess: requestPlayerRolls: ability cards with a DC', () => {
-  it('builds an ability roll request and folds reason + DC into the flavor', async () => {
+  it('builds an ability roll request with the DC in the flavor, as the backend sends it', async () => {
     world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
     addPlayerCharacter({
       id: 'a1',
@@ -630,7 +630,7 @@ describe('FoundryDataAccess: requestPlayerRolls: ability cards with a DC', () =>
       targetPlayer: 'Alice',
       isPublic: true,
       rollModifier: '',
-      flavor: 'Spot the trap',
+      flavor: 'Spot the trap, DC 15',
       dc: 15,
     });
 
@@ -652,7 +652,7 @@ describe('FoundryDataAccess: requestPlayerRolls: ability cards with a DC', () =>
       targetPlayer: 'Alice',
       isPublic: true,
       rollModifier: '',
-      flavor: 'Spot the trap',
+      flavor: 'Spot the trap, DC 15',
       dc: 15,
     });
     const msg = world.messages.contents[world.messages.contents.length - 1];

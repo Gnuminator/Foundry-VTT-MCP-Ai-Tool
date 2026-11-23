@@ -2,14 +2,16 @@
  * Every registered bridge handler has a caller, and every full wire name the backend or
  * dashboard sends has a handler. The callers are read from the sources of the backend
  * (`packages/mcp-server/src`), the dashboard and `shared/src`. A handler counts as called when
- * a source file writes its full wire name (`foundry-mcp-bridge.<name>`) or its bare name as a
- * quoted string (`query('manageRest', ...)`, `LIVE_PLAN_QUERY = 'planLiveChange'`). A handler
- * nothing calls (dead code that still counts as a gated write and carries tests) or a full wire
- * name with no handler (a typo that only fails at runtime) fails here.
+ * a string literal in code (not a comment or a type key) is its full wire name (`foundry-mcp-bridge.<name>`)
+ * or, for camelCase names, its bare name (`query('manageRest', ...)`, `LIVE_PLAN_QUERY = 'planLiveChange'`);
+ * a kebab-case handler needs its full wire name, since the bare string is also an MCP tool name. A
+ * handler nothing calls (dead code that still counts as a gated write and carries tests) or a
+ * full wire name with no handler (a typo that only fails at runtime) fails here.
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import ts from 'typescript';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { bridgeHandlers } from './bridge-handlers.js';
@@ -34,37 +36,63 @@ const CALLED_ANOTHER_WAY: Record<string, string> = {};
 function sourceFiles(dir: string): string[] {
   const out: string[] = [];
   for (const entry of readdirSync(dir)) {
-    if (entry === 'node_modules' || entry === 'dist') continue;
+    if (entry === 'node_modules' || entry === 'dist' || entry === 'test-support') continue;
     const full = join(dir, entry);
     if (statSync(full).isDirectory()) out.push(...sourceFiles(full));
-    else if (/\.(ts|tsx|mjs)$/.test(entry) && !/\.(test|stories|generated)\.[a-z]+$/.test(entry)) {
+    else if (
+      /\.(ts|tsx|mjs)$/.test(entry) &&
+      !/\.(test|stories|generated)\.[a-z]+$/.test(entry) &&
+      // The typed method map lists every method as a type key, not as a call.
+      entry !== 'bridge-queries.ts'
+    ) {
       out.push(full);
     }
   }
   return out;
 }
 
-/** The text of every caller source file (tests, stories and generated files left out). */
-function callerSources(): string[] {
-  return CALLER_DIRS.flatMap(dir => sourceFiles(join(repoRoot, dir))).map(file =>
-    readFileSync(file, 'utf8')
+/** The text of every string literal in the caller sources (comments and type keys do not count). */
+function literalsOf(fileName: string, text: string): string[] {
+  const out: string[] = [];
+  const sf = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, true);
+  const visit = (node: ts.Node): void => {
+    if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) out.push(node.text);
+    else if (ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node)) {
+      out.push(node.text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return out;
+}
+
+function callerLiterals(): string[] {
+  return CALLER_DIRS.flatMap(dir => sourceFiles(join(repoRoot, dir))).flatMap(file =>
+    literalsOf(file, readFileSync(file, 'utf8'))
   );
 }
 
-/** The method names the callers write as full wire names (a `flags.` path is a document flag). */
-function fullNamesSent(sources: string[]): Set<string> {
+/** The method names the callers write as full wire names (a `flags.` or `settings.` path is not a call). */
+function fullNamesSent(literals: string[]): Set<string> {
   const names = new Set<string>();
-  const pattern = new RegExp(`(?<!flags\\.)${MODULE_ID}\\.([A-Za-z][A-Za-z0-9-]*)`, 'g');
-  for (const text of sources) {
+  const pattern = new RegExp(
+    `(?<!flags\\.|settings\\.)${MODULE_ID}\\.([A-Za-z][A-Za-z0-9-]*)`,
+    'g'
+  );
+  for (const text of literals) {
     for (const m of text.matchAll(pattern)) names.add(m[1]);
   }
   return names;
 }
 
-/** Whether any caller writes `name` as a full wire name or as a quoted bare name. */
-function isCalled(name: string, sources: string[], full: Set<string>): boolean {
+/**
+ * Whether a caller names `name`: as a full wire name, or (camelCase names only) as a bare string
+ * such as `query('manageRest')` or a `*_QUERY` constant. A bare kebab-case string is also an MCP
+ * tool name, so a kebab handler needs its full wire name.
+ */
+function isCalled(name: string, literals: string[], full: Set<string>): boolean {
   if (full.has(name)) return true;
-  return sources.some(text => ["'", '"', '`'].some(q => text.includes(q + name + q)));
+  return !name.includes('-') && literals.includes(name);
 }
 
 let world: TestWorld;
@@ -88,10 +116,10 @@ describe('bridge handlers and the names the backend and dashboard send', () => {
   it('every registered handler has a caller', () => {
     new QueryHandlers().registerHandlers();
     const registered = bridgeHandlers.methods().map(m => m.slice(MODULE_ID.length + 1));
-    const sources = callerSources();
-    const full = fullNamesSent(sources);
+    const literals = callerLiterals();
+    const full = fullNamesSent(literals);
     const uncalled = registered
-      .filter(n => !(n in CALLED_ANOTHER_WAY) && !isCalled(n, sources, full))
+      .filter(n => !(n in CALLED_ANOTHER_WAY) && !isCalled(n, literals, full))
       .sort();
     expect(uncalled).toEqual([]);
   });
@@ -99,8 +127,23 @@ describe('bridge handlers and the names the backend and dashboard send', () => {
   it('every name the callers send has a handler', () => {
     new QueryHandlers().registerHandlers();
     const registered = new Set(bridgeHandlers.methods().map(m => m.slice(MODULE_ID.length + 1)));
-    const unknown = [...fullNamesSent(callerSources())].filter(n => !registered.has(n)).sort();
+    const unknown = [...fullNamesSent(callerLiterals())].filter(n => !registered.has(n)).sort();
     expect(unknown).toEqual([]);
+  });
+
+  it('a comment or a type-only mention does not count as a caller', () => {
+    const source = [
+      '// `getTokenDetails` is mentioned here',
+      '/** and `getTokenDetails` here */',
+      'interface T { getTokenDetails: string }',
+      "const call = query('manageRest');",
+    ].join('\n');
+    const literals = literalsOf('x.ts', source);
+    expect(literals).toEqual(['manageRest']);
+    expect(isCalled('getTokenDetails', literals, new Set())).toBe(false);
+    expect(isCalled('manageRest', literals, new Set())).toBe(true);
+    // A bare kebab-case string is a tool name, not a wire call.
+    expect(isCalled('get-token-details', ['get-token-details'], new Set())).toBe(false);
   });
 
   it('the exceptions list names only registered handlers', () => {

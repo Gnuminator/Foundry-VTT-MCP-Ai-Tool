@@ -28,7 +28,15 @@ ITEM = _obj(da=_STR, en=_STR, cites=_IDS)
 NPC = _obj(
     name_da=_STR, name_en=_STR, aliases={"type": "array", "items": _STR}, da=_STR, en=_STR, cites=_IDS
 )
-QUOTE = _obj(id=_STR, da=_STR, en=_STR)
+# A quote keeps the words as spoken (`spoken`, in `spoken_lang`); `en` is the English translation
+# (the spoken words again when they were English).
+QUOTE = _obj(id=_STR, spoken=_STR, spoken_lang={"type": "string", "enum": ["da", "en"]}, en=_STR)
+SETTINGS = ("game", "table", "mixed")
+TABLE_TOPICS = ("house_rules", "proposed", "play_style", "absence", "planning", "open")
+TABLE_ITEM = _obj(
+    topic={"type": "string", "enum": list(TABLE_TOPICS)}, da=_STR, en=_STR, cites=_IDS
+)
+TABLE_NOTE = _obj(da=_STR, en=_STR)
 LINE = _obj(id=_STR, da=_STR, en=_STR, ooc={"type": "boolean"})
 
 SCENE_SCHEMA = _obj(
@@ -37,14 +45,15 @@ SCENE_SCHEMA = _obj(
     title_en=_STR,
     summary_da=_STR,
     summary_en=_STR,
+    setting={"type": "string", "enum": list(SETTINGS)},
     events=_list(ITEM),
     decisions=_list(ITEM),
     npcs=_list(NPC),
-    loot=_list(ITEM),
     threads=_list(ITEM),
-    dice=_list(ITEM),
     quotes=_list(QUOTE),
     gm_only=_list(ITEM),
+    table=_list(TABLE_ITEM),
+    table_note=TABLE_NOTE,
 )
 
 SESSION_SCHEMA = _obj(
@@ -52,6 +61,8 @@ SESSION_SCHEMA = _obj(
     title_en=_STR,
     summary_da=_STR,
     summary_en=_STR,
+    in_short_da=_list(_STR),
+    in_short_en=_list(_STR),
     changed_da=_list(_STR),
     changed_en=_list(_STR),
     recap_player_da=_STR,
@@ -77,30 +88,50 @@ Lines (the cleaned transcript):
   the real world), false for play, narration and in-character speech.
 
 Notes (Danish `da` and English `en` for every entry):
-- Notes come from play: the GM's narration and rulings, and what the characters say and do.
-  Out-of-character talk (memories of earlier sessions, jokes, opinions about the game, rules
-  debates) is not an event; use it only where it settles something in the game (a ruling,
-  a roll result, a choice).
-- Name characters, not players, wherever the roster says who plays whom.
-- Pronouns: use the pronouns the roster gives for a person. Where it gives none, use they/them
-  (or the name); never guess someone's pronouns from a name or a role, and never write "she" for
-  the GM unless the roster says so.
-- events: what happened in the story, in order. decisions: choices the party made.
+- Every line of the scene is either in the game or at the table. In the game: the GM's narration
+  and rulings, and what the characters say and do. At the table: rules talk, house rules, how the
+  group plays, who can or cannot come, planning the next session, jokes, tech trouble, a
+  player's wish about their own character. Never write table talk as something a character
+  chose or did.
+- setting: "game" when the scene is played, "table" when the whole scene is at the table
+  (character creation talk, rules debates, planning), "mixed" when it has both.
+- events: what happened in the story, in order, one line per beat. Items, money or information
+  gained or lost, and natural 20s, natural 1s or rolls that changed the outcome dramatically, are
+  events too, not lists of their own. Only in-game events.
+- decisions: in-game choices a character or the party made. Empty when none.
 - npcs: non-player characters who appear or are talked about (not the player characters).
   Give each NPC `name_da` and `name_en`: a proper name stays as spoken in both; a title or
   description the table uses as a name is translated (Danish "Kommandøren" is "The Commander" in
   `name_en`, "Fuld soldat" is "Drunk soldier"), so English notes never carry Danish labels.
+  `da` and `en` are one line on who they are; say "only heard of here" ("kun omtalt her") when
+  the NPC was talked about but not met.
   One NPC is one entry: when speech recognition or the table spells the same name in several
   ways (Vesperholt, Vesperhult), use one entry, put the best spelling in the name fields and the
   other spellings in `aliases` (empty list when there are none).
-- loot: items, money or information gained or lost. threads: open questions and hooks.
-- dice: only natural 20s, natural 1s and rolls that changed the outcome dramatically.
-- quotes: at most three memorable lines, by line id.
+- threads: open in-game questions and hooks, each phrased as a question.
+- quotes: at most three memorable in-game lines, by line id. `spoken` is the speaker's words as
+  said (cleaned like the lines), `spoken_lang` the language they were said in, `en` the English
+  translation (the same words again when they were said in English).
 - gm_only: things players should not read in a recap: GM asides, secrets the GM says aloud to
   one player, hidden rolls, plans for later. Keep them out of the other lists.
+- table: what was said at the table, one entry per point. `topic` is exactly one of:
+  house_rules (a rule the table settled), proposed (suggested but not settled), play_style (how
+  the group wants to play, tone, safety, what to run from), absence (who cannot come or leaves
+  early), planning (dates, the next session, who brings what), open (a question the table left
+  open). A player's wish about their own character goes here as play_style, naming the player.
+- table_note: one short phrase on what was talked about at the table, used as a pointer line in
+  the notes ("permadeath, the fumble rule and loot were settled"). Empty strings when the scene
+  has nothing at the table.
+- Name characters, not players, wherever the roster says who plays whom (except in table
+  entries, which are about the players).
+- Pronouns: use the pronouns the roster gives for a person. Where it gives none, use they/them
+  (or the name); never guess someone's pronouns from a name or a role, and never write "she" for
+  the GM unless the roster says so.
 - Every entry cites the line ids it is based on. Never invent anything; leave a list empty
-  when the scene has nothing for it.
-- title and summary: a short scene title and 2 to 4 sentences, in both languages.
+  when the scene has nothing for it. Name variants and spelling guesses are not notes.
+- title: a short scene title. summary: for a "game" or "mixed" scene 2 to 3 sentences; for a "table"
+  scene exactly 2 sentences saying what the table talked about and settled. Never write a
+  placeholder, "n/a" or a bare label as a summary. Both languages.
 """
 
 SESSION_RULES = """\
@@ -115,15 +146,22 @@ English (`en`):
   roster says so.
 - NPCs: in the English text use each NPC's `name_en` from the notes, in the Danish text
   `name_da`; never leave a Danish label in English text.
-- title: a short title for the session.
-- summary: up to 400 words for the GM (shorter when little happened), in story order, may include gm_only material.
+- title: a short title for the session; start it with "Session N:" (Danish "Session N:") when the notes
+  say which session number it is.
+- in_short: exactly 5 one-line points, in story order, for the start page: the first about the
+  session as a whole, the last ends with the date of the next session if the notes say so
+  (otherwise it ends with what comes next). Counts of people or things (brothers, party members)
+  only as the notes give them.
+- summary: up to 400 words for the GM (shorter when little happened), in story order, may include gm_only material, written as ordinary sentences with no
+  English labels in the Danish text (never "GM only:"; Danish says "Kun for GM").
 - changed: up to 8 bullets on what changed in the world or for the party (none if nothing did).
 - recap_player: up to 300 words for the players (a sentence or two when little happened), addressed to the party (English "you",
   Danish "I"), written as a "previously on" recap. It must not contain anything from any gm_only list, no
   hidden rolls, no GM plans, and nothing the characters could not know. Dice: only natural 20s,
   natural 1s and dramatic moments. Use character names, not player names. The GM approves it
   before any player sees it.
-Use only what is in the notes. Leave out table talk that did not happen in the game.
+Use only what is in the notes. Table entries (house rules, planning) may appear in in_short and
+the summary as table agreements, never as something a character did; keep them out of the recap.
 """
 
 

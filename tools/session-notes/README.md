@@ -99,25 +99,33 @@ why nothing happened.
 
 In `<session>/notes/`, for `da` and `en` each:
 
-| File                     | Layer | What                                                                                                                                              |
-| ------------------------ | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `transcript.<lang>.md`   | L1    | cleaned transcript by scene; each line has a block anchor `^u000123`; out-of-character talk in italics                                            |
-| `scenes.<lang>.md`       | L2    | per scene: summary, events, decisions, NPCs, loot, open threads, dice, quotes, and a "GM only" section; every entry links to its transcript lines |
-| `summary.<lang>.md`      | L3    | session summary and "what changed", for the GM                                                                                                    |
-| `recap.player.<lang>.md` | L3    | the players' "previously on" recap, marked as a draft until the GM approves it                                                                    |
+| File                     | Layer | What                                                                                                                                                                                                           |
+| ------------------------ | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `transcript.<lang>.md`   | L1    | cleaned transcript by scene; each line has a block anchor `^u000123`; out-of-character talk in italics                                                                                                         |
+| `index.<lang>.md`        |       | start page: title, date, GM, who plays whom, five lines, links to every page and to the other language                                                                                                         |
+| `scenes.<lang>.md`       | L2    | per scene the same headings in the same order (What happened, Decisions, NPCs met, Open threads, Quotes, GM only), "None" when empty; a scene wholly at the table is a short stub; one timestamp link per line |
+| `table.<lang>.md`        | L2    | everything said at the table, not in the game: house rules, proposed, play style, absence, planning, open                                                                                                      |
+| `raw.<lang>.md`          |       | the recogniser's text as it came (the same text in both files; no Claude call)                                                                                                                                 |
+| `summary.<lang>.md`      | L3    | session summary and "what changed", for the GM                                                                                                                                                                 |
+| `recap.player.<lang>.md` | L3    | the players' "previously on" recap, marked as a draft until the GM approves it                                                                                                                                 |
 
 Plus `notes.json` (everything, for later steps) and `audit.jsonl` (calls, checks, fixes, pauses).
 
+The layout is fixed (design "Session notes format", 2026-11-23). Quotes stay in the spoken
+language and the English file adds the translation in brackets; name variants are not in the
+notes (the names check page has them). With `--layers` the character pages (titled "X, played by Y",
+with In the story, Player wishes and GM only) and the worth-remembering page are written in both
+languages too.
+
 ### The three Danish layers (I-066)
 
-With `--layers`, a run also writes, in Danish only:
+With `--layers`, a run also writes the in-depth notes in Danish only (`raw` is written without
+`--layers` now):
 
-| File            | Layer    | What                                                                                                                                                     |
-| --------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `raw.da.md`     | raw      | the recogniser's text exactly as it came, by scene and time, words it was unsure about as `[ord?]`; no Claude call (word times stay in `timeline.jsonl`) |
-| `depth.da.md`   | in-depth | per scene a detailed account in beats (who said and did what, rulings, names, numbers said aloud), each beat linked to transcript lines; GM only         |
-| `summary.da.md` | summary  | the existing summary                                                                                                                                     |
-| `index.da.md`   |          | links the three layers, with the cleaned transcript and scene notes between them                                                                         |
+| File            | Layer    | What                                                                                                                                             |
+| --------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `depth.da.md`   | in-depth | per scene a detailed account in beats (who said and did what, rulings, names, numbers said aloud), each beat linked to transcript lines; GM only |
+| `summary.da.md` | summary  | the existing summary                                                                                                                             |
 
 The in-depth layer is one more Claude call per scene (`--depth-model`, `--depth-effort`, default
 Sonnet at medium), checked (at least one beat, citations of real lines only, not too thin for a

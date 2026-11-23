@@ -27,8 +27,6 @@ export function registerCompendiumHandlers(ctx: QueryContext, table: BridgeHandl
     'read',
     withCtx(ctx, getCompendiumDocumentFull)
   );
-  // Enhanced creature index for campaign analysis
-  table.set(`${MODULE_ID}.getEnhancedCreatureIndex`, 'read', () => getEnhancedCreatureIndex(ctx));
   table.set(
     `${MODULE_ID}.suggestBalancedEncounter`,
     'read',
@@ -149,15 +147,6 @@ async function getCompendiumDocumentFull(
     }
 
     return await ctx.dataAccess.getCompendiumDocumentFull(data.packId, data.documentId);
-  });
-}
-
-/**
- * Handle get enhanced creature index request
- */
-async function getEnhancedCreatureIndex(ctx: QueryContext): Promise<unknown> {
-  return ctx.withGmGate('Failed to get enhanced creature index', async () => {
-    return await ctx.dataAccess.getEnhancedCreatureIndex();
   });
 }
 

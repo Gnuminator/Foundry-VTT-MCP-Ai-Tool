@@ -5,7 +5,6 @@
  */
 import type { BridgeHandlerTable } from '../bridge-handlers.js';
 import { MODULE_ID } from '../constants.js';
-import { setCampaignPartStatus } from '../campaign-hooks.js';
 import { getScenePages } from '../data-access/scene-pages.js';
 import { ensureJournalFolder } from '../data-access/journal-folder.js';
 import { postHandoutNotice, showJournalPage } from '../data-access/journal-show.js';
@@ -34,7 +33,6 @@ export function registerJournalHandlers(ctx: QueryContext, table: BridgeHandlerT
     )
   );
   table.set(`${MODULE_ID}.updateJournalContent`, 'write', withCtx(ctx, updateJournalContent));
-  table.set(`${MODULE_ID}.updateCampaignProgress`, 'write', withCtx(ctx, updateCampaignProgress));
 
   // The session notes folder (recap lane, D-087; GM-only)
   table.on(`${MODULE_ID}.ensureJournalFolder`, 'recordless-write', (data: unknown) =>
@@ -190,34 +188,5 @@ async function updateJournalContent(
     if (data.newPageName) updateRequest.newPageName = data.newPageName;
 
     return await ctx.dataAccess.updateJournalContent(updateRequest);
-  });
-}
-
-/**
- * Handle campaign progress update request
- */
-async function updateCampaignProgress(
-  ctx: QueryContext,
-  data: {
-    campaignId: string;
-    partId: string;
-    newStatus: string;
-  }
-): Promise<unknown> {
-  return ctx.withGmGate('Failed to update campaign progress', async () => {
-    const { journalId, journalName } = await setCampaignPartStatus(
-      data.campaignId,
-      data.partId,
-      data.newStatus
-    );
-    return {
-      success: true,
-      message: `Campaign progress updated: ${data.partId} is now ${data.newStatus}`,
-      campaignId: data.campaignId,
-      partId: data.partId,
-      newStatus: data.newStatus,
-      journalId,
-      journalName,
-    };
   });
 }

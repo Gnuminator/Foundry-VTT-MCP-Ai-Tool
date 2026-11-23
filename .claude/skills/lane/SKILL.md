@@ -24,14 +24,14 @@ Not prose, not only the wrap-up ask, never a message asking the planner to get i
    the same paths, or an unmerged dependency, means wait or ask the planner. Use your own worktree.
 2. `git branch --show-current`. New work:
    `git fetch aitool && git checkout --no-track -b claude/<topic> aitool/main`, then `npm ci`.
-3. Read only what the item names. More than about eight files to read goes to an Explore subagent
-   (`model: "haiku"`) that returns a summary with file:line; you read only what you edit.
+3. Read only what the item names. Over about eight files goes to an Explore subagent
+   (`model: "haiku"`) that returns a summary with file:line.
 
 ## Work
 
 - **Subagents:** `model: "sonnet"` for code, tests, scripts and sweeps; Opus only for design and
   the one risky-PR review; Haiku suits long notes, logs and read-only sweeps. Partition workers by
-  file, lock shared contracts first, big files in parts of about 250 lines.
+  file, lock shared contracts first, big files in parts of 250 lines.
   Workers never build, sync or commit.
 - **Set `model` on every Agent call, Workflow `agent()` call and `start_session`** (unset inherits
   the caller's); `guard-model.mjs` denies one without it (forks, cloud starts exempt). Agent takes `sonnet`, `haiku`, `opus`; `start_session` a full id.
@@ -91,7 +91,7 @@ scripts/heavy-lock.mjs status`). `SKIP_PREPUSH=1 git push ...` skips the em-dash
   Opus review, not both. Everything else gets a Sonnet review plus CI. The reviewer is a read-only
   subagent; give it the PR number, the full head sha, the area, a `git diff aitool/main...HEAD`
   file and the PR description, in a checkout at that sha. A narrow agent cannot write files: save
-  its answer unchanged as the note. A note with only lows says **Merge.**
+  its answer as the note. Only lows says **Merge.**
 - **Review note:** save the reviewer's text (findings as H1, M1, L1 with file:line and a fix) to a file, then
   `node scripts/review-note.mjs <PR> --verdict merge|fixes|no --model opus|sonnet --body <file> [--round N]`.
   It names the file, writes the head and verdict lines, checks them with the gate's parser and pushes the vault
@@ -99,10 +99,9 @@ scripts/heavy-lock.mjs status`). `SKIP_PREPUSH=1 git push ...` skips the em-dash
   shots in CI's `dashboard-visual-diff` artifact (`index.html`) need `visual: accepted <n> <hash>`
   in the note (the refusal prints it) once they look intended; repeat it per new head.
 - **Findings:** fix highs and mediums in one batch, push, wait for CI green on the new head, and
-  give the same reviewer one delta check. Lows: when the PR needs a fix round anyway,
-  fix them in it; a note with only lows says Merge and each low becomes
-  `backlog.mjs low <area> "PR <n> L<k>: <what>, <file>"`. A lows PR
-  files no new lows but still gets mediums and highs. A docs-only, test-only or changelog-only commit after a Merge gets a delta note on
+  give the same reviewer one delta check. A low is a flaw a user would notice or that can give a wrong result, else unfiled. Fix lows in a fix round; otherwise each becomes
+  `backlog.mjs low <area> "PR <n> L<k>: <what>, <file>"` (file named); a lane touching that file fixes it in passing. Sweep at 20 lines or a month-old line. A lows PR
+  files no new lows. A docs-only, test-only or changelog-only commit after a Merge gets a delta note on
   that sha instead of a round 3; a third round for anything else needs the planner. A clean merge
   of main or rebase with the same `git patch-id` needs no new note (the gate carries the verdict).
 - **Push:** `git push -u aitool claude/<topic>:claude/<topic>` (explicit refspec, never a bare

@@ -191,14 +191,17 @@ def run_names(args: argparse.Namespace) -> int:
         if problem:
             raise InputError(f"{problem}; no names written (use --any-world for a test world)")
     names, world, warning = namelist.build(fetch, extra, items=args.items, journals=args.journals)
-    if world is None and args.cache and args.cache.exists():
+    if world is None and not args.offline and args.cache and args.cache.exists():
         names = namelist.merge_names(names, namelist.read_extra(args.cache))
         print(f"using the saved campaign names from {args.cache}", file=sys.stderr)
     if warning:
         print(f"warning: {warning}", file=sys.stderr)
-    if world and args.cache and not args.any_world:
+    campaign = [*world.pcs, *world.groups, *world.npcs, *world.scenes] if world else []
+    if campaign and args.cache and not args.any_world:
         args.cache.parent.mkdir(parents=True, exist_ok=True)
-        args.cache.write_text(namelist.render(world.ordered()), encoding="utf-8", newline="\n")
+        tmp = args.cache.with_name(args.cache.name + ".tmp")
+        tmp.write_text(namelist.render(campaign), encoding="utf-8", newline="\n")
+        tmp.replace(args.cache)
     if not names:
         raise InputError("no names: the world gave none and there is no extra list")
     args.out.parent.mkdir(parents=True, exist_ok=True)

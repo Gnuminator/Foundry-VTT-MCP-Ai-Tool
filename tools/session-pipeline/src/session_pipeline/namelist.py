@@ -52,6 +52,15 @@ _GENERIC = {
 _BRACKETS = re.compile(r"\([^)]*\)|\[[^\]]*\]|\{[^}]*\}")
 _TRAILING_NUMBER = re.compile(r"[\s#_-]*\d+$")
 
+class _Refuse(urllib.request.HTTPRedirectHandler):
+    """The token must not follow a redirect to another host (a login page, say)."""
+
+    def redirect_request(self, *args: Any, **kwargs: Any) -> None:
+        return None
+
+
+_NO_REDIRECT = urllib.request.build_opener(_Refuse)
+
 Fetch = Callable[[str, Mapping[str, Any] | None], list[dict[str, Any]]]
 
 
@@ -138,7 +147,7 @@ def dashboard_fetch(base_url: str, token: str | None = None, timeout: float = 10
         if token:
             headers["X-CoGM-Token"] = token
         req = urllib.request.Request(base_url.rstrip("/") + "/api/tool", body, headers, method="POST")
-        with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 (local dashboard)
+        with _NO_REDIRECT.open(req, timeout=timeout) as resp:
             payload = json.loads(resp.read().decode("utf-8"))
         return parse_choices(payload)
 
@@ -216,9 +225,10 @@ def campaign_world() -> str:
 
 
 def parse_world_id(payload: Any) -> str | None:
-    """The world id in a ``/api/tool`` answer for ``get-world-info``, or None."""
+    """The world id in a ``/api/tool`` answer for ``get-world-info``. A "not ok" answer raises
+    ValueError (Foundry is down: the caller treats it like an unreachable dashboard)."""
     if not isinstance(payload, dict) or payload.get("ok") is False:
-        return None
+        raise ValueError("the dashboard answered, but not with the world")
     result = payload.get("result")
     if isinstance(result, dict) and isinstance(result.get("world"), dict):
         result = result["world"]
@@ -233,7 +243,7 @@ def fetch_world_id(base_url: str, token: str | None = None, timeout: float = 10.
     if token:
         headers["X-CoGM-Token"] = token
     req = urllib.request.Request(base_url.rstrip("/") + "/api/tool", body, headers, method="POST")
-    with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310
+    with _NO_REDIRECT.open(req, timeout=timeout) as resp:
         return parse_world_id(json.loads(resp.read().decode("utf-8")))
 
 

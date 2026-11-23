@@ -25,6 +25,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ERROR_MESSAGES } from './constants.js';
 import { createTestWorld, makeActor, type TestWorld } from './test-support/foundry-mock/index.js';
 import { FoundryDataAccess } from './data-access.js';
+import type { SceneTokenPlacement } from './data-access/types.js';
 import { WRITES_DISABLED_MESSAGE } from './write-gate.js';
 
 let world: TestWorld;
@@ -32,11 +33,7 @@ let restore: () => void;
 let da: FoundryDataAccess;
 
 /** The facade no longer forwards `addActorsToScene` (no bridge handler calls it); the domain still does. */
-const addActorsToScene = (placement: {
-  actorIds: string[];
-  placement?: 'random' | 'grid' | 'center';
-  hidden?: boolean;
-}): Promise<any> =>
+const addActorsToScene = (placement: SceneTokenPlacement): Promise<any> =>
   (
     da as unknown as { actorCreation: { addActorsToScene(p: unknown): Promise<any> } }
   ).actorCreation.addActorsToScene(placement);

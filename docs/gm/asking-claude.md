@@ -60,7 +60,7 @@ Requests that go wrong:
 ## Tool sets: which switches to turn on
 
 Claude Desktop shows the tool as five entries, one per tool set, each with its own switch in the
-**+** menu under the message box, then **Connectors** (the exact place can move between Claude
+**+** menu under the message box, then **Plugins** (the exact place can move between Claude
 Desktop versions). Claude reads every tool that is switched on at the start of a chat, so fewer switches
 means more room for your conversation and fewer wrong picks. The switches stay as you left them for
 new chats.
@@ -179,7 +179,7 @@ Foundry. So:
 - Ask Claude to tell you what it will do before it does it: "Tell me the plan, then wait for my
   OK."
 - Claude Desktop can ask for your OK before Claude uses a tool. We suggest **Always allow** for
-  both groups on each Foundry connector (**Customize**, **Connectors**, the connector, **Tool
+  both groups on each Foundry connector (**Settings**, **Plugins**, **Connectors**, the connector, **Tool
   permissions**: **Read-only tools** and **Write/delete tools**), because changes made through
   `apply-planned-change` already show you the plan and wait for your confirm, and you can undo
   them. The direct actions below do not, so with **Always allow** on writes Claude Desktop will
@@ -198,6 +198,24 @@ dashboard's actions too, not only Claude.
 The dashboard's **GM Actions** switch only guards the dashboard. It does not stop Claude Desktop.
 
 > **Not sure? Ask Claude.** Ask the GM coach: "How do I check and undo what Claude changes in my game?"
+
+## Newer things Claude can do
+
+- **Change cards.** In Claude Desktop, a `plan-*` tool (core, play, build and admin; prep plans
+  stay text for now) shows a small read-only card with the before and after next to the text plan.
+  The text plan is still there, and Apply still needs your yes. Hosts without cards show text only.
+- **Macros.** Ask Claude to write a script macro and it plans one with `plan-macro`. The plan shows
+  the whole script and a plain summary, the macro is made GM-only, and Undo deletes it. It is off
+  until you turn on **AI Tool: Macro forge (writes)**. The script is checked against a list of
+  allowed things, but that is a guard against mistakes, not a wall: read the script in the plan before
+  you confirm.
+- **Floors.** On a scene with more than one Scene Level, `get-token-positions` says which level each
+  token is on, and `measure-distance` counts height as well. A flat scene works as before.
+- **Room whisper.** `plan-room-setup` has a `whisper` action: a GM-only Region that whispers a room
+  card to you when a token walks in. The text sits on a GM-only journal made in the same plan. Players
+  are shown nothing on screen. It is planned, confirmed and undone like the other room setups.
+- **Undo and Prone.** Undoing damage that dropped a hero to 0 hit points now also takes off the Prone
+  that comes with Unconscious.
 
 ## What Claude cannot do
 

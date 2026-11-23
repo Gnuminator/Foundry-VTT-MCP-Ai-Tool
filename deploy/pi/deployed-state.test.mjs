@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { after, describe, test } from 'node:test';
@@ -66,6 +66,7 @@ function run(opts = {}) {
     writeFileSync(path.join(tool, 'app', '.tool-ref'), `${opts.ref ?? 'v0.25.0'}\n`);
   }
   writeFileSync(path.join(tool, 'gm-browser', 'assistant-gm.mjs'), opts.helper ?? 'helper-v1\n');
+  opts.setup?.(tool);
 
   const units = { ...GOOD_UNITS, ...(opts.units ?? {}) };
   const unitCases = Object.entries(units)
@@ -334,6 +335,111 @@ describe('deployed-state.sh', { skip: noBash }, () => {
     const r = run({ containers: {}, rehearsal: true });
     assert.match(r.out, /WARNING: a rehearsal stack is present/);
     assert.equal(r.code, 0, r.out);
+  });
+
+  const sha = text => createHash('sha256').update(text).digest('hex');
+  const LIST = [
+    '# comment',
+    '5 or 28|gm-browser/assistant-gm.mjs|scripts/pi/remote/assistant-gm.mjs',
+    '29|gamenight-watch/gamenight-watch.mjs|scripts/gamenight-watch.mjs',
+    '35|who-uses-what/who-uses-what.mjs|scripts/who-uses-what.mjs',
+    '',
+  ].join('\n');
+  const b64 = text => Buffer.from(text).toString('base64');
+  const put = (tool, rel, text) => {
+    mkdirSync(path.dirname(path.join(tool, rel)), { recursive: true });
+    writeFileSync(path.join(tool, rel), text);
+  };
+
+  test('stage files: a stale file is named with its stage, a missing one is not counted', () => {
+    const r = run({
+      setup: tool => put(tool, 'gamenight-watch/gamenight-watch.mjs', 'old\n'),
+      helper: 'helper-v2\n',
+      expect: {
+        STAGE_FILES_B64: b64(LIST),
+        EXPECT_STAGE_SHAS_B64: b64(
+          `scripts/pi/remote/assistant-gm.mjs ${sha('helper-v2\n')}\nscripts/gamenight-watch.mjs ${sha('new\n')}\nscripts/who-uses-what.mjs ${sha('x')}\n`
+        ),
+      },
+    });
+    assert.equal(r.code, 0, 'a stale file is a warning');
+    assert.match(r.out, /WARNING: .*gamenight-watch\.mjs differs from the release copy of scripts\/gamenight-watch\.mjs: run stage 29 again/);
+    assert.doesNotMatch(r.out, /assistant-gm\.mjs differs/);
+    assert.doesNotMatch(r.out, /who-uses-what\.mjs differs/);
+    assert.match(r.out, /stage files: 1 behind, 1 match, 0 ahead, 1 not installed/);
+  });
+
+  test('stage files: a file that matches main but not the release is ahead, not behind', () => {
+    const r = run({
+      setup: tool => put(tool, 'gamenight-watch/gamenight-watch.mjs', 'main\n'),
+      expect: {
+        STAGE_FILES_B64: b64(LIST),
+        EXPECT_STAGE_SOURCE: 'the v0.31.0 copy',
+        EXPECT_STAGE_SHAS_B64: b64(`scripts/gamenight-watch.mjs ${sha('release\n')}\n`),
+        EXPECT_STAGE_MAIN_SHAS_B64: b64(`scripts/gamenight-watch.mjs ${sha('main\n')}\n`),
+      },
+    });
+    assert.match(r.out, /ok: .*gamenight-watch\.mjs matches main's copy of scripts\/gamenight-watch\.mjs \(ahead of the v0\.31\.0 copy\)/);
+    assert.doesNotMatch(r.out, /WARNING: .*gamenight/);
+    assert.match(r.out, /ok: stage files: .*1 ahead of the release.*0 behind/);
+  });
+
+  test('stage files: all current is ok; with no list passed the deployed build supplies list and copies', () => {
+    const current = run({
+      helper: 'h\n',
+      expect: { STAGE_FILES_B64: b64(LIST), EXPECT_STAGE_SHAS_B64: b64(`scripts/pi/remote/assistant-gm.mjs ${sha('h\n')}\n`) },
+    });
+    assert.match(current.out, /ok: stage files: 1 match, 0 ahead of the release, 2 not installed, 0 behind/);
+    const fromBuild = run({
+      helper: 'installed\n',
+      setup: tool => {
+        put(tool, 'app/deploy/pi/stage-files.txt', LIST);
+        put(tool, 'app/scripts/pi/remote/assistant-gm.mjs', 'in the build\n');
+      },
+    });
+    assert.match(fromBuild.out, /assistant-gm\.mjs differs from the deployed build's copy of scripts\/pi\/remote\/assistant-gm\.mjs: run stage 5 or 28 again/);
+  });
+
+  test('stage files: no list anywhere warns that nothing was compared', () => {
+    const r = run({});
+    assert.match(r.out, /WARNING: no stage file list/);
+    assert.equal(r.code, 0);
+  });
+
+  test('stage-files.txt: every repo path exists and every installed path is one a stage writes', () => {
+    const repoRoot = path.resolve(here, '..', '..');
+    const rows = readFileSync(path.join(here, 'stage-files.txt'), 'utf8')
+      .split('\n')
+      .filter(l => l && !l.startsWith('#'))
+      .map(l => l.split('|'));
+    assert.ok(rows.length >= 8);
+    const stageText = readdirSync(path.join(repoRoot, 'scripts', 'pi', 'remote'))
+      .filter(f => f.endsWith('.sh'))
+      .map(f => readFileSync(path.join(repoRoot, 'scripts', 'pi', 'remote', f), 'utf8'))
+      .join('\n');
+    const remoteDir = path.join(repoRoot, 'scripts', 'pi', 'remote');
+    const stageFile = n => readdirSync(remoteDir).find(f => f === `${n}.sh` || f.startsWith(`${n}-`));
+    for (const [stage, rel, repoPath] of rows) {
+      assert.ok(stage && rel && repoPath, `bad row ${stage}|${rel}|${repoPath}`);
+      assert.ok(existsSync(path.join(repoRoot, repoPath)), `${repoPath} is not in the repo`);
+      assert.ok(stageText.includes(path.basename(rel)), `no stage script installs ${path.basename(rel)}`);
+      // The named stage (or one of "5 or 28") must mention the file and its install folder.
+      const named = stage.split(' or ').map(n => stageFile(n)).filter(Boolean);
+      assert.ok(named.length > 0, `no stage script for "${stage}"`);
+      const ok = named.some(f => {
+        const t = readFileSync(path.join(remoteDir, f), 'utf8');
+        return t.includes(path.basename(rel)) && t.includes(path.dirname(rel).split('/')[0]);
+      });
+      assert.ok(ok, `stage "${stage}" does not mention ${rel}`);
+    }
+    // A new copy-from-repo install in a stage needs a row.
+    const listed = new Set(rows.map(r => path.basename(r[1])));
+    for (const f of readdirSync(remoteDir).filter(x => x.endsWith('.sh'))) {
+      const t = readFileSync(path.join(remoteDir, f), 'utf8');
+      for (const m of t.matchAll(/install -m 0?644 (?:-o root -g root )?"\$(?:SETTINGS_DRIVER|SWITCH_DRIVER|SESSION_DRIVER)" "[^"]*\/([\w.-]+\.mjs)"/g)) {
+        assert.ok(listed.has(m[1]), `${f} installs ${m[1]} but deploy/pi/stage-files.txt has no row for it`);
+      }
+    }
   });
 
   test('missing libicu warns', () => {

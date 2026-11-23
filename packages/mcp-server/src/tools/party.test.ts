@@ -6,13 +6,9 @@ import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import type { PartyGroup, PartyMember, PartyState } from '@gnuminator/shared';
 
-import { PartyTools } from './party.js';
+import { makeLogger } from '../test-support/stub-tool-deps.js';
 
-function logger(): any {
-  const l: any = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
-  l.child = (): unknown => l;
-  return l;
-}
+import { PartyTools } from './party.js';
 
 function member(id: string, name: string, tokens: PartyMember['tokens'] = []): PartyMember {
   return {
@@ -82,7 +78,7 @@ beforeEach(() => {
   tools = new PartyTools({
     foundryClient: { query },
     guardedWrites: { createPlan },
-    logger: logger(),
+    logger: makeLogger(),
   });
 });
 

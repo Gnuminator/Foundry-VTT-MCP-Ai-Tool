@@ -1,0 +1,67 @@
+/* ---- Pinned tool calls: the row on the During bar and the Tool Runner's lists ---- */
+.pin-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.5rem;
+  flex: 1 1 100%;
+}
+.pin-row-label {
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--text-faint);
+}
+.pin-result {
+  flex: 1 1 100%;
+  background: var(--bg-sunken);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-sm);
+  padding: 0.4rem 0.6rem;
+}
+.pin-result.err {
+  border-color: var(--bad, var(--border));
+}
+.pin-result-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.pin-result pre {
+  margin: 0.3rem 0 0;
+  max-height: 200px;
+  overflow: auto;
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.pin-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.pin-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.pin-item .ask-input {
+  flex: 1;
+  min-width: 0;
+}
+.pin-item-main {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+.pin-save {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+.pin-save .ask-input {
+  flex: 1;
+  min-width: 0;
+}

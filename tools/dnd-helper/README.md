@@ -13,14 +13,24 @@ Design and decisions: vault `Design/D&D helper design 2026-10-24.md`, I-152.
 npm run dnd-helper
 ```
 
-Writes `tools/dnd-helper/dist/foundry-dnd-helper.zip` (GM edition, core connector) and
-`foundry-dnd-helper-player.zip` (player edition, see below), each with its unpacked folder. Pages come from
+By default this builds two thin stubs into `tools/dnd-helper/dist/`: `foundry-dnd-helper.zip` (GM
+edition, core connector) and `foundry-dnd-helper-player.zip` (player edition, see below), each with
+its unpacked folder. A stub is a `SKILL.md` only. It tells Claude to read the real guide from the
+table with `get-skill-guide` (GM edition) or `get-player-skill-guide` (player edition), so the
+guide stays current without a new upload.
+
+`npm run dnd-helper -- --full` builds the full zips instead, with every page inside. Pages come from
 `tools/dnd-helper/pages/`, plus the public player guides `docs/player/make-a-character.md` and
 `join.md`. Built like the GM coach (`tools/gm-coach`).
 
+The helper also reaches people through two other routes: the plugin marketplace
+`Gnuminator/foundry-ai-tool-plugins` (Foundry dnd helper and Foundry player helper cards) and the
+player extension `foundry-player.mcpb`, which carries the instructions itself. The steps for both
+are in `docs/player/dnd-helper.md` and `docs/gm/setup-gm-coach.md`.
+
 ## Set up in Claude Desktop
 
-1. **Skill:** Customize, Skills, add a skill, upload `foundry-dnd-helper.zip` (do not unpack it).
+1. **Skill:** Settings, Plugins, Skills, add a skill, upload `foundry-dnd-helper.zip` (do not unpack it).
 2. **Project:** create a project named "D&D helper", paste `project-instructions.md` into the
    project instructions.
 3. **Connector:** in a chat in that project, switch on the Foundry connector (core). Core is always
@@ -31,8 +41,9 @@ Writes `tools/dnd-helper/dist/foundry-dnd-helper.zip` (GM edition, core connecto
 ## Player edition (D-136)
 
 `foundry-dnd-helper-player.zip` has the same flows (create, level up, rules, sheet check) on top
-of the read-only `player` tool set only: `get-my-character`, `get-my-level-up-options`,
-`search-books`, `find-book-entries`, `get-book-entry`. Its own files are in `tools/dnd-helper/player/`
+of the read-only `player` tool set only, eight tools: `get-my-character`, `get-my-level-up-options`,
+`search-books`, `find-book-entries`, `get-book-entry`, `get-my-handouts`, `get-my-play-stats` and
+`get-player-skill-guide`. Its own files are in `tools/dnd-helper/player/`
 (SKILL.md, project instructions, level-up and rules pages); creation and sheet check are the GM
 pages with tool names swapped by `swap()` in `build.mjs`, which throws if a GM page changes under
 it. For "which is best" it links the Dungeon Mister 2024 guides as labelled opinion. A build test

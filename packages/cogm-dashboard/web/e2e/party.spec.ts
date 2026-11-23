@@ -832,3 +832,66 @@ test('the Party group and the notice DC are remembered for the next visit in thi
   await expect(drawer.getByLabel('Party group')).toHaveValue('g2');
   await expect(drawer.getByLabel('Notice DC')).toHaveValue('14');
 });
+
+const rollRow = (id: string, name: string, sentAt: number, extra: object = {}): object => ({
+  id,
+  sentAt,
+  label: 'Wisdom Saving Throw (Private)',
+  isPublic: false,
+  targetName: name,
+  actorId: id,
+  userId: id,
+  status: 'sent',
+  ...extra,
+});
+
+test('Nudge sends one chat line, then reads "Nudge sent" and is disabled', async ({ page }) => {
+  const now = Date.now();
+  await fakeStream(page, [
+    ...gmActions(true),
+    {
+      event: 'rolls',
+      data: {
+        rows: [
+          rollRow('b', 'Ivarro', now - 6 * 60 * 1000, { status: 'rolled', total: 17 }),
+          rollRow('a', 'Ilvara', now - 6 * 60 * 1000),
+        ],
+      },
+    },
+  ]);
+  const calls = await fakeTools(page, call =>
+    call.name === 'send-chat-message' ? ok({ success: true }) : bridge(call)
+  );
+  const drawer = await openParty(page);
+
+  await drawer.getByRole('button', { name: 'Nudge Ilvara in chat' }).click();
+  await expect(drawer.getByRole('button', { name: 'Nudge sent' })).toBeDisabled();
+  const sent = calls.filter(c => c.name === 'send-chat-message');
+  expect(sent.map(c => (c.args as { message: string }).message)).toEqual([
+    'Still waiting for Ilvara: Wisdom Saving Throw.',
+  ]);
+});
+
+test('Post results to chat shows once everyone has rolled and posts once', async ({ page }) => {
+  const now = Date.now();
+  await fakeStream(page, [
+    ...gmActions(true),
+    {
+      event: 'rolls',
+      data: {
+        rows: [
+          rollRow('b', 'Ivarro', now - 2000, { status: 'rolled', total: 17 }),
+          rollRow('a', 'Ilvara', now - 3000, { status: 'rolled', total: 9 }),
+        ],
+      },
+    },
+  ]);
+  const calls = await fakeTools(page, call =>
+    call.name === 'send-chat-message' ? ok({ success: true }) : bridge(call)
+  );
+  const drawer = await openParty(page);
+
+  await drawer.getByRole('button', { name: 'Post results to chat' }).click();
+  await expect(drawer.getByRole('button', { name: 'Posted to chat' })).toBeDisabled();
+  expect(calls.filter(c => c.name === 'send-chat-message')).toHaveLength(1);
+});

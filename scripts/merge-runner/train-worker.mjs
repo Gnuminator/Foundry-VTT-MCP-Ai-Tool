@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 /**
  * The live roundtrip of the merge train, run by the merge runner (scripts/merge-runner/train-run.mjs)
  * while it holds test server A's lock, from the gate checkout at main's tip.
@@ -40,6 +41,7 @@ function run(cmd, args, timeout) {
     maxBuffer: 64 * 1024 * 1024,
     timeout,
     shell: false,
+    windowsHide: true,
   });
   const out = `${r.stdout ?? ''}${r.stderr ?? ''}`;
   for (const l of out.split(/\r?\n/).filter(Boolean).slice(-40)) console.log(`  ${l}`);
@@ -63,7 +65,7 @@ const npm = (/** @type {string} */ script, timeout = 1_200_000) =>
 
 const sweep = process.argv.includes('--sweep');
 /** @type {number} */
-let code;
+let code = 2;
 let browser;
 try {
   say('building the checkout');

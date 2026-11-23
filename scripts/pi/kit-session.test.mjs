@@ -8,7 +8,9 @@
 // - with PI_KIT_SESSION_CONTAINER=1 (needs Docker; CI would run it on the ARM runner): the stage itself in a
 //   Debian 13 ARM64 container with stand-ins for systemd (scripts/pi/container-test/kit-session-scenarios.sh): up and
 //   down, every refusal before anything stops, a failing driver or Kit GM browser putting everything back, services
-//   that were off staying off, the Kit GM password file (mode 600, never printed) and the transient Kit GM browser unit.
+//   that were off staying off, the Kit GM password file (mode 600, never printed) and the transient Kit GM browser unit;
+//   the cut-* scenarios run the same stage on a Pi after the cutover (D-149): a stand-in docker holds the stack's containers,
+//   the Kit GM browser is a plain container (docker run / docker rm -f), and no unit is started, stopped or enabled.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -2351,5 +2353,262 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     assert.ok(!r.calls.some(c => c === `start ${GM}`), 'the GM browser stays off');
     // The teardown was verified, so the Kit GM file is gone already; a second MODE=down finds nothing to remove.
     assert.deepEqual(kit(r), KIT_GONE);
+  });
+
+  // ---- after the cutover (D-149, day two): the stack is containers, the Kit GM browser a plain container ----------
+  // The scenarios with the "cutover" switch (cut-*) run with a stand-in docker (bin/fake-kit-docker): the four stack services
+  // are the containers of compose project foundry-ai-tool-pi, every unit is off. The units scenarios above are unchanged.
+  const KIT_NAME = 'foundry-ai-tool-kit-gm-browser';
+  const RM_KIT = `docker rm -f ${KIT_NAME}`;
+  const dockerActions = r => r.calls.filter(c => /^docker (stop|start|restart|run|rm|kill|compose)\b/.test(c));
+  const runLine = r => r.calls.find(c => c.startsWith('docker run '));
+  // Never a systemctl start, restart, stop, enable or reset-failed, never systemd-run or a unit file look-up.
+  const unitCalls = r => r.calls.filter(c => /^(start|restart|stop|enable|disable|reset-failed|cat|systemd-run)\b/.test(c));
+  const RUN_COMMON =
+    /^docker run -d --name foundry-ai-tool-kit-gm-browser --network host --user \d+:\d+ --init --shm-size 512m --cpu-shares 20 --security-opt no-new-privileges:true --restart unless-stopped --env-file \/etc\/foundry-ai-tool\/kit-gm\.env -v \/var\/lib\/foundry-ai-tool:\/var\/lib\/foundry-ai-tool -e HOME=\/var\/lib\/foundry-ai-tool -e TOOL_APP=\/opt\/gm -e FOUNDRY_URL=http:\/\/127\.0\.0\.1:(\d+) -e CHROMIUM=\/usr\/local\/bin\/chromium-nosandbox -e MCP_CONTROL_PORT=(\d+) -e GM_BROWSER_PROFILE=\/var\/lib\/foundry-ai-tool\/kit-gm-browser -e ASSISTANT_GM_USER=Kit GM foundry-ai-tool-pi\/gm-browser:local$/;
+  const CUT_NAMES = () => [...runs.keys()].filter(n => n.startsWith('cut-'));
+
+  test('after the cutover no scenario touches a unit, creates a compose project or uses systemd-run', () => {
+    assert.ok(CUT_NAMES().length >= 20, CUT_NAMES().join(' '));
+    for (const name of CUT_NAMES()) {
+      const r = run(name);
+      assert.deepEqual(unitCalls(r), [], `${name}: ${r.calls.join('\n')}`);
+      assert.ok(!r.calls.some(c => /^docker (compose|kill|create|update)\b/.test(c)), name);
+      // docker only ever stops, starts or restarts the containers by their id (never a unit), and rm -f only the Kit GM one.
+      for (const c of dockerActions(r)) {
+        assert.match(
+          c,
+          /^docker (stop|start|restart) cid-(foundry|gm-browser)$|^docker rm -f foundry-ai-tool-kit-gm-browser$|^docker run -d --name foundry-ai-tool-kit-gm-browser /,
+          `${name}: ${c}`
+        );
+      }
+    }
+  });
+
+  test('cutover up: docker stops the browser and Foundry, starts Foundry on strahd-kit, then runs the Kit GM browser container', () => {
+    const r = run('cut-up-ok');
+    assert.equal(r.exit, 0, r.output);
+    assert.deepEqual(dockerActions(r).map(c => (c.startsWith('docker run ') ? 'docker run' : c)), [
+      RM_KIT, // the leftover check always stops it (harmless when absent)
+      'docker stop cid-gm-browser',
+      'docker stop cid-foundry',
+      'docker start cid-foundry',
+      RM_KIT, // start_kit_gm_container clears the name before docker run
+      'docker run',
+    ]);
+    // The image and the bridge are checked before anything stops.
+    const firstStop = r.calls.indexOf('docker stop cid-gm-browser');
+    assert.ok(r.calls.indexOf('docker image inspect foundry-ai-tool-pi/gm-browser:local') < firstStop);
+    assert.match(runLine(r), RUN_COMMON);
+    assert.equal(runLine(r).match(RUN_COMMON)[1], '30000');
+    assert.equal(runLine(r).match(RUN_COMMON)[2], '31414');
+    assert.equal(r.world, 'strahd-kit');
+    assert.deepEqual(r.state, ['mode 600 owner root', ...STATE_UP]);
+    assert.deepEqual(kit(r), KIT_UP);
+    // The password file was there, mode 600, when the container started, and its content is on no command line.
+    assert.ok(r.kitgm.includes('env-seen-by-unit mode 600'), r.kitgm.join('\n'));
+    assert.match(r.output, /DRIVER ACTION=setup WORLD=strahd-kit HOME=\/var\/lib\/foundry-ai-tool TOOL_APP=\/opt\/foundry-ai-tool\/app/);
+    assert.match(r.output, /joined world strahd-kit as Kit GM/);
+    assert.match(r.output, /started the container foundry-ai-tool-kit-gm-browser/);
+    assert.match(r.output, /The Assistant GM browser is stopped/);
+    assert.match(r.output, /a reboot brings it back; MODE=down removes it/);
+    assert.deepEqual(r.driver, ['upload removed', 'installed yes']);
+    assert.deepEqual(r.prev, PREV_KIT);
+    assert.ok(r.calls.includes(`docker logs ${KIT_NAME}`), 'the join is read from docker logs');
+    noLeak(r);
+  });
+
+  test('cutover up reads the ports from deploy/pi/.env and keeps the compose defaults when it has none', () => {
+    const r = run('cut-up-ports');
+    assert.equal(r.exit, 0, r.output);
+    const m = runLine(r).match(RUN_COMMON);
+    assert.ok(m, runLine(r));
+    assert.deepEqual([m[1], m[2]], ['30100', '31614']);
+  });
+
+  test('cutover up leaves the stack off when it was off: a stopped Assistant GM or Foundry is not touched', () => {
+    const gm = run('cut-up-gm-was-off');
+    assert.equal(gm.exit, 0, gm.output);
+    assert.ok(!gm.calls.includes('docker stop cid-gm-browser'));
+    assert.ok(gm.state.includes('WAS_GM_BROWSER=0'), gm.state.join('\n'));
+    const fo = run('cut-up-foundry-was-off');
+    assert.equal(fo.exit, 0, fo.output);
+    assert.ok(!fo.calls.includes('docker stop cid-foundry'));
+    assert.equal(count(fo.calls, 'docker start cid-foundry'), 1);
+    assert.equal(fo.world, 'strahd-kit');
+  });
+
+  test('cutover up refuses when a kit session is up, and when the gm-browser image is missing, before anything stops', () => {
+    const up = run('cut-up-state-exists');
+    untouched(up, 'curse-of-strahd');
+    assert.match(up.output, /a kit session is already up: run MODE=down first/);
+    assert.deepEqual(dockerActions(up), []);
+    assert.deepEqual(kit(up), KIT_UP);
+    const img = run('cut-up-no-image');
+    untouched(img, 'curse-of-strahd');
+    assert.match(img.output, /the image foundry-ai-tool-pi\/gm-browser:local is not there/);
+    assert.deepEqual(dockerActions(img), []);
+    assert.deepEqual(img.state, ['absent']);
+  });
+
+  test('cutover up removes a Kit GM container left by a cut-off run (running or stopped) before docker run', () => {
+    for (const [name, state] of [
+      ['cut-up-leftover', 'running'],
+      ['cut-up-leftover-exited', 'exited'],
+    ]) {
+      const r = run(name);
+      assert.equal(r.exit, 0, r.output);
+      assert.match(r.output, new RegExp(`removed what an earlier kit session left behind.*the container ${KIT_NAME} \\(${state}\\)`));
+      assert.equal(dockerActions(r)[0], RM_KIT);
+      assert.equal(count(r.calls.filter(c => c.startsWith('docker run ')), runLine(r)), 1);
+      assert.deepEqual(kit(r), KIT_UP);
+    }
+    noLeak(run('cut-up-leftover'));
+  });
+
+  test('cutover up with people online is refused after the browser stopped: the browser container starts again, Foundry never stopped', () => {
+    const r = run('cut-up-users-online');
+    untouched(r, 'curse-of-strahd');
+    assert.match(r.output, /2 user\(s\) are online in Foundry/);
+    assert.ok(!r.calls.includes('docker stop cid-foundry'));
+    assert.equal(dockerActions(r).at(-1), 'docker start cid-gm-browser');
+    assert.deepEqual(r.state, ['absent']);
+    assert.deepEqual(kit(r), KIT_GONE);
+    assert.ok(!r.output.includes('DRIVER'));
+  });
+
+  // A rolled-back MODE=up on a cut-over Pi: options.json, Foundry and the Assistant GM container as before, no state, no Kit GM.
+  const rolledBackCut = r => {
+    assert.equal(r.world, 'curse-of-strahd');
+    assert.deepEqual(r.state, ['absent']);
+    assert.deepEqual(kit(r), KIT_GONE);
+    assert.equal(count(r.calls, 'docker restart cid-foundry'), 1, r.calls.join('\n'));
+    assert.match(r.output, /Foundry and the Assistant GM browser are back as they were/);
+    assert.match(r.output, /options.json restored to launch 'curse-of-strahd'/);
+  };
+
+  test('cutover up that fails after Foundry stopped puts options.json, Foundry and the Assistant GM container back', () => {
+    const r = run('cut-up-driver-fails');
+    assert.equal(r.exit, 1, r.output);
+    rolledBackCut(r);
+    assert.equal(dockerActions(r).at(-1), 'docker start cid-gm-browser');
+    assert.ok(!r.calls.some(c => c.startsWith('docker run ')), 'the Kit GM container never started');
+    // The Kit GM password file existed by then: the rollback removed the container name and the file.
+    assert.equal(count(r.calls, RM_KIT), 2);
+    const off = run('cut-up-driver-fails-gm-off');
+    assert.equal(off.exit, 1, off.output);
+    rolledBackCut(off);
+    assert.ok(!off.calls.includes('docker start cid-gm-browser'), 'a browser that was off stays off');
+    noLeak(r);
+  });
+
+  test('cutover up whose Kit GM container does not join, or does not start, removes it and puts everything back', () => {
+    const nojoin = run('cut-up-kit-not-joined');
+    assert.equal(nojoin.exit, 1, nojoin.output);
+    assert.match(nojoin.output, /did not join strahd-kit as Kit GM within 2 minutes \(see: docker logs --tail 30 foundry-ai-tool-kit-gm-browser\)/);
+    assert.equal(count(nojoin.calls, `docker logs ${KIT_NAME}`), 60);
+    assert.ok(nojoin.calls.some(c => c.startsWith('docker run ')));
+    rolledBackCut(nojoin);
+    assert.equal(dockerActions(nojoin).at(-1), 'docker start cid-gm-browser');
+    assert.ok(
+      nojoin.calls.lastIndexOf(RM_KIT) < nojoin.calls.indexOf('docker restart cid-foundry'),
+      'the container is removed before Foundry restarts'
+    );
+    const norun = run('cut-up-kit-run-fails');
+    assert.notEqual(norun.exit, 0, norun.output);
+    rolledBackCut(norun);
+    noLeak(nojoin);
+  });
+
+  test('cutover up without a bridge link is a warning with the docker logs commands', () => {
+    const r = run('cut-up-no-bridge-link');
+    assert.equal(r.exit, 0, r.output);
+    assert.match(r.output, /no established connection on the bridge's port 31415 yet; see: docker logs --tail 30 foundry-ai-tool-kit-gm-browser and docker logs --tail 50 \$\(docker ps -aq/);
+    assert.equal(r.world, 'strahd-kit');
+  });
+
+  test('cutover up whose ssh session drops after options.json changed is rolled back', () => {
+    const r = run('cut-up-pipe-closed');
+    assert.notEqual(r.exit, 0, r.output);
+    assert.doesNotMatch(r.output, /summary/);
+    assert.equal(r.world, 'curse-of-strahd');
+    assert.deepEqual(r.state, ['absent']);
+    assert.equal(count(r.calls, 'docker restart cid-foundry'), 1, r.calls.join('\n'));
+    assert.equal(dockerActions(r).at(-1), 'docker start cid-gm-browser');
+  });
+
+  test('cutover down: docker removes the Kit GM container, restarts Foundry on the old world, restarts the Assistant GM container', () => {
+    const r = run('cut-down-ok');
+    assert.equal(r.exit, 0, r.output);
+    assert.deepEqual(dockerActions(r), [
+      RM_KIT,
+      'docker stop cid-foundry',
+      'docker start cid-foundry',
+      'docker restart cid-gm-browser',
+    ]);
+    assert.equal(r.world, 'curse-of-strahd');
+    assert.deepEqual(r.state, ['absent']);
+    assert.deepEqual(kit(r), KIT_GONE);
+    assert.match(r.output, /DRIVER ACTION=teardown WORLD=strahd-kit/);
+    assert.match(r.output, /the Assistant GM browser joined the world/);
+    assert.match(r.output, /The Kit GM browser is stopped, Kit GM is deleted/);
+    assert.ok(r.calls.some(c => /^docker logs --since \d+ cid-gm-browser$/.test(c)), r.calls.join('\n'));
+    assert.deepEqual(r.driver, ['upload removed', 'installed yes']);
+  });
+
+  test('cutover down leaves an Assistant GM container that did not run before off, and a session without a Kit GM has no container to remove', () => {
+    const off = run('cut-down-gm-was-off');
+    assert.equal(off.exit, 0, off.output);
+    assert.ok(!off.calls.includes('docker restart cid-gm-browser'));
+    assert.match(off.output, /left off/);
+    const old = run('cut-down-old-state');
+    assert.equal(old.exit, 0, old.output);
+    assert.ok(!old.calls.includes(RM_KIT), 'no Kit GM, no container to remove');
+    assert.deepEqual(dockerActions(old), ['docker stop cid-foundry', 'docker start cid-foundry', 'docker restart cid-gm-browser']);
+  });
+
+  test('cutover down that fails in the teardown changes nothing else: the container is gone, Foundry runs strahd-kit', () => {
+    const r = run('cut-down-driver-fails');
+    untouched(r, 'strahd-kit');
+    assert.match(r.output, /the teardown in strahd-kit failed or did not verify/);
+    assert.deepEqual(dockerActions(r), [RM_KIT]);
+    assert.deepEqual(r.state, ['mode 600 owner root', ...STATE_UP]);
+    assert.deepEqual(kit(r), KIT_STOPPED_FILES_KEPT);
+  });
+
+  test('cutover down with a user online stops the Kit GM container, refuses and says so; a Kit GM container that stays is refused', () => {
+    const online = run('cut-down-users-online');
+    untouched(online, 'strahd-kit');
+    assert.match(online.output, /1 user\(s\) are online in Foundry/);
+    assert.match(online.output, /the Kit GM browser is stopped now and stays stopped/);
+    assert.deepEqual(dockerActions(online), [RM_KIT]);
+    assert.deepEqual(kit(online), KIT_STOPPED_FILES_KEPT);
+    const counts = run('cut-down-kit-counts');
+    assert.equal(counts.exit, 0, counts.output);
+    const stuck = run('cut-down-kit-stop-fails');
+    untouched(stuck, 'strahd-kit');
+    assert.match(stuck.output, /the Kit GM browser \(foundry-ai-tool-kit-gm-browser\) did not stop: see docker logs --tail 30 foundry-ai-tool-kit-gm-browser/);
+    assert.doesNotMatch(stuck.output, /see docker inspect foundry-ai-tool-kit-gm-browser\b(?! \()/);
+    assert.deepEqual(dockerActions(stuck), [RM_KIT]);
+    assert.ok(!stuck.output.includes('DRIVER'));
+    assert.deepEqual(kit(stuck), KIT_UP);
+  });
+
+  test('cutover down refuses when the Foundry container is not running: nothing is touched', () => {
+    const r = run('cut-down-foundry-off');
+    untouched(r, 'strahd-kit');
+    assert.match(r.output, /Foundry is not running: start it \(docker start the foundry container of foundry-ai-tool-pi\)/);
+    assert.deepEqual(dockerActions(r), []);
+    assert.deepEqual(r.state, ['mode 600 owner root', ...STATE_UP]);
+  });
+
+  test('cutover down when the old world does not come back: the session is over and the Assistant GM container is started', () => {
+    const r = run('cut-down-world-not-back');
+    assert.equal(r.exit, 1, r.output);
+    assert.match(r.output, /curse-of-strahd is not running on port 30000/);
+    assert.match(r.output, /Foundry did not come back on 'curse-of-strahd' \(see: docker logs --tail 50/);
+    assert.equal(r.world, 'curse-of-strahd');
+    assert.deepEqual(r.state, ['absent']);
+    assert.equal(dockerActions(r).at(-1), 'docker start cid-gm-browser');
   });
 });

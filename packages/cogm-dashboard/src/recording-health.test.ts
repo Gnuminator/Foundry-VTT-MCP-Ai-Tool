@@ -71,6 +71,23 @@ describe('recorderDot', () => {
     ).toBeNull();
   });
 
+  it('shows the record-start nudge problems even when no recording runs', () => {
+    const dot = recorderDot({
+      recording: false,
+      problems: [
+        { kind: 'norecord', text: 'the play session is open but nothing is being recorded' },
+      ],
+    });
+    expect(dot).toMatchObject({ tone: 'warn' });
+    expect(dot?.text).toContain('nothing is being recorded');
+    expect(
+      recorderDot({
+        recording: true,
+        problems: [{ kind: 'overrun', text: 'the session ended 40 min ago' }],
+      })
+    ).toMatchObject({ tone: 'warn' });
+  });
+
   it('is amber for a silent speaker or stream error, red when it cannot rejoin', () => {
     const silent = recorderDot({
       recording: true,

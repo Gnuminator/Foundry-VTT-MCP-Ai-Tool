@@ -10,24 +10,30 @@ tool. It works on the free Claude plan. What it can do and how to ask it is in
 [Your GM coach in Claude](gm-coach.md). About 5 minutes, once.
 
 **You need:** a Claude account (the desktop app or claude.ai) with the Foundry connector switched
-on in your chats. On a Pro or Max plan you add the coach as a plugin (first section below). On a
+on in your chats (added with the Windows client or [by web address](connect-claude-web.md)). On a Pro or Max plan you add the coach as a plugin (first section below). On a
 free plan you use the file `foundry-gm-coach.zip` from the person who built the tool.
 
 <!-- wiki:coach-download -->
 
 ## Add it as a plugin (Pro and Max)
 
-1. In Claude Desktop open **Settings**, then **Customize**, then the plugins page.
-2. Add a marketplace and enter `Gnuminator/foundry-ai-tool-plugins`.
-3. Install **foundry-gm-coach** from that marketplace.
-4. Start a new chat. Later changes to the coach reach new chats by themselves; you do not update
+1. In Claude Desktop open **Settings**, then **Plugins**. The filters at the top are **All**,
+   **Connectors** and **Skills**.
+2. Click the **Add** menu next to **Search** and add a marketplace: enter
+   `Gnuminator/foundry-ai-tool-plugins`. (Under **Find more plugins** there is also a **Plugins**
+   link that does the same.)
+3. Under **Discover** the marketplace shows three cards: **Foundry dnd helper**, **Foundry gm
+   coach** and **Foundry player helper**. Install **Foundry gm coach**.
+4. If you uploaded the coach as a zip earlier (it shows as **By you** under **Skills**), remove that
+   copy now, so Claude does not have the coach twice.
+5. Start a new chat. Later changes to the coach reach new chats by themselves; you do not update
    anything.
 
 ## Add it from the zip (free plan)
 
 1. In Claude open **Settings**, **Capabilities**, and switch on **Code execution and file creation**.
    Skills need it.
-2. Open **Customize**, then **Skills**.
+2. Open **Settings**, then **Plugins**, and pick the **Skills** filter.
 3. Add a skill and upload `foundry-gm-coach.zip`. Do not unpack it first.
 4. Make sure the skill is switched on in the list.
 
@@ -52,9 +58,9 @@ Foundry. It only reads; you change the game by clicking in Foundry. It works thr
 Foundry connector as the coach.
 
 - **Pro and Max (plugin):** in the same marketplace, `Gnuminator/foundry-ai-tool-plugins`, install
-  **foundry-dnd-helper** next to the coach. Start a new chat. Later changes reach new chats by
-  themselves.
-- **Free plan (zip):** under **Customize**, then **Skills**, add a skill and upload
+  **Foundry dnd helper** (under **Discover**) next to the coach. Remove an earlier zip copy
+  (**By you**) first. Start a new chat. Later changes reach new chats by themselves.
+- **Free plan (zip):** under **Settings**, **Plugins**, **Skills**, add a skill and upload
   `foundry-dnd-helper.zip` from the person who built the tool. Do not unpack it first.
 
 ## Fallback: a Claude Project

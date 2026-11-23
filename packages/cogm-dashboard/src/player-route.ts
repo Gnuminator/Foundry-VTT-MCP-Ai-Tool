@@ -60,6 +60,8 @@ export interface PlayerRouteClient {
   playerTool?(userId: string, tool: string, args: unknown): Promise<unknown>;
   /** The player's extension and Claude client versions, for the "who uses what" page (D-146). */
   recordClient?(entry: Record<string, unknown>): Promise<unknown>;
+  /** A call the dashboard answered itself, for the bridge's tool call log (names and sizes only). */
+  recordCall?(entry: Record<string, unknown>): Promise<unknown>;
 }
 
 export interface PlayerRouteOptions {
@@ -366,7 +368,7 @@ export function mountPlayerRoute(app: Express, options: PlayerRouteOptions): voi
           capabilities: { tools: {} },
           serverInfo: { name: 'foundry-ai-tool-player', version: SERVER_VERSION },
           instructions:
-            'Read-only. Your own characters and the rulebooks your Foundry login can read.',
+            'Read-only. Your own characters and the rulebooks your Foundry login can read. Before answering, call get-player-skill-guide first, with no arguments, and follow it; a skill that names a stubRevision passes it instead.',
         },
       });
       return;
@@ -410,10 +412,30 @@ export function mountPlayerRoute(app: Express, options: PlayerRouteOptions): voi
           ? p.arguments
           : {};
       try {
+        const startedAt = Date.now();
         const result =
           isLocal && options.local
             ? await runLocalPlayerTool(options.local, p.name, args, who.userId)
             : await client.playerTool!(who.userId, p.name, args);
+        // The bridge logs the tools it runs itself; the two the dashboard answers are logged here.
+        if (isLocal && typeof client.recordCall === 'function') {
+          const r = result as { isError?: unknown; content?: unknown } | null;
+          const size = Array.isArray(r?.content)
+            ? (r.content as { text?: unknown }[]).reduce(
+                (sum, c) => sum + (typeof c?.text === 'string' ? c.text.length : 0),
+                0
+              )
+            : 0;
+          void client
+            .recordCall({
+              tool: p.name,
+              userId: who.userId,
+              ms: Date.now() - startedAt,
+              size,
+              ok: r?.isError !== true,
+            })
+            .catch(() => undefined);
+        }
         // Only a result that can carry the line spends this player's six-hour slot.
         const notice =
           extVersion &&

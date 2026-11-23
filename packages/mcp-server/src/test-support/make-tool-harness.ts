@@ -21,7 +21,7 @@ export { makeLogger };
 type QueryImpl = (method: string, data: any) => unknown;
 
 /** A FoundryClient stub whose `query` is a mock (default: resolves `{ success: true }`). */
-function makeFoundryClient(queryImpl?: QueryImpl): {
+export function makeFoundryClient(queryImpl?: QueryImpl): {
   foundryClient: any;
   query: Mock<QueryImpl>;
 } {

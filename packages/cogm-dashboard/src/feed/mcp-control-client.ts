@@ -200,6 +200,11 @@ export class McpControlClient extends EventEmitter {
     };
   }
 
+  /** Omens by post (I-181). An old backend answers "Unknown method" (a ChannelError). */
+  async omens(action: string, params: Record<string, unknown> = {}): Promise<unknown> {
+    return this.send('omens', { ...params, action });
+  }
+
   /**
    * The live write sweep's helper (I-016): `snapshot` (scene lighting), `combat` (start a
    * combat with `tokenIds`) or `cleanup` (delete the documents named "AI Tool Sweep ..." and
@@ -227,6 +232,11 @@ export class McpControlClient extends EventEmitter {
     return this.send('character_sheet', { userId });
   }
 
+  /** The downtime inbox (I-180): list, save or delete the player's own entries. A control method. */
+  async downtime(params: Record<string, unknown>): Promise<unknown> {
+    return this.send('downtime', params);
+  }
+
   /** The player pressed a roll button: the module rolls for their character. A control method. */
   async playerRoll(userId: string, buttonId: string): Promise<unknown> {
     return this.send('player_roll', { userId, buttonId });
@@ -246,6 +256,14 @@ export class McpControlClient extends EventEmitter {
     return this.send('record_client', entry);
   }
 
+  /**
+   * A call the dashboard answered itself (get-my-handouts, get-my-play-stats): `{ tool, userId,
+   * ms, size, ok }` for the bridge's tool call log. A control method; an old backend rejects.
+   */
+  async recordCall(entry: Record<string, unknown>): Promise<unknown> {
+    return this.send('record_call', entry);
+  }
+
   /** The "who uses what" report (D-146). A control method; an old backend rejects. */
   async whoUsesWhat(days: number): Promise<unknown> {
     return this.send('who_uses_what', { days });
@@ -254,6 +272,20 @@ export class McpControlClient extends EventEmitter {
   /** The player tool definitions, for `/mcp/player` `tools/list` (D-136). A control method. */
   async listPlayerTools(): Promise<unknown> {
     return this.send('list_player_tools');
+  }
+
+  /** One tool set's definitions and instructions, for `/mcp/<set>` (remote GM connector). */
+  async remoteGmList(set: string): Promise<unknown> {
+    return this.send('remote_gm_list', { set });
+  }
+
+  /**
+   * One GM tool call of one set (remote GM connector): `{ content, isError? }` as the stdio
+   * wrapper would return it. The set comes from the dashboard's path. A guarded write can wait
+   * up to about 4 minutes for Foundry, so the timeout is long.
+   */
+  async remoteGmCall(set: string, name: string, args: unknown): Promise<unknown> {
+    return this.send('remote_gm_call', { set, name, args }, 270_000);
   }
 
   /**

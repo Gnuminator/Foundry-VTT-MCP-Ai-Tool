@@ -12,6 +12,8 @@ import {
   runLoggedCall,
   skillFields,
   gmCaller,
+  pruneCallLogs,
+  recordedCallLine,
 } from './tool-call-log.js';
 import { TOOL_SETS } from './tool-sets.js';
 
@@ -32,6 +34,55 @@ describe('tool call log', () => {
     expect(Object.keys(line).sort()).toEqual(['ms', 'ok', 'set', 'size', 't', 'tool']);
   });
 
+  it('classes a failed call and keeps the message out of the line', () => {
+    const fail = (text: string): ReturnType<typeof buildCallLine> =>
+      buildCallLine('get-world-info', 0, { content: [{ type: 'text', text }], isError: true }, 5);
+    expect(fail('Error: Foundry VTT module not connected. Open the world.').err).toBe(
+      'not-connected'
+    );
+    expect(fail('Error: Not connected to Foundry VTT module.').err).toBe('not-connected');
+    expect(fail('Error: request timed out after 30000ms').err).toBe('timeout');
+    expect(fail('Handouts are switched off. Ask the GM.').err).toBe('switch-off');
+    expect(fail('Error: Invalid arguments: limit expected number').err).toBe('validation');
+    expect(fail('Error: something odd').err).toBe('other');
+    expect(fail('Query getWorldInfo failed: Query timeout: getWorldInfo').err).toBe('timeout');
+    expect(fail('Error: Connection closed').err).toBe('timeout');
+    expect(
+      fail(
+        'Error: send-chat-message: no answer from Foundry in 30 s. The change may or may not have happened'
+      ).err
+    ).toBe('timeout');
+    expect(
+      fail(
+        'Error: use-item: no answer from Foundry, the link closed first. The change may or may not have happened'
+      ).err
+    ).toBe('timeout');
+    expect(fail('Foundry is not connected, so this request was not sent').err).toBe(
+      'not-connected'
+    );
+    expect(
+      fail(
+        'The session event log is off (FOUNDRY_AI_EVENT_LOG=off) or the Foundry link is disabled, so there is nothing to wait on.'
+      ).err
+    ).toBe('switch-off');
+    expect(fail('The switch "Handouts" is off').err).toBe('switch-off');
+    expect(
+      fail('[{"code":"invalid_value","message":"Invalid option: expected one of \\"a\\"|\\"b\\""}]')
+        .err
+    ).toBe('validation');
+    expect(fail('[{"code":"too_small","message":"Too small: expected number"}]').err).toBe(
+      'validation'
+    );
+    // prose that merely says "required" is not a validation error
+    expect(fail('Also turned on, because they require Foo; a plan is required').err).toBe('other');
+    expect(buildCallLine('x', 0, { content: [], isError: true }, 5).err).toBe('other');
+    expect(buildCallLine('x', 0, undefined, 5).err).toBe('other');
+    const line = fail('Error: Foundry VTT module not connected: secret text');
+    expect(JSON.stringify(line)).not.toContain('secret text');
+    // a successful call carries no class
+    expect(buildCallLine('x', 0, { content: [] }, 5)).not.toHaveProperty('err');
+  });
+
   it('marks a missing or error result as not ok and unknown tools as unknown', () => {
     expect(buildCallLine('nope', 0, undefined, 5)).toMatchObject({
       set: 'unknown',
@@ -44,7 +95,9 @@ describe('tool call log', () => {
 
   it('appends one JSON line per call under _usage', async () => {
     const log = new ToolCallLog({ dataDir, enabled: true });
-    const a = buildCallLine('x', 0, undefined, 1);
+    // A real timestamp: a 1970 line lands in a day file the start-up prune deletes (the race).
+    const now = Date.now();
+    const a = buildCallLine('x', now, undefined, now + 1);
     expect(await log.record(a)).toBe(true);
     expect(await log.record(a)).toBe(true);
     const dir = path.join(dataDir, TOOL_CALL_LOG_DIR);
@@ -53,6 +106,64 @@ describe('tool call log', () => {
     expect(files[0]).toMatch(/^\d{4}-\d{2}-\d{2}\.calls\.jsonl$/);
     const lines = (await fsp.readFile(path.join(dir, files[0]), 'utf8')).trim().split('\n');
     expect(lines.map(l => JSON.parse(l).tool)).toEqual(['x', 'x']);
+  });
+
+  it('deletes day files older than the keep window and nothing else', async () => {
+    const dir = path.join(dataDir, TOOL_CALL_LOG_DIR);
+    await fsp.mkdir(dir, { recursive: true });
+    const now = Date.parse('2026-11-17T12:00:00');
+    for (const name of [
+      '2026-01-01.calls.jsonl',
+      '2026-08-18.calls.jsonl',
+      '2026-08-19.calls.jsonl',
+      '2026-11-16.calls.jsonl',
+      'notes.txt',
+    ]) {
+      await fsp.writeFile(path.join(dir, name), 'x');
+    }
+    expect(await pruneCallLogs(dir, now, 90)).toBe(2);
+    expect((await fsp.readdir(dir)).sort()).toEqual([
+      '2026-08-19.calls.jsonl',
+      '2026-11-16.calls.jsonl',
+      'notes.txt',
+    ]);
+    expect(await pruneCallLogs(path.join(dataDir, 'missing'), now)).toBe(0);
+  });
+
+  it('builds the record_call line only for an allowed tool, with clamped numbers', () => {
+    const allowed = ['get-my-handouts', 'get-my-play-stats'];
+    const sent = { tool: 'get-my-handouts', userId: 'abc123', ms: 40, size: 500, ok: true };
+    expect(recordedCallLine(sent, allowed, 10_000)).toMatchObject({
+      tool: 'get-my-handouts',
+      set: 'player',
+      ms: 40,
+      size: 500,
+      ok: true,
+      who: 'player',
+      userId: 'abc123',
+      via: 'connector',
+    });
+    for (const bad of [
+      { tool: 'constructor' },
+      { tool: 7 },
+      { tool: 'get-world-info' },
+      null,
+      'x',
+    ]) {
+      expect(recordedCallLine(bad, allowed)).toBeNull();
+    }
+    const wild = recordedCallLine(
+      { ...sent, ms: 1e12, size: Infinity, userId: 'a b;c', ok: false },
+      allowed,
+      1e13
+    );
+    expect(wild).toMatchObject({ ms: 3_600_000, size: 0, ok: false });
+    expect(wild).not.toHaveProperty('userId');
+    expect(recordedCallLine({ ...sent, ms: -5, size: 1e300 }, allowed)).toMatchObject({
+      ms: 0,
+      size: 10_000_000,
+    });
+    expect(recordedCallLine({ tool: 'get-my-play-stats' }, allowed)?.ok).toBe(true);
   });
 
   it('cuts a very long client-supplied tool name', () => {

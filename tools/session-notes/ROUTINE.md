@@ -1,5 +1,9 @@
 # Recap while the PC is off (I-132)
 
+**Status: parked and unverified.** The inbox flow has not been run end to end. If it is picked up
+again, the first fix is the `notes_done` gap: `notes_done` in `src/session_notes/inbox.py` only
+checks that `notes/notes.json` exists, so a partly written folder counts as finished.
+
 Off by default. A cloud routine writes the notes from the transcript text while the PC is off.
 Audio and transcription stay on the PC. The inbox must be a **private** GitHub repo: it holds
 player speech as text, so it never goes into the public repo.

@@ -73,6 +73,14 @@ enable it (the `heroes-studio` scenario fails with that advice when the module i
 The kit opens its own GM page first. The bridge only has a Foundry link while that page is open.
 Each test server is shared: run one live job at a time on it. See the `foundry-test-env` skill.
 
+### The scene fixture
+
+`node scripts/test-kit/kit.mjs fixture --profile strahd` adds a scene ("Kit Fixture Scene"), two named
+tokens and a party group to the kit world through the Kit GM's browser, so the canvas probes
+(`canvas-tools-headless`) have inputs in a world with no campaign scene. It is kit-flagged (the next
+`kit build` wipe removes it), edits no existing document except that the fixture scene becomes the active one, and a second run changes nothing. Local
+target only: `--target pi` refuses it (a scene needs a canvas, which the Pi's GM browser lacks).
+
 ### Running it on the Pi
 
 `--target pi` runs the scenarios that only call bridge tools against the Orange Pi's throwaway
@@ -235,7 +243,7 @@ This PC is not on all night, so by default the task fires 10 minutes after every
 12:00 each day (it catches up on wake when missed, for a PC that stays logged on) and runs
 `kit-run.mjs --daily`: the full nightly kit run, but it does nothing when a run already finished
 today, so it runs at most once a day. It takes test server **B**'s lock (A stays free for lanes),
-waits up to 2 hours when a lane holds it, then records a skipped run and the next logon tries
+waits up to 2 hours when a lane holds it, then records a skipped run and the next logon or the 12:00 start tries
 again. It runs in the main checkout with the portable Node 24, in a hidden console, and appends
 its output to `<kit home>\nightly.log`. `-At 03:30` registers a fixed daily time instead (a PC that
 is off then skips the day; a missed run is not started later). The task stops a run after 6 hours
@@ -245,5 +253,5 @@ older than 7 hours, and the start alerts hook shows it until then.
 **Reading the result:** `<kit home>\last-run.json` has `last` (the latest attempt, including a
 skip) and `lastRun` (the latest run that got to a report: `state`, `passed`, `failed`, `failing`
 scenario ids, `at`, `git`, `reportDir`). `node scripts/backlog.mjs status --planner` prints it as
-one "Nightly kit:" line (result, age, failing ids, `STALE` after 36 hours, a later skip), so the
-planner reads it at each sitting.
+one "Kit:" line (latest run, age, failing ids, a later skip), so the planner reads it at each
+sitting. No schedule is expected, so there is no stale or missing-nightly warning.

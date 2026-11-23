@@ -14,7 +14,8 @@ Then, in this order:
 3. The [before-session](before-session.md) and [after-session](after-session.md) checklists, every
    time you play.
 
-On a new PC, [connect Claude Desktop to the server](connect-claude-desktop.md) first. A word you do
+On a new PC, [connect Claude Desktop to the server](connect-claude-desktop.md) first, or
+[add the connectors by web address](connect-claude-web.md) (no installer, paid plan). A word you do
 not know is in the [glossary](glossary.md).
 
 **From inside Foundry:** Settings tab, **Game Settings**, category **Foundry AI Tool**, the
@@ -25,14 +26,15 @@ not know is in the [glossary](glossary.md).
 Each of these is a short page you can do alone, in any order that suits you. Each ends with what you
 should see when it worked and what to do if it did not.
 
-| Setup                                                                    | What you do                                                            | Time   |
-| ------------------------------------------------------------------------ | ---------------------------------------------------------------------- | ------ |
-| [Connect Claude Desktop to the server](connect-claude-desktop.md)        | Install the small Windows client and the tunnel key; update it later.  | 10 min |
-| [The dashboard](setup-dashboard.md)                                      | Open it, sign in through Cloudflare, bookmark it and pick a layout.    | 10 min |
-| [The GM coach](setup-gm-coach.md)                                        | Add the Foundry GM coach skill to your Claude account.                 | 5 min  |
-| [Your vault on your PC (Obsidian and Syncthing)](setup-obsidian-sync.md) | Install both, pair with the server and check a note travels both ways. | 20 min |
-| [The Obsidian plugin](setup-obsidian-plugin.md)                          | Install the plugin and connect it to the dashboard.                    | 10 min |
-| [The TV at the table](setup-tv-table.md)                                 | Only for in-person play: make the Table player and sign the TV in.     | 15 min |
+| Setup                                                                    | What you do                                                                   | Time   |
+| ------------------------------------------------------------------------ | ----------------------------------------------------------------------------- | ------ |
+| [Connect Claude Desktop to the server](connect-claude-desktop.md)        | Install the small Windows client and the tunnel key; update it later.         | 10 min |
+| [Connect Claude by web address](connect-claude-web.md)                   | The five connectors as custom connectors with an email sign-in; no installer. | 5 min  |
+| [The dashboard](setup-dashboard.md)                                      | Open it, sign in through Cloudflare, bookmark it and pick a layout.           | 10 min |
+| [The GM coach](setup-gm-coach.md)                                        | Add the Foundry GM coach skill to your Claude account.                        | 5 min  |
+| [Your vault on your PC (Obsidian and Syncthing)](setup-obsidian-sync.md) | Install both, pair with the server and check a note travels both ways.        | 20 min |
+| [The Obsidian plugin](setup-obsidian-plugin.md)                          | Install the plugin and connect it to the dashboard.                           | 10 min |
+| [The TV at the table](setup-tv-table.md)                                 | Only for in-person play: make the Table player and sign the TV in.            | 15 min |
 
 ## All guides
 
@@ -40,6 +42,7 @@ should see when it worked and what to do if it did not.
 | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | [First 15 minutes](first-15-minutes.md)                           | The one page to read first: what this is, four small steps, what to ignore for now.                            |
 | [Your first hour as GM](first-hour.md)                            | A set reading order: Foundry's own guides for the basics, our pages for the tool.                              |
+| [Session 0 walkthrough script](session-0-walkthrough.md)          | A ten minute script for the recorded tool walkthrough at session 0, in click order.                            |
 | [Quest: your first hour](first-hour-quest.md)                     | The first hour as four stages to tick off.                                                                     |
 | [Getting started](getting-started.md)                             | What the tool is, its parts, how they fit together, and today's setup.                                         |
 | [Glossary](glossary.md)                                           | The Foundry words and the tool words used in these guides.                                                     |
@@ -50,6 +53,7 @@ should see when it worked and what to do if it did not.
 | [Features and when to turn them on](features.md)                  | Each feature switch, what it does, and the moment to turn it on.                                               |
 | [Asking Claude](asking-claude.md)                                 | Good requests, the ready-made prompts, how Claude's changes are approved, its limits.                          |
 | [Your GM coach in Claude](gm-coach.md)                            | Add the Foundry GM coach skill to your Claude account, and how to ask it.                                      |
+| [Let's prep: the 30-minute prep ritual](prep-ritual.md)           | Say "let's prep" and Claude walks you through five fixed steps, ending with the pre-flight check.              |
 | [Cookbook](cookbook.md)                                           | Ready-to-use requests and clicks before, during and after a session.                                           |
 | [Your Obsidian vault](obsidian.md)                                | What is in your vault, where your prep goes, and connecting the plugin to the server.                          |
 | [Prep and expectations](prep-and-expectations.md)                 | What to prepare, the expectations talk, ability scores and a session 0 agenda.                                 |
@@ -59,12 +63,14 @@ should see when it worked and what to do if it did not.
 | [Before each session](before-session.md)                          | A checklist for the 15 minutes before play.                                                                    |
 | [Quest: before a session](before-session-quest.md)                | The 15 minutes before play as four stages.                                                                     |
 | [After each session](after-session.md)                            | A checklist for right after play.                                                                              |
+| [After a session: notes](after-session-notes.md)                  | From the Discord recording to the players reading the recap: where the notes land, what you approve.           |
 | [When a character dies](death-and-new-characters.md)              | The moment of death, a death log, and bringing in a new character.                                             |
 | [Never do this, only do this if](never-and-only-if.md)            | Short rules, each with its reason.                                                                             |
 | [Game night runbook](game-night-runbook.md)                       | One page for the night: what to do when something fails, and when to call for help.                            |
 | [The TV at the table](tv-table-viewer.md)                         | Show the map on a TV at an in-person session; it signs in once as a player called Table.                       |
 | [Troubleshooting](troubleshooting.md)                             | Symptom, likely cause and fix.                                                                                 |
 | [Connect Claude Desktop to the server](connect-claude-desktop.md) | Install the small Windows client and the tunnel key so Claude Desktop reaches the server.                      |
+| [Connect Claude by web address](connect-claude-web.md)            | Add the five connectors by address and email sign-in, with no installer and no tunnel key.                     |
 | [Claude Free or Pro](claude-plans.md)                             | What works on the free Claude plan, its limits, and what Pro adds.                                             |
 
 What players see and what the tool records about them: [player guide](../player/README.md) and

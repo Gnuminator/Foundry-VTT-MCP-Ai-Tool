@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+import { createHash } from 'crypto';
+
 import {
   type CallToolResult,
   type ListToolsResult,
@@ -25,6 +27,7 @@ import {
 
 import { PROMPTS_CAPABILITY, registerPromptHandlers } from './prompts/register.js';
 
+import { RENAMED_TOOLS } from './param-aliases.js';
 import { type ToolDefinitionLike, type ToolResultLike, capToolResult } from './tool-router.js';
 
 import { BUILD_ID } from './build-id.js';
@@ -45,6 +48,11 @@ import {
 
 import type { ControlRequest, ControlResponse } from '@gnuminator/shared';
 
+import {
+  RESOURCES_CAPABILITY,
+  registerChangeCardHandlers,
+  withChangeCardMeta,
+} from './change-card.js';
 import { TOOL_VERSION, sleep, stripToolRefs } from '@gnuminator/shared';
 
 import { spawn, ChildProcess } from 'child_process';
@@ -59,6 +67,30 @@ import * as fs from 'fs';
 
 import * as path from 'path';
 
+/** A short id for this PC, so two PCs running Claude against one bridge are two rows, not one. */
+const INSTALL_ID = createHash('sha256').update(os.hostname()).digest('hex').slice(0, 8);
+
+/**
+ * The Windows client's automatic update switch: the flag file `autoupdate.on` in its tunnel or
+ * direct-install state folder. Null when this is not a Windows client install (no such folder).
+ */
+function readAutoUpdate(): 'on' | 'off' | null {
+  const base = process.env.LOCALAPPDATA;
+  if (!base) return null;
+  let known = false;
+  // `tunnel` for a tunnel install, `update` for a direct (Tailscale) install; both hold the flag.
+  for (const dir of ['tunnel', 'update']) {
+    const state = path.join(base, 'FoundryMCPServer', dir);
+    try {
+      if (fs.existsSync(path.join(state, 'autoupdate.on'))) return 'on';
+      if (fs.existsSync(state)) known = true;
+    } catch {
+      // unreadable: treat as unknown
+    }
+  }
+  return known ? 'off' : null;
+}
+
 // PB-01: MCP_CONTROL_HOST / MCP_CONTROL_PORT point the wrapper at a bridge elsewhere (the Orange
 // Pi); MCP_NO_SPAWN=1 or a non-loopback host means it never starts a backend itself.
 const {
@@ -71,6 +103,9 @@ const {
 const TOOL_SET_SELECTION = resolveToolSets(process.env[TOOL_SETS_ENV]);
 
 // Control-channel frame shapes come from the shared contract (§3a).
+
+/** Longer than any tool waits on purpose (wait-for-game-event, a long import); only a hung backend hits it. */
+const SEND_TIMEOUT_MS = 10 * 60_000;
 
 class BackendClient {
   private socket: net.Socket | null = null;
@@ -101,12 +136,27 @@ class BackendClient {
     } catch {}
   }
 
+  /** The connect attempt in flight: callers that arrive meanwhile wait for it, none starts a second. */
+  private connecting: Promise<void> | null = null;
+
+  /** Whether this wrapper has been connected before, so the next connect is a reconnect. */
+  private hadConnection = false;
+
+  /** Called after a reconnect: the backend may have restarted with a different tool list. */
+  onReconnect: (() => void) | null = null;
+
   async ensure(): Promise<void> {
     if (this.socket && !this.socket.destroyed) return;
 
-    this.log('ensure(): connecting to backend');
+    if (!this.connecting) {
+      this.log('ensure(): connecting to backend');
 
-    await this.connectWithRetry();
+      this.connecting = this.connectWithRetry().finally(() => {
+        this.connecting = null;
+      });
+    }
+
+    await this.connecting;
   }
 
   private connect(): Promise<void> {
@@ -133,12 +183,23 @@ class BackendClient {
           params: {
             version: TOOL_VERSION,
             build: BUILD_ID,
+            install: INSTALL_ID,
+            autoUpdate: readAutoUpdate(),
             sets: TOOL_SET_SELECTION.all ? 'all' : TOOL_SET_SELECTION.sets.join(','),
           },
         };
         sock.write(`${JSON.stringify(hello)}\n`, 'utf8');
 
+        const reconnected = this.hadConnection;
+        this.hadConnection = true;
+
         resolve();
+
+        if (reconnected) {
+          try {
+            this.onReconnect?.();
+          } catch {}
+        }
       });
 
       sock.on('error', e => {
@@ -338,7 +399,27 @@ class BackendClient {
 
         const req: ControlRequest = { id, method, params };
 
-        this.pending.set(id, { resolve, reject });
+        // A backend that never answers must not hold the call forever.
+        const timer = setTimeout(() => {
+          if (this.pending.delete(id)) {
+            this.log('send(): timed out', { method });
+
+            reject(new Error(`The Foundry AI Tool backend did not answer ${method} in time`));
+          }
+        }, SEND_TIMEOUT_MS);
+
+        timer.unref();
+
+        this.pending.set(id, {
+          resolve: v => {
+            clearTimeout(timer);
+            resolve(v);
+          },
+          reject: e => {
+            clearTimeout(timer);
+            reject(e instanceof Error ? e : new Error(String(e)));
+          },
+        });
 
         try {
           this.log('send(): write', { method });
@@ -346,6 +427,8 @@ class BackendClient {
           this.socket!.write(`${JSON.stringify(req)}\n`, 'utf8');
         } catch (e) {
           this.pending.delete(id);
+
+          clearTimeout(timer);
 
           this.log('send(): write error', { error: messageOf(e) });
 
@@ -443,13 +526,62 @@ async function startWrapper(): Promise<void> {
   // when it cuts a result.
   const listedTools = new Map<string, ToolDefinitionLike>();
 
+  /** What the last tools/list served, so a reconnect can tell whether the list moved. */
+  let servedSignature: string | null = null;
+
+  const fetchServedTools = async (): Promise<ReturnType<typeof stripToolRefs>> => {
+    const res = (await backend.send('list_tools', {})) as ListToolsReply;
+    // An empty list is a failed list, not "no tools": Claude must see an error, not {tools: []}.
+    if (!res.tools || res.tools.length === 0) {
+      throw new Error('The Foundry AI Tool backend returned no tools');
+    }
+
+    try {
+      backend.log('ListTools handler: received from backend', {
+        hasTools: !!res.tools,
+        toolCount: res.tools?.length || 0,
+      });
+    } catch {}
+
+    // Picker annotations (x-foundry-ref) are for the dashboard only, and this entry lists only
+    // its tool sets (the dashboard reads the control channel and sees every tool).
+    const listed = filterToolsBySets(
+      (res.tools ?? []) as Parameters<typeof stripToolRefs>[0],
+      TOOL_SET_SELECTION
+    );
+    const served = stripToolRefs(listed).map(withChangeCardMeta);
+    for (const tool of served as ToolDefinitionLike[]) listedTools.set(tool.name, tool);
+    servedSignature = JSON.stringify(served);
+    return served;
+  };
+
+  /** The server of the connection now open (the last one built), told when the tool list moves. */
+  let liveServer: Server | null = null;
+
+  // A backend that restarted may serve another tool list (a new build, other switches): read it
+  // again and tell the client when it differs, so Claude lists the tools anew.
+  backend.onReconnect = (): void => {
+    if (servedSignature === null) return;
+    const before = servedSignature;
+    void fetchServedTools()
+      .then(() => {
+        if (servedSignature !== before) return liveServer?.sendToolListChanged();
+        return undefined;
+      })
+      .catch(() => undefined);
+  };
+
   // serveStdio calls this once per connection (and once for a discarded server/discover probe), so
   // it only builds a server over the state above and starts nothing.
   const buildServer = (): Server => {
     const mcp = new Server(
       { name: config.server.name, version: config.server.version },
       {
-        capabilities: { tools: {}, ...PROMPTS_CAPABILITY },
+        capabilities: {
+          tools: { listChanged: true },
+          ...PROMPTS_CAPABILITY,
+          ...RESOURCES_CAPABILITY,
+        },
         instructions: toolSetInstructions(TOOL_SET_SELECTION),
         // ttlMs and cacheScope for the list results of MCP 2026-07-28; 2025-11-25 clients never see them.
         cacheHints: LIST_CACHE_HINTS,
@@ -465,6 +597,7 @@ async function startWrapper(): Promise<void> {
         .send('record_client', {
           piece: 'claude',
           who: 'gm',
+          install: INSTALL_ID,
           name: info.name,
           version: info.version,
         })
@@ -473,30 +606,13 @@ async function startWrapper(): Promise<void> {
 
     // The ready-made "/" prompts (prompts/list, prompts/get). Static, answered right here.
     registerPromptHandlers(mcp, TOOL_SET_SELECTION.all ? undefined : TOOL_SET_SELECTION.sets);
+    // The diff card for plan-* tools (MCP Apps hosts; others ignore it).
+    registerChangeCardHandlers(mcp);
+    liveServer = mcp;
 
     mcp.setRequestHandler('tools/list', async () => {
       try {
-        const res = (await backend.send('list_tools', {})) as ListToolsReply;
-        // An empty list is a failed list, not "no tools": Claude must see an error, not {tools: []}.
-        if (!res.tools || res.tools.length === 0) {
-          throw new Error('The Foundry AI Tool backend returned no tools');
-        }
-
-        try {
-          backend.log('ListTools handler: received from backend', {
-            hasTools: !!res.tools,
-            toolCount: res.tools?.length || 0,
-          });
-        } catch {}
-
-        // Picker annotations (x-foundry-ref) are for the dashboard only, and this entry lists only
-        // its tool sets (the dashboard reads the control channel and sees every tool).
-        const listed = filterToolsBySets(
-          (res.tools ?? []) as Parameters<typeof stripToolRefs>[0],
-          TOOL_SET_SELECTION
-        );
-        const served = stripToolRefs(listed);
-        for (const tool of served as ToolDefinitionLike[]) listedTools.set(tool.name, tool);
+        const served = await fetchServedTools();
         // The backend's tool definitions are already protocol-shaped; v2 types the schema strictly.
         return { tools: served as unknown as ListToolsResult['tools'] };
       } catch (e) {
@@ -524,7 +640,9 @@ async function startWrapper(): Promise<void> {
         })) as ToolResultLike;
 
         // One size cap for every tool result Claude gets (D-109); the dashboard reads them in full.
-        return capToolResult(res, toolName, listedTools.get(toolName)) as unknown as CallToolResult;
+        // A renamed tool's old name is not listed: the cut note names the tool it became.
+        const listed = listedTools.get(RENAMED_TOOLS[toolName]?.to ?? toolName);
+        return capToolResult(res, toolName, listed) as unknown as CallToolResult;
       } catch (e: unknown) {
         return {
           content: [

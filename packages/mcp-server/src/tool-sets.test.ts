@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  CLAUDE_CONNECTOR_MENU,
   TOOL_SETS,
   TOOL_SET_NAMES,
   filterToolsBySets,
@@ -103,15 +104,27 @@ describe('toolSetOf', () => {
 });
 
 describe('toolSetInstructions', () => {
-  it("names this connector's sets and the ones to switch on for the rest", () => {
-    const text = toolSetInstructions(resolveToolSets('prep'));
-    expect(text).toContain(`- Prep: ${TOOL_SETS.prep.purpose}`);
-    expect(text).toContain('switch on');
-    for (const set of ['core', 'play', 'build', 'admin'] as const)
-      expect(text).toContain(`- ${TOOL_SETS[set].title}:`);
+  it('core keeps the full text: its set, every other set and the switch-first rule', () => {
+    const text = toolSetInstructions(resolveToolSets('core'));
+    expect(text).toContain(`- Core: ${TOOL_SETS.core.purpose}`);
+    for (const set of ['play', 'prep', 'build', 'admin'] as const)
+      expect(text).toContain(`- ${TOOL_SETS[set].title}: ${TOOL_SETS[set].purpose}`);
     expect(text).toContain('first say which set to switch on, before looking anything up');
     expect(text).toContain('some may be on already');
     expect(text).toContain('Do not stand in for it');
+  });
+
+  it('the four other connectors carry their own set line, switch-first and language, under 700 characters', () => {
+    for (const set of ['play', 'prep', 'build', 'admin'] as const) {
+      const text = toolSetInstructions(resolveToolSets(set));
+      expect(text, set).toContain(`${TOOL_SETS[set].title}: ${TOOL_SETS[set].purpose}`);
+      expect(text, set).toContain('first say which set to switch on');
+      expect(text, set).toContain('before looking anything up');
+      expect(text, set).toContain('Answer in the same language');
+      expect(text, set).toContain(CLAUDE_CONNECTOR_MENU);
+      for (const other of ['Core', 'Play', 'Prep', 'Build', 'Admin']) expect(text).toContain(other);
+      expect(text.length, `${set} instructions`).toBeLessThan(700);
+    }
   });
 
   it('puts the v4a language line in every connector (D-114)', () => {
@@ -133,7 +146,7 @@ describe('toolSetInstructions', () => {
   });
 
   it('tells the plan story and the direct-write marker, not a blanket "writes go through plan"', () => {
-    for (const raw of ['all', 'core', 'play', 'prep', 'build', 'admin']) {
+    for (const raw of ['all', 'core']) {
       const text = toolSetInstructions(resolveToolSets(raw));
       expect(text).toContain('apply-planned-change');
       expect(text).toContain('Direct write.');

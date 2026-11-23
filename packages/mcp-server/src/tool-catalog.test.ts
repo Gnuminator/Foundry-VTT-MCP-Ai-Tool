@@ -1,4 +1,3 @@
-import { RENAMED_TOOLS } from './param-aliases.js';
 /**
  * The whole tool catalog, built from the real tool classes (with stub
  * dependencies: definitions do not touch them).
@@ -18,6 +17,8 @@ import { fileURLToPath } from 'node:url';
 import { TOOL_REF_KEY, checkToolRefs, stripToolRefs } from '@gnuminator/shared';
 import { describe, expect, it } from 'vitest';
 
+import { withChangeCardMeta } from './change-card.js';
+import { RENAMED_TOOLS } from './param-aliases.js';
 import { stubToolRouterDeps } from './test-support/stub-tool-deps.js';
 import { TOOL_SET_BUDGETS } from './tool-budgets.js';
 import { TOOL_HINTS } from './tool-hints.js';
@@ -30,6 +31,7 @@ import {
   TOOL_SETS,
   filterToolsBySets,
   resolveToolSets,
+  toolSetInstructions,
 } from './tool-sets.js';
 
 const deps = stubToolRouterDeps();
@@ -101,7 +103,7 @@ describe('tool catalog', () => {
   it('keeps each tool set within its size budget (characters of JSON Claude Desktop receives)', () => {
     // Budgets are in tool-budgets.ts (user-owned: a raise needs the user's OK).
     for (const set of ALL_TOOL_SET_NAMES) {
-      const served = stripToolRefs(inSet(set));
+      const served = stripToolRefs(inSet(set)).map(withChangeCardMeta);
       const size = JSON.stringify(served).length;
       // Read by scripts/drift-check.mjs, which prints these lines and warns under 500 characters.
       // Written before the assertion, so an over-budget set still shows its (negative) room.
@@ -117,6 +119,20 @@ describe('tool catalog', () => {
       }
       expect(size, set).toBeLessThanOrEqual(TOOL_SET_BUDGETS[set]);
     }
+  });
+
+  it('keeps the connector instructions short: the full text once (core), a short one on the other four', () => {
+    // Instruction text is sent with every connector, so it costs context five times over.
+    const sizes = Object.fromEntries(
+      (['core', 'play', 'prep', 'build', 'admin'] as const).map(set => [
+        set,
+        toolSetInstructions(resolveToolSets(set)).length,
+      ])
+    );
+    process.stdout.write(`connector instruction size: ${JSON.stringify(sizes)} characters\n`);
+    for (const set of ['play', 'prep', 'build', 'admin'] as const)
+      expect(sizes[set], `${set} instructions`).toBeLessThan(700);
+    expect(sizes.core, 'core keeps the full text').toBeGreaterThan(1500);
   });
 
   it('matches the set lists in docs/reference/TOOL-SETS.md', () => {
@@ -146,7 +162,8 @@ describe('tool catalog', () => {
         '\n'
       );
     const num = (text: string): number => Number(text.replace(/,/g, ''));
-    const size = (value: unknown): number => JSON.stringify(stripToolRefs(value)).length;
+    const size = (value: unknown): number =>
+      JSON.stringify(stripToolRefs(value as Parameters<typeof stripToolRefs>[0])).length;
     const within10 = (file: string, what: string, written: number, actual: number): void => {
       expect(
         Math.abs(written - actual) / actual,
@@ -237,7 +254,12 @@ describe('tool catalog', () => {
     // own writes, not direct ones.
     // plan-actor-image is hinted as a write (it stores a file when planned, the user 2026-11-11)
     // but only stages the actor change, so it is no "Direct write." either.
-    const planStory = new Set(['apply-planned-change', 'undo-change', 'plan-actor-image']);
+    const planStory = new Set([
+      'apply-planned-change',
+      'undo-change',
+      'plan-actor-image',
+      'plan-handout-press',
+    ]);
     const missing = tools
       .filter(t => TOOL_HINTS[t.name]?.kind !== 'read' && !planStory.has(t.name))
       .filter(t => !(t.description ?? '').startsWith('Direct write.'))

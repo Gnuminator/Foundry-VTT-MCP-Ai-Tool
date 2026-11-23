@@ -150,7 +150,7 @@ describe('projectCharacterSheet', () => {
     const s = projectCharacterSheet({
       ...base,
       system: { ...base.system, spells: {} },
-      items: (base.items ?? []).filter(i => i.type !== 'spell'),
+      items: [...base.items].filter(i => i.type !== 'spell'),
     });
     expect(s.spellcasting).toEqual({ ability: null, dc: null, attack: null });
   });

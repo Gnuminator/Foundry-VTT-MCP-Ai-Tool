@@ -286,6 +286,27 @@ export default {
     let sideSceneId = null;
     let headless = false;
 
+    // dnd5e adds Unconscious or Dead at 0 HP only when "autoApplyDowned" is "all" (default "none").
+    // The live world has it on (scripts/pi/remote/world-switches.mjs); a kit world does not, so the
+    // 0 HP steps switch it on here and put the old value back afterwards.
+    const downedBefore = await page.evaluate(async () => {
+      const before = game.settings.get('dnd5e', 'autoApplyDowned');
+      if (before !== 'all') await game.settings.set('dnd5e', 'autoApplyDowned', 'all');
+      return before;
+    });
+    t.cleanup(async () => {
+      await page.evaluate(v => game.settings.set('dnd5e', 'autoApplyDowned', v), downedBefore);
+    });
+    // A hero left Prone by an earlier run would hide whether the undo removes Prone: start clean.
+    await page.evaluate(
+      async ({ actorId }) => {
+        const actor = game.actors.get(actorId);
+        const stale = actor.effects.filter(e => e.statuses.has('prone')).map(e => e.id);
+        if (stale.length) await actor.deleteEmbeddedDocuments('ActiveEffect', stale);
+      },
+      { actorId: cleric.actorId }
+    );
+
     // Cleanups run last in first out: this list is the reverse of the order they run in.
     t.cleanup(async () => {
       if (sideSceneId) await page.evaluate(DELETE_SIDE_SCENE, { sceneId: sideSceneId });
@@ -515,13 +536,21 @@ export default {
       t.check(row && row.canUndo === true, 'the AI change is listed and can be undone', row);
       const downAfter = await page.evaluate(READ_ACTOR, { actorId: cleric.actorId });
       t.log(`at 0 HP the statuses are ${JSON.stringify(downAfter.statuses)}`);
+      t.log(`at 0 HP the effects are ${JSON.stringify(downAfter.effects)}`);
       t.check(
         downAfter.statuses.some((/** @type {string} */ s) => s === 'unconscious' || s === 'dead'),
         'dnd5e added a rider (Unconscious or Dead) at 0 HP',
         downAfter.statuses
       );
+      t.check(!hpBefore.statuses.includes('prone'), 'the hero starts standing', hpBefore.statuses);
+      t.check(
+        downAfter.statuses.includes('prone'),
+        'dnd5e added the Prone rider at 0 HP',
+        downAfter.statuses
+      );
       await t.guarded.undo(/** @type {string} */ (open.pop()));
-      // dnd5e's bloodied and unconscious riders follow the HP a moment after the write.
+      // dnd5e's bloodied, unconscious and prone riders follow the HP a moment after the write; the
+      // undo takes all of them off (Prone is a batch rider the journal ties to the AI change).
       let up = await page.evaluate(READ_ACTOR, { actorId: cleric.actorId });
       for (let i = 0; i < 20 && up.statuses.join() !== hpBefore.statuses.join(); i++) {
         await sleep(500);

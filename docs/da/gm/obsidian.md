@@ -1,6 +1,6 @@
 ---
 source: gm/obsidian.md
-sourceHash: 08f1e7a10d11
+sourceHash: b39153b0c6ea
 title: Din Obsidian-vault
 description: GM'ens Obsidian-vault på din egen pc, hvad du kan redigere i den, og hvordan du forbinder AI Tool-pluginet til dashboardet på serveren.
 ---
@@ -12,6 +12,12 @@ din pc ([Engangsopsætning: din vault på din pc](setup-obsidian-sync.md)). Du l
 og bogteksten, så den bliver på din pc. Spillerne får deres egne vaults uden hemmelighederne.
 
 ## Hvad der er i den
+
+**Altid til stede:** Home, session notes og statistik og din Prep-mappe. **Når du har tændt for
+spejlingen:** worldens NPC'er, scenes, journals, quests, karakterer, Library og dagsnoterne under
+`Everyone`. Spejlingen er slukket, til du beder om den. Bed Claude: "Tænd for Obsidian-spejlingen"
+(den kræver, at Admin-sættet er slået til, og du ser ændringen, før den sker). Indtil da er de
+mapper tomme eller mangler, og det er normalt.
 
 - **Home:** din startside til kampagnen, `Home.md` i worldens mappe. Den er sorteret efter, hvad
   du laver (før, under og efter en session) med links og levende tabeller til NPC'er, scenes,
@@ -94,6 +100,19 @@ ignoreret). Claude læser op til 3 blokke pr. note, 12 skabninger pr. blok og 5 
 videre, aldrig resten af noten.
 
 > **Usikker? Spørg Claude.** Spørg GM coach: "Hvordan laver jeg en prep-note til en NPC og holder Claude fra at læse den?"
+
+## Campaign Atlas
+
+Ved siden af Tarokka-spreadet har vaulten to canvases, tavler du kan læse som et kort:
+
+- `AI Tool/Atlas/Quests.canvas`: dine quest-journals, med de NPC'er og scener, hver enkelt linker til.
+- `AI Tool/Atlas/Places.canvas`: dine scener, én gruppe pr. Foundry-mappe, med pile for linkene mellem
+  dem.
+
+Klik på et kort for at åbne dets note. Kort, du flytter, og kort og pile, du tilføjer, bliver, hvor du
+satte dem, når canvases bygges om ved næste eksport. Atlas'et beholder også kortfarver og pilenes
+tekst. Tarokka-spreadet bygger sin korttekst og farve om hver gang, så skriv dine egne noter på dine
+egne kort. For at overtage et canvas helt skal du slette markørkortet på det.
 
 ## Må jeg omdøbe ting?
 

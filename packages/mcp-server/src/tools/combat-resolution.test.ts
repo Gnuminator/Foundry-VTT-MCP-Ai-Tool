@@ -9,8 +9,8 @@ import { CombatResolutionTools } from './combat-resolution.js';
  * FoundryClient.query. Pattern per handler:
  *   validate args (zod) -> dispatch the matching `foundry-mcp-bridge.*` method
  *   with the PARSED args -> on Foundry `{ success: false }` throw
- *   (response.error || fallback) -> on a ZodError return a `Parameter error: …`
- *   STRING (never throw) -> any other error rethrows.
+ *   (response.error || fallback) -> on a ZodError throw a `Parameter error: …`
+ *   Error -> any other error rethrows.
  *
  * The FoundryClient is mocked so these tests run with no bridge connection.
  */
@@ -100,24 +100,27 @@ describe('CombatResolutionTools.handleRollSavingThrows', () => {
     ).rejects.toThrow('Failed to roll saving throws');
   });
 
-  it('returns a parameter-error string when rollType is missing', async () => {
+  it('throws a parameter error when rollType is missing', async () => {
     const { tools, query } = makeTools(CombatResolutionTools);
-    const result = await tools.handleRollSavingThrows({ targets: ['Goblin'] });
-    expect(result as string).toMatch(/Parameter error/i);
+    await expect(tools.handleRollSavingThrows({ targets: ['Goblin'] })).rejects.toThrow(
+      /Parameter error/i
+    );
     expect(query).not.toHaveBeenCalled();
   });
 
-  it('returns a parameter-error string when rollType is not in the enum', async () => {
+  it('throws a parameter error when rollType is not in the enum', async () => {
     const { tools, query } = makeTools(CombatResolutionTools);
-    const result = await tools.handleRollSavingThrows({ targets: ['Goblin'], rollType: 'attack' });
-    expect(result as string).toMatch(/Parameter error/i);
+    await expect(
+      tools.handleRollSavingThrows({ targets: ['Goblin'], rollType: 'attack' })
+    ).rejects.toThrow(/Parameter error/i);
     expect(query).not.toHaveBeenCalled();
   });
 
-  it('returns a parameter-error string when targets is empty', async () => {
+  it('throws a parameter error when targets is empty', async () => {
     const { tools, query } = makeTools(CombatResolutionTools);
-    const result = await tools.handleRollSavingThrows({ targets: [], rollType: 'save' });
-    expect(result as string).toMatch(/Parameter error/i);
+    await expect(tools.handleRollSavingThrows({ targets: [], rollType: 'save' })).rejects.toThrow(
+      /Parameter error/i
+    );
     expect(query).not.toHaveBeenCalled();
   });
 });
@@ -184,17 +187,19 @@ describe('CombatResolutionTools.handleUseNpcActivity', () => {
     ).rejects.toThrow('Failed to use NPC activity');
   });
 
-  it('returns a parameter-error string when actor is missing', async () => {
+  it('throws a parameter error when actor is missing', async () => {
     const { tools, query } = makeTools(CombatResolutionTools);
-    const result = await tools.handleUseNpcActivity({ itemName: 'Scimitar' });
-    expect(result as string).toMatch(/Parameter error/i);
+    await expect(tools.handleUseNpcActivity({ itemName: 'Scimitar' })).rejects.toThrow(
+      /Parameter error/i
+    );
     expect(query).not.toHaveBeenCalled();
   });
 
-  it('returns a parameter-error string when itemName is missing', async () => {
+  it('throws a parameter error when itemName is missing', async () => {
     const { tools, query } = makeTools(CombatResolutionTools);
-    const result = await tools.handleUseNpcActivity({ actor: 'Goblin' });
-    expect(result as string).toMatch(/Parameter error/i);
+    await expect(tools.handleUseNpcActivity({ actor: 'Goblin' })).rejects.toThrow(
+      /Parameter error/i
+    );
     expect(query).not.toHaveBeenCalled();
   });
 });
@@ -246,24 +251,27 @@ describe('CombatResolutionTools.handleManageRest', () => {
     );
   });
 
-  it('returns a parameter-error string when restType is missing', async () => {
+  it('throws a parameter error when restType is missing', async () => {
     const { tools, query } = makeTools(CombatResolutionTools);
-    const result = await tools.handleManageRest({ targets: ['Aldric'] });
-    expect(result as string).toMatch(/Parameter error/i);
+    await expect(tools.handleManageRest({ targets: ['Aldric'] })).rejects.toThrow(
+      /Parameter error/i
+    );
     expect(query).not.toHaveBeenCalled();
   });
 
-  it('returns a parameter-error string when restType is not in the enum', async () => {
+  it('throws a parameter error when restType is not in the enum', async () => {
     const { tools, query } = makeTools(CombatResolutionTools);
-    const result = await tools.handleManageRest({ targets: ['Aldric'], restType: 'nap' });
-    expect(result as string).toMatch(/Parameter error/i);
+    await expect(tools.handleManageRest({ targets: ['Aldric'], restType: 'nap' })).rejects.toThrow(
+      /Parameter error/i
+    );
     expect(query).not.toHaveBeenCalled();
   });
 
-  it('returns a parameter-error string when targets is empty', async () => {
+  it('throws a parameter error when targets is empty', async () => {
     const { tools, query } = makeTools(CombatResolutionTools);
-    const result = await tools.handleManageRest({ targets: [], restType: 'short' });
-    expect(result as string).toMatch(/Parameter error/i);
+    await expect(tools.handleManageRest({ targets: [], restType: 'short' })).rejects.toThrow(
+      /Parameter error/i
+    );
     expect(query).not.toHaveBeenCalled();
   });
 });
@@ -273,7 +281,7 @@ describe('CombatResolutionTools.handleManageRest', () => {
 // ---------------------------------------------------------------------------
 
 describe('CombatResolutionTools parameter descriptions (M3)', () => {
-  const props = (name: string): Record<string, { description?: string }> => {
+  const props = (name: string): Record<string, { description?: string; enum?: string[] }> => {
     const { tools } = makeTools(CombatResolutionTools);
     const def = tools.getToolDefinitions().find(d => d.name === name)!;
     return (def.inputSchema as any).properties;

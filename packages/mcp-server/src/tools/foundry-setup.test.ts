@@ -1,5 +1,7 @@
 import { describe, expect, it, vi, type Mock } from 'vitest';
 
+import { makeTools } from '../test-support/make-tool-harness.js';
+
 import { FoundrySetupTools } from './foundry-setup.js';
 
 /**
@@ -99,12 +101,12 @@ const moduleRows = [
   },
 ];
 
-function makeTools(): {
+function buildTools(): {
   tools: FoundrySetupTools;
   query: Mock;
   createPlan: Mock;
 } {
-  const query = vi.fn((_method: string, data: any) => {
+  const queryImpl = (_method: string, data: any): unknown => {
     if (data.area === 'setting') {
       const rows = [settingRow, secretRow, rangeRow].filter(r => r.id === data.target);
       return { area: 'setting', settings: rows };
@@ -120,16 +122,13 @@ function makeTools(): {
       packs: [packRow],
       folders: [{ id: 'f1', name: 'Hidden' }],
     };
-  });
+  };
   const createPlan = vi.fn(
     (input: any): Promise<unknown> => Promise.resolve({ planId: 'p1', ...input, diff: [] })
   );
-  const logger: any = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
-  logger.child = (): unknown => logger;
-  const tools = new FoundrySetupTools({
-    foundryClient: { query } as any,
-    guardedWrites: { createPlan },
-    logger,
+  const { tools, query } = makeTools(FoundrySetupTools, {
+    queryImpl,
+    extra: { guardedWrites: { createPlan } },
   });
   return { tools, query, createPlan };
 }
@@ -139,7 +138,7 @@ const plan = (tools: FoundrySetupTools, args: unknown): Promise<any> =>
 
 describe('plan-foundry-setup: settings', () => {
   it('read mode returns the bridge answer', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = buildTools();
     const out = await plan(tools, {
       mode: 'read',
       area: 'setting',
@@ -153,7 +152,7 @@ describe('plan-foundry-setup: settings', () => {
   });
 
   it('plans an update of GameSetting.<ns>.<key>', async () => {
-    const { tools, createPlan } = makeTools();
+    const { tools, createPlan } = buildTools();
     const out = await plan(tools, {
       mode: 'plan',
       area: 'setting',
@@ -170,7 +169,7 @@ describe('plan-foundry-setup: settings', () => {
   });
 
   it('refuses a secret, a value off the choices, the same value and a value out of range', async () => {
-    const { tools, createPlan } = makeTools();
+    const { tools, createPlan } = buildTools();
     const base = { mode: 'plan', area: 'setting' };
     await expect(plan(tools, { ...base, target: 'dnd5e.apiKey', value: 'x' })).rejects.toThrow(
       /secret/
@@ -194,7 +193,7 @@ describe('plan-foundry-setup: settings', () => {
   });
 
   it('read mode takes no value; a hidden setting and a toString choice are refused', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = buildTools();
     await expect(
       plan(tools, { mode: 'read', area: 'setting', target: 'core.fontSize', value: 1 })
     ).rejects.toThrow(/value is for mode plan/);
@@ -216,7 +215,7 @@ describe('plan-foundry-setup: settings', () => {
   });
 
   it('turns a bridge refusal into a clear error', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = buildTools();
     query.mockImplementationOnce(() => ({ error: 'Access denied', success: false }));
     await expect(plan(tools, { mode: 'read', area: 'setting' })).rejects.toThrow(
       /Setup read refused: Access denied/
@@ -224,7 +223,7 @@ describe('plan-foundry-setup: settings', () => {
   });
 
   it('refuses to lower the Assistant GM role on a pack', async () => {
-    const { tools, createPlan } = makeTools();
+    const { tools, createPlan } = buildTools();
     await expect(
       plan(tools, {
         mode: 'plan',
@@ -237,7 +236,7 @@ describe('plan-foundry-setup: settings', () => {
   });
 
   it('notes a reload and a client-scope setting', async () => {
-    const { tools } = makeTools();
+    const { tools } = buildTools();
     const out = await plan(tools, {
       mode: 'plan',
       area: 'setting',
@@ -251,7 +250,7 @@ describe('plan-foundry-setup: settings', () => {
 
 describe('plan-foundry-setup: packs', () => {
   it('hides a pack from players: writes the whole role map and keeps the assistant', async () => {
-    const { tools, createPlan } = makeTools();
+    const { tools, createPlan } = buildTools();
     await plan(tools, {
       mode: 'plan',
       area: 'pack',
@@ -270,7 +269,7 @@ describe('plan-foundry-setup: packs', () => {
   });
 
   it('refuses a level a higher role cannot get while a lower role keeps more', async () => {
-    const { tools, createPlan } = makeTools();
+    const { tools, createPlan } = buildTools();
     await expect(
       plan(tools, {
         mode: 'plan',
@@ -283,7 +282,7 @@ describe('plan-foundry-setup: packs', () => {
   });
 
   it('sets locked and moves the pack to a folder by name or back to the root', async () => {
-    const { tools, createPlan } = makeTools();
+    const { tools, createPlan } = buildTools();
     await plan(tools, {
       mode: 'plan',
       area: 'pack',
@@ -294,7 +293,7 @@ describe('plan-foundry-setup: packs', () => {
   });
 
   it('refuses nothing to change, an unknown pack, a bad role or level, an unknown folder', async () => {
-    const { tools } = makeTools();
+    const { tools } = buildTools();
     const base = { mode: 'plan', area: 'pack', target: 'dnd5e.monsters' };
     await expect(plan(tools, { ...base, value: { locked: false } })).rejects.toThrow(
       /Nothing to change/
@@ -315,7 +314,7 @@ describe('plan-foundry-setup: packs', () => {
 
 describe('plan-foundry-setup: modules', () => {
   it('turns a module off with one flag and a reload note', async () => {
-    const { tools, createPlan } = makeTools();
+    const { tools, createPlan } = buildTools();
     const out = await plan(tools, { mode: 'plan', area: 'module', target: 'child', value: false });
     const input = createPlan.mock.calls[0][0];
     expect(input.ops).toEqual([
@@ -330,7 +329,7 @@ describe('plan-foundry-setup: modules', () => {
   });
 
   it('turns on the modules a module requires, and names them', async () => {
-    const { tools, createPlan } = makeTools();
+    const { tools, createPlan } = buildTools();
     const out = await plan(tools, { mode: 'plan', area: 'module', target: 'Fancy', value: true });
     expect(createPlan.mock.calls[0][0].ops[0].changes).toEqual({
       'value.fancy': true,
@@ -340,7 +339,7 @@ describe('plan-foundry-setup: modules', () => {
   });
 
   it('refuses a missing dependency, a no-op, a bad value and an unknown module', async () => {
-    const { tools } = makeTools();
+    const { tools } = buildTools();
     const run = (target: string, value: unknown): Promise<any> =>
       plan(tools, { mode: 'plan', area: 'module', target, value });
     await expect(run('broken', true)).rejects.toThrow(/not installed: ghost/);
@@ -350,7 +349,7 @@ describe('plan-foundry-setup: modules', () => {
   });
 
   it('never turns off the AI Tool or what it needs', async () => {
-    const { tools } = makeTools();
+    const { tools } = buildTools();
     await expect(
       plan(tools, { mode: 'plan', area: 'module', target: 'foundry-mcp-bridge', value: false })
     ).rejects.toThrow(/AI Tool module cannot be turned off/);
@@ -362,7 +361,7 @@ describe('plan-foundry-setup: modules', () => {
 
 describe('plan-foundry-setup: users', () => {
   it('plans a role change as an update of User.<id> path role', async () => {
-    const { tools, createPlan } = makeTools();
+    const { tools, createPlan } = buildTools();
     await plan(tools, { mode: 'plan', area: 'user', target: 'ask', value: { role: 'TRUSTED' } });
     expect(createPlan.mock.calls[0][0].ops).toEqual([
       { kind: 'update', uuid: 'User.u1', changes: { role: 2 } },
@@ -370,7 +369,7 @@ describe('plan-foundry-setup: users', () => {
   });
 
   it('refuses a Gamemaster, a Gamemaster role, an unknown user, a no-op and extra fields', async () => {
-    const { tools } = makeTools();
+    const { tools } = buildTools();
     const run = (target: string, value: unknown): Promise<any> =>
       plan(tools, { mode: 'plan', area: 'user', target, value });
     await expect(run('Danni', { role: 'PLAYER' })).rejects.toThrow(/Gamemaster/);
@@ -383,7 +382,7 @@ describe('plan-foundry-setup: users', () => {
 
 describe('plan-foundry-setup: journal and scene ownership', () => {
   it('plans default and per-user levels on one journal', async () => {
-    const { tools, createPlan } = makeTools();
+    const { tools, createPlan } = buildTools();
     const out = await plan(tools, {
       mode: 'plan',
       area: 'ownership',
@@ -401,7 +400,7 @@ describe('plan-foundry-setup: journal and scene ownership', () => {
   });
 
   it('uses Scene.<id> for a scene and skips what already holds', async () => {
-    const { tools, createPlan } = makeTools();
+    const { tools, createPlan } = buildTools();
     await plan(tools, {
       mode: 'plan',
       area: 'ownership',
@@ -416,7 +415,7 @@ describe('plan-foundry-setup: journal and scene ownership', () => {
   });
 
   it('refuses an ambiguous name, a Gamemaster, a bad target and a no-op', async () => {
-    const { tools } = makeTools();
+    const { tools } = buildTools();
     const run = (target: string, value: unknown): Promise<any> =>
       plan(tools, { mode: 'plan', area: 'ownership', target, value });
     await expect(run('journal:Strahd', { default: 'NONE' })).rejects.toThrow(/name one of them/);
@@ -429,7 +428,7 @@ describe('plan-foundry-setup: journal and scene ownership', () => {
 
 describe('plan-foundry-setup: review lows of the module and user plans', () => {
   it('says a role change signs the user out, and that None means no login', async () => {
-    const { tools, createPlan } = makeTools();
+    const { tools, createPlan } = buildTools();
     await plan(tools, { mode: 'plan', area: 'user', target: 'Ask', value: { role: 'NONE' } });
     const notes: string[] = createPlan.mock.calls[0][0].notes;
     expect(notes.join(' ')).toMatch(/signs Ask out/);
@@ -437,7 +436,7 @@ describe('plan-foundry-setup: review lows of the module and user plans', () => {
   });
 
   it('refuses two users with one name and asks for the id, in a user plan and an ownership plan', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = buildTools();
     const twins = [
       { id: 'u1', name: 'Ask', role: 'PLAYER', isGM: false },
       { id: 'u9', name: 'ask', role: 'PLAYER', isGM: false },
@@ -465,7 +464,7 @@ describe('plan-foundry-setup: review lows of the module and user plans', () => {
   });
 
   it('refuses a module the world or system keeps on, and one that is incompatible', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = buildTools();
     query.mockImplementation(() => ({
       area: 'module',
       shape: 2,
@@ -497,7 +496,7 @@ describe('plan-foundry-setup: review lows of the module and user plans', () => {
   });
 
   it('refuses a plan whose closure the read cut, turning on and off, and names the target', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = buildTools();
     query.mockImplementation(() => ({
       area: 'module',
       shape: 2,
@@ -521,7 +520,7 @@ describe('plan-foundry-setup: review lows of the module and user plans', () => {
   });
 
   it('asks the bridge for the target, and names a module list that is too large', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = buildTools();
     await plan(tools, { mode: 'plan', area: 'module', target: 'fancy', value: true });
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getSetupInfo', {
       area: 'module',
@@ -541,7 +540,7 @@ describe('plan-foundry-setup: review lows of the module and user plans', () => {
 
 describe('plan-foundry-setup: round-2 lows', () => {
   it('reports a read error and a too-long value instead of "no value yet"', async () => {
-    const { tools, query } = makeTools();
+    const { tools, query } = buildTools();
     query.mockReturnValueOnce({
       area: 'setting',
       settings: [{ ...settingRow, value: undefined, valueError: 'boom' }],
@@ -559,7 +558,7 @@ describe('plan-foundry-setup: round-2 lows', () => {
   });
 
   it('puts the Assistant GM back to OWNER when the pack already has it lower', async () => {
-    const { tools, createPlan, query } = makeTools();
+    const { tools, createPlan, query } = buildTools();
     query.mockReturnValueOnce({
       area: 'pack',
       packs: [{ ...packRow, ownership: { PLAYER: 'OBSERVER', ASSISTANT: 'OBSERVER' } }],

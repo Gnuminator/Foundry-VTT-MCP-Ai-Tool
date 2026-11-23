@@ -1,3 +1,5 @@
+import * as path from 'path';
+
 import type { Express } from 'express';
 import { createSpaceStatusReader } from '@gnuminator/shared';
 
@@ -8,6 +10,10 @@ import {
   obsidianClientRecorder,
 } from '../client-versions.js';
 import type { DashboardDeps } from '../dashboard-types.js';
+import { DiaryStore } from '../diary-store.js';
+import { mountDowntimeRoute } from '../downtime-route.js';
+import { gmConnectorFromEnv } from '../gm-connector.js';
+import { mountGmRoute } from '../gm-route.js';
 import { mountHandoutSeenRoute } from '../handout-seen-route.js';
 import { mountHelpRoute } from '../help-route.js';
 import { mountMeRoute } from '../me-route.js';
@@ -16,6 +22,7 @@ import { playerConnectorFromEnv, type PlayerConnectorOptions } from '../player-c
 import type { PlayerLinkStore } from '../player-links.js';
 import { mountPlayerRoute } from '../player-route.js';
 import { gmOnly } from '../redact.js';
+import { mountPreviouslyOnRoute } from '../previously-on-route.js';
 import { mountSessionNotesRoute } from '../session-notes-route.js';
 import { mountSpaceRoute } from '../space-route.js';
 import { mountUsageRoute, type PlayerDirectory } from '../usage-route.js';
@@ -133,6 +140,16 @@ export function mountRawBodyRoutes(
     clients: clientsOf(f),
     ...(deps.accessFetch ? { accessFetch: deps.accessFetch } : {}),
   });
+  // The remote GM connector: /mcp/core to /mcp/admin behind the GM Access application.
+  mountGmRoute(app, {
+    config: { host: config.host, auth: config.auth },
+    connector:
+      deps.gmConnector ??
+      gmConnectorFromEnv(process.env, message => logger.child('gm-connector').warn(message)),
+    client,
+    logger,
+    ...(deps.accessFetch ? { accessFetch: deps.accessFetch } : {}),
+  });
   return playerConnector;
 }
 
@@ -149,6 +166,11 @@ export function mountMeSpaceVersionRoutes(
   mountMeRoute(app, {
     client,
     links,
+    // Character diaries (I-183): the players' own entries, in the state folder.
+    diary: new DiaryStore(
+      config.stateDir ? path.join(config.stateDir, 'player-diaries.json') : null,
+      logger
+    ),
     connector: playerConnector.enabled ? playerConnector.store : null,
     directory,
     requireGm,
@@ -160,6 +182,14 @@ export function mountMeSpaceVersionRoutes(
     theme: () => themes.get(ctx.world()?.id),
     publicDir: config.publicDir,
     pageHeaders: res => PLAYER_PAGE_HEADERS.apply(res),
+  });
+
+  // The downtime inbox (I-180): a player's own entries behind their private link.
+  mountDowntimeRoute(app, {
+    client,
+    links,
+    directory,
+    worldId: () => ctx.world()?.id ?? null,
   });
 
   // The storage space check (2026-10-06): GM only; nothing on /player or /me.
@@ -209,6 +239,16 @@ export function mountHelpAndNotesRoutes(
     client,
     requireGm,
     gmActionsEnabled: () => settings.gmActionsEnabled,
+    logger,
+  });
+
+  // "Previously on" (item previously-on): last night's approved recap to chat, optionally spoken.
+  // Off unless FOUNDRY_AI_PREVIOUSLY_ON=1.
+  mountPreviouslyOnRoute(app, {
+    client,
+    requireGm,
+    gmActionsEnabled: () => settings.gmActionsEnabled,
+    enabled: () => process.env.FOUNDRY_AI_PREVIOUSLY_ON === '1',
     logger,
   });
 }

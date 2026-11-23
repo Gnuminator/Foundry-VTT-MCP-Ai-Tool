@@ -15,13 +15,18 @@ Start from a clean, up-to-date checkout of `main` (the main checkout, or a workt
    headline in words the previous release's headline did not use. Repeated headings in the fragments fold under one
    base heading (a trailing `(...)` tag is dropped for new sections; Testing, Test kit and Test environment go
    under `### Tests`). Duplicates already in Unreleased are left as they are: tidy them by hand.
-2. **Set the version.** `npm run version:sync -- --set X.Y.Z`, then `npm run version:check`.
+2. **Set the version.** `npm run version:sync -- --set X.Y.Z`, then `npm run version:check`. When the Foundry
+   build or dnd5e version the release was tested on changed, add `--tested <foundry> <dnd5e>` (for example
+   `--tested 14.370 6.0.6`): it rewrites `shared/src/tested-versions.ts`, which the pre-flight check "Tested
+   Foundry and dnd5e versions" reads. A release PR that changes it is not a pure version bump, so it carries a
+   `changelog.d` fragment.
 3. **Check.** `npm run green`.
 4. **Land it.** Commit on a branch (`Release vX.Y.Z`), open a PR, merge through the normal gate (the `lane` skill).
    The PR needs no `changelog.d` fragment: the gate sees a release PR and passes its changelog check
    (`lane:merge: changelog: a release PR ...`) when it changes only `CHANGELOG.md`, deletes `changelog.d/*.md`
    files, and changes nothing but the version in the places `version:sync` stamps (the package.json files, the
-   lock file's own entries, `module.json`, the Obsidian `manifest.json`, `shared/src/version.ts` and the NSIS
+   lock file's own entries, `module.json`, the Obsidian `manifest.json`, `tools/player-connector/manifest.json`,
+   the `VERSION` constant in `tools/player-connector/server/index.js`, `shared/src/version.ts` and the NSIS
    script), with the root `package.json` version changed. Anything more (a fix in the same PR, a fold without a
    version bump) is not a release PR: the refusal says which file, and then a fragment or
    `--no-changelog "reason"` is needed. The PR touches wire contracts (`module.json`, `shared/src`), so its
@@ -107,3 +112,9 @@ newer release tag on the Pi; a deliberate rollback needs `TOOL_REF`. The refusal
 
 A build of a tag that lists `playwright-core` as a runtime dependency drops its dev packages; v0.21.0 and older do
 not, so the first release built on the Pi with the pruned layout is v0.22.0.
+
+**Stage 33 right after stage 5.** `scripts/pi/remote/33-obsidian-plugin.sh` writes the new build's Obsidian plugin files
+into the GM vault, and Syncthing carries them to the GM's PC. Stage 5 ends with stage 33's read-only `CHECK=1` result as
+one warning line; when it warns, run stage 33 (`dietpi-backup 1` and the user's OK first, see
+[the vaults page](pi/vaults-and-recordings.md#the-obsidian-plugin-through-the-gm-vault-stage-33)). The plugin shows
+"Restart Obsidian" in the status bar while the synced manifest is newer than the running plugin.

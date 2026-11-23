@@ -78,6 +78,12 @@ turns it on), click combatant rows to select them (click again to unselect). Wit
   request goes to each player's chat and the play log at once, with no confirm window and no
   Undo (it only posts a roll card).
 
+  The status line under the roll bar is a **roll tracker**. Each ask gets its own line, for example
+  "Perception Skill Check". It turns green when everyone has rolled, and **Post results to chat**
+  then writes the answers into Foundry's chat ("Perception Skill Check: Brenna 17, Tom 9."). If a
+  player has not answered after 5 minutes, a **Nudge** button appears; it posts "Still waiting for
+  Tom: Perception Skill Check." to chat. It works for the whole party and for one character.
+
 After a Damage / Heal or Condition change, a message lists each target's result ("Wolf 2: HP 11 to
 5") with **Undo** for a few seconds; one click puts it back. Later, use **Undo** in Recent
 Changes.
@@ -184,6 +190,27 @@ scene changes and more. Each line shows its type and the time.
   show as **roll request**, and someone dropping to 0 HP shows **down**.
 - A line starting "Applied:" or "Undid:" appears when a guarded change is applied or undone. Its
   chip names what made it, such as **actor change** or **page reveal**.
+
+### Spotlight balance
+
+A small card under the Live Feed on the During screen, for you only. It shows one bar per player
+character for what they did since the dashboard started: dice rolls, damage rolls and item uses,
+counted from the play log. While the Discord recorder runs, a second bar shows how long each
+player has spoken. It is a nudge, not a score: a line under the bars names a character who has had
+little of the spotlight.
+
+- **Switch it on:** nothing to switch on. It is there on During. The speaking bars need the
+  Discord recorder running (whoever runs the Discord bot starts it); without it you see action
+  bars only.
+- **Hint after:** the number box at the bottom sets how many actions the party must have taken
+  before the hint speaks (20 by default; 0 turns the hint off). The hint stays quiet early in a
+  session, when a low count means nothing.
+- **Hide:** **Hide** removes the card, and **Show spotlight balance** brings it back. Each choice
+  is remembered on that browser.
+- **Reset:** the count starts over when the dashboard starts or another world opens, so on a table that leaves it running
+  it adds up across nights. Restart the dashboard for a clean count.
+- **What players see:** nothing. The card is GM only and none of it reaches the player page. It
+  is also only an extra: you can read the same table by eye in Foundry.
 
 ### Module Diagnostics
 

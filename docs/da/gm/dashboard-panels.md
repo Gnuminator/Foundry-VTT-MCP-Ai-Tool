@@ -1,6 +1,6 @@
 ---
 source: gm/dashboard-panels.md
-sourceHash: b2cda98d6ae0
+sourceHash: e73987f0537d
 title: 'Dashboardet: panelerne'
 description: "During layouts, Combat Tracker, Tonight's stats, Session notes, Live Feed, Module Diagnostics og Recent Changes."
 ---
@@ -79,6 +79,12 @@ Med en eller flere valgt:
   DC og privat eller offentlig, og klik derefter på **Ask the party**, eller **Ask** for de valgte
   spillerkarakterer. Anmodningen går til hver spillers chat og til play log på én gang, uden
   confirm-vindue og uden Undo (den sender kun et roll-kort).
+
+  Statuslinjen under roll-baren er en **roll tracker**. Hver forespørgsel får sin egen linje, for
+  eksempel "Perception Skill Check". Den bliver grøn, når alle har rullet, og **Post results to chat**
+  skriver så svarene i Foundrys chat ("Perception Skill Check: Brenna 17, Tom 9."). Hvis en spiller
+  ikke har svaret efter 5 minutter, dukker en **Nudge**-knap op; den skriver "Still waiting for Tom:
+  Perception Skill Check." i chatten. Den virker for hele partiet og for én karakter.
 
 Efter en ændring med Damage / Heal eller Condition viser en besked hvert måls resultat ("Wolf 2: HP
 11 to 5") med **Undo** i nogle sekunder; ét klik sætter det tilbage. Senere bruger du **Undo** i
@@ -187,6 +193,27 @@ slots, rolls, scene-skift og mere. Hver linje viser sin type og tidspunktet.
 - En linje, der begynder med "Applied:" eller "Undid:", dukker op, når en guarded change anvendes
   eller fortrydes. Dens chip nævner, hvad der gjorde det, for eksempel **actor change** eller **page
   reveal**.
+
+### Spotlight balance
+
+Et lille kort under Live Feed på During-skærmen, kun til dig. Det viser én bjælke pr.
+spillerkarakter for det, de har gjort, siden dashboardet startede: terningslag, damage rolls og
+brug af items, talt fra play log. Mens Discord-optageren kører, viser en anden bjælke, hvor længe
+hver spiller har talt. Det er et puf, ikke en pointtavle: en linje under bjælkerne nævner en
+karakter, der har haft lidt af spotlightet.
+
+- **Slå det til:** der er intet at slå til. Det er der på During. Talebjælkerne kræver, at
+  Discord-optageren kører (den, der kører Discord-botten, starter den); uden den ser du kun
+  handlingsbjælker.
+- **Hint after:** talfeltet nederst sætter, hvor mange handlinger partiet skal have taget, før
+  hintet siger noget (20 som standard; 0 slår hintet fra). Hintet tier tidligt i en session, hvor
+  et lavt tal ikke betyder noget.
+- **Hide:** **Hide** fjerner kortet, og **Show spotlight balance** henter det tilbage. Hvert valg
+  huskes i den browser.
+- **Nulstilling:** optællingen begynder forfra, når dashboardet starter, eller en anden world åbnes, så på et bord, der lader
+  det køre, lægger den sig sammen over flere aftener. Genstart dashboardet for en ren optælling.
+- **Hvad spillerne ser:** ingenting. Kortet er kun for GM, og intet af det når player page. Det er
+  også kun et ekstra: du kan aflæse det samme ved bordet i Foundry.
 
 ### Module Diagnostics
 

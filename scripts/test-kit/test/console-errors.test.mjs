@@ -75,11 +75,15 @@ test('finding ids: a hook, a file, or the function of a page error', () => {
 test('the known console list is version-aware: both findings on upstream 2.10.5, none on the fork', () => {
   assert.deepEqual(
     loadKnownConsole(undefined, '2.10.5').map(e => e.id),
-    KNOWN.map(e => e.id)
+    [...KNOWN.map(e => e.id), 'console:pageerror:array-find', 'console:main.js']
   );
-  assert.deepEqual(loadKnownConsole(undefined, '2.10.5-aitool.1'), []);
+  // the fork fixed the two Actor Studio findings; the two third-party ones stay
+  assert.deepEqual(
+    loadKnownConsole(undefined, '2.10.5-aitool.1').map(e => e.id),
+    ['console:pageerror:array-find', 'console:main.js']
+  );
   // an unknown version gets the upstream list
-  assert.equal(loadKnownConsole(undefined, '9.9.9').length, 2);
+  assert.equal(loadKnownConsole(undefined, '9.9.9').length, 4);
 });
 
 test('groups count, time and scenarios; the new ones come first', () => {

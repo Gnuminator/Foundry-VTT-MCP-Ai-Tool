@@ -43,6 +43,8 @@ import { TurnOnNote } from './TurnOnNote';
 
 // The picker is a lazy chunk (bundle budget): it loads when the bar's Start combat is clicked.
 const StartCombat = lazy(() => import('./StartCombat').then(m => ({ default: m.StartCombat })));
+// The pinned tool buttons too: the chunk draws nothing when no tool is pinned.
+const PinRow = lazy(() => import('./PinRow').then(m => ({ default: m.PinRow })));
 // So is the Conditions panel: it loads when the bar's Conditions button is clicked.
 const ConditionsPanel = lazy(() =>
   import('./ConditionsPanel').then(m => ({ default: m.ConditionsPanel }))
@@ -436,6 +438,9 @@ export function DuringBar({ during }: { during: DuringController }): JSX.Element
           />
         </Suspense>
       )}
+      <Suspense fallback={null}>
+        <PinRow />
+      </Suspense>
       <p className="layout-hint" id="layout-hint" hidden={!hintVisible}>
         <span>
           New: the During screen has three layouts. Try Simple/Full or Auto here, or keep Cards.

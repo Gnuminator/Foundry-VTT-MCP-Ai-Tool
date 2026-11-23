@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
-import { latestRound, readRollRows, roundHeadline, rowLine, type RollRow } from './roll-status';
+import {
+  NUDGE_AFTER_MS,
+  latestRound,
+  nudgeLine,
+  nudgeTargets,
+  readRollRows,
+  resultsLine,
+  roundHeadline,
+  rowLine,
+  type RollRow,
+} from './roll-status';
 
 const row = (over: Partial<RollRow>): RollRow => ({
   id: 'r',
@@ -53,6 +63,34 @@ describe('latestRound', () => {
       row({ id: '1', targetName: 'A', status: 'rolled' }),
     ];
     expect(roundHeadline(latestRound(rows, now)!)).toBe('Perception Skill Check: all 2 rolled');
+  });
+
+  it('gives the ask an id and a start time, offers a nudge after five minutes', () => {
+    const rows = [
+      row({ id: '2', targetName: 'Brenna', sentAt: now, status: 'rolled', total: 17 }),
+      row({ id: '1', targetName: 'Tom', sentAt: now - 1000 }),
+    ];
+    const round = latestRound(rows, now)!;
+    expect(round.id).toBe('1');
+    expect(round.sentAt).toBe(now - 1000);
+    expect(nudgeTargets(round, now + 60_000)).toEqual([]);
+    const late = nudgeTargets(round, now + NUDGE_AFTER_MS);
+    expect(late.map(r => r.targetName)).toEqual(['Tom']);
+    expect(nudgeLine(round, late)).toBe('Still waiting for Tom: Perception Skill Check.');
+  });
+
+  it('writes the results line, also for a single member', () => {
+    const round = latestRound(
+      [
+        row({ id: '2', targetName: 'B', status: 'rolled', total: 3 }),
+        row({ id: '1', targetName: 'A', status: 'rolled' }),
+      ],
+      now
+    )!;
+    expect(resultsLine(round)).toBe('Perception Skill Check: A rolled, B 3.');
+    expect(resultsLine(latestRound([row({ status: 'rolled', total: 9 })], now)!)).toBe(
+      'Perception Skill Check: Tom 9.'
+    );
   });
 
   it('shows nothing without requests or after two hours', () => {

@@ -57,6 +57,9 @@ import {
   riskyHits,
   rollupProblems,
   waitForCi,
+  failureCause,
+  explainFailing,
+  infraCause,
 } from './lane-merge.mjs';
 
 const HEAD = '3d24f70a1b2c3d4e5f60718293a4b5c6d7e8f901';
@@ -177,7 +180,7 @@ function gate(o = {}) {
     if (key === 'git fetch -q') return { status: 128, stdout: '', stderr: 'not our ref' };
     if (key === 'git merge-base aitool/main' && args[2] !== 'HEAD')
       return ok(`${'b'.repeat(40)}\n`);
-    if (key === 'git diff --binary') return ok(`patch ${args.at(-1)}\n`);
+    if (key === 'git diff --binary') return ok(`patch ${args[args.indexOf('--') - 1]}\n`);
     if (key === 'git show -s') return ok(`${o.commitTimes?.[args[3]] ?? 1000}\n`);
     if (key === 'git patch-id --verbatim') {
       const id =
@@ -707,7 +710,9 @@ const NOT_CONTRACT = [
   'client-versions',
   'combat-change',
   'export-index',
+  'tested-versions',
   'foundry-setup',
+  'handout-press',
   'index',
   'library-index',
   'live-play',
@@ -789,6 +794,7 @@ test('feature switch ids are pinned: they form the module setting keys, so a ren
     'ACTOR_IMAGE_FEATURE_ID=actor-image',
     'FOUNDRY_SETUP_FEATURE_ID=foundry-setup',
     'LIVE_PLAY_FEATURE_ID=live-play',
+    'MACRO_FORGE_FEATURE_ID=macro-forge',
     'NPC_TURN_FEATURE_ID=npc-turn',
     'OWNERSHIP_FEATURE_ID=ownership',
     'PAPER_SYNC_FEATURE_ID=paper-sync',
@@ -3953,6 +3959,22 @@ test('carry: patchIdAt pins the submodule rendering in its diff', () => {
   assert.ok(diff.includes('--submodule=short') && diff.includes('--ignore-submodules=none'));
 });
 
+test('carry: patchIdAt leaves the generated tool pages out of the patch', () => {
+  /** @type {string[][]} */
+  const seen = [];
+  const run = (/** @type {string} */ _c, /** @type {string[]} */ args) => {
+    seen.push(args);
+    if (args[0] === 'cat-file') return { status: 0, stdout: '', stderr: '' };
+    if (args[0] === 'merge-base') return { status: 0, stdout: `${'b'.repeat(40)}\n`, stderr: '' };
+    if (args[0] === 'diff') return { status: 0, stdout: 'diff', stderr: '' };
+    return { status: 0, stdout: `${'a'.repeat(40)} ${'0'.repeat(40)}\n`, stderr: '' };
+  };
+  patchIdAt(run, 'c'.repeat(40));
+  const diff = seen.find(a => a[0] === 'diff') ?? [];
+  assert.ok(diff.includes(':(exclude)docs/reference/tools.md'));
+  assert.ok(diff.includes(':(glob,exclude)docs/reference/tools/*.md'));
+});
+
 test('carry: an entry for another patch listed after the carried one in a note refuses the carry', () => {
   const r = carryRepo();
   // X = B reviewed Merge; Y (another patch) listed after it in the same note, with an older
@@ -4334,4 +4356,122 @@ test('acceptLines: bullet and bold forms, case, and prose mentions that do not c
     acceptLines('say visual: accepted 3 abcd1234 in the note\nvisual: accepted 3 abc'),
     []
   );
+});
+
+const jobCheck = (name, conclusion, job, extra = {}) => ({
+  name,
+  status: 'COMPLETED',
+  conclusion,
+  workflowName: 'ci',
+  startedAt: '2026-11-18T10:00:00Z',
+  detailsUrl: `https://github.com/o/r/actions/runs/900/job/${job}`,
+  ...extra,
+});
+const ghAnswers = (jobs, notes) => {
+  const calls = [];
+  const run = (cmd, args) => {
+    calls.push(args[1]);
+    const body = args[1].includes('/annotations') ? notes : jobs;
+    return body === null
+      ? { status: 1, stdout: '', stderr: 'boom' }
+      : { status: 0, stdout: JSON.stringify(body), stderr: '' };
+  };
+  return { run, calls };
+};
+
+test('failureCause: names the failing step, and a job at its timeout reads "timed out after 25 min"', () => {
+  const steps = {
+    steps: [
+      { name: 'Checkout', conclusion: 'success' },
+      { name: 'Run tests', conclusion: 'failure' },
+    ],
+  };
+  assert.equal(
+    failureCause(
+      JSON.stringify(steps),
+      JSON.stringify([{ message: 'Process completed with exit code 1.' }]),
+      'FAILURE'
+    ),
+    'step "Run tests" failed: Process completed with exit code 1.'
+  );
+  assert.equal(
+    failureCause(
+      JSON.stringify(steps),
+      JSON.stringify([
+        {
+          message:
+            'The job running on runner X has exceeded the maximum execution time of 25 minutes.',
+        },
+      ]),
+      'CANCELLED'
+    ),
+    'timed out after 25 min'
+  );
+  assert.equal(failureCause(null, null, 'TIMED_OUT'), 'timed out');
+  assert.equal(failureCause('not json', 'nor this', 'FAILURE'), '');
+});
+
+test('explainFailing: a fake failed check with an annotation names the step; green makes no gh call', () => {
+  const rollup = [jobCheck('lint', 'FAILURE', 77), jobCheck('build-test', 'SUCCESS', 78)];
+  const { failing } = rollupProblems(rollup);
+  const { run, calls } = ghAnswers({ steps: [{ name: 'ESLint', conclusion: 'failure' }] }, [
+    { message: 'Process completed with exit code 1.' },
+  ]);
+  assert.deepEqual(explainFailing(rollup, failing, run), [
+    'lint (FAILURE: step "ESLint" failed: Process completed with exit code 1.)',
+  ]);
+  assert.equal(calls.length, 2);
+  const green = ghAnswers(null, null);
+  assert.deepEqual(explainFailing([jobCheck('lint', 'SUCCESS', 77)], [], green.run), []);
+  assert.equal(green.calls.length, 0, 'no extra gh call when everything is green');
+  const broken = ghAnswers(null, null);
+  assert.deepEqual(explainFailing(rollup, failing, broken.run), ['lint (FAILURE)']);
+});
+
+test('failureCause: only failure-level annotations count, and ":" ";" are flattened', () => {
+  const notes = JSON.stringify([
+    { annotation_level: 'warning', message: 'Node 20 is deprecated' },
+    { annotation_level: 'failure', message: 'unexpected error: pending: x; y' },
+  ]);
+  assert.equal(failureCause(null, notes, 'FAILURE'), 'unexpected error, pending, x, y');
+});
+
+test('explainFailing: two failing checks with one name each get looked into', () => {
+  const rollup = [
+    jobCheck('dup', 'FAILURE', 1, { workflowName: 'a' }),
+    jobCheck('dup', 'FAILURE', 2, { workflowName: 'b' }),
+  ];
+  const { run, calls } = ghAnswers({ steps: [{ name: 'S', conclusion: 'failure' }] }, []);
+  explainFailing(rollup, ['dup (FAILURE)', 'dup (FAILURE)'], run);
+  assert.deepEqual(
+    calls.filter(c => c.includes('/actions/jobs/')).map(c => c.split('/').pop()),
+    ['1', '2']
+  );
+});
+
+test('infraCause: only when every failing guard failed to start a worker', () => {
+  const infra = g =>
+    `  FAIL ${g}\n  INFRA ${g}: vitest could not start a worker, also on the retry\n`;
+  assert.match(infraCause(infra('a'), ['a']), /infrastructure, not the PR/);
+  assert.equal(infraCause(`${infra('a')}  FAIL b\n`, ['a', 'b']), '');
+  assert.equal(infraCause('  FAIL a\n', ['a']), '');
+  const slow = '  FAIL a\n  INFRA a: vitest tests timed out, also on the retry\n';
+  assert.match(infraCause(slow, ['a']), /gate timeout, not drift/);
+  assert.match(infraCause(slow, ['a']), /infrastructure, not the PR/);
+  assert.equal(infraCause(`${slow}  FAIL b\n`, ['a', 'b']), '');
+});
+
+test('explainFailing: looks into at most three failing checks', () => {
+  const rollup = [1, 2, 3, 4].map(i => jobCheck(`job${i}`, 'FAILURE', i));
+  const { failing } = rollupProblems(rollup);
+  const { run, calls } = ghAnswers({ steps: [{ name: 'S', conclusion: 'failure' }] }, []);
+  const out = explainFailing(rollup, failing, run);
+  assert.equal(calls.length, 6);
+  assert.equal(out[3], 'job4 (FAILURE)');
+});
+
+test('waitForCi: a failing check with a job url still ends the wait naming the check', () => {
+  const r = waitRun([{ statusCheckRollup: [jobCheck('e2e', 'CANCELLED', 55)] }]);
+  assert.equal(r.result.ok, false);
+  assert.match(r.result.reason, /CI failed on 3d24f70: e2e \(CANCELLED/);
 });

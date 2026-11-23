@@ -48,3 +48,49 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Tablet remote (item tablet-remote): on a touch screen or a screen up to a 10 inch tablet in
+   landscape, every control on this page is at least 44 px and nothing scrolls sideways. The ids
+   outrank the panels' own single-class sizes. Hover-only controls are shown by the panels' own
+   (hover: none) rules; a long press shows the title (lib/long-press.ts). */
+@media (pointer: coarse), (max-width: 1280px) {
+  :global(#live-header),
+  :global(#live-screen) {
+    max-width: 100vw;
+    box-sizing: border-box;
+  }
+  :global(#live-header) :global(.controls) {
+    flex-wrap: wrap;
+  }
+  :global(#live-header) :is(button, :global(.btn), select),
+  :global(#live-screen)
+    :is(
+      button,
+      :global(.btn),
+      select,
+      summary,
+      [role='button'],
+      [role='tab'],
+      input:not([type='checkbox'], [type='radio'], [type='range'], [type='hidden'])
+    ) {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  :global(#live-header) :global(.controls) .undo {
+    width: 12rem;
+  }
+  /* A checkbox or radio is tapped through its label, which is the 44 px target. */
+  :global(#live-screen) label:has(input[type='checkbox'], input[type='radio']) {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 44px;
+  }
+  :global(#live-screen) :is(input[type='checkbox'], input[type='radio']) {
+    width: 1.5rem;
+    height: 1.5rem;
+  }
+  :global(#live-screen) :is(img, video, table, pre) {
+    max-width: 100%;
+  }
+}

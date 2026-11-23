@@ -70,9 +70,12 @@ const backlog = (items, extra = {}) =>
  */
 function fakes(o) {
   const calls = { gh: [], gate: [], backlog: [], post: [], log: [], prepare: [] };
+  // A fixed text stands for the vault file: a `progress --if-ready <pr>@<head>` write replaces that
+  // ready line, as backlog.mjs does (a ready line written afterwards goes through `setText`).
+  let current = typeof o.text === 'string' ? o.text : null;
   /** @type {import('./merge-runner.mjs').Deps} */
   const deps = {
-    readBacklog: () => (typeof o.text === 'function' ? o.text() : o.text),
+    readBacklog: () => (typeof o.text === 'function' ? o.text() : (current ?? o.text)),
     gh: args => {
       calls.gh.push(args);
       if (args[0] === 'run') return { status: 0, stdout: o.main ?? GREEN, stderr: '' };
@@ -116,12 +119,22 @@ function fakes(o) {
     },
     backlog: args => {
       calls.backlog.push(args);
+      const at = args.indexOf('--if-ready');
+      if (args[0] === 'progress' && at > 0 && current !== null) {
+        const head = args[at + 1].split('@')[1];
+        current = current
+          .split('\n')
+          .map(l =>
+            l.startsWith('- progress:') && l.includes(`head ${head}`) ? `- progress: ${args[2]}` : l
+          )
+          .join('\n');
+      }
       return { status: 0, stdout: '', stderr: '' };
     },
     post: text => calls.post.push(text),
     log: line => calls.log.push(line),
   };
-  return { deps, calls };
+  return { deps, calls, setText: (/** @type {string} */ t) => (current = t) };
 }
 
 const open = (head = SHA) => ({ state: 'OPEN', headRefOid: head });
@@ -251,6 +264,38 @@ test('a refusal writes the reason as a progress line and posts one line; it is n
   assert.doesNotMatch(f.calls.backlog[0][2], /\bmerged\b/i);
   round(f.deps, tried);
   assert.equal(f.calls.gate.length, 1, 'the same head is not gated twice in one run');
+});
+
+test('a ready line rewritten for the same head after a refusal is gated again, without a restart', () => {
+  const f = fakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: open() },
+    gates: { 5: { status: 1, stdout: 'lane:merge: refused because review: no note says Merge' } },
+  });
+  const tried = new Set();
+  round(f.deps, tried);
+  assert.equal(f.calls.gate.length, 1);
+  assert.doesNotMatch(f.deps.readBacklog() ?? '', /ready, head/, 'the refusal replaced the line');
+  round(f.deps, tried);
+  assert.equal(f.calls.gate.length, 1, 'no ready line, nothing to gate');
+  // The lane fixes the cause and writes the ready line for the very same head.
+  f.setText(backlog([['one', `PR #5 ready, head ${SHA}, review r.md`]]));
+  round(f.deps, tried);
+  assert.equal(f.calls.gate.length, 2, 'the rewritten line is gated again');
+});
+
+test('a refusal whose progress write failed keeps the head in tried (the old ready line is still there)', () => {
+  const f = fakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: open() },
+    gates: { 5: { status: 1, stdout: 'lane:merge: refused because review: no note says Merge' } },
+  });
+  f.deps.backlog = () => ({ status: 1, stdout: '', stderr: 'locked' });
+  const tried = new Set();
+  round(f.deps, tried);
+  round(f.deps, tried);
+  assert.equal(f.calls.gate.length, 1, 'not gated twice');
+  assert.ok(tried.has(`5@${SHA}`));
 });
 
 test('a refusal for being behind main: the refreshed head gets a new ready line with the same review; a failed refresh refuses', () => {
@@ -550,6 +595,20 @@ test('main tip with no run: a failed CI start posts one line asking a person to 
   assert.deepEqual(h.calls.gate, []);
 });
 
+test('gateOutcome: a drift refusal from Vitest timeouts ("gate timeout, not drift") is transient', () => {
+  const slow =
+    'drift: drift-check failed (guards: server tests) [infrastructure, not the PR: gate timeout, not drift: vitest tests timed out, also on a retry] (log x); last lines below';
+  assert.equal(gateOutcome(1, `lane:merge: refused because ${slow}`, 5).kind, 'transient');
+});
+
+test('gateOutcome: a drift refusal marked infrastructure is transient, a plain guard failure is not', () => {
+  const infra =
+    'drift: drift-check failed (guards: server tests) [infrastructure, not the PR: vitest could not start a worker, also on a retry] (log x); last lines below';
+  assert.equal(gateOutcome(1, `lane:merge: refused because ${infra}`, 5).kind, 'transient');
+  const plain = 'drift: drift-check failed (guards: server tests) (log x); last lines below';
+  assert.equal(gateOutcome(1, `lane:merge: refused because ${plain}`, 5).kind, 'refused');
+});
+
 test('gateOutcome: no run to judge on main, a list that is not a list, no run for the tip: transient', () => {
   for (const why of [
     'main red: no completed push run of ci.yml on main to judge; refusing',
@@ -818,6 +877,32 @@ test('main: loops until a round stops, then exits 3 and releases the lock', asyn
     assert.equal(code, 3);
     assert.equal(slept, 0);
     assert.equal(fs.existsSync(file), false);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('main: heartbeat while it lives, exit reason at the end; a repeated red stop posts once', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'merge-runner-beat-'));
+  try {
+    const file = path.join(dir, 'merge-runner.lock');
+    const beat = path.join(dir, 'merge-runner.heartbeat.json');
+    const mk = () =>
+      fakes({
+        text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+        prs: { 5: open() },
+        main: RED,
+      });
+    const first = mk();
+    assert.equal(await main([], { deps: first.deps, lockFile: file, sleep: async () => {} }), 3);
+    const hb = JSON.parse(fs.readFileSync(beat, 'utf8'));
+    assert.match(hb.exit, /^main is red/);
+    assert.equal(hb.pid, process.pid);
+    assert.equal(first.calls.post.length, 1);
+    // The scheduled repeat starts it again: main is still red, same stop, no second #pr-log post.
+    const second = mk();
+    assert.equal(await main([], { deps: second.deps, lockFile: file, sleep: async () => {} }), 3);
+    assert.equal(second.calls.post.length, 0);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
@@ -1547,4 +1632,48 @@ test('Backlog line PR merged: done, as before', () => {
   });
   round(f.deps, new Set());
   assert.deepEqual(f.calls.backlog, [['done', 'one', '5', '--by', 'merge-runner']]);
+});
+
+test('a refresh whose ready-line write fails posts the postFailed text, not the success text', () => {
+  const f = fakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: open() },
+    gates: {
+      5: {
+        status: 1,
+        stdout:
+          'lane:merge: NOT merged #5\nlane:merge: refused because pr: mergeable is CONFLICTING; merge main into the branch',
+      },
+    },
+  });
+  f.deps.refresh = () => ({ head: 'c'.repeat(40) });
+  f.deps.backlog = args => {
+    f.calls.backlog.push(args);
+    return { status: 1, stdout: '', stderr: 'write refused' };
+  };
+  round(f.deps, new Set());
+  assert.equal(f.calls.post.length, 1);
+  assert.match(f.calls.post[0], /could not write the ready line/);
+});
+
+test('the train tick runs before the ready line is read again (a long roundtrip cannot leave a stale line)', () => {
+  const f = fakes({
+    text: backlog([['one', `PR #5 ready, head ${SHA}`]]),
+    prs: { 5: { ...open(), body: 'Backlog: one' } },
+    gates: { 5: merged(5) },
+  });
+  const order = [];
+  const read = f.deps.readBacklog;
+  let reads = 0;
+  f.deps.readBacklog = () => {
+    order.push(`read${++reads}`);
+    return read();
+  };
+  roundWith(f.deps, new Set(), new Map(), () => {
+    order.push('tick');
+    return {};
+  });
+  const tick = order.indexOf('tick');
+  assert.ok(tick > 0, 'the round reads the backlog before the first tick');
+  assert.equal(order[tick + 1], 'read2', 'the next thing after the tick is the fresh read');
 });

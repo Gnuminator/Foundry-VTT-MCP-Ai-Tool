@@ -103,6 +103,9 @@ test('clean merge: main is merged in, the merge commit is pushed, the lane patch
     assert.equal(s.run(s.remote, 'rev-parse', 'refs/heads/lane'), r.head);
     assert.equal(s.run(s.checkout, 'rev-parse', 'HEAD'), s.head);
     assert.equal(s.run(s.checkout, 'log', '-1', '--format=%s', r.head), REFRESH_SUBJECT);
+    // a real two-parent merge: the old lane head first, then main's tip
+    const mainTip = s.run(s.checkout, 'rev-parse', 'aitool/main');
+    assert.equal(s.run(s.checkout, 'rev-list', '--parents', '-n', '1', r.head), `${r.head} ${s.head} ${mainTip}`);
     // review carries by patch id: the diff from the merge base is the same patch
     assert.equal(
       patchId(s, s.checkout, 'aitool/main', s.head),
@@ -149,6 +152,27 @@ test('not refreshed: a reason merging main cannot cure, a head that has main, on
     moveMain({ ...s, head: first.head }, 'more.txt', 'more\n');
     const second = refreshBranch(opts(s, { head: first.head }));
     assert.match(second?.why ?? '', /already merged in by the runner once/);
+  } finally {
+    s.cleanup();
+  }
+});
+
+test('not refreshed: a head that is already part of main (merging would fast-forward)', () => {
+  const s = setup();
+  try {
+    // main takes the lane commit by fast-forward, then moves on: the head is an ancestor of main
+    s.run(s.checkout, 'checkout', '-q', 'main');
+    s.run(s.checkout, 'merge', '-q', '--ff-only', s.head);
+    s.write('main.txt', 'main\n');
+    s.run(s.checkout, 'add', '-A');
+    s.run(s.checkout, 'commit', '-q', '-m', 'main after lane');
+    s.run(s.checkout, 'push', '-q', 'aitool', 'HEAD:main');
+    s.run(s.checkout, 'fetch', '-q', 'aitool');
+    s.run(s.checkout, 'checkout', '-q', '--detach', s.head);
+    const mainBefore = s.run(s.remote, 'rev-parse', 'refs/heads/main');
+    assert.match(refreshBranch(opts(s))?.why ?? '', /already part of main/);
+    assert.equal(s.run(s.remote, 'rev-parse', 'refs/heads/main'), mainBefore);
+    assert.equal(s.run(s.checkout, 'rev-parse', 'HEAD'), s.head);
   } finally {
     s.cleanup();
   }
@@ -225,6 +249,144 @@ test('a drift refusal with the lockfile unmoved is not refreshed (merging cannot
   }
 });
 
+/** A runner that fakes `npm run docs:tools` by rewriting the generated index from the tools on disk. */
+function fakeGen(s, calls = []) {
+  const real = opts(s).run;
+  return (cmd, args, o) => {
+    if (/docs:tools/.test([cmd, ...args].join(' '))) {
+      calls.push(1);
+      const dir = path.join(s.checkout, 'docs', 'reference');
+      fs.mkdirSync(dir, { recursive: true });
+      const tools = fs
+        .readdirSync(s.checkout)
+        .filter(f => f.startsWith('tool-'))
+        .sort();
+      fs.writeFileSync(path.join(dir, 'tools.md'), tools.join('\n') + '\n');
+      return { status: 0, stdout: '', stderr: '' };
+    }
+    return real(cmd, args, o);
+  };
+}
+
+const TOOL_DRIFT =
+  'drift: drift-check failed (guards: mcp-server tests (tool counts, tool reference, tool sets)) (log x); last lines below';
+
+test('generated tool pages conflict: both sides regenerated, merge commit pushed, no other file touched', () => {
+  const s = setup();
+  try {
+    // base has the index; the lane adds tool-b and its row, main adds tool-a and its row
+    s.write('tool-0', 'x\n');
+    fs.mkdirSync(path.join(s.checkout, 'docs', 'reference'), { recursive: true });
+    s.write('docs/reference/tools.md', 'tool-0\n');
+    s.run(s.checkout, 'add', '-A');
+    s.run(s.checkout, 'commit', '-q', '-m', 'index');
+    s.run(s.checkout, 'push', '-q', 'aitool', 'HEAD:main');
+    s.run(s.checkout, 'checkout', '-q', '-B', 'lane', 'aitool/main');
+    s.write('tool-b', 'x\n');
+    s.write('docs/reference/tools.md', 'tool-0\ntool-b\n');
+    s.run(s.checkout, 'add', '-A');
+    s.run(s.checkout, 'commit', '-q', '-m', 'lane adds tool-b');
+    s.run(s.checkout, 'push', '-q', '-f', 'aitool', 'lane:lane');
+    s.head = s.run(s.checkout, 'rev-parse', 'HEAD');
+    s.run(s.checkout, 'checkout', '-q', 'main');
+    s.run(s.checkout, 'reset', '-q', '--hard', 'aitool/main');
+    s.write('tool-a', 'x\n');
+    s.write('docs/reference/tools.md', 'tool-0\ntool-a\n');
+    s.run(s.checkout, 'add', '-A');
+    s.run(s.checkout, 'commit', '-q', '-m', 'main adds tool-a');
+    s.run(s.checkout, 'push', '-q', 'aitool', 'HEAD:main');
+    s.run(s.checkout, 'fetch', '-q', 'aitool');
+    s.run(s.checkout, 'checkout', '-q', '--detach', s.head);
+    const calls = [];
+    const r = refreshBranch(opts(s, { run: fakeGen(s, calls) }));
+    assert.ok(r?.head, JSON.stringify(r));
+    assert.equal(calls.length, 1);
+    assert.equal(s.run(s.remote, 'rev-parse', 'refs/heads/lane'), r.head);
+    assert.equal(
+      s.run(s.checkout, 'show', `${r.head}:docs/reference/tools.md`),
+      'tool-0\ntool-a\ntool-b'
+    );
+    assert.equal(s.run(s.checkout, 'log', '-1', '--format=%s', r.head), REFRESH_SUBJECT);
+    assert.equal(s.run(s.checkout, 'status', '--porcelain'), '');
+  } finally {
+    s.cleanup();
+  }
+});
+
+test('stale tool reference after a clean merge (tool guard drift) is regenerated into the merge commit', () => {
+  const s = setup();
+  try {
+    s.write('tool-0', 'x\n');
+    fs.mkdirSync(path.join(s.checkout, 'docs', 'reference'), { recursive: true });
+    s.write('docs/reference/tools.md', 'tool-0\n');
+    s.run(s.checkout, 'add', '-A');
+    s.run(s.checkout, 'commit', '-q', '-m', 'index');
+    s.run(s.checkout, 'push', '-q', 'aitool', 'HEAD:main');
+    s.run(s.checkout, 'checkout', '-q', '-B', 'lane', 'aitool/main');
+    s.write('tool-b', 'x\n');
+    s.run(s.checkout, 'add', '-A');
+    s.run(s.checkout, 'commit', '-q', '-m', 'lane adds tool-b only');
+    s.run(s.checkout, 'push', '-q', '-f', 'aitool', 'lane:lane');
+    s.head = s.run(s.checkout, 'rev-parse', 'HEAD');
+    s.run(s.checkout, 'checkout', '-q', 'main');
+    s.run(s.checkout, 'reset', '-q', '--hard', 'aitool/main');
+    s.write('tool-a', 'x\n');
+    s.run(s.checkout, 'add', '-A');
+    s.run(s.checkout, 'commit', '-q', '-m', 'main adds tool-a');
+    s.run(s.checkout, 'push', '-q', 'aitool', 'HEAD:main');
+    s.run(s.checkout, 'fetch', '-q', 'aitool');
+    s.run(s.checkout, 'checkout', '-q', '--detach', s.head);
+    const r = refreshBranch(opts(s, { reason: TOOL_DRIFT, run: fakeGen(s) }));
+    assert.ok(r?.head, JSON.stringify(r));
+    assert.equal(
+      s.run(s.checkout, 'show', `${r.head}:docs/reference/tools.md`),
+      'tool-0\ntool-a\ntool-b'
+    );
+    assert.equal(s.run(s.checkout, 'log', '-1', '--format=%s', r.head), REFRESH_SUBJECT);
+    assert.equal(s.run(s.checkout, 'rev-list', '--parents', '-n1', r.head).split(' ').length, 3);
+  } finally {
+    s.cleanup();
+  }
+});
+
+test('a failing docs:tools still refuses and pushes nothing', () => {
+  const s = setup();
+  try {
+    moveMain(s, 'main.txt', 'main\n');
+    // the generator dies after writing a new page: the untracked page must not stay in the checkout
+    const bad = (cmd, args, o) => {
+      if (!/docs:tools/.test([cmd, ...args].join(' '))) return opts(s).run(cmd, args, o);
+      fs.mkdirSync(path.join(s.checkout, 'docs', 'reference', 'tools'), { recursive: true });
+      fs.writeFileSync(path.join(s.checkout, 'docs', 'reference', 'tools', 'x.md'), 'half\n');
+      return { status: 1, stdout: '', stderr: 'boom' };
+    };
+    const r = refreshBranch(opts(s, { reason: TOOL_DRIFT, run: bad }));
+    assert.match(r?.why ?? '', /docs:tools failed/);
+    assert.equal(s.run(s.remote, 'rev-parse', 'refs/heads/lane'), s.head);
+    assert.equal(s.run(s.checkout, 'status', '--porcelain'), '');
+    assert.equal(s.run(s.checkout, 'rev-parse', 'HEAD'), s.head);
+  } finally {
+    s.cleanup();
+  }
+});
+
+test('tool-reference drift that regeneration does not change is refused, nothing pushed', () => {
+  const s = setup();
+  try {
+    moveMain(s, 'main.txt', 'main\n');
+    const noop = (cmd, args, o) =>
+      /docs:tools/.test([cmd, ...args].join(' '))
+        ? { status: 0, stdout: '', stderr: '' }
+        : opts(s).run(cmd, args, o);
+    const r = refreshBranch(opts(s, { reason: TOOL_DRIFT, run: noop }));
+    assert.match(r?.why ?? '', /changed nothing/);
+    assert.equal(s.run(s.remote, 'rev-parse', 'refs/heads/lane'), s.head);
+    assert.equal(s.run(s.checkout, 'rev-parse', 'HEAD'), s.head);
+  } finally {
+    s.cleanup();
+  }
+});
+
 test('REFRESHABLE and reviewOf', () => {
   for (const t of [
     'pr: mergeable is CONFLICTING; merge main into the branch and resolve conflicts',
@@ -232,7 +394,11 @@ test('REFRESHABLE and reviewOf', () => {
     'wait-ci: #7 has merge conflicts, so CI will not run; merge main into the branch and resolve them',
   ])
     assert.match(t, REFRESHABLE);
+  assert.match(TOOL_DRIFT, REFRESHABLE);
   for (const t of [
+    'drift: drift-check failed (guards: mcp-server tests (some other test)) (log x); last lines below',
+    'drift: drift-check failed (guards: mcp-server tests (tool counts, tool reference, tool sets), lint baseline) (log x); last lines below',
+    'drift: drift-check failed (guards: mcp-server tests (tool counts, tool reference, tool sets)) [infrastructure, not the PR: vitest could not start a worker, also on a retry] (log x)',
     'drift: drift-check failed (guards: em-dash baseline) (log x); last lines below',
     'merge: gh pr merge exited 1: base branch policy prohibits the merge',
     'ci: failing: build-test',

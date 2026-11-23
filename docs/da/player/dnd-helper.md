@@ -1,6 +1,6 @@
 ---
 source: player/dnd-helper.md
-sourceHash: 8cdc6df60024
+sourceHash: 07573e52d354
 title: D&D-hjælperen til spillere
 description: Installer Claude Desktop og din Foundry-spillerconnector, og lav, level op og tjek så din egen karakter og slå regler op, trin for trin.
 ---
@@ -70,7 +70,7 @@ den og spring trin 2 og 3 over. Der er ingen fil, intet Client ID og ingen secre
 også med den gratis Claude-plan og i Claude på nettet.
 
 1. Åbn din **My character**-side, åbn **Your Claude connector** og tryk **Copy** ved adressen.
-2. Åbn **Settings**, **Connectors** i Claude, og vælg "Add custom connector". Indsæt adressen.
+2. Åbn **Settings**, **Plugins** i Claude, og vælg "Add custom connector". Indsæt adressen.
    Lad eventuelle avancerede felter stå tomme. Tryk **Add** og derefter **Connect**.
 3. En Cloudflare-side spørger efter din e-mail. Brug den e-mail, som den, der kører værktøjet,
    har til dig. Cloudflare sender dig en kode: skriv den ind. Derefter siger Claude, at den er
@@ -112,9 +112,9 @@ Spørger din browser, om den skal beholde en fil, den ikke kender, så vælg **K
 installér den på samme måde, og når en formular spørger, så indsæt dit **Client ID** i det første
 felt og din **Client Secret** i det andet (**My character**-siden har begge med kopiér-knapper).
 
-For at tjekke, at det virker, så åbn en ny chat og klik på **+** eller værktøjsikonet ved
-beskedfeltet. Du skulle gerne se **Foundry** (eller **foundry-player**) med otte tools (de syv
-bordtools og **get-helper-guide**). Gør du det, sidder stikket i. Hjælperens instrukser følger med
+For at tjekke, at det virker, så åbn en ny chat og klik på **+** ved
+beskedfeltet, så **Plugins**. Du skulle gerne se **Foundry** (eller **foundry-player**) med ni tools (de syv
+bordtools, **get-player-skill-guide** og **get-helper-guide**). Gør du det, sidder stikket i. Hjælperens instrukser følger med
 extension, så du skulle ikke behøve at tilføje en skill eller slå Code execution til. Følger Claude
 ikke hjælperens trin, så se Fejlfinding.
 
@@ -216,6 +216,17 @@ Den peger måske også på Dungeon Mister 2024-guiderne, <https://dungeonmister.
 Claude linker kun til den (og åbner den måske, hvis websøgning er slået til i din chat), den kopierer
 ikke siden.
 
+## Valgfrit: baggrundshistorie- og rollespilshjælperen
+
+En lille ekstra skill, baggrundshistorie-hjælperen, installeres ved siden af hjælperen. Den, der
+driver værktøjet, sender dig zip-filen; gå så til Indstillinger, Plugins, Skills, tilføj en skill, og
+upload zip-filen uden at pakke den ud. Den bruger den samme
+spillerconnector. Spørg den "hjælp mig med en baggrundshistorie til min karakter" eller "hvordan ville
+min karakter tale?". Den læser dit karakterark og de handouts, spilleder har afsløret for dig, stiller
+to-tre spørgsmål og slutter med én note, du kan kopiere ind i karakterens noter eller sende til
+spilleder. Alt, den selv finder på, er markeret "idea", og den bruger aldrig navne fra eventyret, som
+spilleder ikke har vist dig.
+
 ## Hvad hjælperen ikke kan se
 
 Det er med vilje, og det beskytter også historien.
@@ -271,12 +282,14 @@ hjælper igen fra din **My character**-side og installer den oven på den gamle.
 
 **Kan jeg også tilføje hjælperen som plugin? (Pro og Max)**
 Det behøver du ikke: extensionen har allerede hjælperens instruktioner med. Vil du have skill-formen
-alligevel, så åbn Settings, Customize, tilføj marketplace `Gnuminator/foundry-ai-tool-plugins` og
-installer **foundry-player-helper**. Den henter sin guide fra bordet, så den holder sig opdateret.
+alligevel, så åbn Settings, Plugins, tilføj marketplace `Gnuminator/foundry-ai-tool-plugins`
+(menuen **Add**) og installer **Foundry player helper** under **Discover**. Den henter sin guide fra
+bordet, så den holder sig opdateret.
 
 **Jeg installerede den gamle skill-zip tidligere.**
-Den virker stadig, men du har ikke brug for den mere. Du kan fjerne den i Settings, Customize,
-Skills.
+Den virker stadig, men du har ikke brug for den mere. Du kan fjerne den i Settings, Plugins,
+Skills (den står som **By you**). Har du installeret pluginet, så fjern zip-kopien, så hjælperen ikke
+er der to gange.
 
 **Den påstår, at den har ændret min karakter.**
 Det kan den ikke, og det skal den aldrig sige. Tjek dit ark i Foundry, og sig det så til den, der

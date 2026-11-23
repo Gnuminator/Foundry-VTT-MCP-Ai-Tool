@@ -50,6 +50,8 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { OMENS_CONTROLS } from './dashboard-controls-omens.mjs';
+
 export const HOWS = [
   'open',
   'read',
@@ -68,7 +70,6 @@ export const HOWS = [
  *   optional?: boolean, selector?: string, fill?: string, at?: {x: number, y: number}, restore?: boolean,
  *   needs?: string, theme?: string, slow?: boolean, changes?: boolean | string, idle?: string
  * }} ControlRow */
-
 /** The reason every module entry is skipped. */
 export const MODULE_SKIP_REASON = 'inside Foundry: the foundry-controls scenario';
 
@@ -122,6 +123,7 @@ export const DASHBOARD_CONTROLS = [
   { name: 'dash.header.tarokka', how: 'open', reach: [ADV], expect: '#tarokka-drawer' },
   { name: 'dash.header.paper', how: 'skip', why: NOT_DRIVEN },
   { name: 'dash.header.twin', how: 'open', reach: [ADV], expect: '#twin-drawer' },
+  { name: 'dash.header.readaloud', how: 'open', reach: [ADV], expect: '#readaloud-drawer' },
   // The Reload button that stands in for the combat strip when its chunk fails to load.
   { name: 'dash.strip.reload', how: 'skip', why: NOT_DRIVEN },
   { name: 'dash.crash.reload', how: 'skip', why: NOT_DRIVEN },
@@ -139,11 +141,18 @@ export const DASHBOARD_CONTROLS = [
     'dash.live.show-handout',
     'dash.live.undo',
     'dash.quickroll.again',
+    'dash.quickroll.nudge',
+    'dash.quickroll.post-results',
   ].map(name => ({
     name,
     how: 'skip',
-    why: 'only on the live strip page (/next?strip=1); the e2e spec and the live check cover it',
+    why: 'only on the live strip page (/next?strip=1); the dashboard-live-strip scenario and the e2e specs cover it',
   })),
+  {
+    name: 'dash.live.monster-action',
+    how: 'skip',
+    why: 'only on the live strip page (/next?strip=1); the dashboard-live-strip scenario clicks it against real Foundry, and the unit tests of monster-actions.ts cover the words and the damage steps',
+  },
   ...[
     'dash.changes.ai-only',
     'dash.header.live-views',
@@ -626,6 +635,46 @@ export const DASHBOARD_CONTROLS = [
     expect: '#tool-browser',
   },
   {
+    name: 'dash.pins.pin',
+    how: 'skip',
+    why: 'not driven by the sweep (saves the open form as a pin in this browser; the e2e spec covers it)',
+  },
+  {
+    name: 'dash.pins.run',
+    how: 'skip',
+    why: 'not driven by the sweep (a pinned button on the During bar runs a tool, a write asks first; needs a pin, the e2e spec covers it)',
+  },
+  {
+    name: 'dash.pins.result-close',
+    how: 'skip',
+    why: 'not driven by the sweep (closes the answer under the pin row; needs a pin run, the e2e spec covers it)',
+  },
+  {
+    name: 'dash.pins.edit',
+    how: 'skip',
+    why: 'not driven by the sweep (opens a pin in the Tool Runner; needs a pin, the e2e spec covers it)',
+  },
+  {
+    name: 'dash.pins.remove',
+    how: 'skip',
+    why: 'not driven by the sweep (removes a pin; needs a pin, the e2e spec covers it)',
+  },
+  {
+    name: 'dash.pins.open-recent',
+    how: 'skip',
+    why: 'not driven by the sweep (needs a recent run, the e2e spec covers it)',
+  },
+  {
+    name: 'dash.pins.open-often',
+    how: 'skip',
+    why: 'not driven by the sweep (needs a tool run twice, the e2e spec covers it)',
+  },
+  {
+    name: 'dash.pins.pin-often',
+    how: 'skip',
+    why: 'not driven by the sweep (pins a call used most; needs a tool run twice, the e2e spec covers it)',
+  },
+  {
     name: 'dash.tools.pick-open',
     how: 'open',
     reach: PICKER,
@@ -721,6 +770,11 @@ export const DASHBOARD_CONTROLS = [
   // --- 2024 twin of a monster ---
   { name: 'dash.twin.close', how: 'skip', why: NOT_DRIVEN },
   { name: 'dash.twin.open', how: 'skip', why: NOT_DRIVEN },
+
+  // --- Read-aloud shelf (I-167) ---
+  { name: 'dash.readaloud.close', how: 'skip', why: NOT_DRIVEN },
+  { name: 'dash.readaloud.show', how: 'skip', why: NOT_DRIVEN },
+  { name: 'dash.readaloud.copy', how: 'skip', why: NOT_DRIVEN },
 
   // --- After a paper night (Paper nights B) ---
   { name: 'dash.paper.close', how: 'skip', why: NOT_DRIVEN },
@@ -1159,9 +1213,8 @@ export const PLAYER_CONTROLS = [
     why: 'only shown with the Veil theme',
   },
 ];
-
-/** Both tables, dashboard first. */
-export const CONTROLS = [...DASHBOARD_CONTROLS, ...PLAYER_CONTROLS];
+/** Both tables, dashboard first (the omens rows are in their own file). */
+export const CONTROLS = [...DASHBOARD_CONTROLS, ...OMENS_CONTROLS, ...PLAYER_CONTROLS];
 
 /** The surface a control name belongs to, from its prefix. */
 export function surfaceOf(name) {

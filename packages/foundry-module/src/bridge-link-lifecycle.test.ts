@@ -282,10 +282,10 @@ describe('link: no world writes for connection state (PB-03)', () => {
   it('a stored link state change reaches the hook and applyStoredLinkState', async () => {
     const hooks = (globalThis as any).Hooks;
     const handlers: Array<() => void> = [];
-    const onSpy = vi.spyOn(hooks, 'on').mockImplementation((name: string, cb: () => void) => {
+    const onSpy = vi.spyOn(hooks, 'on').mockImplementation(((name: string, cb: () => void) => {
       if (name === 'foundry-mcp-bridge.linkStateChanged') handlers.push(cb);
       return 1;
-    });
+    }) as never);
     const apply = vi.spyOn(bridge, 'applyStoredLinkState').mockImplementation(() => undefined);
     bridge.watchLinkState();
     expect(apply).toHaveBeenCalledTimes(1);

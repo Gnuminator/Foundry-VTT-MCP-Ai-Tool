@@ -55,13 +55,16 @@ export default {
       const { status, data } = await t.http('/api/tools');
       t.equal(status, 200, 'GET /api/tools status');
       const offered = new Set((data.tools || []).map((/** @type {any} */ x) => x.name));
-      const missing = [...catalog.all].filter(name => !offered.has(name)).sort();
+      // The player tools are served only on /mcp/player (tool-sets.ts), never by /api/tools.
+      const playerOnly = new Set(catalog.sets.player || []);
+      const expected = [...catalog.all].filter(name => !playerOnly.has(name));
+      const missing = expected.filter(name => !offered.has(name)).sort();
       t.check(
         missing.length === 0,
         `tools missing from /api/tools: ${missing.join(', ')}`,
         missing
       );
-      return `${offered.size} offered, ${catalog.all.size} catalogued`;
+      return `${offered.size} offered, ${expected.length} expected (${catalog.all.size} catalogued)`;
     });
 
     await t.step('list-characters has every kit hero', async () => {

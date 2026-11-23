@@ -10,13 +10,26 @@
 # Everything listens on loopback only; Tailscale serve shares the control port (31414) and the dashboard (3000) with the
 # tailnet, never with the home network or the internet. The bridge's control port has no login of
 # its own (vault idea I-023).
+#
+# Containers (day two, D-149): after the cutover (stage 24) the stack runs as containers and this stage updates it too.
+# The host build is the same (the checkout also feeds the kit session and the module). It needs deploy/pi/.env in the
+# current checkout (else: run stage 23 first, nothing changed), carries that file into the new build tree, and builds the
+# images from the new tree BEFORE the swap (behind require_quiet), so a failed image build leaves the running containers and
+# the old checkout alone. Nothing is stopped for the swap (the containers run baked images), and no unit file is written or
+# enabled. After the swap `docker compose up -d --wait` recreates only the services whose image or settings changed, after
+# require_quiet; a run that finds everything current recreates nothing and needs no quiet Pi. A new module still needs a
+# Foundry restart: the stage warns and names the container to restart.
 
 require_root
 require_recent_snapshot
-refuse_when_cut_over "stage 5 (the tool)"
+use_stack "stage 5 (the tool)"
 require_arm64
 [ -x "$NODE_DIR/bin/node" ] || die "Node is missing: run stage 2 first"
 [ -f "$FOUNDRY_APP/main.js" ] || die "Foundry is missing: run stage 3 first"
+# On the container stack the compose settings file is what the new build is built and started with.
+if [ "$STACK" = containers ] && [ ! -f "$(stack_dir)/.env" ]; then
+  die "the stack runs as containers but $(stack_dir)/.env is missing: run stage 23 first (it writes the compose settings). Nothing was changed"
+fi
 
 ref="${TOOL_REF:-}"
 repo="${TOOL_REPO:-https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool.git}"
@@ -84,6 +97,91 @@ check_build_loads() {
     echo "the load check timed out after ${LOAD_CHECK_TIMEOUT:-120} seconds (a module that does not finish loading?)" >&2
   fi
   return "$rc"
+}
+
+# ---- Containers (day two) ----------------------------------------------------------------------------------------
+
+# containers_prepare_build TREE REF: before anything is swapped, in containers mode. The new tree must carry the container
+# stack (deploy/pi/compose.yml); the current deploy/pi/.env (switches, ports, DASHBOARD_ALLOWED_HOSTS) is copied into it, and the
+# images are built from it. A failed build dies here: the running containers and the old checkout are as they were.
+containers_prepare_build() {
+  local tree="$1" ref="$2" build_log="$TOOL_DIR/docker-build.log" images img
+  [ -f "$tree/deploy/pi/compose.yml" ] ||
+    die "$ref has no deploy/pi/compose.yml (a release from before the container stack), and the stack runs as containers; nothing was changed, the containers and $app are as they were"
+  cp -p "$(stack_dir)/.env" "$tree/deploy/pi/.env"
+  ok "$(stack_dir)/.env carried into the new build"
+  require_quiet "building the images (a long build can starve Foundry)"
+  say "building the images from the new tree, a few minutes (log: $build_log)"
+  if ! (cd "$tree/deploy/pi" && docker compose -p "$COMPOSE_LIVE_PROJECT" -f compose.yml build) >"$build_log" 2>&1; then
+    tail -n 40 "$build_log" >&2
+    die "the image build of $ref failed (full log: $build_log); nothing was swapped or stopped, the containers and $app are as they were"
+  fi
+  images="$(cd "$tree/deploy/pi" && docker compose -p "$COMPOSE_LIVE_PROJECT" -f compose.yml config --images 2>/dev/null || true)"
+  for img in $images; do
+    docker image inspect "$img" >/dev/null 2>&1 ||
+      die "image $img is missing after the build (log: $build_log); nothing was swapped or stopped"
+  done
+  ok "the images are built"
+  # The build took minutes: ask for a quiet Pi again now, before the swap, when the apply below will recreate anything, so a
+  # player who joined meanwhile refuses here and not half way (after the swap and the module copy).
+  for img in $STACK_SERVICES; do
+    if containers_stale "$img"; then
+      require_quiet "recreating the changed containers (checked before the swap)"
+      break
+    fi
+  done
+}
+
+# containers_stale SERVICE: 0 when `compose up -d` would recreate the running container of SERVICE (its image is not the one the
+# tag points to now, or its compose config hash is not the current one), or when that cannot be told (then the quiet check is
+# asked for, which is the safe side). 1 when it is current, and also when the service has no container (stage 24 makes those).
+containers_stale() {
+  local cid img have want label now
+  cid="$(svc_cid "$1" -a)"
+  [ -n "$cid" ] || return 1
+  read -r img have <<<"$(docker inspect -f '{{.Config.Image}} {{.Image}}' "$cid" 2>/dev/null || true)"
+  [ -n "${img:-}" ] && [ -n "${have:-}" ] || return 0
+  want="$(docker image inspect -f '{{.Id}}' "$img" 2>/dev/null || true)"
+  [ -n "$want" ] && [ "$want" = "$have" ] || return 0
+  label="$(docker inspect -f '{{index .Config.Labels "com.docker.compose.config-hash"}}' "$cid" 2>/dev/null || true)"
+  now="$(stack_compose config --hash "$1" 2>/dev/null | awk 'NR == 1 { print $NF }' || true)"
+  [ -n "$label" ] && [ -n "$now" ] && [ "$label" = "$now" ] || return 0
+  return 1
+}
+
+# containers_apply: recreates the containers whose image or settings changed, and only those (compose decides which), after
+# require_quiet. Nothing changed: nothing recreated, no quiet check. Reports each service as recreated or unchanged.
+containers_apply() {
+  local s stale=0 present="" out after
+  declare -A before
+  for s in $STACK_SERVICES; do
+    before[$s]="$(svc_cid "$s" -a)"
+    [ -z "${before[$s]}" ] || present="$present $s"
+    if containers_stale "$s"; then stale=1; fi
+  done
+  if [ "$stale" = 0 ]; then
+    ok "the containers already run this build and these settings: nothing recreated"
+    return 0
+  fi
+  require_quiet "recreating the changed containers"
+  say "recreating the changed containers (docker compose up -d --wait)"
+  # --no-build: the images were built before the swap. compose recreates only the services whose image or config changed.
+  # shellcheck disable=SC2086
+  if ! out="$(stack_compose up -d --no-build --wait --wait-timeout 300 $present 2>&1)"; then
+    printf '%s\n' "$out" | tail -n 40 >&2
+    die "docker compose up -d --wait failed: some containers may be recreated, some not. Look at the logs ($(svc_logs_hint bridge)); to go back to the systemd units run stage 24 with MODE=rollback. The new build stays in $app (the old copy is $app.prev if this run swapped one in)"
+  fi
+  for s in $STACK_SERVICES; do
+    after="$(svc_cid "$s" -a)"
+    if [ -z "${before[$s]}" ]; then
+      ok "$s: no container (stage 24 makes it)"
+    elif [ "$after" != "${before[$s]}" ]; then
+      ok "$s: recreated"
+      [ "$s" != foundry ] || foundry_recreated=1
+    else
+      ok "$s: unchanged"
+    fi
+  done
 }
 
 if [ -z "$ref" ]; then
@@ -163,18 +261,28 @@ else
 $loads_out"
   ok "the pruned build loads (bridge, dashboard app, shared, Discord recorder)"
   printf '%s\n' "$ref" >"$build/.tool-ref"
-  require_quiet "swapping in the new build (it stops the bridge, dashboard and Assistant GM)"
-  if have_systemd; then
-    for unit in foundry-ai-tool-gm-browser foundry-ai-tool-dashboard foundry-ai-tool-bridge; do
-      systemctl stop "$unit.service" 2>/dev/null || true
-    done
+  if [ "$STACK" = containers ]; then
+    # The images are built from the new tree before anything moves; a failure leaves the containers and $app alone.
+    containers_prepare_build "$build" "$ref"
+  else
+    require_quiet "swapping in the new build (it stops the bridge, dashboard and Assistant GM)"
+    if have_systemd; then
+      for unit in foundry-ai-tool-gm-browser foundry-ai-tool-dashboard foundry-ai-tool-bridge; do
+        systemctl stop "$unit.service" 2>/dev/null || true
+      done
+    fi
   fi
   # The previous build stays next to it for a quick rollback.
   rm -rf "${app:?}.prev"
   [ -d "$app" ] && mv "$app" "$app.prev"
-  mv "$build" "$app"
-  # A stop above that failed silently must still end in a restart onto the new build.
-  mark_changed /etc/systemd/system/foundry-ai-tool-bridge.service /etc/systemd/system/foundry-ai-tool-dashboard.service /etc/systemd/system/foundry-ai-tool-gm-browser.service
+  mv "$build" "$app" || {
+    [ ! -d "$app.prev" ] || mv "$app.prev" "$app"
+    die "could not move the new build into $app; the old copy was put back"
+  }
+  if [ "$STACK" != containers ]; then
+    # A stop above that failed silently must still end in a restart onto the new build.
+    mark_changed /etc/systemd/system/foundry-ai-tool-bridge.service /etc/systemd/system/foundry-ai-tool-dashboard.service /etc/systemd/system/foundry-ai-tool-gm-browser.service
+  fi
   trap - EXIT
   chown -R root:root "$app"
   chmod 755 "$app"
@@ -203,7 +311,9 @@ else
   chown -R "$FOUNDRY_USER:$FOUNDRY_USER" "$module_dir"
   chmod 755 "$module_dir"
   ok "installed the module in $module_dir"
-  if have_systemd && systemctl is-active --quiet foundry.service; then
+  if [ "$STACK" = containers ]; then
+    module_installed=1 # the warning comes after containers_apply, which may recreate Foundry (then it has the module already)
+  elif have_systemd && systemctl is-active --quiet foundry.service; then
     warn "Foundry is running: restart it (systemctl restart foundry) when no one plays, so it loads the new module"
   fi
 fi
@@ -223,6 +333,8 @@ if [ -f "$driver_src" ]; then
   ok "installed $driver_dir/assistant-gm.mjs"
 elif [ -f "$driver_dir/assistant-gm.mjs" ]; then
   ok "driver already installed (no new copy in $driver_src)"
+elif [ "$STACK" = containers ]; then
+  ok "no driver copy needed: the Assistant GM container has it baked into its image"
 else
   die "no driver at $driver_src: scp scripts/pi/remote/assistant-gm.mjs foundry-pi:/root/ first"
 fi
@@ -235,6 +347,13 @@ if command -v tailscale >/dev/null 2>&1 && tailscale status >/dev/null 2>&1; the
 fi
 
 say "services"
+if [ "$STACK" = containers ]; then
+  ok "the stack runs as containers (project $COMPOSE_LIVE_PROJECT): no unit files, nothing enabled or restarted through systemd"
+  containers_apply
+  if [ "${module_installed:-0}" = 1 ] && [ "${foundry_recreated:-0}" != 1 ] && [ -n "$(svc_cid foundry)" ]; then
+    warn "Foundry is running: restart the container $(svc_cid foundry) when no one plays, so it loads the new module"
+  fi
+fi
 common="User=$FOUNDRY_USER
 Group=$FOUNDRY_USER
 Environment=HOME=$TOOL_DATA
@@ -312,15 +431,17 @@ RestartSec=15
 [Install]
 WantedBy=multi-user.target"
 
-write_file /etc/systemd/system/foundry-ai-tool-bridge.service 0644 "$bridge_unit" || true
-write_file /etc/systemd/system/foundry-ai-tool-dashboard.service 0644 "$dashboard_unit" || true
-write_file /etc/systemd/system/foundry-ai-tool-gm-browser.service 0644 "$browser_unit" || true
-enable_unit foundry-ai-tool-bridge.service "$TOOL_ETC/bridge.env"
-enable_unit foundry-ai-tool-dashboard.service "$TOOL_ETC/dashboard.env" "$TOOL_ETC/dashboard-access.env"
-if [ -f "$TOOL_ETC/assistant-gm.env" ]; then
-  enable_unit foundry-ai-tool-gm-browser.service "$TOOL_ETC/assistant-gm.env"
-else
-  warn "no $TOOL_ETC/assistant-gm.env yet: the Assistant GM browser starts once it exists (5-check-world.sh writes it for the check world)"
+if [ "$STACK" != containers ]; then
+  write_file /etc/systemd/system/foundry-ai-tool-bridge.service 0644 "$bridge_unit" || true
+  write_file /etc/systemd/system/foundry-ai-tool-dashboard.service 0644 "$dashboard_unit" || true
+  write_file /etc/systemd/system/foundry-ai-tool-gm-browser.service 0644 "$browser_unit" || true
+  enable_unit foundry-ai-tool-bridge.service "$TOOL_ETC/bridge.env"
+  enable_unit foundry-ai-tool-dashboard.service "$TOOL_ETC/dashboard.env" "$TOOL_ETC/dashboard-access.env"
+  if [ -f "$TOOL_ETC/assistant-gm.env" ]; then
+    enable_unit foundry-ai-tool-gm-browser.service "$TOOL_ETC/assistant-gm.env"
+  else
+    warn "no $TOOL_ETC/assistant-gm.env yet: the Assistant GM browser starts once it exists (5-check-world.sh writes it for the check world)"
+  fi
 fi
 
 say "Tailscale serve (tailnet only)"
@@ -351,7 +472,7 @@ if have_systemd; then
     sleep 2
   done
   curl -fs -o /dev/null http://127.0.0.1:3000/ && ok "dashboard answers on 127.0.0.1:3000" && dash_ok=1 ||
-    warn "dashboard does not answer yet; see: journalctl -u foundry-ai-tool-dashboard -n 50"
+    warn "dashboard does not answer yet; see: $(if [ "$STACK" = containers ]; then svc_logs_hint dashboard; else echo 'journalctl -u foundry-ai-tool-dashboard -n 50'; fi)"
   ss -ltn | grep -E ':(31414|31415|3000) ' || true
   # Tailscale serve listens on the Pi's tailnet addresses (100.64.0.0/10 and fd7a:115c:a1e0::/48);
   # that is the intended sharing, so only other addresses count as a leak.
@@ -359,7 +480,7 @@ if have_systemd; then
   tailnet='%tailscale[0-9]*:'
   if ss -ltn | grep -E ':(31414|31415|3000) ' | grep -vE '127\.0\.0\.1:|\[::1\]:' |
     grep -vqE "$tailnet"; then
-    warn "a tool port listens beyond loopback and the tailnet; check the units"
+    warn "a tool port listens beyond loopback and the tailnet; check the $(if [ "$STACK" = containers ]; then echo 'containers (docker ps)'; else echo units; fi)"
   else
     ok "tool ports listen on loopback, shared only with the tailnet"
   fi
@@ -372,6 +493,18 @@ fi
 if [ "${built_new:-}" = 1 ] && [ "${dash_ok:-}" = 1 ] && printf '%s' "$ref" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' &&
   [ -f "$app/packages/discord-bot/announce/announce.mjs" ]; then
   timeout 15 "$NODE_DIR/bin/node" "$app/packages/discord-bot/announce/announce.mjs" deploy "$ref" || true
+fi
+
+# Stage 33 follows stage 5 (the GM vault's Obsidian plugin must match this build): its read-only CHECK result ends this
+# stage as one warning line, so a forgotten stage 33 shows up here. Never fatal; it changes nothing.
+stage33="$app/scripts/pi/remote/33-obsidian-plugin.sh"
+if [ -f "$stage33" ] && [ -f "$app/scripts/pi/remote/lib.sh" ]; then
+  if cat "$app/scripts/pi/remote/lib.sh" "$stage33" | CHECK=1 timeout 60 bash -s >/tmp/stage33-check.$$ 2>&1; then
+    ok "stage 33 check: the GM vault's Obsidian plugin matches this build"
+  else
+    warn "stage 33 check: the GM vault's Obsidian plugin is not in step with this build: run stage 33 next (snapshot and the user's OK first); details: $(tail -n 3 /tmp/stage33-check.$$ | tr '\n' ' ')"
+  fi
+  rm -f /tmp/stage33-check.$$
 fi
 
 say "stage 5 done: run 5-check-world.sh for the throwaway check world, or set up the Assistant GM in the real world"

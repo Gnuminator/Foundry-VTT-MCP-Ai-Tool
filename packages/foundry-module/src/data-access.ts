@@ -146,6 +146,7 @@ export class FoundryDataAccess {
       equipped?: boolean;
       invested?: boolean;
       actionType?: string;
+      hasAttack?: boolean;
     }>;
     totalMatches: number;
   }> {

@@ -802,11 +802,132 @@ describe('condition on', () => {
     expect(plan.targets[0]?.line).toBe('Wolf: Poisoned (for 3 rounds)');
   });
 
+  it('ends a timed condition at the end of the target turn and says so', async () => {
+    addActor({ id: 'a1', name: 'Wolf' });
+    const plan = await planLiveChange(
+      hpRequest({ action: 'condition', condition: 'poisoned', ends: 'turn-end' })
+    );
+    expect((plan.ops[0] as any).data.duration).toMatchObject({
+      value: 1,
+      units: 'rounds',
+      expiry: 'turnEnd',
+    });
+    expect(plan.targets[0]?.line).toContain('for 1 round, ends at the end of its turn');
+  });
+
+  describe('ends in a fight', () => {
+    function fightWithWolfAt(wolfIdx: number, turn: number): void {
+      const wolf = addActor({ id: 'a1', name: 'Wolf' });
+      const ids = ['c0', 'c1', 'c2'];
+      world.setCombat({
+        turn,
+        turns: ids.map(id => ({ id })),
+        combatants: ids.map((id, i) => ({
+          id,
+          name: `C${i}`,
+          actor: i === wolfIdx ? wolf : { uuid: `Actor.other${i}` },
+        })),
+      });
+    }
+
+    it('counts this round and stamps the target when its turn is still to come', async () => {
+      fightWithWolfAt(2, 0);
+      const plan = await planLiveChange(
+        hpRequest({ action: 'condition', condition: 'poisoned', ends: 'turn-end' })
+      );
+      const data = (plan.ops[0] as any).data;
+      expect(data.duration).toMatchObject({ value: 0, units: 'rounds', expiry: 'turnEnd' });
+      expect(data.start.combatant).toBe('c2');
+      expect(plan.targets[0]?.line).toBe(
+        'Wolf: Poisoned (this round, ends at the end of its turn, counted from now: plan again if the turn moves first)'
+      );
+    });
+
+    it('stamps the start from the fight the holder is in', async () => {
+      const wolf = addActor({ id: 'a1', name: 'Wolf' });
+      world.setCombat({
+        id: 'fight1',
+        round: 3,
+        turn: 0,
+        turns: [{ id: 'c0' }],
+        combatants: [{ id: 'c0', name: 'C0', actor: wolf }],
+      });
+      const plan = await planLiveChange(
+        hpRequest({ action: 'condition', condition: 'poisoned', ends: 'turn-end' })
+      );
+      expect((plan.ops[0] as any).data.start).toMatchObject({
+        combat: 'fight1',
+        combatant: 'c0',
+        round: 3,
+        turn: 0,
+      });
+    });
+
+    it('says the fight has not started, not that the target is missing from it', async () => {
+      const wolf = addActor({ id: 'a1', name: 'Wolf' });
+      world.setCombat({
+        turn: null,
+        turns: [{ id: 'c0' }],
+        combatants: [{ id: 'c0', name: 'C0', actor: wolf }],
+      });
+      await expect(
+        planLiveChange(hpRequest({ action: 'condition', condition: 'poisoned', ends: 'turn-end' }))
+      ).rejects.toThrow(/has not started/);
+    });
+
+    it('counts one round when the target has already had its turn', async () => {
+      fightWithWolfAt(0, 1);
+      const plan = await planLiveChange(
+        hpRequest({ action: 'condition', condition: 'poisoned', ends: 'turn-end' })
+      );
+      const data = (plan.ops[0] as any).data;
+      expect(data.duration).toMatchObject({ value: 1, expiry: 'turnEnd' });
+      expect(data.start.combatant).toBe('c0');
+    });
+
+    it('keeps an explicit number of rounds', async () => {
+      fightWithWolfAt(2, 0);
+      const plan = await planLiveChange(
+        hpRequest({ action: 'condition', condition: 'poisoned', ends: 'turn-end', rounds: 2 })
+      );
+      const data = (plan.ops[0] as any).data;
+      expect(data.duration).toMatchObject({ value: 2, expiry: 'turnEnd' });
+      expect(data.start.combatant).toBe('c2');
+    });
+
+    it('skips a target that is not in the fight', async () => {
+      fightWithWolfAt(2, 0);
+      addActor({ id: 'a9', name: 'Bystander' });
+      await expect(
+        planLiveChange(
+          hpRequest({
+            action: 'condition',
+            condition: 'poisoned',
+            ends: 'turn-end',
+            targets: ['Bystander'],
+          })
+        )
+      ).rejects.toThrow(/not in the fight/);
+    });
+
+    it('refuses ends when removing a condition', async () => {
+      fightWithWolfAt(2, 0);
+      await expect(
+        planLiveChange(
+          hpRequest({ action: 'condition', condition: 'poisoned', active: false, ends: 'turn-end' })
+        )
+      ).rejects.toThrow(/ends only goes with/);
+    });
+  });
+
   it('refuses rounds on exhaustion and a bad number of rounds', async () => {
     addActor({ id: 'a1', name: 'Wolf' });
     await expect(
       planLiveChange(hpRequest({ action: 'condition', condition: 'exhaustion', rounds: 2 }))
     ).rejects.toThrow(/leave rounds out/);
+    await expect(
+      planLiveChange(hpRequest({ action: 'condition', condition: 'exhaustion', ends: 'turn-end' }))
+    ).rejects.toThrow(/leave ends out/);
     await expect(
       planLiveChange(hpRequest({ action: 'condition', condition: 'poisoned', rounds: 0 }))
     ).rejects.toThrow(/whole number from 1 to 100/);

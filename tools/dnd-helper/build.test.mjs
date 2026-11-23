@@ -167,9 +167,12 @@ test('the player zip names only player-set tools and no GM tool', () => {
   });
 });
 
-test('the player zip has the same pages as the GM zip and stays advise-only', () => {
+test('the player zip has the GM zip pages plus the player-only diary page and stays advise-only', () => {
   withPlayerBuild(({ files }) => {
-    assert.deepEqual([...files.keys()].sort(), [...collectFiles().keys()].sort());
+    assert.deepEqual(
+      [...files.keys()].sort(),
+      [...collectFiles().keys(), 'references/diary.md'].sort()
+    );
     assert.match(files.get('SKILL.md'), /Advise only/);
     for (const [name, text] of files) {
       if (!OWN_PAGE(name)) continue;

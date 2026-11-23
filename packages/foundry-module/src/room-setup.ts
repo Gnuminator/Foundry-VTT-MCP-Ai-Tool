@@ -25,6 +25,7 @@ import type {
   RoomSpawnRequest,
   RoomStairsRequest,
   RoomTeleportRequest,
+  RoomWhisperRequest,
 } from '@gnuminator/shared';
 
 import { MODULE_ID } from './constants.js';
@@ -642,6 +643,17 @@ async function planHazard(request: RoomHazardRequest): Promise<RoomSetupPlan> {
   const scene = resolveScene(area.scene);
   const warnings: string[] = [];
   const rect = areaRect(scene, area, 'area', warnings);
+  // Options that belong to another kind are not used; say so instead of dropping them silently.
+  const unused: string[] = [];
+  if (request.kind !== 'difficult' && request.magical !== undefined) unused.push('magical');
+  if (request.kind !== 'darkness') {
+    if (request.darknessMode !== undefined) unused.push('darknessMode');
+    if (request.modifier !== undefined) unused.push('modifier');
+  }
+  if (request.kind !== 'effect' && request.effectUuid !== undefined) unused.push('effectUuid');
+  if (unused.length > 0) {
+    warnings.push(`${unused.join(', ')} not used for kind ${request.kind}`);
+  }
   let behavior: Rec;
   let what: string;
   switch (request.kind) {
@@ -726,6 +738,117 @@ async function planHazard(request: RoomHazardRequest): Promise<RoomSetupPlan> {
   };
 }
 
+const MAX_WHISPER_TEXT = 2000;
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/** The card text as HTML paragraphs, escaped (stored on the GM-only journal page). */
+function cardHtml(text: string): string {
+  return escapeHtml(text.replace(/\r\n?/g, '\n'))
+    .split(/\n{2,}/)
+    .map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`)
+    .join('');
+}
+
+/**
+ * The `executeScript` source of a room card. Foundry loads a Region's behavior source on every
+ * client (`gmOnly` only blocks writes), so the card text is NOT in it: the script holds only the
+ * uuid of a GM-only journal entry (ownership none, never sent to players). Only the active GM's
+ * client reads it and posts a whisper to the GM users.
+ */
+function whisperScript(journalUuid: string, once: boolean): string {
+  return [
+    'if (!game.user.isActiveGM) return;',
+    `const card = await fromUuid(${JSON.stringify(journalUuid)});`,
+    'if (!card) return;',
+    'const esc = t => String(t).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",\'"\':"&quot;"})[c]);',
+    'const who = esc(event.data?.token?.name ?? "A token");',
+    'const body = card.pages.contents.map(p => p.text?.content ?? "").join("");',
+    'await ChatMessage.create({',
+    '  whisper: ChatMessage.getWhisperRecipients("GM").map(u => u.id),',
+    '  speaker: { alias: "Room card" },',
+    '  content: "<h3>" + esc(card.name) + "</h3><p><em>" + who + " entered.</em></p>" + body',
+    '});',
+    ...(once ? ['await behavior.update({ disabled: true });'] : []),
+  ].join('\n');
+}
+
+function planWhisper(request: RoomWhisperRequest): RoomSetupPlan {
+  const name = (request.name ?? '').trim();
+  if (!name) throw new Error('A room whisper needs a name');
+  if (name.length > 120) throw new Error('The room name is 120 characters at most');
+  const text = (request.text ?? '').trim();
+  if (!text) throw new Error('A room whisper needs the card text');
+  if (text.length > MAX_WHISPER_TEXT) {
+    throw new Error(`The card text is ${text.length} characters: ${MAX_WHISPER_TEXT} at most`);
+  }
+  const area = checkArea(request.area, 'area');
+  const scene = resolveScene(area.scene);
+  const warnings: string[] = [];
+  const rect = areaRect(scene, area, 'area', warnings);
+  const once = request.once === true;
+  const journalId = newId();
+  const behavior: Rec = {
+    _id: newId(),
+    type: 'executeScript',
+    name: `${name} (whisper to GM)`,
+    system: {
+      events: ['tokenMoveIn'],
+      source: whisperScript(`JournalEntry.${journalId}`, once),
+    },
+  };
+  warnings.push(
+    'Only GMs receive the card (a whisper from the active GM client); it does not post while no GM is logged in',
+    'The card text is kept in a GM-only journal entry; the Region name and the entry name are readable by players, so choose a neutral name'
+  );
+  return {
+    summary: `Add the room card ${quoted(name)} (whispered to the GM when a token enters${once ? ', first time only' : ''}) on ${quoted(scene.name)}`,
+    ops: [
+      {
+        kind: 'create',
+        documentName: 'JournalEntry',
+        data: {
+          _id: journalId,
+          name: `${name} (room card)`,
+          ownership: { default: 0 },
+          pages: [
+            {
+              _id: newId(),
+              name: 'Room card',
+              type: 'text',
+              text: { content: cardHtml(text), format: 1 },
+            },
+          ],
+          flags: { [MODULE_ID]: { roomSetup: true } },
+        },
+        keepId: true,
+      },
+      {
+        kind: 'create',
+        documentName: 'Region',
+        parentUuid: String(scene.uuid),
+        data: regionData(scene, newId(), name, rect, '#44aadd', [behavior], area.level),
+        keepId: true,
+      },
+    ],
+    regions: [
+      {
+        name,
+        sceneName: String(scene.name),
+        squares: [area.x, area.y, area.width, area.height],
+        role: 'whisper',
+      },
+    ],
+    warnings,
+  };
+}
+
 /** Build the plan for one request. Throws when nothing would change. */
 export async function planRoomSetup(data: unknown): Promise<RoomSetupPlan> {
   requireGm();
@@ -741,6 +864,8 @@ export async function planRoomSetup(data: unknown): Promise<RoomSetupPlan> {
       return planStairs(request);
     case 'hazard':
       return await planHazard(request);
+    case 'whisper':
+      return planWhisper(request);
     default:
       throw new Error(`Unknown action "${String(rec(data)?.action)}"`);
   }

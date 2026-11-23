@@ -36,7 +36,7 @@ export class MovementTools {
       {
         name: 'get-token-positions',
         description:
-          'Use this to see where all tokens are on a scene (default: active): name, actor ID, token ID, x/y and grid cell, elevation, category (pc/npc/enemy), hidden or visible, HP, conditions. For full data on one token use get-token-details.',
+          'Use this to see where all tokens are on a scene (default: active): name, actor ID, token ID, x/y and grid cell, elevation, level (the floor, on a scene with more than one Scene Level), category (pc/npc/enemy), hidden or visible, HP, conditions.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -51,7 +51,7 @@ export class MovementTools {
       {
         name: 'measure-distance',
         description:
-          "Measure the distance in the scene's grid units (e.g. feet) between two tokens on the active scene, using the scene's grid configuration.",
+          "Measure the distance in the scene's grid units (e.g. feet) between two tokens on the active scene, using the scene's grid configuration. On a scene with more than one Scene Level (a castle with floors) the distance counts height too and the reply names the level of each token (fromLevel, toLevel) with the horizontal and vertical parts.",
         inputSchema: {
           type: 'object',
           properties: {
@@ -129,7 +129,9 @@ export class MovementTools {
     } catch (error) {
       this.logger.error('Error measuring distance', error);
       if (error instanceof z.ZodError) {
-        return `Parameter error: ${error.issues.map(e => e.message).join(', ')}`;
+        throw new Error(`Parameter error: ${error.issues.map(e => e.message).join(', ')}`, {
+          cause: error,
+        });
       }
       throw error;
     }

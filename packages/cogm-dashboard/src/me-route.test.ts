@@ -29,6 +29,7 @@ afterEach(async () => {
 async function start(
   options: {
     shared?: boolean;
+    stash?: boolean;
     failFor?: string;
     bare?: boolean;
     portrait?: 'on' | 'off' | 'unknown' | 'nowrites';
@@ -94,6 +95,39 @@ async function start(
       asked.push(userId);
       if (userId === options.failFor) return Promise.reject(new Error('gone'));
       const own = { id: `own-${userId}`, name: `sheet of ${userId}` };
+      if (options.stash) {
+        // The bridge returns only the characters this user OWNS: the GM's id (a monster, an NPC)
+        // is never asked, and would be refused here if it were.
+        if (userId !== PLAYER && userId !== TAMSIN)
+          return Promise.reject(new Error('not a player'));
+        const mine = userId === PLAYER;
+        return Promise.resolve({
+          userId,
+          sheets: [
+            {
+              id: `own-${userId}`,
+              name: mine ? 'Brenna' : 'Tamsin Vale',
+              currency: mine ? { pp: 1, gp: 12, ep: 0, sp: 5, cp: 7 } : { gp: 30 },
+              inventory: mine
+                ? [
+                    { id: 'i1', name: 'Rope', type: 'loot', quantity: 2, description: 'x' },
+                    {
+                      id: 'i2',
+                      name: 'Sunsword of Strahd',
+                      type: 'weapon',
+                      quantity: 1,
+                      identified: false,
+                      description: 'secret text',
+                    },
+                  ]
+                : [
+                    { id: 'i3', name: 'Rope', type: 'loot', quantity: 1 },
+                    { id: 'i4', name: 'Hidden Ring', type: 'equipment', quantity: 1, secret: true },
+                  ],
+            },
+          ],
+        });
+      }
       return Promise.resolve({
         userId,
         userName: 'x',
@@ -368,6 +402,37 @@ describe('/api/me and the player links', () => {
     expect(withKey.status).toBe(401);
   });
 
+  it('the party stash lists items by holder with the total gold, hides unidentified names, and reads only the players', async () => {
+    const { base, asked } = await start({ stash: true });
+    const key = keyOf(await makeLink(base, PLAYER));
+    const res = await fetch(`${base}/api/me/stash`, { headers: { 'X-CoGM-Me': key } });
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    const body = JSON.parse(text) as {
+      holders: Array<{ name: string; items: Array<{ name: string; unidentified: boolean }> }>;
+      totalGold: number;
+    };
+    expect(body.holders.map(h => h.name)).toEqual(['Brenna', 'Tamsin Vale']);
+    expect(body.holders[0].items.map(i => i.name)).toEqual(['Rope', 'Unidentified item']);
+    expect(body.holders[1].items.map(i => i.name)).toEqual(['Rope', 'Unidentified item']);
+    // 1 pp + 12 gp + 5 sp + 7 cp + 30 gp = 52.57 gp
+    expect(body.totalGold).toBe(52.57);
+    // No real name of a hidden item, and no description, reaches the page.
+    expect(text).not.toContain('Sunsword');
+    expect(text).not.toContain('Hidden Ring');
+    expect(text).not.toContain('secret text');
+    // Only the players' own characters were read: nobody else (the GM, a monster) was asked.
+    expect([...new Set(asked)].sort()).toEqual([PLAYER, TAMSIN].sort());
+  });
+
+  it('the party stash needs a valid player link', async () => {
+    const { base } = await start({ stash: true });
+    expect((await fetch(`${base}/api/me/stash`)).status).toBe(401);
+    expect((await fetch(`${base}/api/me/stash`, { headers: { 'X-CoGM-Me': 'nope' } })).status).toBe(
+      401
+    );
+  });
+
   it('serves the party print page under the strict page CSP, with no inline script', async () => {
     const { base } = await start();
     const res = await fetch(`${base}/party-print.html`);
@@ -419,5 +484,26 @@ describe('/api/me and the player links', () => {
       headers: gm,
     });
     expect(res.status).toBe(400);
+  });
+});
+
+describe('shared sheet reads (me-poll-load)', () => {
+  it('answers repeated polls and the stash from one read per player', async () => {
+    const { base, asked } = await start({ stash: true });
+    const key = keyOf(await makeLink(base, PLAYER));
+    await Promise.all([me(base, key), me(base, key), me(base, key)]);
+    expect(asked.filter(u => u === PLAYER)).toHaveLength(1);
+    const stash = await fetch(`${base}/api/me/stash`, { headers: { 'X-CoGM-Me': key } });
+    expect(stash.status).toBe(200);
+    expect(asked.filter(u => u === PLAYER)).toHaveLength(1);
+    expect(asked.filter(u => u === TAMSIN)).toHaveLength(1);
+  });
+
+  it('does not remember a failed read', async () => {
+    const { base, asked } = await start({ failFor: PLAYER });
+    const key = keyOf(await makeLink(base, PLAYER));
+    expect((await me(base, key)).status).toBe(502);
+    expect((await me(base, key)).status).toBe(502);
+    expect(asked.filter(u => u === PLAYER)).toHaveLength(2);
   });
 });

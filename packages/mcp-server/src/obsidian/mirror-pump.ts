@@ -138,7 +138,7 @@ import {
   renderMirrorStatusNote,
   sameMirrorContent,
 } from './mirror-render.js';
-import { scanCampaign, type MirrorScan } from './mirror-scan.js';
+import { noteMirrorWrites, scanCampaign, type MirrorScan } from './mirror-scan.js';
 import { readMirrorSettings } from './mirror-settings.js';
 import {
   campaignDir,
@@ -504,6 +504,7 @@ interface WorldState {
   errors: Map<string, string>;
   movedByGm: Listed[];
   duplicates: Listed[];
+  syncConflicts: string[];
   keptDeleted: Listed[];
   truncated: ExportIndexResponse['truncated'];
   /** The lasting status facts last rendered into `_status.md`. */
@@ -551,6 +552,7 @@ function newWorldState(worldId: string): WorldState {
     errors: new Map(),
     movedByGm: [],
     duplicates: [],
+    syncConflicts: [],
     keptDeleted: [],
     truncated: [],
     statusFingerprint: null,
@@ -1057,6 +1059,7 @@ export class ObsidianMirrorPump {
     const listed = (note: ScannedNote): Listed => ({ path: note.path, uuid: note.uuid });
     state.movedByGm = scan.movedByGm.map(listed);
     state.duplicates = scan.duplicates.map(listed);
+    state.syncConflicts = [...scan.syncConflicts];
     // A fresh view of the lasting problems: edited notes inside the fence (those left in a
     // folder they no longer belong in say so), and what the scan could not read.
     state.skipped = new Map();
@@ -2017,6 +2020,7 @@ export class ObsidianMirrorPump {
     status.skipped = byPath([...state.skipped].map(([p, reason]) => ({ path: p, reason })));
     status.movedByGm = byPath([...state.movedByGm]);
     status.duplicates = byPath([...state.duplicates]);
+    status.syncConflicts = [...state.syncConflicts].sort();
     status.keptDeleted = byPath([...state.keptDeleted]);
     status.truncated = structuredClone(state.truncated);
     status.errors = byPath([...state.errors].map(([p, error]) => ({ path: p, error })));
@@ -2051,7 +2055,7 @@ export class ObsidianMirrorPump {
     const trashed = writer.trashed.length;
     const written = writer.written.length - cycle.created;
     const moved = writer.moved.length;
-    const changed = writer.written.length + trashed + moved > 0;
+    const changed = noteMirrorWrites(state.worldId, writer.written.length, trashed, moved);
     const abort = error instanceof CycleAbort ? error : null;
     if (this.state !== state) {
       // The world changed under the cycle: its state is gone.
@@ -2070,6 +2074,7 @@ export class ObsidianMirrorPump {
         this.current.skipped,
         this.current.movedByGm,
         this.current.duplicates,
+        this.current.syncConflicts,
         this.current.keptDeleted,
         this.current.truncated,
         this.current.errors,

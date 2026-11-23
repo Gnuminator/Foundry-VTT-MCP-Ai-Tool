@@ -244,6 +244,100 @@ export function rollupProblems(rollup, required = []) {
   return { failing, pending, missing: required.filter(r => !names.has(r)) };
 }
 
+/** The Actions job id in a check's detailsUrl (.../actions/runs/<id>/job/<id>), or null. @param {any} c */
+export function jobIdOf(c) {
+  const m = /\/actions\/runs\/\d+\/job\/(\d+)/.exec(String(c.detailsUrl ?? ''));
+  return m ? Number(m[1]) : null;
+}
+
+/** At most this many failing checks are looked into per gate run (two gh calls each). */
+export const MAX_EXPLAINED = 3;
+
+/**
+ * Why a failing check failed, from the job's steps and annotations: `step "Run tests" failed`, or
+ * `timed out after 25 min` for a job that hit its timeout. Empty when nothing can be told. Pure: the
+ * caller hands in the two gh answers (JSON text, or null when a call failed).
+ * @param {string | null} jobJson `gh api repos/<repo>/actions/jobs/<id>`
+ * @param {string | null} annotationsJson `gh api repos/<repo>/check-runs/<id>/annotations`
+ * @param {string} [conclusion]
+ */
+export function failureCause(jobJson, annotationsJson, conclusion = '') {
+  /** @type {any} */
+  let job = null;
+  /** @type {any} */
+  let notes = null;
+  try {
+    job = jobJson ? JSON.parse(jobJson) : null;
+  } catch {
+    /* no steps then */
+  }
+  try {
+    notes = annotationsJson ? JSON.parse(annotationsJson) : null;
+  } catch {
+    /* no annotations then */
+  }
+  // Only failure-level annotations (a deprecation warning is not the cause). The text ends up in the
+  // refusal line that the merge runner matches on, so ":" and ";" are flattened out of it.
+  const messages = Array.isArray(notes)
+    ? notes
+        .filter(a => !a?.annotation_level || a.annotation_level === 'failure')
+        .map(a => String(a?.message ?? '').replace(/[:;]/g, ','))
+        .filter(Boolean)
+    : [];
+  const limit = messages
+    .map(m => /exceeded the maximum execution time of (\d+) minutes?/i.exec(m))
+    .find(Boolean);
+  if (limit) return `timed out after ${limit[1]} min`;
+  if (String(conclusion).toUpperCase() === 'TIMED_OUT') return 'timed out';
+  const steps = Array.isArray(job?.steps) ? job.steps : [];
+  const bad = steps.find(
+    (/** @type {any} */ st) =>
+      st &&
+      ['failure', 'timed_out', 'cancelled'].includes(String(st.conclusion ?? '').toLowerCase())
+  );
+  const note = messages[0] ? firstLine(messages[0]).slice(0, 120) : '';
+  if (bad) {
+    const what = String(bad.conclusion).toLowerCase() === 'cancelled' ? 'was cancelled' : 'failed';
+    return `step "${bad.name}" ${what}${note ? `: ${note}` : ''}`;
+  }
+  return note;
+}
+
+/**
+ * Adds the cause to each failing check of `rollupProblems` (`name (FAILURE)` becomes
+ * `name (FAILURE: step "Run tests" failed)`). Looks only at failing check runs, newest entry per
+ * check, at most MAX_EXPLAINED of them, two gh calls each; a green rollup makes no call. A failed
+ * call leaves the entry as it was.
+ * @param {any[]} rollup @param {string[]} failing @param {Run} run
+ * @returns {string[]}
+ */
+export function explainFailing(rollup, failing, run) {
+  if (failing.length === 0) return failing;
+  /** label to its checks, in rollup order: two checks of one name each get their own turn */
+  const byLabel = new Map();
+  for (const c of latestChecks(rollup)) {
+    if (c.state !== undefined && c.status === undefined) continue;
+    const conclusion = String(c.conclusion ?? '').toUpperCase() || 'no conclusion';
+    const label = `${c.name ?? c.context ?? 'check'} (${conclusion})`;
+    byLabel.set(label, [...(byLabel.get(label) ?? []), c]);
+  }
+  let looked = 0;
+  return failing.map(label => {
+    const c = byLabel.get(label)?.shift();
+    const job = c ? jobIdOf(c) : null;
+    if (!c || job === null || looked >= MAX_EXPLAINED) return label;
+    looked += 1;
+    const jobs = run('gh', ['api', `repos/${REPO}/actions/jobs/${job}`]);
+    const notes = run('gh', ['api', `repos/${REPO}/check-runs/${job}/annotations`]);
+    const why = failureCause(
+      jobs.status === 0 ? jobs.stdout : null,
+      notes.status === 0 ? notes.stdout : null,
+      String(c.conclusion ?? '')
+    );
+    return why ? label.replace(/\)$/, `: ${why})`) : label;
+  });
+}
+
 /**
  * --wait-ci: poll the PR until every CI check on its head commit has finished, in this one process.
  * A check the branch ruleset requires that is not reported yet counts as pending (CI may not have
@@ -314,7 +408,7 @@ export function waitForCi(o) {
       if (failing.length > 0) {
         return stop(
           EXIT_CI_FAILED,
-          `wait-ci: CI failed on ${head.slice(0, 7)}: ${failing.join(', ')}`
+          `wait-ci: CI failed on ${head.slice(0, 7)}: ${explainFailing(rollup, failing, run).join(', ')}`
         );
       }
       const open = [...pending, ...missing.map(m => `${m} (not reported yet)`)];

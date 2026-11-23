@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * The merge runner's single-instance lock (~/.foundry-ai-tool/merge-runner.lock holds the holder's
  * pid). Split from scripts/merge-runner.mjs to keep that file under the line limit; the runner
@@ -26,7 +27,7 @@ export function isRunnerProcess(pid) {
         '-Command',
         `(Get-CimInstance Win32_Process -Filter 'ProcessId=${Number(pid)}').CommandLine`,
       ],
-      { encoding: 'utf8', timeout: 60_000 }
+      { encoding: 'utf8', timeout: 60_000, windowsHide: true }
     );
     const line = (r.stdout ?? '').trim();
     // An unreadable command line (empty answer) counts as a runner: never two runners.

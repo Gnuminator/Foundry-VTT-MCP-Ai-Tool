@@ -222,8 +222,16 @@ most once per connection every 6 hours. The backend also answers
 calls that are not listed here: `link_status` (whether the module's socket is connected; the Pi
 health check and the Assistant GM probe it), `character_sheet`, `player_roll`, `player_portrait`, the
 switch views `session_switches` and `feature_switches`, `session_notes`, `record_handout_seen`,
-`live_sweep`, the player connector's `list_player_tools` and `player_tool`, and the two "who uses
-what" calls (D-146): `record_client` (`{ piece, who, install?, name?, version }`, result `{ ok }`;
+`omens` (omens by post: `{ action: list|decide|outbox|claim|finish|set-player, ... }`, dashboard only,
+never forwarded by the stdio wrapper),
+`downtime` (I-180; `{ action: list|save|delete, userId, name?, id?, text? }`, result `{ entries }`;
+the players' downtime inbox in the vault, one player's own entries per call),
+`live_sweep`, the player connector's `list_player_tools` and `player_tool`, the remote GM connector's
+`remote_gm_list` and `remote_gm_call` (`{ set, name?, args? }`; the dashboard's `/mcp/<set>` routes send
+the set from the path, the backend runs only tools that set lists), `record_call` (the
+dashboard tells the bridge about a `get-my-handouts` or `get-my-play-stats` call it answered
+itself, so the call log has it: `{ tool, userId, ms, size, ok }`, result `{ ok }`), and the two "who
+uses what" calls (D-146): `record_client` (`{ piece, who, install?, name?, version }`, result `{ ok }`;
 keeps which version of the connectors, the Claude app, the player helper or the Obsidian plugin a
 person runs in `_usage/clients.json`) and `who_uses_what` (`{ days }`, clamped to 1 to 90; the
 counts report behind the dashboard's GM-only `GET /api/who-uses-what`); see `backend.ts`. The bridge
@@ -343,7 +351,8 @@ stdio** and does almost nothing itself:
   its own config entry with its own on/off switch, so a chat carries only the definitions it
   needs. The filter lives in the wrapper only: the backend's `list_tools` still returns every tool,
   which the dashboard uses. The wrapper also filters the prompt list by set and sends MCP
-  `instructions` naming the sets it serves and the ones that are off. Several wrappers start at
+  `instructions`: the core wrapper sends the full text (plan story and every set), the others a short
+  one with their own set, the switch-first rule and the language line. Several wrappers start at
   once and may each spawn a backend; a spawned backend that loses the lock exits (code 3) and its
   wrapper connects to the one that won.
 - **Version hello.** On connect the wrapper sends `hello` `{version, build, sets}`; the dashboard
@@ -422,8 +431,8 @@ refuses to write while a bridge backend holds its lock.
 or `read`; the kind is a required argument of `bridgeHandlers.on/set`, so none is unclassified).
 `registerHandlers` wraps every write kind once, so it refuses with "Write
 operations are disabled in the module settings" while "AI Tool: Allow Write Operations" is off, whoever
-calls (Claude or the dashboard). Guarded writes keep their own gate below. The data-access write
-functions call `requireWriteOperations()` too, and the actor quantity limit lives in
+calls (Claude or the dashboard). Guarded writes keep their own gate below. The actor-creation and
+journal write functions call `requireWriteOperations()` too, and the actor quantity limit lives in
 `data-access/actor-creation.ts`.
 
 **Guarded writes (`guarded-write/service.ts` + module `data-access/guarded-write.ts`).**
@@ -472,6 +481,12 @@ capability (`PROMPTS_CAPABILITY`) and `registerPromptHandlers()` (`prompts/regis
 round trip and listing or getting one never depends on Foundry being connected. A bad request
 (unknown prompt or argument, missing required argument) is a JSON-RPC invalid-params error with a
 message the GM can read.
+
+The wrapper also answers `resources/list` and `resources/read` itself for one static MCP Apps page,
+the change card (`change-card.ts`, `ui://foundry-ai-tool/change-card`). `withChangeCardMeta` adds
+`_meta.ui.resourceUri` to the `plan-*` tools in `tools/list` (not prep or player, whose size budgets
+have no room); a host with MCP Apps shows a read-only diff card next to the text plan, other hosts
+ignore it. Apply still goes through `apply-planned-change`.
 
 Everything else in the folder is pure (no SDK, no network) and unit-tested: `types.ts`,
 `arguments.ts` (validation: unknown arguments refused, blank counts as missing, length limits,
@@ -588,7 +603,7 @@ can drive it, and that even the GM can't fat-finger a destructive bulk operation
    `game.user.isGM`, so a player client receiving the broadcast can't be tricked into writing.
 4. **The write gate (`write-gate.ts`).** The master `allowWriteOperations` setting disables every
    classified write handler at once (§2), and the data-access write functions below the bridge
-   call `requireWriteOperations()` too. Creating actors from a compendium is bounded by the
+   call `requireWriteOperations()` too (the actor-creation and journal ones). Creating actors from a compendium is bounded by the
    hidden `maxActorsPerRequest` setting (default 10, checked in `data-access/actor-creation.ts`).
 5. **Guarded writes (new features).** Off per feature by default, confirmed with a diff,
    audited off-Foundry, conflict-checked and undoable (§4d).
@@ -648,11 +663,13 @@ AI work happens when someone asks Claude through the MCP tools (subscription-fir
   be on **and** an explicit `confirm`. Destructive tools require a _second_ `confirmDestructive`.
   Gating is enforced on the **server**, not in CSS, so a hostile browser can't bypass it.
 
-This is also where the **player vs GM split** lives (built in Phase 6: `auth.ts`, `redact.ts`,
-role-aware `sse.ts`, `requireGm`, `/player`): GM-only data is filtered off the SSE stream and the
-write surface is gated server-side, behind auth, so the player view shows the combat order and
-public feed without hidden HP, notes, or write access. The allowlist projection that replaces the
-redaction is planned as M2 (campaign plan in the private vault, feature 2).
+This is also where the **player vs GM split** lives (`auth.ts`, `requireGm`, `redact.ts`,
+role-aware `sse.ts`, `player/projection.ts`, `/player`). The player page never joins the GM hub:
+it has its own stream and `/api/player/*` routes, which carry only the allowlist projection of the
+state (`player/projection.ts`), so the player view shows the combat order and public feed without
+hidden HP, notes, or write access. Every GM-hub broadcast still goes through `gmOnly`
+(`redact.ts`), which sends nothing to a non-GM client, and the write surface is gated server-side,
+behind auth.
 
 ---
 

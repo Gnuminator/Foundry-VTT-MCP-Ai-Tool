@@ -231,8 +231,8 @@ const ACTIONS = {
   worldStatus: w => ({
     worldId: w.worldId,
     systemId: 'dnd5e',
-    systemVersion: '6.0.5',
-    coreVersion: '14.368',
+    systemVersion: '6.0.6',
+    coreVersion: '14.370',
     userName: 'Kit GM',
     isGM: true,
     moduleActive: true,
@@ -464,6 +464,8 @@ const ACTIONS = {
     return { ended: 1 };
   },
 
+  targetToken: (w, args) => ({ targeted: args.tokenId ? [args.tokenId] : [] }),
+
   spendLegendary: (w, args) => {
     const token = w.tokens.get(args.tokenId);
     if (!token || token.sceneId !== args.sceneId) {
@@ -523,6 +525,28 @@ const ACTIONS = {
       w.featureSwitches[feature] = value;
     }
     return { before };
+  },
+
+  createFixtureActors: (w, args) => {
+    const actorIds = (args.names ?? []).map((/** @type {string} */ name, /** @type {number} */ i) => {
+      const found = [...w.actors.values()].find(a => a.name === name && a.fixture);
+      if (found) return found.id;
+      const id = newId(w, 'fix');
+      w.actors.set(id, {
+        id,
+        name,
+        type: i === 0 ? 'character' : 'npc',
+        fixture: true,
+        hp: { value: 10, max: 10, temp: 0 },
+        items: [],
+        cr: 0,
+        creatureType: 'humanoid',
+        size: 'med',
+        level: 0,
+      });
+      return id;
+    });
+    return { actorIds };
   },
 
   ensurePartyGroup: (w, args) => {

@@ -13,5 +13,6 @@
     "feats": ["dnd5e.feats24"],
     "equipment": ["dnd5e.equipment24"]
   },
-  "select": { "rules": ["2024", "2014"] }
+  "select": { "rules": ["2024", "2014"] },
+  "knownConsoleErrors": ["Failed to load audio element \"sounds/dice\\.wav\""]
 }

@@ -11,6 +11,8 @@
 #   5 CHECK=1 now exits 0; a second run changes nothing (same hashes, no new "wrote" lines)
 #   6 a new release build: the run rewrites only the changed file, the PC gets it, data.json stays
 #   7 the refusals: a build without a file, a manifest of another plugin, a missing GM vault, a bad CHECK value
+#   8 a .stignore without the .obsidian/plugins line is refused, and CHECK says not in step
+#   9 a link where the stage would write is refused, and its target is not touched
 # The last line is ALL SCENARIOS OK when every one passed:
 #   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" <IMAGE> bash /repo/scripts/pi/container-test/stage33-scenarios.sh
 # (scripts/pi/obsidian-plugin-stage.test.mjs runs it with PI_STAGE33_CONTAINER=1.) STAGE=<file> runs it against another copy.

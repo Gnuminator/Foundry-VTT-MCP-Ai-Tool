@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * The merge runner keeps its own code in memory (D-140): after a PR changes scripts/merge-runner.mjs
  * or a module it imports, a runner that was started earlier keeps running the old code. This module
@@ -211,7 +212,12 @@ export function makeSelfCheck(o) {
   const run =
     o.run ??
     ((args, cwd) => {
-      const r = spawnSync('git', args, { cwd, encoding: 'utf8', timeout: 120_000 });
+      const r = spawnSync('git', args, {
+        cwd,
+        encoding: 'utf8',
+        timeout: 120_000,
+        windowsHide: true,
+      });
       return {
         status: r.status ?? 1,
         stdout: r.stdout ?? '',
@@ -264,6 +270,7 @@ export function reexec(o) {
     const start = now();
     const r = spawn(process.execPath, [o.script, ...o.argv], {
       stdio: 'inherit',
+      windowsHide: true,
       env: { ...env, [CHILD_ENV]: '1' },
     });
     const code = r.status ?? 1;

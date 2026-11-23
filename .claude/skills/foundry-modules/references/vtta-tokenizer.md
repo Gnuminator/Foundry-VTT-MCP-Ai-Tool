@@ -2,7 +2,7 @@
 
 Verified on Foundry 14.368 / dnd5e 6.0.6, module 5.0.3, 2026-10-28 (test server B). Parts not clicked through are marked "(not verified)".
 
-**Verdict: keep.** It is the tool for making round token pictures and portraits with a frame, and its pictures are saved under `Data/tokenizer/` (the Pi push brings that folder along, `docs/dev/PI-SETUP.md`). `compatibility.verified` is 13 (module 5.0.3), but the source uses the Foundry 13+ APIs (`foundry.applications.apps.FilePicker.implementation`, ApplicationV2 header controls), and the window opened and rendered on 14.368. It is a GM tool; no players need it (`disable-player` is on).
+**Verdict: keep.** It is the tool for making round token pictures and portraits with a frame, and its pictures are saved under `Data/tokenizer/` (the Pi push brings that folder along, `docs/dev/pi/licensed-content.md`). `compatibility.verified` is 13 (module 5.0.3), but the source uses the Foundry 13+ APIs (`foundry.applications.apps.FilePicker.implementation`, ApplicationV2 header controls), and the window opened and rendered on 14.368. It is a GM tool; no players need it (`disable-player` is on).
 
 **For Danni's guides:** Tokenizer is the "make a token" window: open an actor, click the three dots in the sheet's top bar, choose Tokenizer, drag the picture into the circle, pick a frame, and it saves a token and a portrait for you.
 
@@ -39,7 +39,7 @@ Keys are `vtta-tokenizer.<key>`; defaults are from `dist/main.js` and the values
 
 ## How it interacts with the AI Tool
 
-- **Pi world push:** `docs/dev/PI-SETUP.md` (around line 728) says `Data/tokenizer/` must be copied with the world or scenes and tokens show broken images. `scripts/pi/push-world.ps1` and `scripts/pi/remote/11-world.sh` accept only `ddb-images/` and `tokenizer/` as asset folders. `scripts/pi/world-refs.mjs` classifies `tokenizer/...` paths used by actors (its test uses `tokenizer/npc-images/a.png`).
+- **Pi world push:** `docs/dev/pi/licensed-content.md` (the folders the world uses) says `Data/tokenizer/` must be copied with the world or scenes and tokens show broken images. `scripts/pi/push-world.ps1` and `scripts/pi/remote/11-world.sh` accept only `ddb-images/` and `tokenizer/` as asset folders. `scripts/pi/world-refs.mjs` classifies `tokenizer/...` paths used by actors (its test uses `tokenizer/npc-images/a.png`).
 - **Secret check on push:** the module name never counts as a secret word; its folder settings (`image-upload-directory`, `frame-directory`) are listed as harmless in `world-refs.test.mjs`. The hidden `proxy` setting is a URL, not a credential.
 - Our tools do not call it. `dnd5e-create-npc` and friends use whatever image path they are given. Tokens it makes are ordinary files; nothing in the bridge reads or writes its settings.
 - Needs no `foundry-mcp-bridge` settings.
@@ -58,5 +58,5 @@ Keys are `vtta-tokenizer.<key>`; defaults are from `dist/main.js` and the values
 
 - <https://github.com/MrPrimate/tokenizer>, `module.json`; `LICENSE.md`.
 - `C:\FoundryTest\data\Data\modules\vtta-tokenizer\dist\main.js` (settings, header controls, FilePicker use), `lang\en.json`.
-- Repo: `docs/dev/PI-SETUP.md`, `scripts/pi/world-refs.mjs`, `scripts/pi/world-refs.test.mjs`, `scripts/pi/push-world.ps1`, `scripts/pi/remote/11-world.sh`.
+- Repo: `docs/dev/pi/licensed-content.md`, `scripts/pi/world-refs.mjs`, `scripts/pi/world-refs.test.mjs`, `scripts/pi/push-world.ps1`, `scripts/pi/remote/11-world.sh`.
 - Core: `C:\FoundryTest\app\client\helpers\client-settings.mjs` (scope fallback).

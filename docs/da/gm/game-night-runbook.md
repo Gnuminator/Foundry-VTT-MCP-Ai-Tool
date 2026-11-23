@@ -1,6 +1,6 @@
 ---
 source: gm/game-night-runbook.md
-sourceHash: f49bdad33a2d
+sourceHash: dfe40f023bcb
 title: Spilaftenens runbook
 description: Én side til selve aftenen. Hvad du gør, når Foundry, en spiller, Claude, dashboardet eller hjemmeserveren fejler, og hvornår du råber om hjælp.
 ---
@@ -20,6 +20,10 @@ spilaftenen, ved bordet eller i Discord-voice. Ring i voice eller skriv en direk
 Du skal ikke selv løse tekniske problemer.
 
 ## Før du starter (15 minutter før)
+
+Cirka to timer før kan administratoren få en enkelt linje, **game-day brief**, på sin egen pc eller telefon
+(pre-flight-resultat og hvad du skal åbne først) og siger til, hvis noget er rødt. Den læser kun, og den er en
+forvarsel: pre-flight-tjekket herunder er stadig det rigtige.
 
 - [ ] Åbn spillets adresse og kom ind som din GM-bruger. Tjek spillerlisten nederst til venstre.
 - [ ] Gå checklisten [Før hver session](before-session.md) igennem (pre-flight, Turn on for tonight).
@@ -55,11 +59,16 @@ Bliv ved med at spille: lav ændringen i hånden i Foundry.
 - **Beskeden "Usage limit":** den gratis plan har en grænse pr. fem timer. Den nulstilles af sig
   selv. Indtil da spiller du uden Claude. Se [Claude Free eller Pro](claude-plans.md).
 - **Claude siger, at et tool set er slået fra:** slå det til i Claude Desktops **+**-menu,
-  **Connectors** (se [Spørg Claude](asking-claude.md#tool-sets-hvilke-kontakter-du-skal-tænde)).
+  så **Plugins** (se [Spørg Claude](asking-claude.md#tool-sets-hvilke-kontakter-du-skal-tænde)).
+- **En connector tilføjet med webadresse siger, at den ikke er forbundet:** åbn **Settings**,
+  **Plugins**, vælg den og tryk **Connect** for at logge ind med din e-mail igen. Virker det stadig
+  ikke, se [Forbind Claude med webadresse](connect-claude-web.md#hvis-noget-ikke-virker).
+- **En ændring viser en fejl, men kan være gået igennem:** efter lang ventetid kan Claude vise en fejl
+  (en 524), selv om ændringen landede. Åbn **Recent Changes** på dashboardet, før du spørger igen.
 - **Hvert værktøjskald fejler:** Claude har mistet forbindelsen til spillet. I pausen lukker du Claude
   Desktop helt og starter det igen. Hjælper det ikke, så råb om hjælp efter sessionen.
 
-> **Usikker? Spørg Claude.** Spørg GM coach: "Claude holdt op med at svare under spillet. Hvad kan jeg stadig gøre, og hvad gør jeg ved det i pausen?" ([sådan tilføjer du GM coach](gm-coach.md))
+> **Usikker? Spørg Claude.** Spørg GM coach: "Claude holdt op med at svare under spillet. Hvad kan jeg stadig gøre, og hvad gør jeg ved det i pausen?" ([sådan tilføjer du GM coach](gm-coach.md)) Coachen har kun brug for Claude selv, ikke for spillet. Hvis dens tools fejler, har den stadig denne runbook og fejlfindingssiden indbygget og siger det.
 
 ## Dashboardet vil ikke indlæse eller mister forbindelsen
 
@@ -94,7 +103,7 @@ På en plan B-aften når din egen Claude og dashboardet ikke spillet: spil i hå
 Foundry. Dine ændringer bliver gemt, og administratoren flytter worlden tilbage til hjemmeserveren før
 næste session. Administratorens trin står i [Plan B](../../dev/PLAN-B.md).
 
-> **Usikker? Spørg Claude.** Spørg GM coach: "Serveren er nede midt i spillet. Hvad siger jeg til spillerne, og hvad tjekker jeg, når vi er tilbage?"
+> **Usikker? Spørg Claude.** Spørg GM coach: "Serveren er nede midt i spillet. Hvad siger jeg til spillerne, og hvad tjekker jeg, når vi er tilbage?" Når serveren er nede, kan coachen ikke hente sine fulde sider. Den svarer ud fra denne runbook og fejlfindingssiden, som følger med, og siger til, når den går på almen viden i stedet. Den kan ikke se eller ændre dit spil.
 
 ## Hvornår du råber om hjælp
 

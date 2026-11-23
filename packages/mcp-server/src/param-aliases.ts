@@ -24,13 +24,13 @@ export const ACTOR_ALIASES: readonly string[] = [
 
 /**
  * Tool names that no longer exist, answered by the tool that took over, with the parameter
- * renames the old call needs. Kept for one release so saved prompts and cached tool lists work.
+ * renames the old call needs. Kept for one release so saved prompts and cached tool lists work:
+ * `until` is the first release (major.minor) that no longer carries the alias, and a test fails
+ * once the package version reaches it, so the entry has to be deleted then.
  */
 export const RENAMED_TOOLS: Readonly<
-  Record<string, { to: string; params: Readonly<Record<string, string>> }>
-> = {
-  'get-compendium-entry-full': { to: 'get-compendium-item', params: { entryId: 'itemId' } },
-};
+  Record<string, { to: string; params: Readonly<Record<string, string>>; until: string }>
+> = {};
 
 /** Per-tool renames: tool name, then old parameter name to current parameter name. */
 export const TOOL_ALIASES: Readonly<Record<string, Readonly<Record<string, string>>>> = {

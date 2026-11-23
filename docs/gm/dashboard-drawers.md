@@ -68,6 +68,15 @@ one to fill the field. You can still type by hand.
 - "More exist: type to narrow the list." means the list was cut short.
 - For a field that takes several values, click several entries; each is ticked.
 
+### Pins and recent runs
+
+When you have filled in a tool form you use often, click **📌 Pin** and give it a name. It then shows
+as a button in a **Pinned** row on the During bar. A read runs at once and the answer shows under the
+row. A plan or a write still goes through GM Actions and the confirm window, so a pin never changes
+anything on its own. In the Tool Runner you can rename and remove pins. It also lists your last eight
+runs (click one to fill the form again) and the three calls you use most, each with a **Pin** button.
+Pins are kept in this browser, so on a new computer you pin again.
+
 ### Applying a plan Claude made
 
 When Claude plans a change in Claude Desktop, you can apply it from the dashboard:
@@ -148,6 +157,18 @@ to a player who picked that name ("Playing as ...") at the top of the page.
 
 > **Not sure? Ask Claude.** Ask the GM coach: "How do I queue a handout during prep and reveal it at the table?"
 
+**Handout press.** If you want a handout to look like a letter on aged paper with a wax seal, a
+notice or a card, ask Claude to press one: give it the text and it uses `plan-handout-press` (in
+the Play connector). It draws the picture on the computer the dashboard's backend runs on, with
+the Edge, Chrome or Chromium already installed there (the Pi may have none, so ask from a PC session),
+without any image AI. Applying the plan adds a hidden image page to the
+"Handouts" journal. Players see nothing yet: queue and reveal it as above. Undo in Recent Changes
+removes the page. Text that names a secret term is refused.
+
+- **Switch it on:** in Foundry, Game Settings, category **Foundry AI Tool**, tick "AI Tool:
+  Handouts (writes)" (the same switch as for revealing handouts).
+- **What players see:** only the finished picture, once you reveal it.
+
 ## The prep drawer (📋 Prep)
 
 The facts for preparing your next session, in one place and without AI. **Refresh** reloads them.
@@ -164,9 +185,38 @@ The facts for preparing your next session, in one place and without AI. **Refres
 - **Ready**: the handout queue by scene, the bosses on your scenes (legendary actions, legendary
   resistances, lair) and the pre-flight result, with a button to the pre-flight drawer.
 - **Recent changes**: how many guarded changes were made, and the latest ones.
+- **Loose ends**: the open quests nobody updated for two sessions, the NPCs who acted in only one
+  session, and the scenes not used for two sessions, each with "last seen session N", plus a count
+  of scenes never used. It is only a reminder from the play log and session log; nothing changes.
+  Claude gets the same list from `get-prep-digest`.
 
 Claude reads the same facts with `get-prep-digest`, which the prompt `prep-next-session` uses
 first. Without Foundry connected, the drawer still shows last session and says what is missing.
+
+**Omens by post.** Between sessions you can send each player one short private text as a hint of
+what is coming. Claude drafts them (ask "Draft an omen for each player"; it uses `draft-omens` in
+the Prep connector) but cannot approve or send. The drawer's **Omens by post** list shows each
+draft with the player's name:
+
+- **Approve** or **Reject** each one. A text that names a secret term (a Tarokka card name, say)
+  shows a warning and asks you to confirm before it counts as approved. **Back to draft** takes an
+  approved or rejected one back.
+- **Discord ids for omens:** a player with no Discord user id yet shows "no Discord id yet, it cannot be sent". Open
+  that fold-out, type their Discord user id (digits only) and link it.
+- **Switch it on:** whoever runs the Discord bot sets `DISCORD_OMENS=1` in the bot's `.env`. It is
+  off by default, and with it off an approved text stays where it is. If the dashboard splits GM
+  and player tokens, the bot also needs `FOUNDRY_AI_GM_TOKEN`.
+- **What players see:** one private Discord message each, sent once within a few minutes of your
+  approval, only to that player's own account. Nobody sees another player's text, and nothing
+  shows on the player page. A failed send is retried on its own a few times; if it still fails, the list says why and you can approve it again.
+
+You can always read a hint aloud or write it in chat instead; this is an extra.
+
+**Downtime from players.** On My character, a player can write what their character does between
+sessions (see [My character](dashboard-player-pages.md)). The prep digest lists every player's
+entries, each marked "from player": they are wishes, not things that happened. While you prepare,
+ask Claude "What did the players ask to do in their downtime?" and it reads them with
+`get-prep-digest`. The drawer itself does not list them.
 
 **Previously on.** `get-prep-digest` (not the drawer yet) opens with a short "Previously on": the
 GM summary of the newest recorded session that has one. It reads only
@@ -175,6 +225,15 @@ one is written), never the player recap draft or a transcript. The sessions fold
 `FVTT_SESSIONS_DIR`, else `FoundrySessions` in the data folder (`FVTT_DATA_DIR`) or in `Documents` in your user folder, on the computer the
 bridge runs on. If no session has a summary yet, or the bridge cannot see that folder (it runs on
 another computer), Claude says so in one line.
+
+## The read-aloud drawer (📖 Read-aloud)
+
+Under **Advanced** you find **📖 Read-aloud**. It shows the boxed read-aloud text from the journal
+pages the current scene links to (the scene's own link and its map pins), in order, so you do not have
+to dig through the module while the players wait. **Show** opens one block full size on a screen
+players can see; **Copy** puts it on the clipboard. The text is read from your world when you open
+the drawer and is never stored. A scene with no boxed text says so. Claude can read the same text with
+`get-read-aloud`.
 
 ## The party drawer (🛡 Party)
 

@@ -1,9 +1,13 @@
 # Remote Access: Operational Setup Guide
 
 > **Status:** Part C below (the Orange Pi through Cloudflare) was set up for real on 2026-10-14
-> and is the tested path. Sections 1 to 6 are the older scaffold: they describe the target
-> topology for Phase 6 and have not been executed against live infrastructure. Every account ID,
-> domain, UUID, email address, and secret is a `<PLACEHOLDER>` you replace.
+> and is the tested path. After it comes the "Settings reference" for the variables that make each
+> hop config-driven. The older scaffold for a locally managed tunnel (never run) moved to
+> [docs/history/REMOTE-ACCESS-SCAFFOLD.md](../history/REMOTE-ACCESS-SCAFFOLD.md).
+>
+> **What stays out of this repo:** email addresses, Cloudflare account and tunnel ids, tokens
+> and Access AUD tags. Public hostnames appear here and in a few scripts as examples; they sit
+> behind Cloudflare Access.
 >
 > For the big-picture roadmap that Phase 6 fits into, see `docs/history/PHASE6-DESIGN.md`
 > (written in parallel). For the existing Windows-local deployment, see `docs/dev/DEPLOYMENT.md`
@@ -13,19 +17,43 @@
 
 ## Part C: players and the GM reach the Orange Pi through Cloudflare
 
-This is the real plan for the Orange Pi (decision D-075). It replaces sections 3 and 5 below for the
-Pi: the tunnel is a **remotely managed tunnel**, so the Pi holds only a token and every hostname and
+This is the real plan for the Orange Pi (decision D-075). It replaced the older scaffold (now in
+`docs/history`): the tunnel is a **remotely managed tunnel**, so the Pi holds only a token and every hostname and
 every login rule lives in the Cloudflare dashboard. Nothing is opened on your router, and the
 players install nothing: they open a web address and confirm their email with a code about once a
 month.
 
 What goes through the tunnel, and nothing else:
 
-| Public name     | Goes to on the Pi                            | Who gets in                                                                                                                        |
-| --------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `play.<domain>` | Foundry, `localhost:30000`                   | The players, the GM and you (Cloudflare Access)                                                                                    |
-| `cogm.<domain>` | Dashboard, `localhost:3000`                  | The GM and you as GM; the players see `/player`                                                                                    |
-| `mcp.<domain>`  | Bridge control port, `tcp://localhost:31414` | The GM's and your Claude Desktop only: a service token, or a GM email code (one-hour session). See "The GM's Claude Desktop" below |
+| Public name              | Goes to on the Pi                                      | Access application and policies                                                                                                              |
+| ------------------------ | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `play.<domain>`          | Foundry, `localhost:30000`                             | Self-hosted application, 730 h session. Policies: allow by email (the players, the GM and you) and one service token (the game-night watch)  |
+| `cogm.<domain>`          | Dashboard, `localhost:3000`                            | Self-hosted, 730 h. Allow by email (GMs and players; the players see `/player`) and one service token (the Obsidian plugin)                  |
+| `mcp.<domain>`           | Bridge control port, `tcp://localhost:31414`           | Self-hosted, one-hour session. Allow by email (the GMs) and service tokens (the GM's and your Claude Desktop). See "The GM's Claude Desktop" |
+| `player-ai.<domain>`     | Dashboard, `localhost:3000` (`/mcp/player`)            | Self-hosted, Service Auth only: one service token per player, never an email login                                                           |
+| `player-remote.<domain>` | Dashboard, `localhost:3000`                            | Self-hosted with Managed OAuth and the players' email policy (the Claude custom connector)                                                   |
+| `board.<domain>`         | Not on the tunnel: the PM board is on Cloudflare Pages | Self-hosted. Allow by email (the board owner, the GMs, the players) and service tokens (board MCP, Pi status); one path has its own policy   |
+
+The five GM web connectors, when deployed, add one more application with Managed OAuth and the GM
+email policy only (see "The GM remote connector"). The live state is checked against a saved copy
+with the `cloudflare-work` skill's drift check. It covers the applications and their policies, DNS,
+every tunnel by name, each tunnel route (hostname, path, service, the origin Access check), the Transform
+Rules, Worker routes and each Access service token's expiry (a warning under 60 days). Run it in the full
+kit checklist before each gate and at the Saturday weekly check (a `WARN` line names a token to renew); a test fails when the read code gets a
+field the compare does not check.
+
+### Edge rules (Cloudflare Transform Rules)
+
+Two rules on the `play.<domain>` host let the GM page (`/gm`) show Foundry inside a frame. Foundry
+14 sends `X-Frame-Options: DENY`, so a browser refuses to put it in a frame.
+
+1. **Modify Response Header:** removes `X-Frame-Options` and sets `Content-Security-Policy` to
+   `frame-ancestors https://cogm.<domain>` (Set, not Add: Foundry sends no policy of its own).
+2. **Modify Request Header:** removes the `Sec-Fetch-Dest` header from the request.
+
+Without them the GM page's Live frame stays blank. A rebuild of the Cloudflare setup from this
+guide must add both. If a later Foundry sends its own `Content-Security-Policy`, merge its
+directives into the rule's value; with two policies the browser enforces both.
 
 The module port (31415), SSH, Syncthing and the Assistant GM browser are never published. The control
 port 31414 has no login of its own, so it is published only behind the Access application of the
@@ -34,8 +62,8 @@ Tailscale stays for your own admin access. Foundry's own login (a user per playe
 applies behind Access: Access decides who may reach the page, Foundry decides who they are.
 
 Pick the names yourself; `play` and `cogm` are examples, any name works (the Pi's real Foundry name is
-different, and the real domain stays out of this repo). Below, `<domain>` is your domain and
-`play.<domain>` is whatever name you chose for Foundry.
+different). Below, `<domain>` is your domain and `play.<domain>` is whatever name you chose for
+Foundry.
 
 Cloudflare renamed its Zero Trust dashboard to **Cloudflare One** (`one.dash.cloudflare.com`), and
 the menus move now and then. The paths in steps 1 to 5 were walked on 2026-10-14; the service token path in step 11 and the Revoke path under "Removing a
@@ -57,8 +85,8 @@ player" were not walked and may have moved. If a name has changed, look for the 
    step 8. Never paste the token into a chat, a file in the repo or the vault. The tunnel says
    Inactive until the Pi connects in step 8; that is expected.
 4. **Who may open Foundry (do this before the name exists).** Access controls, Applications, Add an
-   application, Self-hosted. Name `Foundry players`, domain `play.<domain>`, session duration 30
-   days. Add a policy named `Players`: action Allow, include Emails, then the email of each player,
+   application, Self-hosted. Name `Foundry players`, domain `play.<domain>`, session duration 730
+   hours (what the live application uses). Add a policy named `Players`: action Allow, include Emails, then the email of each player,
    the GM and you. Make it a reusable policy (the dashboard application in step 10 uses it too).
    Under login methods keep only One-time PIN. Choose the **Instant auth** setting now and use the same one for the dashboard application in step 10. Save. Players will get a code by
    email the first time and about once a month after. Open the saved application and copy its
@@ -252,10 +280,24 @@ For the Claude custom connector there is a second application, `Player remote`, 
 Managed OAuth and the `Foundry players` email policy. Its AUD tag goes into `player-connector.json` as `appAudience`, with
 `emailPlayers` and `remoteEndpoint`; the Pi side is stage 30 (see `docs/dev/pi/network-and-access.md`, "The remote part").
 
+### The GM remote connector (not deployed yet)
+
+The five GM tool sets can be served as Claude custom connectors: `/mcp/core`, `/mcp/play`, `/mcp/prep`,
+`/mcp/build` and `/mcp/admin` on the dashboard, one per set, so the switches in the **+** menu, then **Plugins**, and the
+per-set budgets stay as with the local installer. It needs its own Access application, `Dashboard GMs
+remote`, with Managed OAuth and the `Dashboard GMs` email policy, **never** `Foundry players`. Its AUD
+tag goes into the file named by `FOUNDRY_AI_GM_CONNECTOR_CONFIG` as `appAudience`. Who counts as a GM is
+decided again in the dashboard: the file's `gmEmails` list, else `GM_EMAILS`; with neither, or a
+`gmEmails` that names nobody usable, every login is refused (503). Variables: `FOUNDRY_AI_GM_CONNECTOR=on`,
+`FOUNDRY_AI_GM_CONNECTOR_CONFIG`, and for the test bridge only `FOUNDRY_AI_GM_CONNECTOR_DEV_EMAIL` (a bare
+loopback request counts as that email; ignored with a team domain or off loopback). A guarded write that
+waits on Foundry for more than about 100 seconds can reach Claude as a Cloudflare 524 although it landed:
+check `list-changes` before retrying.
+
 ### Removing a player
 
 Cloudflare One, Access controls, Applications, `Foundry players`, Policies, edit `Players`, delete
-the person's email, Save. Their old login stays valid until its 30 days run out, so also open
+the person's email, Save. Their old login stays valid until its session (730 hours) runs out, so also open
 Team and resources (or Users), find them and choose Revoke. They can no longer reach
 Foundry. Their Foundry user in the world stays until the GM removes it in Foundry. If the
 `Players` policy is shared with the `Foundry dashboard` application (a reusable policy is), the
@@ -326,77 +368,7 @@ that GM's token; the next connection is refused. A lost laptop is the same step.
 
 ---
 
-## 1. Target network topology
-
-The goal is to let you (the GM) and optionally co-GMs reach the dashboard from
-anywhere, without exposing your home IP address and without port-forwarding.
-
-```text
-  ┌─────────────────────────────────────────────────────────────────────┐
-  │  HOSTED FOUNDRY VTT  (e.g. The Forge, Molten-Hosting, or a VPS)    │
-  │  - foundry-mcp-bridge module loaded (dial-out, outbound)            │
-  │  - uses the WebSocket transport (31415)                              │
-  └─────────────────┬───────────────────────────────────────────────────┘
-                    │  outbound: module dials the bridge host
-                    │  WebSocket  ws://<BRIDGE_HOST>:31415/foundry-mcp
-                    ▼
-  ┌─────────────────────────────────────────────────────────────────────┐
-  │  ALWAYS-ON HOST  (Raspberry Pi, cheap VPS, spare PC)                │
-  │                                                                      │
-  │  ┌──────────────────────────────────────────────────────────────┐   │
-  │  │  mcp-server backend  (standalone.ts / npm run bridge:standalone) │
-  │  │  - control channel  127.0.0.1:31414  (loopback only)         │   │
-  │  │  - Foundry link WS  :31415  (FOUNDRY_LINK_HOST=0.0.0.0)     │   │
-  │  └──────────────────────────────────────────────────────────────┘   │
-  │                │                                                     │
-  │                │  loopback TCP 31414  (never exposed externally)     │
-  │                ▼                                                     │
-  │  ┌──────────────────────────────────────────────────────────────┐   │
-  │  │  cogm-dashboard server  (npm run start:cogm)                 │   │
-  │  │  - HTTP + SSE  127.0.0.1:3000  (fronted by cloudflared)      │   │
-  │  │  - makes no Anthropic API calls                              │   │
-  │  └──────────────────────────────────────────────────────────────┘   │
-  │                │                                                     │
-  │                │  http://localhost:3000                              │
-  │                ▼                                                     │
-  │  ┌──────────────────────────────────────────────────────────────┐   │
-  │  │  cloudflared  (Cloudflare Tunnel daemon)                      │   │
-  │  │  - proxies localhost:3000 → Cloudflare edge                  │   │
-  │  └──────────────────────────────────────────────────────────────┘   │
-  └─────────────────────────────────────────────────────────────────────┘
-                    │  encrypted QUIC/TLS tunnel (no inbound port opened)
-                    ▼
-  ┌─────────────────────────────────────────────────────────────────────┐
-  │  CLOUDFLARE EDGE                                                     │
-  │  - Cloudflare Access application → email allow-list enforced here    │
-  │  - Terminates user TLS; decrypts; forwards to tunnel                 │
-  │  - Sends a signed login token (Cf-Access-Jwt-Assertion)            │
-  └───────┬────────────────────────────────────────────────────────────┘
-          │  HTTPS  https://cogm.<YOUR_DOMAIN>
-          ├──────────────────────────────────────────────────────────────►  You (GM browser)
-          └──────────────────────────────────────────────────────────────►  Co-GM browser
-```
-
-### What stays on loopback, always
-
-| Port  | What                        | Why it must NOT be exposed externally     |
-| ----- | --------------------------- | ----------------------------------------- |
-| 31414 | MCP control channel         | Trusted JSON-lines; no auth on the wire   |
-| 3000  | Dashboard HTTP (pre-tunnel) | cloudflared proxies this; Access gates it |
-
-### What the Foundry module dials (outbound from the hosted Foundry host)
-
-| Port  | Protocol  | Notes                                          |
-| ----- | --------- | ---------------------------------------------- |
-| 31415 | WebSocket | The Foundry link (the module dials the bridge) |
-
-This port must be reachable from the Foundry host's IP to the bridge host's IP (firewall
-rules, VPS security group, etc.). It is **not** fronted by Cloudflare Tunnel: the
-tunnel only fronts the dashboard (port 3000).
-
----
-
-## 2. Environment variables that make each hop config-driven
+## Settings reference: environment variables that make each hop config-driven
 
 All variables have sane defaults for the local-only case (today). Setting them configures
 the remote-hosting topology.
@@ -491,212 +463,3 @@ When Cloudflare Access is in front:
    comma-separated list). Match → GM role. The plain email header is never trusted (I-022).
 4. `GM_DASHBOARD_TOKEN` is an alternative / additional credential: present it as a
    `X-CoGM-Token` header, `?token=` query parameter, or `cogm_token` cookie → GM role.
-
----
-
-## 3. Cloudflare Tunnel + Access setup
-
-> **Prerequisites:** A domain managed on Cloudflare (its NS must point to Cloudflare). A
-> Cloudflare account. `cloudflared` installed on the always-on host. Replace all
-> `<PLACEHOLDER>` values with your real data.
-
-### 3.1 Install cloudflared on the host
-
-```bash
-# Linux (Debian/Ubuntu): replace with the correct package for your host OS.
-# See https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/
-curl -L --output cloudflared.deb \
-  https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
-sudo dpkg -i cloudflared.deb
-cloudflared --version
-```
-
-### 3.2 Authenticate cloudflared to your Cloudflare account
-
-```bash
-cloudflared tunnel login
-# Opens a browser. Select <YOUR_DOMAIN> (the domain you want the tunnel under).
-# A cert.pem is saved to ~/.cloudflared/cert.pem. This authorises tunnel creation.
-```
-
-### 3.3 Create the tunnel
-
-```bash
-cloudflared tunnel create cogm
-# Output includes:
-#   Tunnel credentials written to ~/.cloudflared/<TUNNEL_UUID>.json
-#   Created tunnel cogm with id <TUNNEL_UUID>
-#
-# Note both the UUID and the credentials file path, as you need them in step 3.4.
-```
-
-### 3.4 Write the tunnel config file
-
-Place this at `~/.cloudflared/config.yml` (or wherever `cloudflared` looks by default,
-or pass `--config` explicitly). A ready-to-fill template is at
-`deploy/cloudflare/config.yml.template` in this repo.
-
-```yaml
-tunnel: <TUNNEL_UUID>
-credentials-file: /home/<YOUR_USER>/.cloudflared/<TUNNEL_UUID>.json
-
-ingress:
-  - hostname: cogm.<YOUR_DOMAIN>
-    service: http://localhost:3000
-  - service: http_status:404
-```
-
-cloudflared forwards the public name in the `Host` header, and the dashboard refuses host
-names it does not know (section 2, "Host check"). Set
-`DASHBOARD_ALLOWED_HOSTS=cogm.<YOUR_DOMAIN>` in the dashboard's environment, or every
-request through the tunnel gets `421 host-not-allowed`.
-
-### 3.5 Route the hostname to the tunnel
-
-```bash
-# Creates a CNAME cogm.<YOUR_DOMAIN> → <TUNNEL_UUID>.cfargotunnel.com in your Cloudflare DNS.
-cloudflared tunnel route dns cogm cogm.<YOUR_DOMAIN>
-```
-
-### 3.6 Run the tunnel
-
-For a quick test:
-
-```bash
-cloudflared tunnel run cogm
-```
-
-For always-on (systemd example):
-
-```bash
-sudo cloudflared service install
-# Installs cloudflared as a system service that auto-restarts.
-# Edit /etc/systemd/system/cloudflared.service if you need to point at a non-default config path.
-sudo systemctl enable cloudflared
-sudo systemctl start cloudflared
-```
-
-### 3.7 Add a Cloudflare Access application
-
-This is what prevents anyone with the URL from reaching your dashboard.
-
-In the Cloudflare Zero Trust dashboard (`one.dash.cloudflare.com`):
-
-1. **Access → Applications → Add an application → Self-hosted**
-2. Application name: `Foundry AI Tool` (or anything)
-3. Application domain: `cogm.<YOUR_DOMAIN>` (must match the tunnel hostname)
-4. Session duration: pick something sane, e.g. 24 hours
-5. **Add a policy** named e.g. `GM allow-list`:
-   - Action: Allow
-   - Include rule: `Emails` → add every email address that should have access
-     (your address + any co-GM addresses; see also `deploy/cloudflare/access-policy.md`)
-6. Save.
-
-From this point, visiting `https://cogm.<YOUR_DOMAIN>` shows a Cloudflare login page.
-After authentication Cloudflare sends a signed login token with every proxied request. The
-dashboard checks it and grants the GM role if its email is in `GM_EMAILS`.
-
-See `deploy/cloudflare/access-policy.md` for the exact email-to-role mapping and how it
-pairs with `GM_EMAILS`, `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD`.
-
----
-
-## 4. The WebSocket link across a real network
-
-The Foundry module always dials the bridge over a plain `ws://` WebSocket to port 31415
-(a WebRTC alternative existed earlier and was removed in PB-09; the old `connectionType`
-world setting is ignored if it is still stored in a world).
-
-A browser on an HTTPS page cannot open an insecure `ws://` to a remote host (mixed-content
-block). On the Pi this does not arise: the module link is held by the Assistant GM browser
-there, which loads `http://127.0.0.1:30000` and dials the bridge on loopback (browsers also
-allow `ws://` to loopback from HTTPS pages). If a browser on an HTTPS page ever has to reach a
-remote bridge, put the bridge's 31415 behind a TLS reverse proxy or tunnel and point the module
-at it.
-
-### Port reachability for remote Foundry
-
-Never open 31415 to the internet: the Foundry link has no login. Reach it over the tailnet
-(publish it on the host's tailnet IP) or an SSH tunnel to the bridge host. In Docker, published
-ports skip ufw, so the mapping itself must be `127.0.0.1:31415:31415` or `<tailnet IP>:31415:31415`.
-
----
-
-## 5. "Plug your infra in here": seams list
-
-These are the exact points you touch when you have a real host/domain. Nothing else needs
-changing.
-
-| #   | Seam                       | Where to plug in                                                  |
-| --- | -------------------------- | ----------------------------------------------------------------- |
-| 1   | `<TUNNEL_UUID>`            | `deploy/cloudflare/config.yml.template` → tunnel: field           |
-| 2   | `<TUNNEL_UUID>.json` path  | `deploy/cloudflare/config.yml.template` → credentials-file        |
-| 3   | `cogm.<YOUR_DOMAIN>`       | Cloudflare DNS + Access application + tunnel route dns            |
-| 3a  | `DASHBOARD_ALLOWED_HOSTS`  | `DASHBOARD_ALLOWED_HOSTS=cogm.<YOUR_DOMAIN>` in the dashboard env |
-| 4   | GM email allow-list        | `GM_EMAILS=you@example.com,cogm@example.com` in env/.env          |
-| 5   | `GM_DASHBOARD_TOKEN`       | A random secret (e.g. `openssl rand -hex 32`) in env/.env         |
-| 6   | Bridge host firewall rules | Keep 31415 off the internet: tailnet IP or SSH tunnel only        |
-| 7   | `FOUNDRY_REMOTE_MODE=true` | Set in backend env when bridge and Foundry are different machines |
-
----
-
-## 6. Setup checklist
-
-Work through this list top-to-bottom when you're ready to go remote.
-
-### Host prep
-
-- [ ] Always-on host is running (Pi/VPS/spare PC). Node 24+ installed.
-- [ ] Repo cloned or release build extracted on the host.
-- [ ] `npm run build` (or use the release build) so `dist/` artifacts exist.
-- [ ] Decide on process management: Docker Compose (see `deploy/docker-compose.yml.template`)
-      or direct systemd/NSSM services.
-
-### Backend (bridge)
-
-- [ ] Create a `.env` or populate environment:
-  - [ ] `MCP_CONTROL_HOST=127.0.0.1` (keep loopback)
-  - [ ] `MCP_CONTROL_PORT=31414`
-  - [ ] `FOUNDRY_REMOTE_MODE=true`
-  - [ ] `LOG_LEVEL=info`
-- [ ] Start the bridge: `npm run bridge:standalone` (or via service/Docker).
-- [ ] Verify the control channel is up (ping on 127.0.0.1:31414 returns `{"ok":true}`).
-
-### Dashboard
-
-- [ ] Populate environment:
-  - [ ] `PORT=3000`
-  - [ ] `MCP_CONTROL_HOST=127.0.0.1`
-  - [ ] `MCP_CONTROL_PORT=31414`
-  - [ ] `GM_EMAILS=<your-email>,<cogm-email>` (comma-separated)
-  - [ ] `GM_DASHBOARD_TOKEN=<random-secret>` (optional additional auth factor)
-  - [ ] `PLAYER_DASHBOARD_TOKEN=<random-secret>` (if you want a gated player view)
-  - [ ] `CF_ACCESS_TEAM_DOMAIN=<YOUR_TEAM>.cloudflareaccess.com` and `CF_ACCESS_AUD=<the application's AUD tag>` (both needed for `GM_EMAILS` to work)
-  - [ ] `DASHBOARD_ALLOWED_HOSTS=cogm.<YOUR_DOMAIN>` (the tunnel's public name; without it the tunnel gets `421 host-not-allowed`)
-- [ ] Start the dashboard: `npm run start:cogm` (or via service/Docker).
-- [ ] Confirm it serves on `http://localhost:3000`.
-
-### Cloudflare Tunnel
-
-- [ ] `cloudflared` installed on the host.
-- [ ] `cloudflared tunnel login` completed.
-- [ ] `cloudflared tunnel create cogm` → note `<TUNNEL_UUID>`.
-- [ ] `deploy/cloudflare/config.yml.template` filled in → saved as `~/.cloudflared/config.yml`.
-- [ ] `cloudflared tunnel route dns cogm cogm.<YOUR_DOMAIN>`.
-- [ ] Tunnel running (`cloudflared tunnel run cogm` or installed as service).
-- [ ] `https://cogm.<YOUR_DOMAIN>` reaches the dashboard login page (a `421 host-not-allowed`
-      JSON answer means `DASHBOARD_ALLOWED_HOSTS` does not list `cogm.<YOUR_DOMAIN>`).
-
-### Cloudflare Access
-
-- [ ] Access application created for `cogm.<YOUR_DOMAIN>`.
-- [ ] Email allow-list policy created. Every GM email added.
-- [ ] Test login with each GM email and confirm role-assignment in the dashboard.
-- [ ] Confirm non-listed email gets the player view (or is blocked if no player token is set).
-
-### Foundry module
-
-- [ ] Bridge's 31415 is reachable from the Foundry host over the tailnet or an SSH tunnel, not the open internet.
-- [ ] Foundry module settings: bridge host = `<BRIDGE_HOST_IP_OR_HOSTNAME>`, port = `31415`.
-- [ ] Module shows "Connected" in the Foundry UI.
-- [ ] Dashboard shows Foundry reachable.

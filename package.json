@@ -1,6 +1,6 @@
 {
   "name": "foundry-ai-tool",
-  "version": "0.30.0",
+  "version": "0.31.0",
   "description": "Foundry AI Tool: MCP server + Foundry module + co-GM dashboard for AI-powered Foundry VTT integration",
   "private": true,
   "workspaces": [
@@ -32,6 +32,7 @@
     "kit:test": "node --test --test-timeout=180000 \"scripts/test-kit/test/*.test.mjs\"",
     "emdash:ratchet": "node scripts/em-dash-guard.mjs",
     "unused:ratchet": "node scripts/unused-ratchet.mjs",
+    "typecheck:tests": "node scripts/typecheck-tests-ratchet.mjs",
     "line:ratchet": "node scripts/line-ratchet.mjs",
     "validate:manifest": "node scripts/validate-manifest.js",
     "version:sync": "node scripts/sync-version.mjs",
@@ -41,6 +42,7 @@
     "deps:check": "node scripts/dep-ranges-check.mjs && node --test scripts/dep-ranges-check.test.mjs",
     "drift:check": "node scripts/drift-check.mjs",
     "green": "node scripts/green.mjs",
+    "lane:ready": "node scripts/lane-ready.mjs",
     "lane:merge": "node scripts/lane-merge.mjs",
     "lane:risky": "node scripts/lane-merge.mjs --risky-list",
     "docs:lint": "markdownlint-cli2",
@@ -52,6 +54,7 @@
     "docs:kit:check": "node scripts/docs-kit.mjs --check",
     "gm-coach": "node tools/gm-coach/build.mjs",
     "dnd-helper": "node tools/dnd-helper/build.mjs",
+    "backstory-buddy": "node tools/backstory-buddy/build.mjs",
     "player-connector": "node tools/player-connector/build.mjs",
     "player-preset": "node scripts/player-preset.mjs",
     "wiki:stage": "node scripts/wiki/stage.mjs",
@@ -60,6 +63,7 @@
     "usage:catalog": "node scripts/usage-catalog.mjs",
     "usage:catalog:check": "node scripts/usage-catalog.mjs --check",
     "usage:week": "node scripts/dev/usage-week.mjs",
+    "ci:health": "node scripts/ci-health.mjs",
     "usage:now": "node scripts/dev/usage-now.mjs",
     "usage:calls": "node scripts/dev/usage-calls.mjs",
     "live:roundtrip": "node scripts/live-roundtrip.mjs",
@@ -68,6 +72,7 @@
     "demo:take": "node scripts/demo/demo.mjs take",
     "demo:export": "node scripts/demo/export.mjs",
     "demo:compose": "node scripts/demo/compose.mjs",
+    "demo:loops": "node scripts/demo/loops.mjs",
     "docs:foundry-images": "node scripts/demo/foundry-basics.mjs",
     "format": "prettier --write \"**/*.{ts,js,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,js,json,md}\"",
@@ -82,7 +87,7 @@
     "prepare": "husky && node -e \"for(const f of ['scripts/usage-catalog.mjs','scripts/skill-guides.mjs'])if(require('fs').existsSync(f))try{require('child_process').execFileSync(process.execPath,[f],{stdio:'inherit'})}catch{}\""
   },
   "dependencies": {
-    "playwright-core": "^1.63.0"
+    "playwright-core": "~1.64.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

@@ -131,9 +131,7 @@ describe('DnD5eNpcTools.handleCreateNpc: happy path', () => {
     await tools.handleCreateNpc({ ...VALID_ARGS });
 
     // detectGameSystem calls query with only one arg, no second param
-    const worldInfoCall = query.mock.calls.find(
-      ([m]: [string]) => m === 'foundry-mcp-bridge.getWorldInfo'
-    );
+    const worldInfoCall = query.mock.calls.find(([m]) => m === 'foundry-mcp-bridge.getWorldInfo');
     expect(worldInfoCall).toBeDefined();
 
     expect(query).toHaveBeenCalledWith(

@@ -14,6 +14,7 @@ import { AI_LIMIT, readAiChanges } from '../lib/changes';
 import { GmActionsGateContext, useGuardedTools } from '../lib/guarded';
 import { StripUndoContext, lastUndoable, undoLabel } from '../lib/live-strip';
 import { BACK_TO_STANDARD_TEXT, STANDARD_HREF } from '../lib/live-screen';
+import { useLongPressDetail } from '../lib/long-press';
 import { CHANGES_KEY, useDashboardStream } from '../lib/stream';
 import { RollNpcInitiativeContext } from '../lib/start-combat';
 import { useWorldTheme } from '../lib/world-theme';
@@ -111,6 +112,10 @@ export function LiveScreen(): JSX.Element {
   usePreloadPanels([partyChunk, handoutsChunk, changesChunk], []);
   const openHelp = useHelp();
   const toast = useToast();
+  // Tablet: a long press shows what hover would (the element's title).
+  const showDetail = useCallback((text: string): void => toast(text), [toast]);
+  useLongPressDetail('live-header', showDetail);
+  useLongPressDetail('live-screen', showDetail);
   // The slots the panels dock into; a panel waits for its slot (DockContext null) and then sits in it.
   const [partySlot, setPartySlot] = useState<HTMLElement | null>(null);
   const [handoutsSlot, setHandoutsSlot] = useState<HTMLElement | null>(null);

@@ -11,6 +11,7 @@ import {
 } from '@gnuminator/shared';
 
 import { FoundryConnector, LINK_DOWN_WARN_MS } from './foundry-connector.js';
+import { makeLogger } from './test-support/stub-tool-deps.js';
 
 class FakeSocket extends EventEmitter {
   readyState: number = WebSocket.OPEN;
@@ -76,8 +77,7 @@ function connect(): FakeSocket {
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-09-30T10:00:00.000Z'));
-  logger = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
-  logger.child = (): unknown => logger;
+  logger = makeLogger();
   connector = makeConnector();
 });
 
@@ -375,7 +375,9 @@ describe('module requests (I-108)', () => {
     id,
     data: { tool, args, requestedBy: { userId: 'u1', userName: 'Danni' } },
   });
-  const flush = (): Promise<void> => vi.advanceTimersByTimeAsync(0);
+  const flush = async (): Promise<void> => {
+    await vi.advanceTimersByTimeAsync(0);
+  };
 
   it('runs an allowed tool through the dispatcher and replies on the same socket', async () => {
     const handler = vi.fn(async () => ({ changes: [] }));

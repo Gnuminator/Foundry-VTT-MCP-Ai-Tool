@@ -286,6 +286,48 @@ export type PrepPreviously =
     }
   | { status: 'none' | 'unreachable'; sessionsDir: string; note: string };
 
+/** Open quests and scenes count as loose ends when this many sessions passed since they were seen. */
+export const LOOSE_ENDS_STALE_AFTER = 2;
+/** An NPC met in only one session is a loose end once at least this many sessions have passed. */
+export const LOOSE_ENDS_NPC_GAP = 1;
+/** Entries kept per kind in `looseEnds`; the rest is counted in `omitted`. */
+export const LOOSE_ENDS_MAX_PER_KIND = 10;
+
+/** One loose end with the last session it was seen in (I-172). */
+export interface PrepLooseEnd {
+  name: string;
+  /** Session number as in the Obsidian notes; null when no logged session touched it. */
+  lastSeenSession: number | null;
+  /** Sessions played since; null when never seen. */
+  sessionsSince: number | null;
+  /** Ready to show, e.g. "Old Bones: last seen session 1". */
+  label: string;
+}
+
+/**
+ * Loose ends from the play log and session log: open quests whose journal nobody updated, NPCs
+ * that acted in one session only, and scenes not used for a while. Oldest first, capped.
+ */
+export interface PrepLooseEnds {
+  /** Sessions in the log; the numbers above refer to these. */
+  sessions: number;
+  staleAfter: number;
+  quests: PrepLooseEnd[];
+  npcs: PrepLooseEnd[];
+  scenes: PrepLooseEnd[];
+  /** Scenes in the world no session ever viewed (a count: a world has many); null without the scene list. */
+  neverVisitedScenes: number | null;
+  omitted: { quests: number; npcs: number; scenes: number };
+  /** Kinds that could not be checked because Foundry did not answer. */
+  unavailable: Array<'quests' | 'scenes'>;
+}
+
+/** The players' downtime inbox (I-180): their own words, marked as theirs. */
+export interface PrepDowntime {
+  note: string;
+  entries: Array<{ player: string; text: string; updatedAt: string; source: 'player' }>;
+}
+
 /** What `get-prep-digest` returns. */
 export interface PrepDigest {
   schema: 1;
@@ -313,10 +355,18 @@ export interface PrepDigest {
   recentChanges: { count: number; latest: Array<{ title: string; appliedAt: string }> };
   tarokka: { hasReading: boolean };
   /**
+   * Open quests, one-session NPCs and scenes nobody used lately, each with "last seen session N".
+   * Undefined on older bridges; null when the logs hold no session. Added for I-172, the other
+   * parts are unchanged.
+   */
+  looseEnds?: PrepLooseEnds | null;
+  /**
    * The GM's prep notes from the bridge's Obsidian vault. Undefined when no vault is set
    * (FOUNDRY_AI_OBSIDIAN_DIR); null when the vault could not be read (see `warnings`).
    */
   prep?: PrepNotesPart | null;
+  /** What the players wrote for the time between sessions; undefined on older bridges. */
+  downtime?: PrepDowntime;
   /** Plain sentences for the GM, e.g. "Foundry is not connected: quests, campaign parts, the Next session journal and bosses are missing." */
   warnings: string[];
 }

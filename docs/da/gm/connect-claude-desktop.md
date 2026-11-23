@@ -1,6 +1,6 @@
 ---
 source: gm/connect-claude-desktop.md
-sourceHash: 6ead948d6245
+sourceHash: 008b832a4d11
 title: Forbind Claude Desktop til serveren
 description: Installer den lille Windows-klient, så Claude Desktop på din PC når det Foundry AI Tool, der kører på hjemmeserveren, med en nøgle som kun du har.
 ---
@@ -13,20 +13,24 @@ Foundry-connectors ind i Claude Desktop, og det holder en privat, låst tunnel �
 gør det én gang, og du skal bruge din **tunnelnøgle** (to stykker tekst) fra den, der byggede
 værktøjet.
 
+Der er en anden vej uden installer og uden tunnelnøgle: tilføj connectorerne til Claude med deres
+webadresse og et login med din e-mail. Se [Forbind Claude med webadresse](connect-claude-web.md). Den
+kræver en betalt plan (Pro eller Max), fordi en gratis plan kun tillader én custom connector; installeren virker på Free.
+
 Du skal bruge: en Windows-PC, Claude Desktop installeret og logget ind, og tunnelnøglen. Cirka 10 minutter.
-Den gratis Claude-plan er nok til at forbinde, men den har en daglig grænse; se
+Den gratis Claude-plan er nok til at forbinde, men den har en grænse pr. fem timer og en pr. uge; se
 [Claude Free eller Pro](claude-plans.md).
 
 Dette er en af [engangsopsætningerne](README.md#engangsopsætning). Ved en ny installation gør du
 "Installer", "Tjek, at det virker" og "Stop Allow-spørgsmålene" i den rækkefølge. For at skifte til en nyere
-klient (for eksempel `FoundryMCPServer-Setup-v0.28.0.exe`) gør du "Opdater klienten".
+klient (en fil, der hedder `FoundryMCPServer-Setup-vX.Y.Z.exe`) gør du "Opdater klienten".
 
 ## Installer
 
 1. **Afslut Claude Desktop helt.** Højreklik på dets ikon i systembakken (nederst til højre, ved
    uret) og vælg **Quit**. Det er ikke nok at lukke vinduet. Installationsprogrammet lukker det ikke
    for dig.
-2. Hent `FoundryMCPServer-Setup-vX.Y.Z.exe` (for eksempel v0.28.0) under **Assets** nederst i den nyeste
+2. Hent `FoundryMCPServer-Setup-vX.Y.Z.exe` (X.Y.Z er det nyeste versionsnummer) under **Assets** nederst i den nyeste
    release på <https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases>, eller brug den kopi, du
    har fået sendt. Kør den.
 3. På siden "Bridge address": sæt flueben ved **Use the Cloudflare tunnel**. Skriv det navn, du har
@@ -34,7 +38,7 @@ klient (for eksempel `FoundryMCPServer-Setup-v0.28.0.exe`) gør du "Opdater klie
 4. Gå videre. Et lille vindue spørger efter **Client ID** og derefter **secret**. Indsæt hver af dem
    og tryk Enter. Secret er skjult, mens du indsætter; det er normalt. Intet, du indsætter, bliver
    vist eller gemt andre steder end i et låst lager, som kun din Windows-bruger kan åbne.
-5. Gør installationen færdig. Start Claude Desktop. Klik på **+** i chatfeltet, vælg **Connectors**, og slå dem til,
+5. Gør installationen færdig. Start Claude Desktop. Klik på **+** i chatfeltet, vælg **Plugins**, og slå dem til,
    du vil bruge (`foundry-mcp` er Core; Play og Prep er dem, du bruger mest). En connector, der er
    slået fra, er ikke tilgængelig i den chat. Gør derefter afsnittet Stop "Allow"-spørgsmålene nedenfor én
    gang, så Claude ikke spørger "Allow?" ved hvert eneste værktøjskald.
@@ -48,8 +52,8 @@ Klienten opdaterer sig ikke selv, medmindre den, der byggede værktøjet, har sl
 efter Client ID og secret, så hav nøglen klar og indsæt begge.
 
 Gør det, når Claude ser ud til at mangle værktøjer, som vejledningerne nævner. En gammel klient
-skjuler nyere værktøjer uden nogen fejl. Sådan tjekker du det: sørg for, at Prep-connectoren er slået til (**+**, derefter
-**Connectors**), og spørg så Claude i en ny chat _"Run get-preflight"_. Rækken **Claude Desktop
+skjuler nyere værktøjer uden nogen fejl. Sådan tjekker du det: sørg for, at Prep-connectoren er slået til (**+**-menuen, derefter
+**Plugins**), og spørg så Claude i en ny chat _"Run get-preflight"_. Rækken **Claude Desktop
 connectors are up to date** er grøn, når du er opdateret. En advarsel betyder, at en gammel klient
 stadig er forbundet: afslut Claude Desktop fra systembakken (nær uret), kør den nyeste installer,
 start Claude Desktop igen og spørg endnu en gang. Siger rækken, at ingen connector er forbundet, er
@@ -74,6 +78,22 @@ Slå det til eller fra med (PowerShell):
 & "$env:LOCALAPPDATA\FoundryMCPServer\client-update.ps1" -Action Status
 ```
 
+**Uden tunnelen** (direkte forbindelse over Tailscale) sætter installationsprogrammet det samme op
+af sig selv og slår det **til** første gang. Det læser bordets version fra den adresse, du gav
+installationsprogrammet, og login-opgaven hedder "Foundry AI Tool client update". Filerne ligger i
+`%LOCALAPPDATA%\FoundryMCPServer\update`. Starter Claude Desktop med Windows, er det som regel
+allerede åbent ved login, så den dags tjek springes over; næste login med Desktop lukket opdaterer.
+Vil du opdatere med det samme, så luk Claude Desktop fra bakken og åbn "Update the client now" i
+Start-menuen (mappen "Foundry AI Tool Client"); den virker også, selv om automatiske opdateringer er
+slået fra. Slå automatiske opdateringer til eller fra med:
+
+```powershell
+& "$env:LOCALAPPDATA\FoundryMCPServer\client-update.ps1" -Action Disable -StateDir "$env:LOCALAPPDATA\FoundryMCPServer\update"
+& "$env:LOCALAPPDATA\FoundryMCPServer\client-update.ps1" -Action Enable -StateDir "$env:LOCALAPPDATA\FoundryMCPServer\update"
+```
+
+En lydløs installation med `/NOAUTOUPDATE` lader det være slået fra.
+
 Dette rører ikke Obsidian-pluginet. Serveren lægger det nyeste plugin i GM-vaulten, og Syncthing
 bringer det til din pc (se [Obsidian-synkroniseringsguiden](setup-obsidian-sync.md)); genstart
 Obsidian for at indlæse det.
@@ -91,7 +111,7 @@ Uden det her trin spørger Claude Desktop "Allow?" ved næsten hvert Foundry-væ
 chat. Claude Desktop gemmer det valg på din konto, ikke i en fil, så installationsprogrammet kan
 ikke sætte det for dig. Du gør det én gang pr. connector.
 
-1. Åbn **Customize** i Claude Desktop, og derefter **Connectors**.
+1. Åbn **Settings** i Claude Desktop, derefter **Plugins**, og vælg filteret **Connectors**.
 2. Klik på en af Foundry-connectorerne (`foundry-mcp`, `foundry-mcp-play`, `foundry-mcp-prep`,
    `foundry-mcp-build`, `foundry-mcp-admin`).
 3. Under **Tool permissions**: klik på drop-downmenuen til højre for linjen **Read-only tools**

@@ -10,6 +10,19 @@ Foundry AI Tool sits next to Foundry VTT (D&D 5e). It gives the GM a dashboard f
 lets Claude help with prep and play, and writes the session notes. Every change Claude makes is
 logged and can be undone.
 
+## See it in 30 seconds
+
+Six short loops from a demo game. Each one plays when it scrolls into view.
+
+<div class="loops">
+<figure class="loop"><video data-src="/Foundry-VTT-MCP-Ai-Tool/images/showcase/roll.mp4" poster="/Foundry-VTT-MCP-Ai-Tool/images/showcase/roll.jpg" width="1280" height="720" muted loop playsinline preload="none" controls aria-label="Attack roll on a sheet, noted in the dashboard Live Feed"></video><figcaption>A player rolls an attack on the character sheet. The GM's dashboard picks it up in the Live Feed.</figcaption></figure>
+<figure class="loop"><video data-src="/Foundry-VTT-MCP-Ai-Tool/images/showcase/undo.mp4" poster="/Foundry-VTT-MCP-Ai-Tool/images/showcase/undo.jpg" width="1280" height="720" muted loop playsinline preload="none" controls aria-label="Damage applied to three tokens, then undone"></video><figcaption>Damage three creatures with one click. Changed your mind? Undo it from Recent Changes.</figcaption></figure>
+<figure class="loop"><video data-src="/Foundry-VTT-MCP-Ai-Tool/images/showcase/handout.mp4" poster="/Foundry-VTT-MCP-Ai-Tool/images/showcase/handout.jpg" width="1280" height="720" muted loop playsinline preload="none" controls aria-label="A handout revealed to the players"></video><figcaption>Read what a handout will change, then reveal it. It shows up on the players' page.</figcaption></figure>
+<figure class="loop"><video data-src="/Foundry-VTT-MCP-Ai-Tool/images/showcase/mood.mp4" poster="/Foundry-VTT-MCP-Ai-Tool/images/showcase/mood.jpg" width="1280" height="720" muted loop playsinline preload="none" controls aria-label="A scene mood switched and restored"></video><figcaption>Change a scene's lighting and music in one click, and switch it back just as easily.</figcaption></figure>
+<figure class="loop"><video data-src="/Foundry-VTT-MCP-Ai-Tool/images/showcase/cards.mp4" poster="/Foundry-VTT-MCP-Ai-Tool/images/showcase/cards.jpg" width="1280" height="720" muted loop playsinline preload="none" controls aria-label="The During dashboard in Cards layout"></video><figcaption>The During dashboard in Cards layout: the live feed of the table next to the party and the combat strip.</figcaption></figure>
+<figure class="loop"><video data-src="/Foundry-VTT-MCP-Ai-Tool/images/showcase/strip.mp4" poster="/Foundry-VTT-MCP-Ai-Tool/images/showcase/strip.jpg" width="1280" height="720" muted loop playsinline preload="none" controls aria-label="The live turn-order strip"></video><figcaption>The turn-order strip shows whose turn it is and everyone's hit points, at a glance.</figcaption></figure>
+</div>
+
 ## Who are you?
 
 <div class="audience-choice">

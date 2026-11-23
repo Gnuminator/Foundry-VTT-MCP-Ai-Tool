@@ -12,6 +12,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
 import { ciRunCommands, ciUnsupported, normalizeCommand } from './ci-yaml.mjs';
+import { cheapCiQuickSteps } from './cheap-ci-steps.mjs';
 import {
   CHECKS as ALL_CHECKS,
   CI_GROUPS,
@@ -20,6 +21,10 @@ import {
   PI_CONTAINER_MATRIX,
   groupChecks,
   runGroup,
+  piGroupApplies,
+  PI_GROUP_PATHS,
+  TEST_FOLDER_EXCEPTIONS,
+  findNodeTests,
 } from './checks.mjs';
 import {
   STEPS,
@@ -162,6 +167,30 @@ test('parity: build-test calls every CI group once in order; the ARM job calls t
   }
 });
 
+test('folder walk: every script test under the walked folders is in a check or a named exception', () => {
+  const run = new Set(ALL_CHECKS.flatMap(c => c.args).filter(a => a.endsWith('.test.mjs')));
+  const ex = Object.keys(TEST_FOLDER_EXCEPTIONS);
+  const isEx = f => ex.some(x => f === x || (x.endsWith('/') && f.startsWith(x)));
+  const walked = ['.claude/hooks', 'scripts', 'installer', 'deploy', 'tools'].flatMap(d =>
+    findNodeTests(d)
+  );
+  assert.deepEqual(
+    walked.filter(f => !run.has(f) && !isEx(f)),
+    []
+  );
+  assert.deepEqual(
+    walked.filter(f => run.has(f) && isEx(f) && !f.endsWith('cutover-guard-container.test.mjs')),
+    [],
+    'an exception is not also in a check'
+  );
+  for (const x of ex)
+    assert.ok(
+      walked.some(f => f === x || f.startsWith(x)),
+      `stale exception ${x}`
+    );
+  assert.deepEqual(findNodeTests('no-such-folder'), []);
+});
+
 test('parity: every check that is a step belongs to a CI group, or to e2e (its own sharded job)', () => {
   const families = new Set(Object.values(CI_GROUPS).flat());
   const orphans = ALL_CHECKS.filter(
@@ -211,16 +240,104 @@ test('parity: step names are unique', () => {
   assert.equal(new Set(names).size, names.length);
 });
 
+test('piGroupApplies: only a pull request without a Pi input skips the pi group', () => {
+  const files = list => () => list;
+  assert.equal(piGroupApplies('pull_request', files(['packages/mcp-server/src/a.ts'])), false);
+  assert.equal(piGroupApplies('pull_request', files([])), false);
+  for (const f of [
+    'scripts/pi/remote/5-tool.sh',
+    'scripts/plan-b/start.ps1',
+    'deploy/pi/compose.yml',
+    'scripts/checks.mjs',
+    'scripts/gamenight-watch-pi.mjs',
+    'shared/src/index.ts',
+    'packages/discord-bot/src/cli.ts',
+    'package-lock.json',
+    '.github/workflows/ci.yml',
+    '.github/workflows/pi-images.yml', // container-lib.test.mjs reads it
+  ])
+    assert.equal(piGroupApplies('pull_request', files(['docs/a.md', f])), true, f);
+  // Anything that is not a pull request always runs it, and so does a diff that cannot be read.
+  for (const ev of ['push', 'merge_group', 'workflow_dispatch', '']) {
+    assert.equal(piGroupApplies(ev, files(['packages/mcp-server/src/a.ts'])), true, ev);
+  }
+  assert.equal(
+    piGroupApplies('pull_request', () => {
+      throw new Error('no parent');
+    }),
+    true
+  );
+});
+
+test('PI_GROUP_PATHS covers every file a pi-group test names outside scripts/pi', () => {
+  // The group's tests read these (scripts/pi/*.test.mjs, deploy/pi/*.test.mjs).
+  for (const f of ['scripts/checks.mjs', 'scripts/plan-b/start.ps1', 'scripts/gamenight-watch.mjs'])
+    assert.ok(PI_GROUP_PATHS.test(f), f);
+  for (const f of ['scripts/backlog.mjs', 'packages/mcp-server/src/index.ts', 'docs/index.md'])
+    assert.ok(!PI_GROUP_PATHS.test(f), f);
+  // The container filter in ci.yml is a subset: whatever runs the containers also runs this group.
+  const m = /grep -qE '([^']+)'/.exec(
+    ciDoc.jobs['pi-changes'].steps.find(s => s.id === 'filter').run
+  );
+  const container = new RegExp(m[1]);
+  for (const f of [
+    'scripts/pi/remote/lib.sh',
+    'scripts/plan-b/start.ps1',
+    'deploy/pi/compose.yml',
+    'scripts/gamenight-watch.mjs',
+    'scripts/checks.mjs',
+    'package-lock.json',
+    '.github/workflows/ci.yml',
+  ])
+    assert.ok(container.test(f) && PI_GROUP_PATHS.test(f), f);
+});
+
+test('every repo path a pi-group test file names in a string literal is inside PI_GROUP_PATHS', () => {
+  const root = path.resolve(import.meta.dirname, '..');
+  const files = [...new Set(groupChecks('pi').flatMap(c => c.args.filter(a => /\.mjs$/.test(a))))];
+  assert.ok(files.length > 10);
+  const missed = [];
+  for (const f of files) {
+    if (f === 'scripts/pi/ci-pi-filter.test.mjs') continue; // names paths as examples of what must skip
+    const text = fs.readFileSync(path.join(root, f), 'utf8');
+    // a workflow file read through any join: `'.github', 'workflows', 'x.yml'` or `.github/workflows/x.yml`
+    for (const m of text.matchAll(/\.github['"`,/\s]+workflows['"`,/\s]+([\w-]+\.ya?ml)/g)) {
+      if (!PI_GROUP_PATHS.test(`.github/workflows/${m[1]}`)) missed.push(`${f}: ${m[1]}`);
+    }
+    for (const m of text.matchAll(
+      /['"`]((?:packages|docs|shared|tools|\.claude|\.github)\/[\w./-]+)/g
+    )) {
+      // build output and a bare directory name are not inputs a source change can break
+      if (/\/dist(\/|$)/.test(m[1])) continue;
+      if (!PI_GROUP_PATHS.test(m[1])) missed.push(`${f}: ${m[1]}`);
+    }
+    for (const m of text.matchAll(/(?:join|resolve)\(\s*repo\s*,((?:\s*'[^']+',?)+)\s*\)/g)) {
+      const p = [...m[1].matchAll(/'([^']+)'/g)].map(x => x[1]).join('/');
+      if (
+        /^(packages|docs|shared|tools)\//.test(p) &&
+        !/\/dist(\/|$)/.test(p) &&
+        !PI_GROUP_PATHS.test(p)
+      )
+        missed.push(`${f}: ${p}`);
+    }
+  }
+  assert.deepEqual(missed, [], 'move that test to another group or widen PI_GROUP_PATHS');
+});
+
+test('the build-test checkout is deep enough for the pi group diff', () => {
+  assert.equal(ciDoc.jobs['build-test'].steps[0].with['fetch-depth'], 2);
+});
+
 test('runGroup: runs every check after a red one, names failures, writes the summary table', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rungroup-'));
   try {
     const summaryFile = path.join(dir, 'summary.md');
-    const names = groupChecks('pi').map(c => c.name);
+    const names = groupChecks('scripts').map(c => c.name);
     assert.ok(names.length > 3);
     const ran = [];
     let t = 0;
     const logs = [];
-    const code = runGroup('pi', {
+    const code = runGroup('scripts', {
       exec: c => {
         ran.push(c.name);
         return c.name === names[1] ? 3 : 0;
@@ -235,14 +352,14 @@ test('runGroup: runs every check after a red one, names failures, writes the sum
       logs.some(
         l =>
           l ===
-          `::error title=${names[1]}::${names[1]} failed (exit 3): ${[groupChecks('pi')[1].cmd, ...groupChecks('pi')[1].args].join(' ')}`
+          `::error title=${names[1]}::${names[1]} failed (exit 3): ${[groupChecks('scripts')[1].cmd, ...groupChecks('scripts')[1].args].join(' ')}`
       )
     );
     const summary = fs.readFileSync(summaryFile, 'utf8');
-    assert.match(summary, /### pi: 1 of \d+ failed/);
+    assert.match(summary, /### scripts: 1 of \d+ failed/);
     assert.match(summary, new RegExp(`\\| ${names[1]} \\| \\*\\*FAILED\\*\\* \\| 1\\.0 \\|`));
     assert.match(summary, new RegExp(`\\| ${names[0]} \\| passed \\| 1\\.0 \\|`));
-    assert.equal(runGroup('pi', { exec: () => 0, log: () => {}, summaryFile }), 0);
+    assert.equal(runGroup('scripts', { exec: () => 0, log: () => {}, summaryFile }), 0);
     assert.throws(() => runGroup('nope', { exec: () => 0 }), /unknown group/);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
@@ -333,9 +450,7 @@ test('lightFirst: light steps run before the first heavy one, the post-build ste
   const lastLight = names.findLastIndex(n => LIGHT_FIRST.has(n));
   assert.ok(lastLight < firstHeavy, 'every light step is ahead of the first heavy step');
   assert.ok(
-    LIGHT_FIRST.has('pi-stage-safety') &&
-      LIGHT_FIRST.has('docs-lint') &&
-      LIGHT_FIRST.has('changelog')
+    LIGHT_FIRST.has('pi-tests') && LIGHT_FIRST.has('docs-lint') && LIGHT_FIRST.has('changelog')
   );
   for (const n of [
     'typecheck',
@@ -396,6 +511,7 @@ test('LIGHT_FIRST: only known light commands, so a heavy step missing from HEAVY
     const ok =
       /^node --test /.test(line) ||
       line === 'node tools/gm-coach/build.mjs' ||
+      line === 'node tools/prep-ritual/build.mjs' ||
       line === 'node scripts/test-coverage-check.mjs' ||
       line === 'npm test --prefix tools/livekit/recorder' ||
       line === 'npm ci --prefix tools/livekit/recorder' ||
@@ -1047,6 +1163,7 @@ test('quickSteps: typecheck and unit tests of each touched package only', () => 
     'unit-discord-bot',
     'unit-mcp-server',
     'line-ratchet-quick',
+    'unused-ratchet-quick',
   ]);
   // Markdown that is not there (deleted) gets only the link check.
   assert.deepEqual(quickNames(['docs/dev/X.md', 'changelog.d/x.md']), ['docs-links-quick']);
@@ -1094,6 +1211,7 @@ test('quickSteps: a shared change typechecks every package and tests shared', ()
     'lint-changed',
     'unit-shared',
     'line-ratchet-quick',
+    'unused-ratchet-quick',
   ]);
 });
 
@@ -1133,6 +1251,7 @@ test('quickSteps: touched dashboard e2e specs build the dashboard and run only t
     'typecheck-cogm-dashboard',
     'lint-changed',
     'unit-cogm-dashboard',
+    'unused-ratchet-quick',
     'catalog-check',
     'build-dashboard',
     'bundle-budget',
@@ -1152,6 +1271,7 @@ test('quickSteps: dashboard web files add catalogue check, one build and the bun
     'lint-changed',
     'unit-cogm-dashboard',
     'line-ratchet-quick',
+    'unused-ratchet-quick',
     'catalog-check',
     'docs-ui-quick',
     'build-dashboard',
@@ -1269,6 +1389,7 @@ test('main --quick --list: lists the quick steps, and no base is an error too', 
     'typecheck-all',
     'unit-shared',
     'line-ratchet-quick',
+    'unused-ratchet-quick',
   ]);
   lines.length = 0;
   assert.equal(main({ ...base, changed: null }), 2);
@@ -1403,6 +1524,7 @@ test('quickSteps: the lint steps sit after the typecheck, before the unit tests,
     'docs-links-quick',
     'unit-mcp-server',
     'line-ratchet-quick',
+    'unused-ratchet-quick',
   ]);
   for (const s of quickSteps(
     ['packages/mcp-server/src/index.ts', 'docs/dev/ARCHITECTURE.md'],
@@ -1413,6 +1535,36 @@ test('quickSteps: the lint steps sit after the typecheck, before the unit tests,
   }
 });
 
+test('cheapCiQuickSteps: unused ratchet on source changes, sweep coverage on tool module changes', () => {
+  assert.deepEqual(cheapCiQuickSteps(['docs/dev/ARCHITECTURE.md']), []);
+  assert.deepEqual(
+    cheapCiQuickSteps(['packages/discord-bot/src/a.ts']).map(s => s.name),
+    ['unused-ratchet-quick']
+  );
+  assert.deepEqual(
+    cheapCiQuickSteps(['knip.json']).map(s => s.name),
+    ['unused-ratchet-quick']
+  );
+  const tool = cheapCiQuickSteps(['packages/mcp-server/src/tools/modules/renown.ts']);
+  assert.deepEqual(
+    tool.map(s => s.name),
+    ['unused-ratchet-quick', 'sweep-coverage-quick']
+  );
+  assert.deepEqual(tool[1].args.slice(-2), ['--', 'src/live-sweep-coverage.test.ts']);
+  assert.deepEqual(
+    cheapCiQuickSteps(['scripts/live-write-sweep.mjs']).map(s => s.name),
+    ['sweep-coverage-quick']
+  );
+  assert.deepEqual(
+    cheapCiQuickSteps(['tsconfig.json']).map(s => s.name),
+    ['unused-ratchet-quick']
+  );
+  assert.ok(!HEAVY_STEPS.has('unused-ratchet-quick') && !HEAVY_STEPS.has('sweep-coverage-quick'));
+  // Same npm script as the CI step, so the quick run cannot drift from it.
+  const ci = ALL_CHECKS.find(c => c.name === 'unused-ratchet');
+  assert.ok(JSON.stringify(ci).includes('unused:ratchet'));
+});
+
 test('quickSteps: a deleted package file still triggers that package', () => {
   assert.deepEqual(quickNames(['packages/mcp-server/src/gone.ts']), [
     'shared-link',
@@ -1420,6 +1572,7 @@ test('quickSteps: a deleted package file still triggers that package', () => {
     'typecheck-mcp-server',
     'unit-mcp-server',
     'line-ratchet-quick',
+    'unused-ratchet-quick',
   ]);
 });
 
@@ -1457,11 +1610,12 @@ test('main --quick: runs the quick steps without the heavy lock, nothing to chec
     'typecheck-mcp-server',
     'unit-mcp-server',
     'line-ratchet-quick',
+    'unused-ratchet-quick',
   ]);
   assert.equal(locked, 0, 'a quick run takes no heavy slot');
-  assert.match(lines.at(-1), /^green: OK, 5 steps/);
+  assert.match(lines.at(-1), /^green: OK, 6 steps/);
   lines.length = 0;
-  assert.equal(main({ ...base, changed: ['package.json'] }), 0);
+  assert.equal(main({ ...base, changed: ['LICENSE'] }), 0);
   assert.match(lines.at(-1), /OK \(quick\), nothing to check/);
   assert.equal(main({ ...base, changed: ['packages/mcp-server/src/a.ts'], runStep: () => 1 }), 1);
 });

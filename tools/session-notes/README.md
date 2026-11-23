@@ -34,10 +34,21 @@ hotwords) helps Claude spell names right.
 | `--scene-gap`      | `90`     | seconds of silence that start a new scene                            |
 | `--only-scene N`   |          | process one scene (for trying prompt changes)                        |
 
-Exit codes: 0 done, 1 error, 75 paused by a usage limit. After a pause, run the same command
+Exit codes: 0 done, 1 error, 75 paused by a usage limit, 76 incomplete (some scenes could not be
+written or have no in-depth notes yet). After a pause or an incomplete run, run the same command
 again later; finished scenes are kept in `notes/.work/` and are not redone.
 
-## Automatic runs
+## The current way: one command per session
+
+Until G2 the notes are made by hand (the user, 2026-11-20); the hourly task below is not
+registered. `pwsh tools/session-notes/session.ps1 <session-folder-name>` runs the whole chain for
+that one session: pull from the Pi (`FVTT_PI_HOST`), consent check, names, transcription (takes
+the GPU lock), `run --layers`, publish. It publishes to the test bridge (31514); `-Real` publishes
+to the real one and is only for when the user says so. `-DryRun` shows the plan. If it stops
+(usage limit, bridge down), run the same command again. It is `auto.ps1 -Session <name> -Port <n>`
+underneath, so everything in the next section applies to it.
+
+## Automatic runs (not registered until G2)
 
 `auto.ps1` does one pass over the sessions folder: it transcribes finished Discord recordings
 (`raw\session.json` present, audio, no timeline yet; names from Foundry when the bridge answers),
@@ -118,6 +129,41 @@ written before the layers existed have no `layers` part and stay done), so a pas
 usage limit finishes the in-depth notes on the next hourly pass. A scene whose in-depth notes fail
 the checks on three runs at least 30 minutes apart is accepted without them (`depth.da.md` says
 so); to try it again, delete `notes/.work/depth-NNN.json` and `depth-NNN.fail.json`.
+
+### Character and worth-remembering notes
+
+With `--layers`, a run also writes four GM-only files, in Danish and English:
+`characters.<lang>.md` (one section per player character: what they revealed, choices, ties to
+others, open personal hooks) and `remember.<lang>.md` (facts, names, places, promises, hooks and
+table agreements worth keeping, grouped by kind; session 0 talk counts). Every point cites
+transcript lines like the scene notes. Each layer is one Claude call for the whole session
+(`Options.extras_model` and `extras_effort`, Sonnet at medium); a session too long for one prompt
+is split by scene and the parts are merged. Results are cached in
+`notes/.work/extra-<layer>-NN.json`, so a rerun or a usage limit only redoes what is missing.
+`index.da.md` links both, and `notes.json` gets `characters`, `remember` and
+`layers.characters_complete` / `remember_complete` (a missing key counts as done, so older notes
+stay done). `publish` adds them as sections to the GM summary page only; they are never in the
+player recap.
+
+## Names and facts to check (D-151)
+
+Every run (and `session-notes check <session>`, which makes no Claude call) writes
+`notes/Names and facts to check.en.md` and `.da.md`. One entry per uncertain name: a word the
+transcriber scored under 0.5 that looks like a name (capitalised in mid-sentence, or close to a name in
+`names.txt`; ordinary words are skipped using the pipeline's word lists when the repo is there). Spellings
+of one name are merged ("Jor", "Jors"); each entry has the count, up to six timestamp links
+`[[transcript.en#^u000270|00:39:38]]` and a suggestion from `names.txt`. A few facts are listed too: the
+transcript's character name against `speakers.json`, and a character that `names.txt` does not know.
+
+The reviewer writes after `Answer:` (`Svar:` on the Danish page) the right spelling, `same as X` or `not a
+name`, and saves. `ok` on a name means the heard spelling is right. The next run stores the answers in
+`name-answers.json` (the first answer to an entry is taken; a later edit of that answer on the page is a
+correction and replaces it; the English page wins when the two pages differ; an answer under a heading that
+is not on the list is named in the audit log, not applied), puts new names first in
+`names.txt`, wrong spellings in `rules.json` (the session pipeline's `--rules` file, so a new transcription
+fixes them too), rewrites the transcript lines before Claude sees them and writes again only the scenes where
+a line changed. The filled entries stay on the page with a `Status:` line. The character name in a speaker
+label is not rewritten, only the text.
 
 ## Into Foundry (D-087)
 

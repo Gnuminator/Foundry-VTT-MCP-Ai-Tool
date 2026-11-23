@@ -84,6 +84,16 @@ export class PlayerLinkStore {
     return found;
   }
 
+  /** The world that holds this key, or null: lets the downtime inbox find its world after a restart with no table open. */
+  worldFor(key: unknown): string | null {
+    if (typeof key !== 'string' || !KEY_RE.test(key)) return null;
+    let found: string | null = null;
+    for (const [world, map] of this.worlds) {
+      for (const link of map.values()) if (safeEqual(link.key, key)) found = world;
+    }
+    return found;
+  }
+
   /** Make a new link for a player, replacing an old one. */
   async create(worldId: string, userId: string, now = new Date()): Promise<PlayerLink> {
     if (!USER_ID_RE.test(userId)) throw new Error('Not a Foundry user id.');

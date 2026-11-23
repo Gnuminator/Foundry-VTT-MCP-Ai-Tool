@@ -10,6 +10,21 @@ import { MAIN } from './constants.mjs';
 export const DRIFT_RUNNER =
   'import(process.argv[1]).then(m => process.exit(m.runDriftCheck({ cwd: process.cwd() })), e => { console.error(String(e)); process.exit(1); });';
 
+/**
+ * The refusal marker for a drift-check that failed only because Vitest could not start a worker
+ * (drift-check retried each such guard once and logged `  INFRA <guard>:`). Empty unless every
+ * failing guard failed that way: one real failure beside an infra one is the PR's.
+ * @param {string} output @param {string[]} guards names from the `  FAIL` lines
+ */
+export function infraCause(output, guards) {
+  const infra = [...output.matchAll(/^ {2}INFRA .+?: vitest could not start a worker/gm)].length;
+  const timeouts = [...output.matchAll(/^ {2}INFRA .+?: vitest tests timed out/gm)].length;
+  if (infra + timeouts === 0 || infra + timeouts !== guards.length) return '';
+  return timeouts === 0
+    ? ' [infrastructure, not the PR: vitest could not start a worker, also on a retry]'
+    : ' [infrastructure, not the PR: gate timeout, not drift: vitest tests timed out, also on a retry]';
+}
+
 /** Does a module import another file of the repo (relative specifier)? @param {string} text */
 export function hasRelativeImports(text) {
   return (

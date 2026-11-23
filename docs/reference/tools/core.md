@@ -55,7 +55,7 @@ Parameters:
 
 ## search-compendium
 
-Search through compendium packs by name. IMPORTANT LIMITATIONS: (1) Text search only matches entity NAMES - descriptions and traits are NOT searchable. (2) Filters use name heuristics only (not actual system data) and only work on Actor packs - challengeRating and creatureType filters search for keywords like "ancient", "legendary", "humanoid", etc. in entity names. For accurate filtering by level/CR, traits, or rarity, use list-creatures-by-criteria instead. For best results, use broad name-based searches (e.g., "dragon", "knight") and inspect individual items with get-compendium-item.
+Search through compendium packs by name. IMPORTANT LIMITATIONS: (1) Text search only matches entity NAMES - descriptions and traits are NOT searchable. (2) Filters use name heuristics only (not actual system data) and only work on Actor packs - challengeRating and creatureType filters search for keywords like "ancient", "legendary", "humanoid", etc. in entity names. For best results, use broad name-based searches (e.g., "dragon", "knight") and inspect individual items with get-compendium-item.
 
 Kind: read-only. Title: Search compendiums.
 
@@ -63,7 +63,7 @@ Parameters:
 
 - `query` (string, required): Search query to find items in compendiums by name only. Use broad, simple terms (e.g., "dragon", "sword", "feat"). Descriptions and traits are NOT searchable.
 - `packType` (string): Optional filter by pack type (e.g., "Item", "Actor", "JournalEntry")
-- `filters` (object): LIMITED FUNCTIONALITY: Only works on Actor packs using name-based heuristics. challengeRating searches for keywords like "ancient" (CR 15+), "adult" (CR 10+), "captain" (CR 5+). creatureType searches for type keywords in names. Does NOT check actual system data. For accurate filtering, use list-creatures-by-criteria instead.
+- `filters` (object): LIMITED FUNCTIONALITY: Only works on Actor packs using name-based heuristics. challengeRating searches for keywords like "ancient" (CR 15+), "adult" (CR 10+), "captain" (CR 5+). creatureType searches for type keywords in names. Does NOT check actual system data.
   - `challengeRating` (number or object)
   - `creatureType` (string): Creature type (e.g., "humanoid", "dragon", "beast", "undead", "fey", "fiend", "celestial", "construct", "elemental", "giant", "monstrosity", "ooze", "plant"). One of: `humanoid`, `dragon`, `beast`, `undead`, `fey`, `fiend`, `celestial`, `construct`, `elemental`, `giant`, `monstrosity`, `ooze`, `plant`, `aberration`.
   - `size` (string): Creature size (e.g., "medium", "large", "huge"; dnd5e keys such as "med" also work). One of: `tiny`, `small`, `medium`, `large`, `huge`, `gargantuan`, `sm`, `med`, `lg`, `grg`.
@@ -183,7 +183,7 @@ No parameters.
 
 ## get-token-positions
 
-Use this to see where all tokens are on a scene (default: active): name, actor ID, token ID, x/y and grid cell, elevation, category (pc/npc/enemy), hidden or visible, HP, conditions. For full data on one token use get-token-details.
+Use this to see where all tokens are on a scene (default: active): name, actor ID, token ID, x/y and grid cell, elevation, level (the floor, on a scene with more than one Scene Level), category (pc/npc/enemy), hidden or visible, HP, conditions.
 
 Kind: read-only. Title: Get token positions.
 
@@ -203,7 +203,7 @@ Parameters:
 
 ## apply-planned-change
 
-Apply a pending planned change after the GM has seen its diff and agreed. Needs confirm: true, plus confirmDestructive: true for a "destructive" plan (it deletes, reveals Tarokka cards or undoes a whole span). If the plan says autoApply: true, or the GM said "go ahead", apply a "write" plan in the same turn; a "destructive" plan waits for the GM to say yes to that plan. Writes nothing if the documents changed since the plan, or "Allow Write Operations" or the feature is switched off. A showNow popup shows shown: { ok } or { ok: false, error }, and undo does not recall it. A handout reveal also posts a chat notice (noticed: { ok }); undo keeps it.
+Apply a pending planned change only after the GM has seen the plan and said yes to it: asking for a change is not a yes, so after a plan-\* tool show its summary, ask whether to apply it, and stop; call this in a later turn, not right after the plan, unless the exception below applies. Needs confirm: true, plus confirmDestructive: true for a "destructive" plan (it deletes, reveals Tarokka cards or undoes a whole span). Only if the plan says autoApply: true, or the GM said "go ahead" or "apply it" in the message that asked for the change, apply a "write" plan in the same turn; a "destructive" plan waits for the GM to say yes to that plan. Writes nothing if the documents changed since the plan, or "Allow Write Operations" or the feature is switched off. A showNow popup shows shown: { ok } or { ok: false, error }, and undo does not recall it. A handout reveal also posts a chat notice (noticed: { ok }); undo keeps it.
 
 Kind: changes something and can delete or overwrite. Title: Apply planned change.
 

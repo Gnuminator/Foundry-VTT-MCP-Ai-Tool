@@ -28,6 +28,15 @@ test('different ranges for one name fail, across dependency fields', () => {
   assert.deepEqual([...found[0].ranges.keys()].sort(), ['^0.19.0', '^0.27.7']);
 });
 
+test('packages released together must share one range', () => {
+  const found = findDivergence([
+    { file: 'a/package.json', json: { dependencies: { 'playwright-core': '^1.63.0' } } },
+    { file: 'b/package.json', json: { devDependencies: { '@playwright/test': '~1.64.0' } } },
+  ]);
+  assert.equal(found.length, 1);
+  assert.equal(found[0].name, '@playwright/test + playwright-core');
+});
+
 test('workspace packages are ignored', () => {
   const found = findDivergence([
     { file: 'a/package.json', json: { dependencies: { '@gnuminator/shared': '*' } } },

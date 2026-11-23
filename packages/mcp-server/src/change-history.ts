@@ -56,6 +56,7 @@ import {
 } from './change-journal-pump.js';
 import { localDateKey } from './event-pump.js';
 import { pathLabel, type RecentChange } from './guarded-write/service.js';
+import { isBatchRider } from './guarded-write/rider-undo.js';
 import type { UndoState } from './guarded-write/undo-state.js';
 import { actionKey } from './guarded-write/undo-state.js';
 import { formatValue } from './guarded-write/values.js';
@@ -728,9 +729,9 @@ export function buildActions(records: ChangeRecord[], users?: UserNames): Change
     });
     // Only a change that started at or before a record arrived can own it; of those, the latest
     // whose data ties it (a change that deleted the same thing again later owns its own cascade).
-    const latestOwner = (r: ChangeRecord, owns: (i: number) => boolean): number => {
+    const latestOwner = (r: ChangeRecord, owns: (i: number) => boolean, none = -1): number => {
       for (let i = at(r); i >= 0; i -= 1) if (owns(i)) return i;
-      return -1;
+      return none;
     };
     const segmentOf = (r: ChangeRecord): number => {
       if (r.op === 'delete' && DEPENDENT_DELETE_KINDS.has(r.documentName)) {
@@ -744,7 +745,7 @@ export function buildActions(records: ChangeRecord[], users?: UserNames): Change
         );
         if (deleter >= 0) return deleter;
       }
-      return at(r);
+      return latestOwner(r, i => isBatchRider(r, segments[i].ai), at(r));
     };
     const filed = new Map<number, ChangeRecord[]>();
     for (const r of others) {
@@ -755,7 +756,9 @@ export function buildActions(records: ChangeRecord[], users?: UserNames): Change
     segments.forEach((segment, i) => {
       const { aiRoots, link } = links[i];
       const mine = new Set(filed.get(i) ?? []);
-      const followUps = [...mine].filter(r => isCascade(r) || isDependentDelete(r, link));
+      const followUps = [...mine].filter(
+        r => isCascade(r) || isDependentDelete(r, link) || isBatchRider(r, segment.ai)
+      );
       const theirs = new Set(
         [...mine].filter(r => !aiRoots.has(r.rootUuid) && !followUps.includes(r))
       );

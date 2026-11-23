@@ -28,14 +28,20 @@ import {
   carriedReviews,
   judgeReviews,
 } from './reviews.mjs';
-import { requiredContexts, rollupProblems, waitForCi, hasMergeQueue } from './ci.mjs';
+import {
+  requiredContexts,
+  rollupProblems,
+  waitForCi,
+  hasMergeQueue,
+  explainFailing,
+} from './ci.mjs';
 import { hasChangelogFragment, releasePr, parseNameStatus } from './changelog.mjs';
 import { readTrain, writeTrain, publishTrainNote, sleep, acquireLock } from './train.mjs';
 import { defaultAnnounce } from './announce.mjs';
 import { defaultRun, firstLine } from './run.mjs';
 import { parseArgs } from './args.mjs';
 import { refusedBecause, mainModules, sameGate } from './relaunch.mjs';
-import { runDrift } from './drift.mjs';
+import { runDrift, infraCause } from './drift.mjs';
 import { liveCheckProblem } from './live-check.mjs';
 import { mainRedCheck } from './main-red.mjs';
 import { visualAcceptProblem } from './visual-accept.mjs';
@@ -343,7 +349,8 @@ export function main(options = {}) {
   else {
     const { failing, pending, missing } = rollupProblems(rollup, required ?? []);
     const parts = [];
-    if (failing.length > 0) parts.push(`failing: ${failing.join(', ')}`);
+    if (failing.length > 0)
+      parts.push(`failing: ${explainFailing(rollup, failing, run).join(', ')}`);
     if (pending.length > 0) parts.push(`pending: ${pending.join(', ')}`);
     if (missing.length > 0) parts.push(`required but not reported: ${missing.join(', ')}`);
     if (parts.length > 0) failures.push(`ci: ${parts.join('; ')}`);
@@ -562,8 +569,11 @@ export function main(options = {}) {
       // drift-check logs "  FAIL <guard name>" per failing guard; the names go into the refusal reason
       const guards = [...output.matchAll(/^ {2}FAIL (.+?)\s*$/gm)].map(m => m[1]);
       driftGuards.push(...guards);
+      // drift-check retried a guard once when Vitest could not start a worker or only timed out, and says so with "  INFRA <guard>:"
+      // Only when every failing guard failed that way: one real failure beside it is the PR's.
+      const cause = infraCause(output, guards);
       failures.push(
-        `drift: drift-check failed${guards.length > 0 ? ` (guards: ${guards.join(', ')})` : ''} (log ${logFile}); last lines below`
+        `drift: drift-check failed${guards.length > 0 ? ` (guards: ${guards.join(', ')})` : ''}${cause} (log ${logFile}); last lines below`
       );
       details.push(...output.replace(/\s+$/, '').split(/\r?\n/).slice(-TAIL_LINES));
     }

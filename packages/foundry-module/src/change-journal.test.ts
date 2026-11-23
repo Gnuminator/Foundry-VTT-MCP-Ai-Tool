@@ -295,6 +295,69 @@ describe('pre-hooks: the stash', () => {
     expect(idOf(simulateUpdate(actor, { name: 'later' }))).not.toBe(write);
   });
 
+  describe('a rider effect dnd5e creates in a batch (no pre-hook, no stash)', () => {
+    const prone = (actor: any): any =>
+      fixture({
+        documentName: 'ActiveEffect',
+        id: 'dnd5eprone000000',
+        name: 'Prone',
+        parent: actor,
+      });
+    const hpWrite = (actor: any): string =>
+      simulateUpdate(
+        actor,
+        { name: 'hp' },
+        { options: { [MODULE_ID]: { changeId: 'chg-rider', changeMode: 'apply' } } }
+      )[MODULE_ID].journal.actionId;
+
+    it('joins the group of the AI write it follows', () => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(9_000_000);
+      const actor = makeActor();
+      const write = hpWrite(actor);
+      vi.setSystemTime(9_000_000 + 2400);
+      simulateCreate(prone(actor), { skipPre: true });
+      const rider = records().find(r => r.op === 'create');
+      expect(rider.actionId).toBe(write);
+      expect(rider.changeId).toBeUndefined();
+    });
+
+    it('stays a solo record after the guarded gap, with no AI write, or from another user', () => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(9_000_000);
+      const actor = makeActor();
+      simulateCreate(prone(actor), { skipPre: true });
+      hpWrite(actor);
+      vi.setSystemTime(9_000_000 + 1000);
+      simulateCreate(prone(actor), { skipPre: true, userId: 'p1' });
+      vi.setSystemTime(9_000_000 + CHANGE_JOURNAL_GUARDED_GAP_MS + 1);
+      simulateCreate(prone(actor), { skipPre: true });
+      const creates = records().filter(r => r.op === 'create');
+      expect(creates).toHaveLength(3);
+      for (const r of creates) expect(r.actionId).toMatch(/^solo:/);
+    });
+
+    it('is a solo record after breakGroup', () => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(9_000_000);
+      const actor = makeActor();
+      hpWrite(actor);
+      journal.breakGroup();
+      simulateCreate(prone(actor), { skipPre: true });
+      expect(records().find(r => r.op === 'create').actionId).toMatch(/^solo:/);
+    });
+
+    it('only an effect: another document created in a batch stays solo', () => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(9_000_000);
+      const actor = makeActor();
+      hpWrite(actor);
+      const item = fixture({ documentName: 'Item', id: 'it9', name: 'Rope', parent: actor });
+      simulateCreate(item, { skipPre: true });
+      expect(records().find(r => r.op === 'create').actionId).toMatch(/^solo:/);
+    });
+  });
+
   it("does not chain a person's own edit into an AI group through the long gap", () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     const actor = makeActor();

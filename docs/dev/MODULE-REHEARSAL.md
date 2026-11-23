@@ -106,7 +106,7 @@ while players are online.
      `module=<id>|<old or NONE>|<new>` line each) before the first move, stops the Assistant GM browser and Foundry,
      moves each old folder to `prev-<time>-modules/<id>`, moves the unpacked one in (owned by the foundry user), starts
      Foundry and the browser, and **reads back**: the world answers, the browser has joined the world in its current run
-     (`browser_joined` in `lib.sh`, matched on the systemd invocation id, so a line from before the restart does not
+     (`browser_joined` in `lib.sh`, matched on the systemd invocation id or the main PID of this boot, so a line from before the restart does not
      count), every `module.json` shows the pinned version and the foundry user as owner, and the journal since the
      start has no module error line (a warning). Foundry has to be running with a world before the run starts.
      Every line of a real run or UNDO also goes to `/var/lib/foundry-import/modules-stage.log`.
@@ -121,7 +121,7 @@ while players are online.
      need Foundry running first: after a killed run Foundry may be down, and `UNDO=1` starts it (and the browser).
    - It never downloads and never installs a version that is not pinned.
    - **Order in sitting 2:** stages 3, 14, 5 and 13 as in step 3, then this stage, then the Docker cutover; the cutover
-     guard (`refuse_when_cut_over`, Backlog item on the stages that restart `foundry.service`) must list stage 25 too.
+     guard knows stage 25: on a cut-over Pi it works on the containers (`use_stack`, D-149), no rollback needed.
      The stage installs into the modules folder every Pi world shares, so it applies to all worlds at once and Foundry
      restarts into whichever world is launched; it refuses while a kit session is up. Test the versions on the PC test
      server and kit first (step 4), not on the Pi's strahd-kit world. Stage 22 (seven books) runs after this stage when content modules changed.

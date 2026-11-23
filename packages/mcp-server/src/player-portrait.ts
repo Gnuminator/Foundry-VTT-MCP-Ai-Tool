@@ -21,6 +21,7 @@ import {
 } from '@gnuminator/shared';
 
 import type { GuardedWriteService } from './guarded-write/service.js';
+import type { Logger } from './logger.js';
 
 export interface PortraitFoundry {
   query(method: string, data?: unknown, options?: { timeoutMs?: number }): Promise<unknown>;
@@ -42,7 +43,8 @@ function decodeBase64(data: string): Uint8Array {
 export async function handlePlayerPortrait(
   foundry: PortraitFoundry,
   guardedWrites: Pick<GuardedWriteService, 'createPlan' | 'applyPlan'>,
-  params: unknown
+  params: unknown,
+  log?: Pick<Logger, 'warn'>
 ): Promise<PlayerPortraitResult> {
   const p = (params ?? {}) as {
     userId?: unknown;
@@ -134,9 +136,14 @@ export async function handlePlayerPortrait(
         pathLabels: { 'texture.src': 'placed token picture' },
       });
       await guardedWrites.applyPlan(tokenPlan.planId, { confirm: true }, `${who} (player page)`);
-    } catch {
+    } catch (error) {
       // The character already has its picture; a token that moved or went away is not an error
-      // the player can act on. The GM sees the first change in Recent Changes either way.
+      // the player can act on. The GM sees the first change in Recent Changes either way; the
+      // log says why the tokens kept the old picture. The unapplied plan expires with the others.
+      log?.warn('Placed-token picture change failed; the character picture is already set', {
+        actor: p.actorId,
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
   return { ok: true, path: stored.path, actorName: name, changeId: applied.changeId };

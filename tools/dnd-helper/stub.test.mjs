@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import { SKILL_NAME, PLAYER_SKILL_NAME, buildPlayerStub, buildStub } from './build.mjs';
-import { buildStub as buildCoachStub, frontMatter } from '../gm-coach/build.mjs';
+import { OFFLINE_PAGES, buildStub as buildCoachStub, frontMatter } from '../gm-coach/build.mjs';
 
 const read = rel => readFileSync(new URL(rel, import.meta.url), 'utf8');
 
@@ -41,7 +41,7 @@ test('the player stub never names a GM tool, the GM stubs never the player tool'
   assert.doesNotMatch(read('../gm-coach/stub/SKILL.md'), /get-player-skill-guide/);
 });
 
-test('the built zips hold only the stub', () => {
+test('the built zips hold only the stub (the coach also its offline pages)', () => {
   const out = mkdtempSync(path.join(tmpdir(), 'stubs-'));
   try {
     for (const [fn, expected] of [
@@ -50,7 +50,25 @@ test('the built zips hold only the stub', () => {
       [buildCoachStub, 'foundry-gm-coach'],
     ]) {
       const { files } = fn(out);
-      assert.deepEqual([...files.keys()], ['SKILL.md'], expected);
+      const extra = fn === buildCoachStub ? Object.keys(OFFLINE_PAGES) : [];
+      assert.deepEqual([...files.keys()], ['SKILL.md', ...extra], expected);
+    }
+  } finally {
+    rmSync(out, { recursive: true, force: true });
+  }
+});
+
+test('the coach stub zip carries the game night runbook and troubleshooting, and the stub names them', () => {
+  const out = mkdtempSync(path.join(tmpdir(), 'stubs-'));
+  try {
+    const { files, zipFile } = buildCoachStub(out);
+    const zipped = readFileSync(zipFile).toString('latin1');
+    const skill = files.get('SKILL.md');
+    for (const [to, from] of Object.entries(OFFLINE_PAGES)) {
+      assert.ok(files.get(to)?.startsWith('---'), `${to} is built into the stub`);
+      assert.equal(files.get(to), read(`../../${from}`));
+      assert.ok(zipped.includes(`foundry-gm-coach/${to}`), `${to} is in the zip`);
+      assert.ok(skill.includes('`' + to + '`'), `the stub names ${to}`);
     }
   } finally {
     rmSync(out, { recursive: true, force: true });

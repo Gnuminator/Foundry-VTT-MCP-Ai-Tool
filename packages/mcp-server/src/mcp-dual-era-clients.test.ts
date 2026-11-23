@@ -101,11 +101,17 @@ describe('old and new MCP clients on the stdio wrapper', () => {
   it('a dual-era client (SDK v2, auto) settles on the 2026-07-28 era', async () => {
     const client = new ModernClient(
       { name: 'dual-client', version: '0.0.0' },
-      { versionNegotiation: { mode: 'auto' } }
+      // The probe runs on a sibling process, and a probe that gets no answer in time counts as a
+      // legacy server on stdio. A cold node start on a loaded Windows PC (the local gate runs many
+      // test files at once) can be that slow, so the probe gets time and a re-send before the verdict.
+      { versionNegotiation: { mode: 'auto', probe: { timeoutMs: 20_000, maxRetries: 2 } } }
     );
     await client.connect(new ModernStdio(serverParams()));
     try {
-      expect(client.getDiscoverResult()).toBeDefined();
+      expect(
+        client.getDiscoverResult(),
+        'auto negotiation fell back to the 2025 era'
+      ).toBeDefined();
       const { tools } = await client.listTools();
       expect(tools.map(t => t.name)).toEqual(FAKE_TOOLS.map(t => t.name));
     } finally {

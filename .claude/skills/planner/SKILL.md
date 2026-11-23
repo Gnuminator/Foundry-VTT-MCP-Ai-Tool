@@ -53,7 +53,7 @@ the user placed), pushes the vault and archives itself (see Session cleanup).
 - Full read-back only for scope, gate dates, the Pi and money (CLAUDE.md). Write the note in `Decisions/` (next D number). Other choices: the question tool, then
   one line in the decisions log.
 - A process decision names the number it moves, and a new rule deletes or merges an old one (word
-  budget, checked by `scripts/backlog.test.mjs`: lane skill under 1,889 words, planner under 1,169).
+  budget, checked by `scripts/backlog.test.mjs`: lane skill under 1,889 words, planner under 1,189).
 - A hold the user agrees to goes into CLAUDE.md "Holds now" with scope and end that turn (edit the
   vault master `repo-docs/CLAUDE.md`, copy to the main checkout).
 - User to-dos go into `Waiting.md`: what to do, minutes, what it settles, a `- due:` line (no date: `## Someday`, not printed).
@@ -91,8 +91,8 @@ process or background run from it, no other lane on that branch. Subagent worktr
 targets. A rule or tool that moves neither is removed. **Pace** is judged by hours worked, not
 14% a day: `usage:now` writes `pace-delta` (on pace: within 8 points), `pace-projected-percent` and
 `pace-active-hours-left`. Pace is information only: it never holds or adds a lane.
-The reset is Saturday 06:00 local in winter. On the Saturday after it run `npm run usage:week -- --write-vault --days 7`
-and push vault `Weekly check.md` (the board's Week page).
+`usage:now` writes the closed week into vault `Weekly check.md` (the Week page) on its first run after the reset; push the vault.
+Monthly: list the workflow action pins (`uses:` lines in `.github/workflows`) with their age; bump or leave.
 Glance at upstream Actor Studio releases after 2.10.5: a lane rebases it onto our fork,
 the module kit passes, then stage 13 installs it.
 

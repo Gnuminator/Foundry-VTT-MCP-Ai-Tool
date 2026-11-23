@@ -570,7 +570,13 @@ describe('/mcp/player: what it runs', () => {
     );
     expect(await init.json()).toMatchObject({
       id: 1,
-      result: { protocolVersion: '2025-06-18', capabilities: { tools: {} } },
+      result: {
+        protocolVersion: '2025-06-18',
+        capabilities: { tools: {} },
+        instructions: expect.stringContaining(
+          'call get-player-skill-guide first, with no arguments, and follow it; a skill that names a stubRevision passes it instead'
+        ),
+      },
     });
     expect((await rpc(base, { jsonrpc: '2.0', id: 2, method: 'ping' }, asA)).status).toBe(200);
     expect(
@@ -580,6 +586,39 @@ describe('/mcp/player: what it runs', () => {
       await rpc(base, { jsonrpc: '2.0', id: 3, method: 'tools/list' }, asA)
     ).json()) as { result: { tools: Array<{ name: string }> } };
     expect(list.result.tools.map(t => t.name)).toEqual(['get-my-character']);
+  });
+
+  it('forwards the extension version and the Claude client to the bridge, keyed by user id', async () => {
+    const recordClient = vi.fn(() => Promise.resolve({ ok: true }));
+    const { base } = await start({ client: { recordClient } });
+    await rpc(
+      base,
+      {
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: {
+          protocolVersion: '2025-06-18',
+          clientInfo: { name: 'claude-ai', version: '9.9.9' },
+        },
+      },
+      { ...asA, 'user-agent': 'foundry-player-connector/1.2.3' }
+    );
+    expect(recordClient).toHaveBeenCalledWith({
+      piece: 'player-extension',
+      who: ALICE,
+      version: '1.2.3',
+    });
+    expect(recordClient).toHaveBeenCalledWith({
+      piece: 'claude',
+      who: ALICE,
+      name: 'claude-ai',
+      version: '9.9.9',
+    });
+    // No extension user agent and no client name: nothing is forwarded.
+    recordClient.mockClear();
+    await rpc(base, { jsonrpc: '2.0', id: 2, method: 'ping' }, asA);
+    expect(recordClient).not.toHaveBeenCalled();
   });
 
   it('answers a bridge failure with a plain error, never the bridge text', async () => {

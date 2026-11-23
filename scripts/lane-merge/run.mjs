@@ -15,10 +15,12 @@ export function defaultRun(cmd, args, input) {
       ? spawnSync(['npm', ...args].join(' '), {
           encoding: 'utf8',
           shell: true,
+          windowsHide: true,
           maxBuffer: 256 * 1024 * 1024,
         })
       : spawnSync(cmd, args, {
           encoding: 'utf8',
+          windowsHide: true,
           maxBuffer: 256 * 1024 * 1024,
           ...(input === undefined ? {} : { input }),
           // one hung gh call must not hang a background --wait-ci forever

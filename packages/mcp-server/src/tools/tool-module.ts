@@ -14,6 +14,7 @@ import type { GuardedWriteService } from '../guarded-write/service.js';
 import type { UndoPlanner } from '../guarded-write/undo-planner.js';
 import type { ChangeHistory } from '../change-history.js';
 import type { HandoutsService } from '../handouts/service.js';
+import type { OmensStore } from '../omens/store.js';
 import type { Logger } from '../logger.js';
 import type { SecretTermsService } from '../secret-terms.js';
 import type { SystemRegistry } from '../systems/system-registry.js';
@@ -45,6 +46,7 @@ export interface ToolServices {
   tarokka: TarokkaService;
   secretTerms: SecretTermsService;
   handouts: HandoutsService;
+  omens: OmensStore;
   /** Called after mark-play-session records a marker (re-renders the Obsidian notes). */
   onPlaySessionMarked: NonNullable<PlaySessionToolsOptions['onMarked']>;
   wrapperStatus: NonNullable<PreflightToolsOptions['wrapperStatus']>;

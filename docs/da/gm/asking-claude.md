@@ -1,6 +1,6 @@
 ---
 source: gm/asking-claude.md
-sourceHash: c13678802601
+sourceHash: 9e9f477db135
 title: Spørg Claude
 description: Sådan bruger du Claude Desktop med værktøjet, gode forespørgsler, de færdige prompts, hvordan Claudes ændringer godkendes, og hvad Claude ikke kan.
 ---
@@ -60,7 +60,7 @@ Forespørgsler der går galt:
 ## Tool sets: hvilke kontakter du skal tænde
 
 Claude Desktop viser værktøjet som fem punkter, ét pr. tool set, hver med sin egen kontakt i
-**+**-menuen under beskedfeltet, så **Connectors** (det præcise sted kan flytte sig mellem versioner
+**+**-menuen under beskedfeltet, så **Plugins** (det præcise sted kan flytte sig mellem versioner
 af Claude Desktop). Claude læser alle værktøjer, der er tændt, når en chat starter, så færre kontakter
 giver mere plads til din samtale og færre forkerte valg. Kontakterne bliver, som du lod dem, i nye
 chats.
@@ -179,7 +179,7 @@ retter du i hånden i Foundry. Så:
 - Bed Claude fortælle dig, hvad den vil gøre, før den gør det: "Fortæl mig planen, og vent så på
   mit OK."
 - Claude Desktop kan bede om dit OK, før Claude bruger et værktøj. Vi foreslår **Always allow** for
-  begge grupper på hver Foundry-connector (**Customize**, **Connectors**, connectoren, **Tool
+  begge grupper på hver Foundry-connector (**Settings**, **Plugins**, **Connectors**, connectoren, **Tool
   permissions**: **Read-only tools** og **Write/delete tools**), fordi ændringer gennem
   `apply-planned-change` allerede viser dig planen og venter på din confirm, og du kan undo'e dem. De
   direkte handlinger nedenfor gør ikke, så med **Always allow** på writes stopper Claude Desktop heller
@@ -199,6 +199,23 @@ ikke kun Claudes.
 Dashboardets **GM Actions**-kontakt beskytter kun dashboardet. Den stopper ikke Claude Desktop.
 
 > **Usikker? Spørg Claude.** Spørg GM coach: "Hvordan tjekker og fortryder jeg det, Claude ændrer i mit spil?"
+
+## Nyere ting, Claude kan
+
+- **Ændringskort.** I Claude Desktop viser et `plan-*`-tool (core, play, build og admin; prep-planer
+  er foreløbig kun tekst) et lille skrivebeskyttet kort med før og efter ved siden af tekstplanen.
+  Tekstplanen er der stadig, og Apply kræver stadig dit ja. Hosts uden kort viser kun tekst.
+- **Macros.** Bed Claude skrive en script-macro, så planlægger den en med `plan-macro`. Planen viser
+  hele scriptet og et almindeligt resumé, macroen laves GM-only, og Undo sletter den. Den er slået fra,
+  til du tænder **AI Tool: Macro forge (writes)**. Scriptet tjekkes mod en liste over tilladte ting,
+  men det er en beskyttelse mod fejl, ikke en mur: læs scriptet i planen, før du bekræfter.
+- **Etager.** På en scene med mere end ét Scene Level siger `get-token-positions`, hvilket niveau hver
+  token står på, og `measure-distance` tæller højden med. En flad scene virker som før.
+- **Room whisper.** `plan-room-setup` har en `whisper`-handling: en GM-only Region, der whisper et
+  rumkort til dig, når en token går ind. Teksten ligger i en GM-only journal, der laves i samme plan.
+  Spillerne bliver ikke vist noget på skærmen. Den planlægges, bekræftes og fortrydes som de andre room setups.
+- **Undo og Prone.** Når du fortryder damage, der sendte en helt ned på 0 hit points, tager det nu også
+  den Prone af, der følger med Unconscious.
 
 ## Hvad Claude ikke kan
 

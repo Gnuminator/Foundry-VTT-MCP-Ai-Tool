@@ -15,8 +15,8 @@ We use **Actor Studio**, a character builder inside Foundry. It asks the same qu
 2024 Player's Handbook, in the same order, and fills in your character sheet for you. You can't
 break anything: if it goes wrong, the GM deletes the character and you start again.
 
-Checked on Foundry 14, D&D 5e system 6, Actor Studio 2.10.5 (our build, 2.10.5-aitool.4; the Magic Initiate step on 2.10.5-aitool.5) and the 2024 Player's Handbook module
-2.2.0 (October 2026).
+Checked on Foundry 14.370, D&D 5e system 6.1.1, Actor Studio 2.10.5 (our build, 2.10.5-aitool.13) and the 2024 Player's Handbook module
+3.0.0 (21 November 2026). The screenshots are from older builds and may differ a little.
 
 ## Before you start
 
@@ -48,7 +48,7 @@ Two small things that save trouble:
 1. In the sidebar on the right, click the **Actors** tab (the person icon).
 2. At the top of that tab, click the **Actor Studio** button (its logo, under **Create Actor**).
 
-![The Actors tab with the Actor Studio logo button under Create Actor](../images/guides/studio-button.png)
+![The Actor Studio logo button under Create Actor](../images/guides/studio-button.png)
 
 The first time you log in, Foundry's **User Configuration** may open by itself. Close it: Actor
 Studio makes your new character yours when you click Create Character (see
@@ -101,11 +101,11 @@ level 3, so not now: you pick it when you level up in
 ## 6. Name and create
 
 1. **Replace the name in Character Name** at the bottom. It starts out as your own player name, and
-   the bar already says 100% before you type anything, so it is easy to click straight through.
-   If you forget, your character ends up named after you.
+   the bar does not check the name: it reaches 100% when you have picked a class, so it is easy to
+   click straight through. If you forget, your character ends up named after you.
 2. Click **Create Character**.
 
-![The bottom of the builder: Character Name still says the player name and the bar already reads 100% Complete](../images/guides/studio-name.png)
+![The bottom of the builder: Character Name still says the player name (screenshot from an older build)](../images/guides/studio-name.png)
 
 Your character now exists (you can see it in the Actors tab), and the builder moves on to the
 **Advancements** tab. Up to here you could change anything freely. From here, if you made a wrong
@@ -222,17 +222,20 @@ level at a time, with the same builder.
 2. Click it. The window **Level Up Existing Class** opens. Click the **+** at the right end of your
    class's row (the row itself does nothing).
 3. **Going from level 2 to 3, you also choose your subclass.** A **Choose Subclass** list appears
-   under the class row. Click it (if it does not open, click it again), pick one, and read its
+   under the class row. Click it (if it does not open, click once more), pick one, and read its
    description. The bar at the bottom reaches 100% when you have picked.
 4. Click **Add Character Level**. The steps run like in [step 7](#7-advancements-answer-each-step):
-   - **Hit Points:** tick **Take Average** (or roll). Next does nothing until you have chosen.
+   - **Hit Points:** **Take Average** is already applied, so the FINAL number is the average; just
+     click Next (or roll instead if you prefer).
    - **Choices with a counter** (for example a wizard's level-2 **Scholar** skill for Expertise,
      or an elf's spellcasting ability at level 3): choose before you click Next.
    - **Information steps** (new class features, **Max Prepared Spells**, the **Subclass** step):
      click **Next**.
-5. Click **Complete** on the last step. **At level 3 a second window then opens with your
-   subclass's features (for example "Champion • Level 2 -> 3, Step 1 of 1"). Click Complete in it
-   too.** If you close Studio before that, your sheet shows a bar **The level-up is not finished:
+5. Click **Complete** on the last step. **At level 3 the window then goes on with your
+   subclass: first its features (for example "Life Domain • Level 2 -> 3, Step 1 of 1"), then often
+   a step for the subclass's spells, and last a Spells screen that says no spell updates are needed
+   and has a **Finalize Spells** button. Click Complete in each, and Finalize Spells at the end.** A red
+   message "lacks permission to update Actor" may flash at the end; the sheet is fine. If you close Studio before that, your sheet shows a bar **The level-up is not finished:
    (subclass) was not added** with an **Add the subclass** button. Click it and click Complete in the
    window that opens.
 6. Do this twice: level 1 to 2 first (no subclass then, so go straight to **Add Character
@@ -256,10 +259,10 @@ Look over the sheet before you call it done. Ask the GM if anything looks wrong.
       or you picked a skill you already had.
 - [ ] Spells: every cantrip and spell you picked, including those from a feat such as Magic
       Initiate.
-- [ ] Armour class (AC). **Actor Studio puts your armour, shield and weapons on the sheet but
-      does not equip them**, so AC reads as if you wore nothing (a cleric with a chain shirt and a
-      shield shows 11 instead of 16). Open the **Inventory** tab and click the small icon at the
-      right end of the row of each piece of armour, your shield and your weapons (hover over it:
+- [ ] Armour class (AC). **Actor Studio equips body armour and a shield when you Confirm the
+      equipment, but not your weapons.** If AC still reads as if you wore nothing (a cleric with a
+      chain shirt and a shield should show 16, not 11), open the **Inventory** tab and click the small
+      icon at the right end of the row of each piece of armour, your shield and your weapons (hover over it:
       it says "Not Equipped", and "Equipped" after you click). The AC updates at once.
 - [ ] Equipment and gold are on the **Inventory** tab. **Wizards:** the starting kit has no
       spellbook. Ask the GM to add one.

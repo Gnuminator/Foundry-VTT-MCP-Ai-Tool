@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { makeTools } from '../test-support/make-tool-harness.js';
+import { makeLogger, makeTools } from '../test-support/make-tool-harness.js';
 
 import { DiceRollTools } from './dice-roll.js';
 
@@ -123,12 +123,13 @@ describe('DiceRollTools.handleRequestAbilityCheck', () => {
 
   it('refuses a DC outside 1 to 99 at its own boundary', async () => {
     const { tools, query } = makeTools(DiceRollTools);
-    const result = await tools.handleRequestAbilityCheck({
-      actor: 'Alice',
-      ability: 'str',
-      dc: 100,
-    });
-    expect(result).toMatch(/Parameter error/i);
+    await expect(
+      tools.handleRequestAbilityCheck({
+        actor: 'Alice',
+        ability: 'str',
+        dc: 100,
+      })
+    ).rejects.toThrow(/Parameter error/i);
     expect(query).not.toHaveBeenCalled();
   });
 
@@ -146,23 +147,23 @@ describe('DiceRollTools.handleRequestAbilityCheck', () => {
     );
   });
 
-  it('returns a parameter-error string (not a throw) when ability is missing', async () => {
+  it('throws a parameter error when ability is missing', async () => {
     const { tools, query } = makeTools(DiceRollTools);
-    const result = await tools.handleRequestAbilityCheck({ actor: 'Alice', isPublic: true });
-    expect(typeof result).toBe('string');
-    expect(result).toMatch(/Parameter error/i);
+    await expect(
+      tools.handleRequestAbilityCheck({ actor: 'Alice', isPublic: true })
+    ).rejects.toThrow(/Parameter error/i);
     expect(query).not.toHaveBeenCalled();
   });
 
-  it('returns a parameter-error string when ability is not a valid enum value', async () => {
+  it('throws a parameter error when ability is not a valid enum value', async () => {
     const { tools, query } = makeTools(DiceRollTools);
-    const result = await tools.handleRequestAbilityCheck({
-      actor: 'Alice',
-      ability: 'luck',
-      isPublic: true,
-    });
-    expect(typeof result).toBe('string');
-    expect(result).toMatch(/Parameter error/i);
+    await expect(
+      tools.handleRequestAbilityCheck({
+        actor: 'Alice',
+        ability: 'luck',
+        isPublic: true,
+      })
+    ).rejects.toThrow(/Parameter error/i);
     expect(query).not.toHaveBeenCalled();
   });
 
@@ -231,8 +232,7 @@ describe('DiceRollTools.handleRequestAttackRoll', () => {
   it('appends an unclear or problem rules check to the reply and stays silent when legal', async () => {
     const { query } = makeTools(DiceRollTools, () => ({ success: true, message: 'Posted.' }));
     const args = { actor: 'Carol', weaponOrSpellName: 'Longsword', isPublic: true };
-    const logger: any = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
-    logger.child = (): unknown => logger;
+    const logger = makeLogger();
     const run = async (check: unknown): Promise<unknown> => {
       const tryCheck = vi.fn(async () => check);
       const t = new DiceRollTools({
@@ -253,8 +253,7 @@ describe('DiceRollTools.handleRequestAttackRoll', () => {
 
   it('request-player-rolls with rollType attack does the same rules check and card text', async () => {
     const { query } = makeTools(DiceRollTools, () => ({ success: true, message: 'Posted.' }));
-    const logger: any = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
-    logger.child = (): unknown => logger;
+    const logger = makeLogger();
     const tryCheck = vi.fn(async () => ({ verdict: 'problem', summary: 'no uses left.' }));
     const t = new DiceRollTools({
       foundryClient: { query } as any,
@@ -295,33 +294,31 @@ describe('DiceRollTools.handleRequestAttackRoll', () => {
     expect(result).toBe('Roll request sent successfully! Attack roll button posted.');
   });
 
-  it('returns a parameter-error string (not a throw) when weaponOrSpellName is missing', async () => {
+  it('throws a parameter error when weaponOrSpellName is missing', async () => {
     const { tools, query } = makeTools(DiceRollTools);
-    const result = await tools.handleRequestAttackRoll({
-      actor: 'Carol',
-      isPublic: true,
-    });
-    expect(typeof result).toBe('string');
-    expect(result).toMatch(/Parameter error/i);
+    await expect(
+      tools.handleRequestAttackRoll({
+        actor: 'Carol',
+        isPublic: true,
+      })
+    ).rejects.toThrow(/Parameter error/i);
     expect(query).not.toHaveBeenCalled();
   });
 
-  it('returns a parameter-error string when actor is missing', async () => {
+  it('throws a parameter error when actor is missing', async () => {
     const { tools, query } = makeTools(DiceRollTools);
-    const result = await tools.handleRequestAttackRoll({
-      weaponOrSpellName: 'Fireball',
-      isPublic: false,
-    });
-    expect(typeof result).toBe('string');
-    expect(result).toMatch(/Parameter error/i);
+    await expect(
+      tools.handleRequestAttackRoll({
+        weaponOrSpellName: 'Fireball',
+        isPublic: false,
+      })
+    ).rejects.toThrow(/Parameter error/i);
     expect(query).not.toHaveBeenCalled();
   });
 
-  it('returns a parameter-error string when args are null/undefined', async () => {
+  it('throws a parameter error when args are null/undefined', async () => {
     const { tools, query } = makeTools(DiceRollTools);
-    const result = await tools.handleRequestAttackRoll(undefined);
-    expect(typeof result).toBe('string');
-    expect(result).toMatch(/Parameter error/i);
+    await expect(tools.handleRequestAttackRoll(undefined)).rejects.toThrow(/Parameter error/i);
     expect(query).not.toHaveBeenCalled();
   });
 
@@ -384,14 +381,15 @@ describe('DiceRollTools.handleRollNpcCheck', () => {
       advantage: 'advantage',
     });
     expect(query.mock.calls[0][1]).toMatchObject({ advantage: 'advantage' });
-    const bad = await tools.handleRollNpcCheck({
-      actor: 'Goblin',
-      rollType: 'save',
-      rollTarget: 'dex',
-      isPublic: true,
-      advantage: 'sideways',
-    });
-    expect(bad).toEqual(expect.stringContaining('Parameter error'));
+    await expect(
+      tools.handleRollNpcCheck({
+        actor: 'Goblin',
+        rollType: 'save',
+        rollTarget: 'dex',
+        isPublic: true,
+        advantage: 'sideways',
+      })
+    ).rejects.toThrow(/Parameter error/i);
   });
 
   it('forwards advantage on the ability check and attack requests too', async () => {
@@ -424,36 +422,34 @@ describe('DiceRollTools.handleRollNpcCheck', () => {
     expect(result).toBe(payload);
   });
 
-  it('returns a parameter-error string (not a throw) when rollType enum is invalid', async () => {
+  it('throws a parameter error when rollType enum is invalid', async () => {
     const { tools, query } = makeTools(DiceRollTools);
-    const result = await tools.handleRollNpcCheck({
-      actor: 'Goblin',
-      rollType: 'initiative',
-      rollTarget: 'str',
-      isPublic: true,
-    });
-    expect(typeof result).toBe('string');
-    expect(result as string).toMatch(/Parameter error/i);
+    await expect(
+      tools.handleRollNpcCheck({
+        actor: 'Goblin',
+        rollType: 'initiative',
+        rollTarget: 'str',
+        isPublic: true,
+      })
+    ).rejects.toThrow(/Parameter error/i);
     expect(query).not.toHaveBeenCalled();
   });
 
-  it('returns a parameter-error string when actor is missing', async () => {
+  it('throws a parameter error when actor is missing', async () => {
     const { tools, query } = makeTools(DiceRollTools);
-    const result = await tools.handleRollNpcCheck({
-      rollType: 'ability',
-      rollTarget: 'str',
-      isPublic: true,
-    });
-    expect(typeof result).toBe('string');
-    expect(result as string).toMatch(/Parameter error/i);
+    await expect(
+      tools.handleRollNpcCheck({
+        rollType: 'ability',
+        rollTarget: 'str',
+        isPublic: true,
+      })
+    ).rejects.toThrow(/Parameter error/i);
     expect(query).not.toHaveBeenCalled();
   });
 
-  it('returns a parameter-error string when args are null/undefined', async () => {
+  it('throws a parameter error when args are null/undefined', async () => {
     const { tools, query } = makeTools(DiceRollTools);
-    const result = await tools.handleRollNpcCheck(undefined);
-    expect(typeof result).toBe('string');
-    expect(result as string).toMatch(/Parameter error/i);
+    await expect(tools.handleRollNpcCheck(undefined)).rejects.toThrow(/Parameter error/i);
     expect(query).not.toHaveBeenCalled();
   });
 
@@ -534,16 +530,16 @@ describe('DiceRollTools.handleRequestPlayerRolls', () => {
     });
   });
 
-  it('returns a parameter-error string (not a throw) when rollType is missing', async () => {
+  it('throws a parameter error when rollType is missing', async () => {
     const { tools, query } = makeTools(DiceRollTools);
-    const result = await tools.handleRequestPlayerRolls({
-      rollTarget: 'perception',
-      actor: 'Dave',
-      isPublic: true,
-      userConfirmedVisibility: true,
-    });
-    expect(typeof result).toBe('string');
-    expect(result).toMatch(/Parameter error/i);
+    await expect(
+      tools.handleRequestPlayerRolls({
+        rollTarget: 'perception',
+        actor: 'Dave',
+        isPublic: true,
+        userConfirmedVisibility: true,
+      })
+    ).rejects.toThrow(/Parameter error/i);
     expect(query).not.toHaveBeenCalled();
   });
 
@@ -570,25 +566,23 @@ describe('DiceRollTools.handleRequestPlayerRolls', () => {
     ]);
   });
 
-  it('returns a parameter-error string when rollType is not a valid enum value', async () => {
+  it('throws a parameter error when rollType is not a valid enum value', async () => {
     const { tools, query } = makeTools(DiceRollTools);
-    const result = await tools.handleRequestPlayerRolls({
-      rollType: 'death',
-      rollTarget: 'dex',
-      actor: 'Grace',
-      isPublic: true,
-      userConfirmedVisibility: true,
-    });
-    expect(typeof result).toBe('string');
-    expect(result).toMatch(/Parameter error/i);
+    await expect(
+      tools.handleRequestPlayerRolls({
+        rollType: 'death',
+        rollTarget: 'dex',
+        actor: 'Grace',
+        isPublic: true,
+        userConfirmedVisibility: true,
+      })
+    ).rejects.toThrow(/Parameter error/i);
     expect(query).not.toHaveBeenCalled();
   });
 
-  it('returns a parameter-error string when args are null/undefined', async () => {
+  it('throws a parameter error when args are null/undefined', async () => {
     const { tools, query } = makeTools(DiceRollTools);
-    const result = await tools.handleRequestPlayerRolls(undefined);
-    expect(typeof result).toBe('string');
-    expect(result).toMatch(/Parameter error/i);
+    await expect(tools.handleRequestPlayerRolls(undefined)).rejects.toThrow(/Parameter error/i);
     expect(query).not.toHaveBeenCalled();
   });
 

@@ -114,6 +114,11 @@ def main(argv: list[str] | None = None) -> int:
     show = sub.add_parser("scenes", help="show the scene split, no Claude call")
     show.add_argument("session")
     show.add_argument("--scene-gap", type=float, default=90.0)
+    chk = sub.add_parser(
+        "check",
+        help="write the 'Names and facts to check' pages and read the answers on them (no Claude call)",
+    )
+    chk.add_argument("session")
     ok = sub.add_parser("approve", help="mark the notes approved (audio is kept, D-097)")
     ok.add_argument("session")
     ok.add_argument("--by", default="GM")
@@ -207,6 +212,23 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         print(outcome.message, file=sys.stderr if outcome.code == 1 else sys.stdout)
         return outcome.code
+    if args.cmd == "check":
+        from . import check
+
+        try:
+            rep = check.sync(session)
+        except FileNotFoundError as exc:
+            print(exc, file=sys.stderr)
+            return 1
+        print(
+            f"{rep.entries} name(s) and {rep.facts} fact(s) to check ({rep.flagged} uncertain words "
+            f"before merging); {rep.answered} answered, {rep.new_answers} new answer(s) read; "
+            f"{len(rep.names_added)} name(s) added to names.txt, {rep.rules_added} rule(s) to rules.json."
+        )
+        for line in rep.conflicts:
+            print(f"Conflict (English page used): {line}")
+        print(f"Pages: {check.page_path(session, 'en')} and {check.page_path(session, 'da')}")
+        return 0
     if args.cmd == "scenes":
         lines = load_timeline(session / "timeline" / "timeline.jsonl")
         for scene in split_scenes(lines, gap=args.scene_gap):
@@ -248,19 +270,23 @@ def main(argv: list[str] | None = None) -> int:
     counts = {
         "scenes": result.scenes,
         "fallbacks": result.fallbacks,
-        "pending": result.pending + result.depth_missing,
+        "pending": result.pending + result.depth_missing + result.extras_missing,
     }
     if result.paused:
         why = "" if result.login_needed else "Paused by a usage limit: "
         print(f"{why}{result.paused}\nRun the same command again later.")
         write_status(session, "paused", f"{why}{result.paused}", **counts)
         return EXIT_PAUSED
-    if result.pending or result.depth_missing:
+    if result.pending or result.depth_missing or result.extras_missing:
         parts = []
         if result.pending:
             parts.append(f"{result.pending} scene(s) could not be written and are kept raw for now")
         if result.depth_missing:
             parts.append(f"{result.depth_missing} scene(s) have no in-depth notes yet")
+        if result.extras_missing:
+            parts.append(
+                f"{result.extras_missing} of the character and worth-remembering notes are not written yet"
+            )
         msg = "; ".join(parts) + "."
         print(f"{msg} Run the same command again to try them again.")
         write_status(session, "incomplete", msg, **counts)

@@ -28,6 +28,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { runnerFiles, runnerLivenessLine } from '../../scripts/merge-runner/liveness.mjs';
 
 export const MAX_LINES = 10;
 const SNAPSHOT_MAX_AGE_MS = 30 * 60 * 1000;
@@ -429,6 +430,31 @@ export async function loadSnapshot({ url, file, now = new Date(), fetchImpl = fe
   return { snap: null, source: null };
 }
 
+// The merge runner (D-140): one line when its lock pid is gone, its heartbeat is over 15 minutes old
+// or it last stopped on a red main. Silent on a PC where it never ran (no heartbeat file).
+export function runnerAlert({ runnerHome, nowMs = Date.now() }) {
+  try {
+    const f = runnerFiles(runnerHome);
+    if (!existsSync(f.heartbeat)) return null;
+    const alive = pid => {
+      try {
+        process.kill(pid, 0);
+        return true;
+      } catch (e) {
+        return e?.code === 'EPERM';
+      }
+    };
+    return runnerLivenessLine({
+      lockFile: f.lock,
+      heartbeatFile: f.heartbeat,
+      nowMs,
+      isRunner: alive,
+    });
+  } catch {
+    return null;
+  }
+}
+
 export async function collectAlerts({
   repoRoot,
   vaultDir,
@@ -442,6 +468,7 @@ export async function collectAlerts({
   fetchImpl = fetch,
   mainCi = null,
   projectDir = repoRoot,
+  runnerHome = null,
 }) {
   const lines = [];
   const add = line => {
@@ -452,6 +479,7 @@ export async function collectAlerts({
   add(claudeMdAlert({ repoRoot, vaultDir }));
   add(cloudflareAllowAlert({ repoRoot, projectDir }));
   add(waitingAlert({ vaultDir, now }));
+  if (runnerHome) add(runnerAlert({ runnerHome, nowMs: now.getTime() }));
   add(lockAlert(readLockFile(testEnvRoot), now));
   // Test servers B (kit runs) and C (scripts/test-env/servers.json) have a lock of their own.
   for (const [name, root] of [
@@ -501,6 +529,10 @@ export function optionsFrom(env = process.env) {
     testEnvRootB: testEnvRootBFor(repoRoot, env),
     testEnvRootC: testEnvRootCFor(repoRoot, env),
     mainCi: env.START_ALERTS_MAIN_CI === 'off' ? null : runGh,
+    runnerHome:
+      env.START_ALERTS_RUNNER_HOME === 'off'
+        ? null
+        : env.START_ALERTS_RUNNER_HOME || path.join(os.homedir(), '.foundry-ai-tool'),
     snapshotUrl: url === 'off' ? null : url,
     snapshotFile: env.START_ALERTS_SNAPSHOT_FILE || path.join(dataDir, 'snapshot.json'),
     ccDir:

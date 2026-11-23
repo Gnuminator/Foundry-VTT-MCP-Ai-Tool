@@ -1,6 +1,6 @@
 ---
 source: player/make-a-character.md
-sourceHash: 5cc2da652860
+sourceHash: 317c5436ca8e
 title: Lav din karakter
 description: "Trin for trin: lav en level-3 karakter i Foundry med Actor Studio fra 2024 Player's Handbook (byg på level 1, level up to gange), tjek den og gør den til din egen."
 ---
@@ -17,8 +17,8 @@ Vi bruger **Actor Studio**, en character builder inde i Foundry. Den stiller de 
 2024 Player's Handbook, i samme rækkefølge, og udfylder dit character sheet for dig. Du kan ikke
 ødelægge noget: går det galt, sletter GM'en karakteren, og du starter forfra.
 
-Tjekket på Foundry 14, D&D 5e system 6, Actor Studio 2.10.5 (vores build, 2.10.5-aitool.4; Magic Initiate-trinnet på 2.10.5-aitool.5) og 2024 Player's Handbook-modulet
-2.2.0 (oktober 2026).
+Tjekket på Foundry 14.370, D&D 5e system 6.1.1, Actor Studio 2.10.5 (vores build, 2.10.5-aitool.13) og 2024 Player's Handbook-modulet
+3.0.0 (21. november 2026). Skærmbillederne er fra ældre builds og kan afvige lidt.
 
 ## Før du starter
 
@@ -51,7 +51,7 @@ To små ting, der sparer dig besvær:
 1. I sidebaren til højre klikker du på fanen **Actors** (ikonet med personen).
 2. Øverst i den fane klikker du på knappen **Actor Studio** (dens logo, under **Create Actor**).
 
-![Fanen Actors med Actor Studio logo-knappen under Create Actor](../../images/guides/studio-button.png)
+![Actor Studio logo-knappen under Create Actor](../../images/guides/studio-button.png)
 
 Første gang du logger ind, åbner Foundrys **User Configuration** måske af sig selv. Luk den: Actor
 Studio gør din nye karakter til din, når du klikker Create Character (se
@@ -106,11 +106,11 @@ ikke nu: du vælger den, når du levler op i
 ## 6. Navn og opret
 
 1. **Erstat navnet i Character Name** nederst. Det starter med dit eget spillernavn, og baren
-   viser allerede 100 %, før du har skrevet noget, så det er let at klikke lige igennem.
+   tjekker ikke navnet: den når 100 %, når du har valgt en class, så det er let at klikke lige igennem.
    Glemmer du det, ender din karakter med at hedde det samme som dig.
 2. Klik **Create Character**.
 
-![Bunden af builderen: Character Name viser stadig spillernavnet, og baren viser allerede 100% Complete](../../images/guides/studio-name.png)
+![Bunden af builderen: Character Name viser stadig spillernavnet (skærmbillede fra en ældre build)](../../images/guides/studio-name.png)
 
 Din karakter findes nu (du kan se den i fanen Actors), og builderen går videre til fanen
 **Advancements**. Indtil her kunne du ændre alt frit. Herfra gælder det: har du valgt forkert,
@@ -229,14 +229,17 @@ Dit sheet er åbent og viser level 1. Vores kampagne starter på level 3, så du
    dukker op under class-rækken. Klik på den (åbner den ikke, så klik igen), vælg en og læs dens
    beskrivelse. Baren nederst når 100 %, når du har valgt.
 4. Klik **Add Character Level**. Trinnene kører som i [trin 7](#7-advancements-svar-på-hvert-trin):
-   - **Hit Points:** sæt flueben i **Take Average** (eller rul). Next gør ingenting, før du har valgt.
+   - **Hit Points:** **Take Average** er allerede slået til, så FINAL er gennemsnittet; klik bare
+     Next (eller rul i stedet, hvis du hellere vil).
    - **Valg med en tæller** (for eksempel en wizards level-2 skill **Scholar** til Expertise, eller
      en elfs spellcasting ability på level 3): vælg, før du klikker Next.
    - **Informationstrin** (nye class features, **Max Prepared Spells**, trinnet **Subclass**):
      klik **Next**.
-5. Klik **Complete** på det sidste trin. **På level 3 åbner der så et andet vindue med din
-   subclassens features (for eksempel "Champion • Level 2 -> 3, Step 1 of 1"). Klik Complete i det
-   også.** Lukker du Studio før det, viser dit sheet en bjælke **The level-up is not finished:
+5. Klik **Complete** på det sidste trin. **På level 3 går vinduet så videre med din subclass:
+   først dens features (for eksempel "Life Domain • Level 2 -> 3, Step 1 of 1"), ofte derefter et
+   trin med subclassens spells, og til sidst en Spells-skærm, der siger, at der ikke er spell-ændringer
+   at lave, med en knap **Finalize Spells**. Klik Complete i hvert af dem, og Finalize Spells til sidst.** En
+   rød besked "lacks permission to update Actor" kan blinke til sidst; sheetet er fint. Lukker du Studio før det, viser dit sheet en bjælke **The level-up is not finished:
    (subclass) was not added** med en knap **Add the subclass**. Klik på den og klik Complete i det
    vindue, der åbner.
 6. Gør det to gange: først level 1 til 2 (ingen subclass da, så gå direkte til **Add Character
@@ -260,9 +263,9 @@ Gå dit sheet igennem, før du kalder det færdigt. Spørg GM'en, hvis noget ser
       eller at du valgte en skill, du allerede havde.
 - [ ] Spells: hver cantrip og spell, du valgte, også dem fra en feat som Magic
       Initiate.
-- [ ] Armor class (AC). **Actor Studio lægger din rustning, dit skjold og dine våben på sheetet,
-      men equipper dem ikke**, så AC viser, som om du ikke havde noget på (en cleric med chain shirt
-      og skjold viser 11 i stedet for 16). Åbn fanen **Inventory** og klik på det lille ikon yderst
+- [ ] Armor class (AC). **Actor Studio equipper din rustning og dit skjold, når du trykker
+      Confirm på udstyret, men ikke dine våben.** Viser AC stadig, som om du ikke havde noget på (en
+      cleric med chain shirt og skjold skal vise 16, ikke 11), så åbn fanen **Inventory** og klik på det lille ikon yderst
       til højre i rækken for hvert stykke rustning, dit skjold og dine våben (hold musen over det:
       der står "Not Equipped", og "Equipped" efter du har klikket). AC opdaterer med det samme.
 - [ ] Udstyr og guld ligger i fanen **Inventory**. **Wizards:** startsættet har ingen

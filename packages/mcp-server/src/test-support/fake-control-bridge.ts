@@ -17,6 +17,12 @@ export const FAKE_TOOLS = [
   inputSchema: { type: 'object', properties: {} },
 }));
 
+/** Replaces the served list (a backend restarted on another build); null serves FAKE_TOOLS. */
+export const bridgeState = { tools: null as typeof FAKE_TOOLS | null };
+
+/** Every connection the wrapper has open to a fake bridge, so a test can drop them. */
+export const openSockets = new Set<net.Socket>();
+
 /**
  * `failList` answers `list_tools` with an error and `emptyList` with no tools, to exercise the
  * wrapper's failure path. Like an old backend, it does not know the wrapper's `hello`.
@@ -26,6 +32,8 @@ export function startFakeBridge(
 ): Promise<{ server: net.Server; port: number }> {
   return new Promise(resolve => {
     const server = net.createServer(sock => {
+      openSockets.add(sock);
+      sock.on('close', () => openSockets.delete(sock));
       let buf = '';
       sock.setEncoding('utf8');
       sock.on('error', () => {});
@@ -52,7 +60,7 @@ export function startFakeBridge(
           }
           const result =
             req.method === 'list_tools'
-              ? { tools: opts.emptyList ? [] : FAKE_TOOLS }
+              ? { tools: opts.emptyList ? [] : (bridgeState.tools ?? FAKE_TOOLS) }
               : { content: [{ type: 'text', text: 'fake result' }] };
           sock.write(`${JSON.stringify({ id: req.id, result })}\n`);
         }

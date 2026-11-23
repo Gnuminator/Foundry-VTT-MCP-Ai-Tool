@@ -5,7 +5,7 @@
  *
  * Lists the bridge tool catalog, runs every READ-classified tool (filling
  * required args from discovered live data where possible), and prints a
- * pass/skip/fail table. Invokes NOTHING that mutates the game — the dashboard's
+ * pass/skip/fail table. Invokes NOTHING that mutates the game. The dashboard's
  * own classifier gates writes, and this only calls `mutates === 'read'` tools.
  *
  *   node scripts/live-read-sweep.mjs

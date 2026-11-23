@@ -20,6 +20,8 @@
  *   such key, so nothing is taken.
  */
 
+import { FIXTURE_GM_FUNCTIONS } from './gm-fixture.mjs';
+
 /**
  * The spells of some packs, from the index only (names and numbers, no text).
  * @param {{packIds: string[]}} args
@@ -768,5 +770,5 @@ async function exerciseSpell(args) {
   return { casts, caster, error, restored: differences.length === 0, drift: differences };
 }
 
-/** The functions gm.mjs runs in the page, by GM action. */
-export const SPELL_GM_FUNCTIONS = { listSpells, exerciseSpell };
+/** The functions gm.mjs runs in the page, by GM action (the scene fixture's rides along). */
+export const SPELL_GM_FUNCTIONS = { listSpells, exerciseSpell, ...FIXTURE_GM_FUNCTIONS };

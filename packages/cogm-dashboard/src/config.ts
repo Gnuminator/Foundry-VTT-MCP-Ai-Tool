@@ -65,7 +65,7 @@ export interface Config {
   readonly controlStalenessThresholdMs: number;
   /** Absolute path to the static frontend assets. */
   readonly publicDir: string;
-  /** Absolute path to the React dashboard's build (web/, built by Vite into dist/web), served at /next/. */
+  /** Absolute path to the React dashboard's build (web/, built by Vite into dist/web), served at /, its hashed files under /next/assets/. */
   readonly webDir: string;
   /** Log verbosity. */
   readonly logLevel: 'debug' | 'info' | 'warn' | 'error';

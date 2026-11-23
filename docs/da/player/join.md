@@ -1,6 +1,6 @@
 ---
 source: player/join.md
-sourceHash: 50194c43b54c
+sourceHash: de7ab5c0a962
 title: Kom med i spillet
 description: 'Trin for trin med billeder: spillets webadresse, den ene e-mailkode, login til Foundry, at forlade spillet og Discord.'
 ---
@@ -8,8 +8,9 @@ description: 'Trin for trin med billeder: spillets webadresse, den ene e-mailkod
 # Kom med i spillet
 
 **Telefoner er til at læse på, ikke til at spille på.** Brug en laptop eller en stationær computer
-til at spille. Og **giv Danni din e-mail først**: indtil Danni har lagt den på listen, kommer der
-aldrig en login-kode, og Cloudflare viser ingen fejl.
+til at spille. Og **giv Danni din e-mail først**: Danni giver den videre til den, der kører værktøjet, og som lægger den
+på adgangslisten. Indtil den står på listen, kommer der aldrig en login-kode, og Cloudflare viser
+ingen fejl.
 
 Vi spiller to steder på én gang: **Foundry** i din webbrowser (kortet, dit karakterark, terningerne)
 og **Discord** (voice). Denne side får dig ind begge steder. Gør det én gang før session 0, så et

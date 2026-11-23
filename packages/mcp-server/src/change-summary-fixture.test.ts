@@ -120,7 +120,6 @@ describe('change summary fixture', () => {
       }),
     ];
     const logger = makeLogger();
-    logger.child = (): unknown => logger;
     const history = new ChangeHistory({
       store,
       worldIds: { current: (): Promise<string> => Promise.resolve('w1') },

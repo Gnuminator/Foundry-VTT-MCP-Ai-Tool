@@ -175,6 +175,19 @@ Parameters:
   - `uuid` (string)
   - `quantity` (integer, required): Range: at least 0.
 
+## plan-handout-press
+
+Render text as a handout picture (letter, notice or card) and plan a hidden page for it in Handouts; queue and reveal it with plan-page-reveal. Refuses secret terms. Limits: body letter 1200, notice 700, card 400 characters; title letter 120, notice 60, card 30.
+
+Kind: changes something. Title: Plan a handout picture.
+
+Parameters:
+
+- `template` (string, required): One of: `letter`, `notice`, `card`.
+- `title` (string, required)
+- `body` (string, required): Blank line = new paragraph.
+- `footer` (string): Signature or caption.
+
 ## plan-scene-mood
 
 Plan the viewed scene's mood and music: set darkness/light/weather/playlist, save or apply a named preset ("save" with fromCurrent copies the scene as it is), remove-preset, or music (play, stop or switch a playlist). Apply with apply-planned-change, revert with undo-change (music undo is refused once a sequential or shuffle playlist has moved on to its next track by itself: undo soon after, or stop the music with a new plan). Off until the module switch "Scene mood and music" is on.
@@ -234,7 +247,7 @@ No parameters.
 
 ## get-chat-log
 
-Recent Foundry chat messages from the module's in-memory buffer: dice rolls, ability uses, damage and combat narration. Each has the speaker, type, content and flavor; rolls add formula, total, dice, critical/fumble, advantage/disadvantage and damage total and types. Use this to read the chat and rolls; for a combat recap use get-combat-play-by-play, for game events get-session-log.
+Recent Foundry chat messages from the module's in-memory buffer: dice rolls, ability uses, damage and combat narration. Each has the speaker, type, content and flavor; rolls add formula, total, dice, critical/fumble, advantage/disadvantage and damage total and types. Use this to read the chat and rolls; for a combat recap use get-combat-play-by-play.
 
 Kind: read-only. Title: Get chat log.
 
@@ -321,7 +334,7 @@ Parameters:
 
 ## measure-distance
 
-Measure the distance in the scene's grid units (e.g. feet) between two tokens on the active scene, using the scene's grid configuration.
+Measure the distance in the scene's grid units (e.g. feet) between two tokens on the active scene, using the scene's grid configuration. On a scene with more than one Scene Level (a castle with floors) the distance counts height too and the reply names the level of each token (fromLevel, toLevel) with the horizontal and vertical parts.
 
 Kind: read-only. Title: Measure distance.
 
@@ -340,7 +353,7 @@ No parameters.
 
 ## get-recent-events
 
-Use this during play to poll "what happened since timestamp X"; for the full session history use get-session-log. Returns the events plus `latestTimestamp`, which you pass back as `sinceTimestamp` next time to poll incrementally for only new events.
+Use this during play to poll "what happened since timestamp X". Returns the events plus `latestTimestamp`, which you pass back as `sinceTimestamp` next time to poll incrementally for only new events.
 
 Kind: read-only. Title: Get recent events.
 
@@ -419,6 +432,16 @@ Parameters:
 - `synced` (boolean): Paper only: true = sheets already in Foundry; stops the pre-flight warning.
 - `note` (string): Optional note kept with the marker (up to 200 characters).
 
+## get-read-aloud
+
+GM ONLY. The boxed read-aloud text of the journal pages a scene links (the scene itself and its map notes: pages a link names come first, then the pages of a whole linked entry), ready to read to the table. Read from the world when asked; nothing is stored. Pages without a boxed text are counted, not listed. At most 12 pages are read; linkedPages and readPages show a cut.
+
+Kind: read-only. Title: Get read-aloud text.
+
+Parameters:
+
+- `sceneId` (string): The scene to read (default: the scene on screen).
+
 ## get-party
 
 The dnd5e party (group actors, primary party first): each member's HP, AC, passive Perception (with passive Investigation and Insight when the AI Tool: Who would notice switch is on), conditions, exhaustion, hit dice, tokens on the current scene and whether they are in the encounter; the travel pace and whether a slowed member forces slow pace; the current encounter. Read-only. Not for player chat: it shows more than players see.
@@ -463,6 +486,7 @@ Parameters:
 - `active` (boolean): condition: false removes it. Default: `true`.
 - `level` (integer): condition exhaustion: the level to set.
 - `rounds` (integer): condition: lasts this many rounds, then counts as expired (clear-conditions removes it). Omit for until removed. Not for exhaustion. Range: 1 to 100.
+- `ends` (string): condition with a timer: expire at the start (default) or the end of the target's own turn. "Until the end of its next turn" is ends turn-end (rounds defaults to its next turn: this round if it has not acted yet, else the next). The plan text states it. Apply the plan before the turn order moves on: a plan applied later can end at once. One of: `turn-start`, `turn-end`.
 - `conditions` (array of string): clear-conditions: names to remove (prone...); omit for expired effects only.
 - `resource` (string): resource: "spell3", "pact", a class resource (Ki Points, primary) or an item name.
 - `value` (integer): resource: the new current value (0 to max).

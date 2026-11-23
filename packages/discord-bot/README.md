@@ -1,8 +1,10 @@
 # Discord bot (recorder)
 
 Records a Discord voice channel with one track per speaker, for the session notes pipeline
-(`tools/transcriber`, `tools/session-pipeline`). Later versions add the notices from D-069
-(session-day reminder, `/away`, bridge up or down, GM alerts).
+(`tools/transcriber`, `tools/session-pipeline`). Besides the recorder it answers the player
+lookups (`/recap`, `/npc`, `/handouts`), sends the GM-approved omens as private messages, posts
+a "session is over" link, serves a status port for the dashboard's health line and sends the
+storage and backup notices below.
 
 Status: the recorder passed the rehearsal rig and a 2-hour soak (2026-10-03); a test with real
 people is still to come. Works through Discord's end-to-end voice encryption (DAVE) with
@@ -18,7 +20,16 @@ people is still to come. Works through Discord's end-to-end voice encryption (DA
    DISCORD_GUILD_ID=<your server id, so /record shows up at once>
    # FVTT_SESSIONS_DIR=C:/FoundryData/FoundrySessions (default: FoundrySessions in FVTT_DATA_DIR, else Documents)
    # DISCORD_OWNER_ID=<your Discord user id> (optional: who gets the storage space DMs)
+   # DISCORD_GM_BOT_CHANNEL_ID=<#gm-bot channel id> (optional: recorder alerts go here)
+   # DISCORD_SESSION_POST_CHANNEL_ID=<channel id> (optional: the "session is over" link post; unset = off)
+   # FOUNDRY_AI_PLAYER_PAGE_URL=<player page link> (needed for that post)
+   # FOUNDRY_AI_DASHBOARD_URL=http://127.0.0.1:3100 (default; where the bot reads the session state)
+   # FOUNDRY_AI_BOT_STATUS_PORT=<port> (optional: the status endpoint for the dashboard's health line; unset = off)
+   # DISCORD_OMENS=1 (optional: send the omens the GM approved as private messages; needs FOUNDRY_AI_GM_TOKEN
+   #   when the dashboard has a GM token)
    ```
+
+   Every setting the bot reads is listed in the header of `src/config.ts`.
 
 2. Invite the bot with the scopes `bot` and `applications.commands` and the permissions View
    Channels, Connect, Send Messages and Use Slash Commands.
@@ -35,6 +46,9 @@ people is still to come. Works through Discord's end-to-end voice encryption (DA
   (self-muted) and posts a recording notice.
 - `/record stop`: the bot leaves, converts the recording and replies with a summary.
 - `/record status`: what is being recorded.
+
+Players also get `/recap`, `/npc <name>` and `/handouts`. They answer from what the GM has
+revealed only (`src/lookup.ts`), and only in the configured server.
 
 By default only members with Manage Server see `/record`; change that under Server Settings >
 Integrations. Ctrl+C in the bot window also stops and converts a running recording.
@@ -146,7 +160,9 @@ token is in: the user runs `scripts/pi/set-discord-token.ps1` on the PC, which a
 **Getting the recordings to the PC.** `tools/session-notes/pull.ps1` (step 0 of `auto.ps1` when
 `FVTT_PI_HOST` is set, normally `foundry-pi`) copies every finished session over SSH through
 Tailscale, checks each file's SHA-256, puts it in the PC's sessions folder and marks it pulled on
-the Pi; the Pi deletes pulled sessions after 7 days. A session counts as finished once
+the Pi; the Pi deletes pulled sessions after 7 days. Until G2 the whole chain (pull, consent, names,
+transcribe, notes, publish) is run by hand for one session: `pwsh tools/session-notes/session.ps1
+<session-folder-name>` (test bridge unless `-Real`). A session counts as finished once
 `raw/convert-report.json` exists (the converter writes it last). The pull logs in as the Pi's SSH
 user from the setup (root; any member of the `foundry` group works too). The notes step then stages the notes on the bridge, which runs on the Pi
 too: set `MCP_CONTROL_HOST` to the Pi's Tailscale name for `session-notes publish`.

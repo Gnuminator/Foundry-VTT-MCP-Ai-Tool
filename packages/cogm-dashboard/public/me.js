@@ -4,8 +4,11 @@
 
 import { applyTheme } from './theme.js';
 import { esc, signed, renderPaper2014, renderPaper2024, renderPaperNight } from './me-paper.js';
+import { turnOptions } from './player-me.js';
+import { mountDowntime } from './me-downtime.js';
 
 const KEY = 'cogm_me_key';
+const TURN_CARD = 'cogm_me_turn_card'; // "off" hides the turn card on this device
 const VIEW = 'cogm_me_view';
 const CHAR = 'cogm_me_char';
 const REFRESH_MS = 8000;
@@ -61,8 +64,24 @@ function classLine(s) {
   return [s.species, classes || `Level ${s.level}`].filter(Boolean).join(' · ');
 }
 
+function turnCardHtml(s) {
+  const groups = turnOptions(s);
+  return `<section class="card wide turn-card" id="me-turn-card">
+      <h2>On my turn</h2>
+      ${groups
+        .map(
+          g =>
+            `<h3>${esc(g.label)}</h3><ul>${g.options
+              .map(o => `<li><b>${esc(o.name)}</b><span>${esc(o.note)}</span></li>`)
+              .join('')}</ul>`
+        )
+        .join('')}
+    </section>`;
+}
+
 function renderFancy(s) {
   const hp = s.hp;
+  const showTurnCard = store.get(TURN_CARD) !== 'off';
   const conditions = [
     ...s.conditions.map(c => `<span class="chip warn">${esc(c)}</span>`),
     s.concentration ? `<span class="chip">Concentrating: ${esc(s.concentration)}</span>` : '',
@@ -118,6 +137,7 @@ function renderFancy(s) {
       <div class="chips">${conditions}</div>
       ${down ? `<p>Death saves: ${pips(s.deathSaves.success, 3)} saved, ${pips(s.deathSaves.failure, 3)} failed</p>` : ''}
     </section>
+    ${showTurnCard ? turnCardHtml(s) : ''}
     ${privateRolls}
     ${
       caster
@@ -151,6 +171,7 @@ function renderFancy(s) {
       <h2>Inventory</h2>${rows(s.inventory.map(i => [`${i.name}${i.equipped ? ' (equipped)' : ''}${i.attuned ? ' (attuned)' : ''}`, `×${i.quantity}`]))}
       ${coins ? `<p class="muted">Coins: ${esc(coins)}</p>` : ''}
     </section>
+    <label class="me-prefs no-print"><input type="checkbox" id="me-pref-turn"${showTurnCard ? ' checked' : ''} /> Show the "On my turn" card</label>
   </div>`;
 }
 
@@ -180,6 +201,8 @@ function render() {
   $('me-name').textContent = s.name;
   $('me-sub').textContent = classLine(s);
   document.title = `${s.name}: my character`;
+  // A rebuild (the 8 s refresh, a toggle) must not drop keyboard focus from the card switch.
+  const hadFocus = document.activeElement?.id === 'me-pref-turn';
   main.innerHTML =
     view === 'paper2024'
       ? renderPaper2024(s)
@@ -191,6 +214,7 @@ function render() {
               new Date().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
             )
           : renderFancy(s);
+  if (hadFocus) $('me-pref-turn')?.focus({ preventScroll: true });
 }
 
 /** The outdated-helper notice (Danish, then English): server text goes in as textContent only. */
@@ -388,6 +412,130 @@ document.addEventListener('click', e => {
     render();
   }
 });
+document.addEventListener('change', e => {
+  if (e.target && e.target.id === 'me-pref-turn') {
+    store.set(TURN_CARD, e.target.checked ? 'on' : 'off');
+    render();
+  }
+});
+// "My diary" (I-183): the player's own entries, kept on the table's server behind their key.
+let diaryEntries = [];
+let diaryEditing = null; // the id of the entry in the form, or null for a new one
+let diaryLoaded = false;
+
+function diaryStatus(text) {
+  $('md-status').textContent = text || '';
+}
+
+function diaryCharName() {
+  const sheets = (data && data.sheets) || [];
+  const s = sheets.find(x => x.id === charId) || sheets[0];
+  return s && s.name ? String(s.name) : '';
+}
+
+function renderDiary() {
+  $('md-list').innerHTML = diaryEntries
+    .map(
+      e => `<li data-id="${esc(e.id)}">
+        <div class="md-meta">${esc(e.character || 'My character')}, ${esc(new Date(e.updatedAt).toLocaleDateString())}</div>
+        <p class="md-text">${esc(e.text)}</p>
+        <button type="button" data-diary-edit="${esc(e.id)}">Edit</button>
+        <button type="button" data-diary-del="${esc(e.id)}">Delete</button>
+      </li>`
+    )
+    .join('');
+}
+
+async function diaryCall(method, path, body) {
+  const res = await fetch(path, {
+    method,
+    headers: { 'X-CoGM-Me': key, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+  const out = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(out.error || 'Could not reach your diary. Try again.');
+    err.status = res.status;
+    throw err;
+  }
+  return out;
+}
+
+async function loadDiary() {
+  if (!key || diaryLoaded) return;
+  try {
+    const out = await diaryCall('GET', '/api/me/diary');
+    diaryEntries = out.entries || [];
+    diaryLoaded = true;
+    $('me-diary').hidden = false;
+    $('md-memory').hidden = out.persistent !== false;
+    diaryStatus('');
+    renderDiary();
+  } catch (err) {
+    // No diary here (an older server, or no link): the section stays hidden. Any other failure
+    // shows it with the reason; opening it again retries.
+    const status = err && err.status;
+    if (status === 501 || status === 401 || status === 404) return;
+    $('me-diary').hidden = false;
+    diaryStatus(status ? err.message : 'Could not reach your diary. Open it again to retry.');
+  }
+}
+
+function diaryReset() {
+  diaryEditing = null;
+  $('md-text').value = '';
+  $('md-cancel').hidden = true;
+  $('md-save').textContent = 'Save entry';
+}
+
+$('md-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  diaryStatus('Saving…');
+  try {
+    await diaryCall('POST', '/api/me/diary', {
+      ...(diaryEditing ? { id: diaryEditing } : {}),
+      character: $('md-char').value || diaryCharName(),
+      text: $('md-text').value,
+    });
+    diaryReset();
+    diaryLoaded = false;
+    await loadDiary();
+    diaryStatus('Saved.');
+  } catch (err) {
+    diaryStatus(err.message);
+  }
+});
+$('md-cancel').addEventListener('click', () => {
+  diaryReset();
+  diaryStatus('');
+});
+$('md-list').addEventListener('click', async e => {
+  const edit = e.target.closest('[data-diary-edit]');
+  if (edit) {
+    const entry = diaryEntries.find(x => x.id === edit.dataset.diaryEdit);
+    if (!entry) return;
+    diaryEditing = entry.id;
+    $('md-char').value = entry.character;
+    $('md-text').value = entry.text;
+    $('md-cancel').hidden = false;
+    $('md-save').textContent = 'Update entry';
+    $('md-text').focus();
+    return;
+  }
+  const del = e.target.closest('[data-diary-del]');
+  if (del && window.confirm('Delete this diary entry?')) {
+    try {
+      await diaryCall('DELETE', `/api/me/diary/${encodeURIComponent(del.dataset.diaryDel)}`);
+      if (diaryEditing === del.dataset.diaryDel) diaryReset();
+      diaryLoaded = false;
+      await loadDiary();
+      diaryStatus('Deleted.');
+    } catch (err) {
+      diaryStatus(err.message);
+    }
+  }
+});
+
 $('me-print').addEventListener('click', () => window.print());
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) {
@@ -401,3 +549,8 @@ setInterval(() => {
 render();
 void load();
 void loadConnector();
+void loadDiary();
+$('me-diary').addEventListener('toggle', () => {
+  if ($('me-diary').open && !diaryLoaded) void loadDiary();
+});
+mountDowntime($('me-downtime'), key);

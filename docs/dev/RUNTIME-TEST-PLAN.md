@@ -29,7 +29,10 @@ each time the bridge/module/dashboard changes.
   its redo. The party, Tarokka, handout and Obsidian mirror features run with their switches turned
   on and put back; the Tarokka steps import, link and reveal a fresh reading and check that the
   reading from before is back after the undos (a failed step's leftovers are undone by the
-  clean-up, which then compares the reading, its archive and reveal journal). Recorded skips:
+  clean-up, which then compares the reading, its archive and reveal journal). The NPC turn, scene
+  mood, paper sync, room setup, macro forge and Foundry setup switches go on the same way
+  (`--server B` runs the sweep on a free test server; the browser needs one click in the Foundry
+  window first, or the music step refuses). Recorded skips:
   the three `request-*` tools without a logged-in Player; the Obsidian mirror step when the mirror
   is on; the sweep never raises the mirror's `enabled` flag, so no note is written. New write tools get a step in the sweep (or a skip with its reason) in the same PR.
   `npm run live:roundtrip` covers one guarded write and its undo.

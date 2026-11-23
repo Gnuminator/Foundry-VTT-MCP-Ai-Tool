@@ -148,6 +148,7 @@ test('the filter always covers the workflow, the lockfile and its own inputs', (
     'deploy/pi/compose.yml',
     'scripts/gamenight-watch-pi.mjs',
     'scripts/gamenight-watch.mjs',
+    'scripts/who-uses-what.mjs', // the stage 35 job test runs it
     'scripts/checks.mjs', // holds PI_CONTAINER_MATRIX, the matrix of the shards
   ]) {
     assert.ok(matches(rel), `the pi-changes filter misses ${rel}`);

@@ -10,7 +10,133 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { runDriftCheck, pickRemote, entryDecision } from './drift-check.mjs';
+import {
+  runDriftCheck,
+  pickRemote,
+  entryDecision,
+  isWorkerStartFailure,
+  isVitestTimeout,
+  runChecks,
+} from './drift-check.mjs';
+
+/** runChecks on one stub guard that counts its runs in `n`; mode: 'worker-once', 'worker-always', 'real'. */
+function stubGuard(mode) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'drift-stub-'));
+  fs.writeFileSync(
+    path.join(dir, 's.mjs'),
+    `import fs from 'node:fs';
+const n = (fs.existsSync('n') ? Number(fs.readFileSync('n', 'utf8')) : 0) + 1;
+fs.writeFileSync('n', String(n));
+const mode = process.argv[2];
+if (mode === 'worker-once' && n === 1) { console.error('Error: [vitest-pool]: Failed to start forks worker'); process.exit(1); }
+if (mode === 'worker-always') { console.error('Error: [vitest-pool]: Timeout starting forks runner.'); process.exit(1); }
+if (mode === 'timeout-once' && n === 1) { console.error('Error: Test timed out in 5000ms.'); process.exit(1); }
+if (mode === 'timeout-always') { console.error('Error: Test timed out in 5000ms.'); process.exit(1); }
+if (mode === 'timeout-real') { console.error('Error: Test timed out in 5000ms.\\nAssertionError: expected 1 to be 2'); process.exit(1); }
+if (mode === 'real') { console.error('AssertionError: expected 1 to be 2'); process.exit(1); }
+`
+  );
+  const lines = [];
+  const code = runChecks(
+    dir,
+    [{ name: 'guard', command: `node s.mjs ${mode}` }],
+    l => lines.push(l),
+    'main',
+    'abc',
+    false
+  );
+  return { code, lines, runs: Number(fs.readFileSync(path.join(dir, 'n'), 'utf8')) };
+}
+
+test('runChecks: a worker that did not start is retried once, a pass on the retry is ok', () => {
+  const r = stubGuard('worker-once');
+  assert.equal(r.runs, 2);
+  assert.equal(r.code, 0);
+  assert.ok(r.lines.some(l => /retry guard/.test(l)));
+  assert.ok(!r.lines.some(l => /INFRA/.test(l)));
+});
+
+test('runChecks: a worker that never starts logs INFRA after exactly one retry', () => {
+  const r = stubGuard('worker-always');
+  assert.equal(r.runs, 2);
+  assert.equal(r.code, 1);
+  assert.ok(r.lines.some(l => /^ {2}INFRA guard: vitest could not start a worker/.test(l)));
+});
+
+test('runChecks: a timed-out guard is retried once; a pass on the retry is ok', () => {
+  const r = stubGuard('timeout-once');
+  assert.equal(r.runs, 2);
+  assert.equal(r.code, 0);
+  assert.ok(!r.lines.some(l => /INFRA/.test(l)));
+});
+
+test('runChecks: a guard that times out twice logs INFRA after exactly one retry', () => {
+  const r = stubGuard('timeout-always');
+  assert.equal(r.runs, 2);
+  assert.equal(r.code, 1);
+  assert.ok(r.lines.some(l => /^ {2}INFRA guard: vitest tests timed out/.test(l)));
+});
+
+test('runChecks: a timeout beside a failed assertion is a real failure, not retried', () => {
+  const r = stubGuard('timeout-real');
+  assert.equal(r.runs, 1);
+  assert.ok(!r.lines.some(l => /INFRA|retry/.test(l)));
+});
+
+test('runChecks: a real failure is not retried and not marked INFRA', () => {
+  const r = stubGuard('real');
+  assert.equal(r.runs, 1);
+  assert.equal(r.code, 1);
+  assert.ok(!r.lines.some(l => /INFRA|retry/.test(l)));
+});
+
+test('isVitestTimeout: test and hook timeouts only; any other failure beside them is real', () => {
+  assert.equal(isVitestTimeout('Error: Test timed out in 5000ms.'), true);
+  assert.equal(isVitestTimeout('Error: Hook timed out in 10000ms.'), true);
+  assert.equal(
+    isVitestTimeout('Error: Test timed out in 5000ms.\n Tests  1 failed | 3 passed'),
+    true
+  );
+  assert.equal(
+    isVitestTimeout('Error: Test timed out in 5000ms.\n Tests  2 failed | 3 passed'),
+    false
+  );
+  assert.equal(
+    isVitestTimeout('Error: Test timed out in 5000ms.\nTypeError: x is not a function'),
+    false
+  );
+  assert.equal(
+    isVitestTimeout('Error: Test timed out in 5000ms.\nError: Snapshot mismatched'),
+    false
+  );
+  assert.equal(isVitestTimeout('AssertionError: expected 1 to be 2'), false);
+});
+
+test('isWorkerStartFailure: every pattern, and a failing test is not one', () => {
+  for (const t of [
+    'Failed to start threads worker',
+    'Failed to start vmForks worker',
+    'Timeout waiting for worker to respond',
+    'Timeout starting vmThreads runner',
+    '[vitest-pool]: Failed',
+  ]) {
+    assert.equal(isWorkerStartFailure(t), true, t);
+  }
+});
+
+test('isWorkerStartFailure: a vitest worker that did not start, not a failing test', () => {
+  assert.equal(
+    isWorkerStartFailure(
+      'Error: [vitest-pool]: Failed to start forks worker for test files a.test.ts.'
+    ),
+    true
+  );
+  assert.equal(isWorkerStartFailure('Error: [vitest-pool]: Timeout starting forks runner.'), true);
+  assert.equal(
+    isWorkerStartFailure(' FAIL  src/a.test.ts > x\nAssertionError: expected 1 to be 2'),
+    false
+  );
+});
 import { entryDecision as checksEntryDecision } from './checks.mjs';
 
 test('entryDecision (drift-check.mjs and checks.mjs): run, mismatch for a same-named file, import', () => {
@@ -373,6 +499,9 @@ test('main left shared/ alone: the worktree still gets its own shared build (gen
   try {
     commit(other, 'main.txt', 'from another lane\n', 'other lane merged');
     git(other, 'push', '-q', 'origin', 'HEAD:main');
+    // The lane's own dist differs from src, so the guard passes only through the worktree's own build
+    // (it would read "stale" through the lane's dist and exit 3).
+    fs.writeFileSync(path.join(lane, 'shared', 'dist', 'api.txt'), 'stale\n');
     const { code, out } = runWith(lane, {
       checks: [readsSharedDist('v1')],
       sharedBuild: buildShared,
@@ -408,7 +537,10 @@ test('shared/dist missing: the lane checkout builds shared before the guards run
     commit(other, 'main.txt', 'from another lane\n', 'other lane merged');
     git(other, 'push', '-q', 'origin', 'HEAD:main');
     fs.rmSync(path.join(lane, 'shared', 'dist'), { recursive: true });
-    const { code, out } = runWith(lane, { checks: [readsSharedDist('v1')], sharedBuild: buildShared });
+    const { code, out } = runWith(lane, {
+      checks: [readsSharedDist('v1')],
+      sharedBuild: buildShared,
+    });
     assert.equal(code, 0, out);
     assert.match(out, /shared\/dist is missing; building shared/);
   } finally {
@@ -475,7 +607,10 @@ test('shared/dist older than shared/src: rebuilt; a failing build stops with its
     assert.match(failing.out, /shared\/dist is older than shared\/src; building shared/);
     assert.match(failing.out, /building it failed:\r?\ntsc exploded/);
     assert.doesNotMatch(failing.out, /never/);
-    const { code, out } = runWith(lane, { checks: [readsSharedDist('v1')], sharedBuild: buildShared });
+    const { code, out } = runWith(lane, {
+      checks: [readsSharedDist('v1')],
+      sharedBuild: buildShared,
+    });
     assert.equal(code, 0, out);
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });

@@ -22,6 +22,7 @@ import {
   labelOf,
   undoBlocker,
 } from './change-history.js';
+import { isBatchRider } from './guarded-write/rider-undo.js';
 import { localDateKey } from './event-pump.js';
 import type { RecentChange } from './guarded-write/service.js';
 import type { UndoState } from './guarded-write/undo-state.js';
@@ -561,6 +562,60 @@ describe('buildActions', () => {
     // Nor is a delete another user made, even when the data names it.
     const otherUser = { ...dependent, userId: 'u2', userName: 'Someone' };
     expect(buildActions([ai, otherUser])[0].followUps).toEqual([]);
+  });
+
+  it("files the status effect dnd5e creates with an AI hit (Prone at 0 HP) as that change's follow-up", () => {
+    const ai = rec({
+      actionId: 'bridge',
+      changeId: 'chg-x',
+      changeMode: 'apply',
+      op: 'update',
+      documentName: 'Actor',
+      uuid: 'Actor.a1',
+      parentUuid: null,
+      rootUuid: 'Actor.a1',
+      name: 'Kit Cleric',
+      rootName: 'Kit Cleric',
+      before: [val('system.attributes.hp.value', 20)],
+      after: [val('system.attributes.hp.value', 0)],
+    });
+    const prone = rec({
+      actionId: 'bridge',
+      t: ai.t + 400,
+      op: 'create',
+      documentName: 'ActiveEffect',
+      uuid: 'Actor.a1.ActiveEffect.dnd5eprone000000',
+      parentUuid: 'Actor.a1',
+      rootUuid: 'Actor.a1',
+      rootName: 'Kit Cleric',
+      name: 'Prone',
+    });
+    expect(isBatchRider(prone)).toBe(true);
+    expect(buildActions([ai, prone])[0]).toMatchObject({ changeId: 'chg-x', followUps: [prone] });
+    // A person's own effect (random id) and a rider on another actor stay out of the follow-ups.
+    const ordinary = { ...prone, uuid: 'Actor.a1.ActiveEffect.AbC123xYz456qwer' };
+    expect(isBatchRider(ordinary)).toBe(false);
+    expect(buildActions([ai, ordinary])[0].followUps).toEqual([]);
+    const elsewhere = {
+      ...prone,
+      uuid: 'Actor.a2.ActiveEffect.dnd5eprone000000',
+      rootUuid: 'Actor.a2',
+    };
+    expect(buildActions([ai, elsewhere])[0].followUps).toEqual([]);
+    // A Prone the GM sets a moment after an AI hit that left the hero standing is not the change's.
+    const notDown = { ...ai, after: [val('system.attributes.hp.value', 7)] };
+    expect(buildActions([notDown, prone])[0].followUps).toEqual([]);
+    // A second change that only leaves the hero at 0 HP did not add Prone, so it does not take
+    // the first change's Prone when that one arrives after the second change began.
+    const second = {
+      ...ai,
+      changeId: 'chg-y',
+      t: ai.t + 100,
+      before: [val('system.attributes.hp.value', 0)],
+    };
+    const [first, again] = buildActions([ai, second, { ...prone, t: ai.t + 400 }]);
+    expect(first).toMatchObject({ changeId: 'chg-x', followUps: [prone] });
+    expect(again).toMatchObject({ changeId: 'chg-y', followUps: [] });
   });
 
   it("does not swallow a person's own concentration end into an AI item delete across browsers, and files a re-deleted dependent under the latest change", () => {
@@ -1751,12 +1806,16 @@ describe('ChangeHistory.list', () => {
   });
 
   it('links the history to a pump that is made later, and stands in while there is none', async () => {
-    let pump: Pick<ChangeJournalPump, 'pullNow' | 'historyStart'> | null = null;
+    let pump: Pick<ChangeJournalPump, 'pullNow' | 'historyStart' | 'cutActions'> | null = null;
     const links = journalLinks(() => pump);
     await expect(links.pullNow()).resolves.toBeUndefined();
     expect(await links.journalStart('w1')).toBe(0);
     const pulled = vi.fn(() => Promise.resolve());
-    pump = { pullNow: pulled, historyStart: (): Promise<number> => Promise.resolve(123) };
+    pump = {
+      pullNow: pulled,
+      historyStart: (): Promise<number> => Promise.resolve(123),
+      cutActions: (): Promise<Set<string>> => Promise.resolve(new Set<string>()),
+    };
     await links.pullNow();
     expect(pulled).toHaveBeenCalledOnce();
     expect(await links.journalStart('w1')).toBe(123);
@@ -2004,7 +2063,6 @@ describe('ChangeHistory.list undo state', () => {
     const dataDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'change-history-'));
     const store = new VaultStore({ dataDir });
     const logger = makeLogger();
-    logger.child = (): unknown => logger;
     try {
       await store.appendLines('w1', 'gm', changeJournalFileName(localDateKey(NOW - MIN)), [
         hpChange(10, 5, { actionId: 'a', t: NOW - 3 * MIN }),

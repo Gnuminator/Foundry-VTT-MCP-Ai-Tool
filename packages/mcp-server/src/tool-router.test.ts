@@ -124,7 +124,7 @@ function makeDeps(): ToolRouterDeps {
 function tool(deps: ToolRouterDeps, id: string): any {
   const module = TOOL_MODULES.find(m => m.id === id);
   if (!module) throw new Error(`no tool module ${id}`);
-  return deps.get(module);
+  return deps.get(module as unknown as ToolModule<never>);
 }
 
 describe('buildToolRouter', () => {
@@ -164,16 +164,6 @@ describe('buildToolRouter', () => {
     expect(tool(deps, 'scene').switchScene).toHaveBeenCalledWith(args);
   });
 
-  it('answers a removed tool name through the tool that took over', async () => {
-    const deps = makeDeps();
-    const router = buildToolRouter(deps);
-    await router['get-compendium-entry-full']({ packId: 'p', entryId: 'e' });
-    expect(tool(deps, 'compendium').handleGetCompendiumItem).toHaveBeenCalledWith({
-      packId: 'p',
-      itemId: 'e',
-    });
-  });
-
   it('renames old parameter names before the handler sees them', async () => {
     const deps = makeDeps();
     const router = buildToolRouter(deps);
@@ -183,6 +173,32 @@ describe('buildToolRouter', () => {
 
     await router['list-scenes']({ include_active_only: true });
     expect(tool(deps, 'scene').listScenes).toHaveBeenCalledWith({ activeOnly: true });
+  });
+
+  it('answers a renamed tool by the one it became, with its parameters renamed (fixture entry)', async () => {
+    const deps = makeDeps();
+    const router = buildToolRouter(deps, {
+      'old-switch-scene': {
+        to: 'switch-scene',
+        params: { sceneName: 'scene' },
+        until: '99.0',
+      },
+      // A target that does not exist adds no route, and a name already routed is not shadowed.
+      'old-nothing': { to: 'no-such-tool', params: {}, until: '99.0' },
+      'list-scenes': { to: 'switch-scene', params: {}, until: '99.0' },
+    });
+
+    await router['old-switch-scene']({ sceneName: 'Inn', other: 1 });
+    expect(tool(deps, 'scene').switchScene).toHaveBeenCalledWith({ scene: 'Inn', other: 1 });
+    expect(router['old-nothing']).toBeUndefined();
+
+    await router['list-scenes']({});
+    expect(tool(deps, 'scene').listScenes).toHaveBeenCalled();
+    expect(tool(deps, 'scene').switchScene).toHaveBeenCalledTimes(1);
+
+    // The new name wins when both are sent.
+    await router['old-switch-scene']({ sceneName: 'Old', scene: 'New' });
+    expect(tool(deps, 'scene').switchScene).toHaveBeenLastCalledWith({ scene: 'New' });
   });
 
   it('passes who asked to the writes that record a name, and nothing without a context', async () => {

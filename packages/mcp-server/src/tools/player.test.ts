@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import { buildToolRouter, collectToolDefinitions } from '../tool-router.js';
-import { stubToolRouterDeps } from '../test-support/stub-tool-deps.js';
+import { makeLogger, stubToolRouterDeps } from '../test-support/stub-tool-deps.js';
 import {
   PLAYER_TOOL_SET,
   TOOL_SETS,
@@ -34,8 +34,7 @@ import {
   readExtraDenyTerms,
 } from './player.js';
 
-const logger: any = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
-logger.child = (): unknown => logger;
+const logger = makeLogger();
 
 function make(
   reply: unknown,
@@ -61,6 +60,16 @@ function make(
   });
   return { tools, query };
 }
+
+describe('the guide tool tells a chat to open it first', () => {
+  it('says call this first, with no arguments, and follow it', () => {
+    const def = make({})
+      .tools.getToolDefinitions()
+      .find(d => d.name === 'get-player-skill-guide');
+    expect(def?.description).toContain('Call this first, with no arguments, and follow it');
+    expect(def?.description).toContain('A skill that names a stubRevision passes it instead');
+  });
+});
 
 describe('the player set is never served on stdio and has no call_tool route', () => {
   const deps = stubToolRouterDeps();

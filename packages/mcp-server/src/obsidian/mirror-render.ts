@@ -1437,6 +1437,7 @@ export function renderMirrorStatusNote(worldId: string, status: MirrorStatus): R
   const skipped = byPath(status.skipped);
   const moved = byPath(status.movedByGm);
   const duplicates = byPath(status.duplicates);
+  const syncConflicts = [...status.syncConflicts].sort();
   const kept = byPath(status.keptDeleted);
   const errors = byPath(status.errors);
   const truncated = [...status.truncated].sort((a, b) => cmp(a.kind, b.kind));
@@ -1479,6 +1480,12 @@ export function renderMirrorStatusNote(worldId: string, status: MirrorStatus): R
       '## Duplicates (a document with more than one note)',
       '',
       ...listOrNone(duplicates.map(d => `- ${codeSpan(d.path)} (${codeSpan(d.uuid)})`)),
+      '',
+      '## Sync conflict copies (safe to delete)',
+      '',
+      'Syncthing made these when a note changed on two PCs at once. The mirror ignores them; delete them once you have checked the note they belong to.',
+      '',
+      ...listOrNone(syncConflicts.map(p => `- ${codeSpan(p)}`)),
       '',
       '## Deleted in Foundry, kept because you edited the note',
       '',

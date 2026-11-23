@@ -8,6 +8,7 @@
  */
 import { actorCreationModule } from './modules/actor-creation.js';
 import { actorImageModule } from './modules/actor-image.js';
+import { handoutPressModule } from './modules/handout-press.js';
 import { campaignManagementModule } from './modules/campaign-management.js';
 import { changeHistoryModule } from './modules/change-history.js';
 import { characterModule } from './modules/character.js';
@@ -30,6 +31,7 @@ import { livePlayModule } from './modules/live-play.js';
 import { movementModule } from './modules/movement.js';
 import { npcTurnModule } from './modules/npc-turn.js';
 import { obsidianMirrorModule } from './modules/obsidian-mirror.js';
+import { omensModule } from './modules/omens.js';
 import { ownershipModule } from './modules/ownership.js';
 import { paperSyncModule } from './modules/paper-sync.js';
 import { partyModule } from './modules/party.js';
@@ -40,6 +42,7 @@ import { playerViewModule } from './modules/player-view.js';
 import { playerModule } from './modules/player.js';
 import { preflightModule } from './modules/preflight.js';
 import { prepDigestModule } from './modules/prep-digest.js';
+import { readAloudModule } from './modules/read-aloud.js';
 import { questCreationModule } from './modules/quest-creation.js';
 import { refChoicesModule } from './modules/ref-choices.js';
 import { renownModule } from './modules/renown.js';
@@ -53,6 +56,7 @@ import { sceneModule } from './modules/scene.js';
 import { sessionLogModule } from './modules/session-log.js';
 import { skillGuideModule } from './modules/skill-guide.js';
 import { tableViewerModule } from './modules/table-viewer.js';
+import { macroForgeModule } from './modules/macro-forge.js';
 import { tarokkaModule } from './modules/tarokka.js';
 import { tokenManipulationModule } from './modules/token-manipulation.js';
 import { tokenRingsModule } from './modules/token-rings.js';
@@ -84,9 +88,11 @@ export const TOOL_MODULES: readonly AnyToolModule[] = [
   pcCreationModule,
   tokenRingsModule,
   actorImageModule,
+  handoutPressModule,
   sceneMoodModule,
   rulesCheckModule,
   tableViewerModule,
+  macroForgeModule,
   foundrySetupModule,
   tokenManipulationModule,
   chatLogModule,
@@ -104,11 +110,13 @@ export const TOOL_MODULES: readonly AnyToolModule[] = [
   changeHistoryModule,
   tarokkaModule,
   playSessionModule,
+  omensModule,
   playStatsModule,
   obsidianMirrorModule,
   playerViewModule,
   preflightModule,
   prepDigestModule,
+  readAloudModule,
   partyModule,
   livePlayModule,
   sceneChangeModule,

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 /**
  * The one writer of the vault Backlog for sessions (item `backlog-tool`). Lanes never edit
  * Backlog.md by hand: `.claude/hooks/guard-backlog.mjs` refuses it from a worktree.
@@ -16,11 +17,14 @@
  *                                         or enqueued line is replaced; a ready line for a PR also
  *                                         keeps the item's other PRs' lines (one line per PR)
  *   node scripts/backlog.mjs release <id>                  removes the claimed and link lines
- *   node scripts/backlog.mjs done <id> <PR> [--sha <sha>] [--summary <text>] [--by <who>]
- *                                         [--pi-run <text>]
+ *   node scripts/backlog.mjs set <id> "<field>" "<value>"  replaces one planning field (title, link, board, gate, area,
+ *                                         "blocked by", "depends on", touches, source, "done when"); "" removes it
+ *   node scripts/backlog.mjs done <id> <PR> [--sha <sha>] [--summary <text>] [--by <who>] [--pi-run <text>]
  *   node scripts/backlog.mjs add --id <slug> --size S|M|L --title <t> --board <area>
  *        --done-when <t> [--area --gate --blocked-by --touches --depends-on --source <t>]
  *        [--pi] [--private] [--after <id> | --chapter <heading text>]   or   add --file <block.md>
+ *   node scripts/backlog.mjs waiting <key> --title <t> --text <t> [--due YYYY-MM-DD]
+ *                                         adds a Waiting.md item above Someday (once per key)
  *   node scripts/backlog.mjs low <area> <text>             appends to Lows/<area>.md
  *
  * Common flags: --vault <dir> (default env FOUNDRY_AI_OBSIDIAN_DIR, else ~/Documents/Obsidian/vault),
@@ -49,9 +53,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { waitingEdit } from './backlog-waiting.mjs';
 import { pidAlive, sleepSync } from './heavy-lock.mjs';
 import { ghJson, plannerSections, REPO } from './planner-state.mjs';
 import {
+  boardAreas,
+  checkBoardArea,
   checkEdit,
   findItem,
   isMerged,
@@ -73,6 +80,8 @@ export const BACKLOG = `${DIR}/Backlog.md`;
 export const DONE = `${DIR}/Backlog done.md`;
 export const PI_LIST = `${DIR}/Pi sitting list.md`;
 export const LOWS = `${DIR}/Lows`;
+export const WAITING = `${DIR}/Waiting.md`;
+export const BOARD = `${DIR}/Board.md`;
 export const RETRIES = 5;
 const TRIAGE = /^Captured on the board/i;
 
@@ -176,6 +185,64 @@ export function releaseEdit(text, o) {
   return { text: out, notes: [] };
 }
 
+const LINK_RE = /^claude:\/\/claude\.ai\/epitaxy\/local_[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/;
+
+/**
+ * Fields `set` may change: planning data and the heading title, plus the link of a claimed item
+ * (to repair a wrong one); never the claim, the progress or the id.
+ */
+export const SETTABLE = [
+  'title',
+  'link',
+  'board',
+  'gate',
+  'area',
+  'blocked by',
+  'depends on',
+  'touches',
+  'source',
+  'done when',
+];
+
+/**
+ * Replace (or, with an empty value, remove) one planning field of an item. `areas` (the Board.md
+ * areas) checks a `board` value.
+ * @param {string} text @param {{ id: string, name: string, value: string, areas?: string[] }} o
+ */
+export function setFieldEdit(text, o) {
+  const name = o.name.toLowerCase().trim();
+  if (!SETTABLE.includes(name)) {
+    throw new Error(`set changes only: ${SETTABLE.join(', ')} (not "${o.name}")`);
+  }
+  const value = oneLine(o.value);
+  if (name === 'board') checkBoardArea(value, o.areas);
+  if (!value && (name === 'board' || name === 'title'))
+    throw new Error(`an item keeps its ${name} (give a value)`);
+  const p = parseBacklog(text);
+  const item = findItem(p, o.id);
+  if (name === 'title') {
+    const lines = [...p.lines];
+    lines[item.start] = `## ${item.size} ${value}`;
+    const out = lines.join(p.nl);
+    checkEdit(text, out, { id: o.id, items: 0, lines: 0 });
+    return { text: out, notes: [] };
+  }
+  if (name === 'link') {
+    if (!field(item, 'claimed')) throw new Error(`${o.id} is not claimed; claim it with --link`);
+    if (value && !LINK_RE.test(value))
+      throw new Error(
+        `link must look like claude://claude.ai/epitaxy/local_<uuid> (got "${value}")`
+      );
+  }
+  const { body, tail } = trimBlock(item);
+  const next = setField(body, name, value ? [`- ${name}: ${value}`] : [], [
+    name === 'link' ? 'claimed' : 'board',
+  ]);
+  const out = splice(p, item.start, item.end, [...next, ...tail]);
+  checkEdit(text, out, { id: o.id, items: 0, lines: next.length - body.length });
+  return { text: out, notes: [] };
+}
+
 /**
  * Remove the item from Backlog.md and add its line at the top of the Backlog done list.
  * @param {string} text @param {string} doneText
@@ -186,7 +253,8 @@ export function doneEdit(text, doneText, o) {
   const item = findItem(p, o.id);
   const pr = /^#?(\d+)$/.exec(o.pr.trim())?.[1];
   if (!pr) throw new Usage(`the PR must be a number, got "${o.pr}"`);
-  const board = field(item, 'board') || field(item, 'area') || 'unsorted';
+  // the board line only: `area:` is free text and can name an area Board.md does not know
+  const board = field(item, 'board') || 'Unsorted';
   let line = `- ${o.date} ${o.id}: PR #${pr} merged`;
   if (o.sha) line += ` at ${oneLine(o.sha).slice(0, 7)}`;
   if (o.summary) line += `; ${oneLine(o.summary)}`;
@@ -283,7 +351,7 @@ const overlaps = (/** @type {string} */ a, /** @type {string} */ b) =>
 
 /**
  * @param {string} text @param {string} doneText
- * @param {{ block: string[], date: string, after?: string, chapter?: string }} o
+ * @param {{ block: string[], date: string, after?: string, chapter?: string, areas?: string[] }} o
  */
 export function addEdit(text, doneText, o) {
   const p = parseBacklog(text);
@@ -305,6 +373,7 @@ export function addEdit(text, doneText, o) {
   const idRe = new RegExp(`^- \\d{4}-\\d{2}-\\d{2} ${item.id}:`, 'm');
   if (idRe.test(doneText))
     throw new Error(`id ${item.id} was used before (Backlog done.md); ids are never reused`);
+  checkBoardArea(field(item, 'board'), o.areas);
   const notes = [];
   const source = field(item, 'source');
   const touches = touchPaths(field(item, 'touches'));
@@ -549,7 +618,7 @@ export function writeWithRetry(o) {
  * Bring the vault up to its upstream without touching other sessions' uncommitted files: a
  * fast-forward when there is nothing local, a plain rebase only when the vault already has unpushed
  * commits and no tracked file is dirty (a rebase would have to stash it), else it refuses.
- * @param {(args: string[], what: string) => { stdout: string }} must @param {(s: string) => void} log
+ * @param {(args: string[], what: string) => { stdout: string }} must @param {(s: string) => void} log @param {string} marker
  */
 function syncVault(must, log, marker) {
   must(['fetch', '-q'], 'git fetch');
@@ -578,7 +647,7 @@ function syncVault(must, log, marker) {
 
 /**
  * @param {Parameters<typeof writeWithRetry>[0]} o
- * @param {(args: string[], what: string) => { stdout: string }} must
+ * @param {(args: string[], what: string) => { stdout: string }} must @param {string} marker
  */
 function writeLocked(o, must, marker) {
   const log = o.log ?? (s => console.error(s));
@@ -676,6 +745,7 @@ export function run(argv, env = {}) {
       const f = path.join(vault, rel);
       return fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : '';
     };
+    const areas = () => boardAreas(readNow(BOARD));
     if (!fs.existsSync(path.join(vault, BACKLOG))) throw new Error(`no ${BACKLOG} under ${vault}`);
     const id = pos[0] ?? '';
     const needId = () => {
@@ -739,13 +809,13 @@ export function run(argv, env = {}) {
             )
           : pos.slice(1).join(' ');
         if (!text) throw new Usage('progress <id> <text>');
-        let ifReady;
+        let ifReady = /** @type {{ pr: number, head: string } | undefined} */ (undefined);
         if (typeof flags['if-ready'] === 'string') {
           const m = /^(\d+)@([0-9a-f]{40})$/.exec(flags['if-ready']);
           if (!m) throw new Usage('--if-ready <PR>@<40-character sha>');
           ifReady = { pr: Number(m[1]), head: m[2] };
         }
-        let pr;
+        let pr = /** @type {number | undefined} */ (undefined);
         if (typeof flags.pr === 'string') {
           if (!/^\d+$/.test(flags.pr)) throw new Usage('--pr <PR number>');
           pr = Number(flags.pr);
@@ -765,6 +835,23 @@ export function run(argv, env = {}) {
           paths: [BACKLOG],
           message: `Backlog: release ${id}`,
           edit: read => ({ [BACKLOG]: releaseEdit(read(BACKLOG), { id }).text }),
+        };
+        break;
+      }
+      case 'set': {
+        needId();
+        const name = pos[1];
+        if (pos.length < 3) {
+          throw new Usage('set <id> "<field>" "<value>" (quote a two-word field; "" removes it)');
+        }
+        const value = pos.slice(2).join(' ');
+        job = {
+          paths: [BACKLOG],
+          message: `Backlog: set ${id} ${name}`,
+          edit: read => {
+            const r = setFieldEdit(read(BACKLOG), { id, name, value, areas: areas() });
+            return { [BACKLOG]: r.text };
+          },
         };
         break;
       }
@@ -827,9 +914,32 @@ export function run(argv, env = {}) {
           paths: [BACKLOG],
           message: `Backlog: add ${newId ?? 'item'}`,
           edit: read => {
-            const r = addEdit(read(BACKLOG), read(DONE), { block, date, after, chapter });
+            const r = addEdit(read(BACKLOG), read(DONE), {
+              block,
+              date,
+              after,
+              chapter,
+              areas: areas(),
+            });
             notes = r.notes;
             return { [BACKLOG]: r.text };
+          },
+        };
+        break;
+      }
+      case 'waiting': {
+        const [key, title] = [pos[0] ?? '', String(flags.title ?? '')];
+        if (!/^[a-z0-9][a-z0-9-]*$/i.test(key) || !title || typeof flags.text !== 'string')
+          throw new Usage('waiting <key> --title <t> --text <t> [--due YYYY-MM-DD]');
+        const due = String(flags.due ?? '') || date;
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(due)) throw new Usage('--due is YYYY-MM-DD');
+        job = {
+          paths: [WAITING],
+          message: `Waiting: ${key}`,
+          edit: read => {
+            const r = waitingEdit(read(WAITING), { key, title, due, text: String(flags.text), date });
+            notes = [r.added ? `waiting: added W${r.n}` : `waiting: ${key} is already there`];
+            return { [WAITING]: r.text };
           },
         };
         break;
@@ -856,7 +966,7 @@ export function run(argv, env = {}) {
       }
       default:
         throw new Usage(
-          `unknown command "${cmd}"; use status, claim, progress, release, done, add or low`
+          `unknown command "${cmd}"; use status, claim, progress, release, set, done, add, waiting or low`
         );
     }
     if (flags['dry-run']) {

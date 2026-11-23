@@ -6,9 +6,12 @@
  *                                          player's private key comes in the `X-CoGM-Me` header
  *                                          (the page moves it out of the address bar at once,
  *                                          so it never lands in a log or the browser history)
- * - `POST /api/me/roll`                -> the player rolls one of their open roll requests (the body
+ * - `GET  /api/me/stash`                -> the party stash: items by holder, the group's gold
+ *                                          (unidentified items hidden; party characters only)
+ * - `POST /api/me/roll`               -> the player rolls one of their open roll requests (the body
  *                                          carries the button id; the module rolls for their character
  *                                          from the GM client and checks the request is theirs)
+ * - `GET|POST /api/me/diary`, `DELETE /api/me/diary/:id` -> the player's own diary entries (I-183)
  * - `POST /api/me/portrait`            -> the player puts their own picture on a character they own
  *                                          (raw image body; the module stores it in their own folder)
  * - `GET  /api/player-links`            -> GM: each player, with their link if they have one
@@ -33,8 +36,10 @@ import express, { type Express, type NextFunction, type Request, type Response }
 
 import type { PlayerLinksBody } from './api-bodies.js';
 import type { ClientRegistry } from './client-versions.js';
+import type { DiaryStore } from './diary-store.js';
 import type { SessionEvent } from './feed/types.js';
 import type { Logger } from './logger.js';
+import { buildPartyStash } from './party-stash.js';
 import type { PlayerLinkStore } from './player-links.js';
 import { privateRollsFor } from './private-rolls.js';
 import type { PlayerDirectory } from './usage-route.js';
@@ -55,6 +60,8 @@ export interface MeClient {
 export interface MeRouteOptions {
   client: MeClient;
   links: PlayerLinkStore;
+  /** The players' own diary entries (I-183); absent on fakes. */
+  diary?: DiaryStore;
   directory: PlayerDirectory;
   requireGm: (req: Request, res: Response, next: () => void) => void;
   /** For a failed link save or removal (the reply to the GM is a fixed sentence). */
@@ -153,11 +160,68 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
       .catch(() => null);
   }
 
+  // One sheet read per player at a time, remembered for a few seconds (item me-poll-load). Five
+  // players polling /api/me and the stash (which reads every player's sheet) shared one read each
+  // instead of dozens. Cleared when a game event arrives or the player rolls or changes a portrait.
+  const SHEET_TTL_MS = 4_000;
+  const sheets = new Map<string, { at: number; read: Promise<unknown> }>();
+  let eventMark: string | null = null;
+  function sheetFor(userId: string): Promise<unknown> {
+    const last = options.events?.().at(-1)?.id ?? null;
+    if (last !== eventMark) {
+      eventMark = last;
+      sheets.clear();
+    }
+    const hit = sheets.get(userId);
+    if (hit && Date.now() - hit.at < SHEET_TTL_MS) return hit.read;
+    const read = client.characterSheet!(userId);
+    const entry = { at: Date.now(), read };
+    sheets.set(userId, entry);
+    // A failed read is not remembered.
+    read.catch(() => {
+      if (sheets.get(userId) === entry) sheets.delete(userId);
+    });
+    return read;
+  }
+  const onChanged = (): void => {
+    sheets.clear();
+    options.onRolled?.();
+  };
+
   /** The banner for this player's own extension when it is older than the table; else null. */
   function playerUpdateNotice(userId: string): { da: string; en: string } | null {
     const seen = options.clients?.get('player-extension', userId);
     if (!seen?.behind || seen.version === null) return null;
     return clientNoticeText('player-extension', seen.version, TOOL_VERSION);
+  }
+
+  /**
+   * The user this request's key belongs to, or null after answering. With no live world a key we
+   * know says the table is closed (503), not that the link is bad; only an unknown key gets 401.
+   * The page keeps what it showed on a 503.
+   */
+  function keyedUser(req: Request, res: Response): string | null {
+    const world = worldId();
+    const raw = req.headers[ME_KEY_HEADER];
+    const key = Array.isArray(raw) ? raw[0] : raw;
+    if (!world) {
+      if (links.worldFor(key) !== null) {
+        res.status(503).json({ error: 'The table is not open right now. Try again later.' });
+      } else {
+        res
+          .status(401)
+          .json({ code: 'no-link', error: 'This link is not valid. Ask your GM for a new one.' });
+      }
+      return null;
+    }
+    const userId = links.userFor(world, key);
+    if (!userId) {
+      res
+        .status(401)
+        .json({ code: 'no-link', error: 'This link is not valid. Ask your GM for a new one.' });
+      return null;
+    }
+    return userId;
   }
 
   app.get('/me', (_req: Request, res: Response) => {
@@ -166,16 +230,8 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
   });
 
   app.get('/api/me', (req: Request, res: Response) => {
-    const world = worldId();
-    const raw = req.headers[ME_KEY_HEADER];
-    const key = Array.isArray(raw) ? raw[0] : raw;
-    const userId = world ? links.userFor(world, key) : null;
-    if (!userId) {
-      res
-        .status(401)
-        .json({ code: 'no-link', error: 'This link is not valid. Ask your GM for a new one.' });
-      return;
-    }
+    const userId = keyedUser(req, res);
+    if (!userId) return;
     if (typeof client.characterSheet !== 'function') {
       res.status(501).json({ error: 'Your sheet is not available here. Ask your GM.' });
       return;
@@ -184,7 +240,7 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
     // when either is off. null when the bridge cannot say (an old backend): the page keeps the
     // control and the refusal explains.
     const portraitEnabled = portraitFlag();
-    Promise.all([client.characterSheet(userId), portraitEnabled])
+    Promise.all([sheetFor(userId), portraitEnabled])
       .then(([result, portraitOn]) =>
         res.json({
           ...(result as object),
@@ -202,20 +258,42 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
       });
   });
 
+  // "Party stash" (I-175): what the party carries, by holder, plus the group's gold. Any player
+  // with a valid key may read it. It is built only from the sheets of the players' own characters
+  // (never a monster, an NPC or another group's actor), and an unidentified or secret item is
+  // reduced to "Unidentified item" (party-stash.ts).
+  app.get('/api/me/stash', (req: Request, res: Response) => {
+    res.set('Cache-Control', 'no-store');
+    const userId = keyedUser(req, res);
+    if (!userId) return;
+    if (typeof client.characterSheet !== 'function') {
+      res.status(501).json({ error: 'The party stash is not available here. Ask your GM.' });
+      return;
+    }
+    void directory
+      .refreshIfStale()
+      .catch(() => undefined)
+      .then(async () => {
+        // All players at once (each read is shared and remembered), not one after another.
+        const settled = await Promise.allSettled(
+          directory.list().map(player => sheetFor(player.userId))
+        );
+        // One unreadable player leaves their characters out; the rest still show.
+        const answers = settled.flatMap(s => (s.status === 'fulfilled' ? [s.value] : []));
+        res.json(buildPartyStash(answers));
+      })
+      .catch(() => {
+        if (!res.headersSent)
+          res.status(503).json({ error: 'The party stash could not be read. Try again soon.' });
+      });
+  });
+
   // "Your Claude connector" (D-136): the caller's own Client ID and Secret, never anyone else's.
   // The pair is chosen by the user the private key maps to; there is no way to name another.
   app.get('/api/me/connector', (req: Request, res: Response) => {
     res.set('Cache-Control', 'no-store');
-    const world = worldId();
-    const raw = req.headers[ME_KEY_HEADER];
-    const key = Array.isArray(raw) ? raw[0] : raw;
-    const userId = world ? links.userFor(world, key) : null;
-    if (!userId) {
-      res
-        .status(401)
-        .json({ code: 'no-link', error: 'This link is not valid. Ask your GM for a new one.' });
-      return;
-    }
+    const userId = keyedUser(req, res);
+    if (!userId) return;
     const own = options.connector?.credentialsFor(userId) ?? null;
     // The remote connector needs no pair: the player's own email is the login.
     const remoteUrl = options.connector?.remoteFor(userId) ?? null;
@@ -237,16 +315,8 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
   // every /me call, so the page fetches it and saves the bytes; nothing is stored or logged here.
   app.get('/api/me/helper.mcpb', (req: Request, res: Response) => {
     res.set('Cache-Control', 'no-store');
-    const world = worldId();
-    const raw = req.headers[ME_KEY_HEADER];
-    const key = Array.isArray(raw) ? raw[0] : raw;
-    const userId = world ? links.userFor(world, key) : null;
-    if (!userId) {
-      res
-        .status(401)
-        .json({ code: 'no-link', error: 'This link is not valid. Ask your GM for a new one.' });
-      return;
-    }
+    const userId = keyedUser(req, res);
+    if (!userId) return;
     const own = options.connector?.credentialsFor(userId) ?? null;
     if (!own) {
       res.status(404).json({ error: 'There is no helper set up for you yet. Ask your GM.' });
@@ -293,16 +363,8 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
   // One roll at a time per player: a second press while the first is rolling is refused.
   const rolling = new Set<string>();
   app.post('/api/me/roll', (req: Request, res: Response) => {
-    const world = worldId();
-    const raw = req.headers[ME_KEY_HEADER];
-    const key = Array.isArray(raw) ? raw[0] : raw;
-    const userId = world ? links.userFor(world, key) : null;
-    if (!userId) {
-      res
-        .status(401)
-        .json({ code: 'no-link', error: 'This link is not valid. Ask your GM for a new one.' });
-      return;
-    }
+    const userId = keyedUser(req, res);
+    if (!userId) return;
     const buttonId = (req.body as { buttonId?: unknown } | undefined)?.buttonId;
     if (typeof buttonId !== 'string' || !BUTTON_ID.test(buttonId)) {
       res.status(400).json({ error: 'Not a roll request.' });
@@ -323,7 +385,7 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
         const r = (result ?? {}) as { success?: unknown; message?: unknown; error?: unknown };
         if (r.success === true) {
           res.json({ ok: true, message: typeof r.message === 'string' ? r.message : 'Rolled.' });
-          options.onRolled?.();
+          onChanged();
         } else {
           res.status(409).json({
             error: typeof r.error === 'string' ? r.error : 'The roll did not work.',
@@ -344,6 +406,60 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
       .finally(() => rolling.delete(userId));
   });
 
+  // "My diary" (I-183): the player's own entries for their character, behind their private key.
+  // The key is the only identity: a player reads and changes only their own list, and the list
+  // is in no other route (not /player, not the GM stream).
+  const diary = options.diary;
+  const DIARY_MESSAGES: Record<string, string> = {
+    empty: 'Write something first.',
+    'too-long': 'That entry is too long. Keep it under 4000 characters.',
+    full: 'Your diary is full. Delete an old entry first.',
+    'not-found': 'That entry is gone.',
+    'bad-id': 'That entry is gone.',
+  };
+  function diaryUser(req: Request, res: Response): { world: string; userId: string } | null {
+    res.set('Cache-Control', 'no-store');
+    const userId = keyedUser(req, res);
+    const world = worldId();
+    if (!world || !userId) return null;
+    if (!diary) {
+      res.status(501).json({ error: 'The diary is not available here.' });
+      return null;
+    }
+    return { world, userId };
+  }
+  app.get('/api/me/diary', (req: Request, res: Response) => {
+    const who = diaryUser(req, res);
+    if (who && diary)
+      res.json({ entries: diary.list(who.world, who.userId), persistent: diary.persistent });
+  });
+  app.post('/api/me/diary', (req: Request, res: Response) => {
+    const who = diaryUser(req, res);
+    if (!who || !diary) return;
+    const body = (req.body ?? {}) as { id?: unknown; character?: unknown; text?: unknown };
+    const id = typeof body.id === 'string' ? body.id : undefined;
+    const result = diary.save(who.world, who.userId, {
+      ...(id !== undefined ? { id } : {}),
+      character: body.character,
+      text: body.text,
+    });
+    if (!result.ok) {
+      res
+        .status(result.code === 'not-found' || result.code === 'bad-id' ? 404 : 400)
+        .json({ error: DIARY_MESSAGES[result.code] });
+      return;
+    }
+    res.json({ ok: true, entry: result.entry });
+  });
+  app.delete('/api/me/diary/:id', (req: Request, res: Response) => {
+    const who = diaryUser(req, res);
+    if (!who || !diary) return;
+    const removed = diary.remove(who.world, who.userId, String(req.params.id ?? ''));
+    res
+      .status(removed ? 200 : 404)
+      .json(removed ? { ok: true } : { error: DIARY_MESSAGES['not-found'] });
+  });
+
   // "Upload my portrait": the body is the picture itself (raw bytes), `actor` the character's id,
   // `target` `portrait` or `both` (also the prototype token). The identity is the player's private
   // key, so a player can only ever change a character they own (the module checks the ownership
@@ -352,16 +468,8 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
   const uploading = new Set<string>();
   const portraitBody = express.raw({ type: () => true, limit: PORTRAIT_MAX_BYTES });
   app.post('/api/me/portrait', (req: Request, res: Response, next: NextFunction) => {
-    const world = worldId();
-    const raw = req.headers[ME_KEY_HEADER];
-    const key = Array.isArray(raw) ? raw[0] : raw;
-    const userId = world ? links.userFor(world, key) : null;
-    if (!userId) {
-      res
-        .status(401)
-        .json({ code: 'no-link', error: 'This link is not valid. Ask your GM for a new one.' });
-      return;
-    }
+    const userId = keyedUser(req, res);
+    if (!userId) return;
     portraitBody(req, res, (err?: unknown) => {
       if (err) {
         const tooBig = (err as { type?: string }).type === 'entity.too.large';
@@ -419,7 +527,7 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
         path: typeof result?.path === 'string' ? result.path : '',
         actorName: typeof result?.actorName === 'string' ? result.actorName : '',
       });
-      options.onRolled?.();
+      onChanged();
     } catch (error) {
       // Only a refusal the player can act on (not yours, too big, switched off) is shown as it is.
       const code = (error as { code?: unknown }).code;

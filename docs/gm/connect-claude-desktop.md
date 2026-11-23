@@ -10,20 +10,24 @@ to them, you install a small program once. It does two things: it adds the five 
 to Claude Desktop, and it keeps a private, locked tunnel open to the server. You do this once, and
 you need your **tunnel key** (two pieces of text) from the person who built the tool.
 
+There is a second way with no installer and no tunnel key: add the connectors to Claude by their web
+address and an email sign-in. See [Connect Claude by web address](connect-claude-web.md). It needs a
+paid plan (Pro or Max), because a free plan allows only one custom connector; the installer works on Free.
+
 You need: a Windows PC, Claude Desktop installed and signed in, and the tunnel key. About 10 minutes.
-The free Claude plan is enough to connect, but it has a daily limit; see
+The free Claude plan is enough to connect, but it has a limit per five hours and one per week; see
 [Claude Free or Pro](claude-plans.md).
 
 This is one of the [one-time setups](README.md#one-time-setups). For a new install do "Install",
 "Check that it works" and "Stop the Allow questions", in that order. To move to a newer client
-(for example `FoundryMCPServer-Setup-v0.28.0.exe`) do "Update the client".
+(a file called `FoundryMCPServer-Setup-vX.Y.Z.exe`) do "Update the client".
 
 ## Install
 
 1. **Quit Claude Desktop completely.** Right-click its icon in the tray (bottom right, near the
    clock) and choose **Quit**. Closing the window is not enough. The installer will not close it for
    you.
-2. Download `FoundryMCPServer-Setup-vX.Y.Z.exe` (for example v0.28.0) from **Assets** at the bottom of
+2. Download `FoundryMCPServer-Setup-vX.Y.Z.exe` (X.Y.Z is the newest version number) from **Assets** at the bottom of
    the newest release on <https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases>, or use
    the copy you were sent. Run it.
 3. On the page called "Bridge address", tick **Use the Cloudflare tunnel**. In **Tunnel name**
@@ -31,7 +35,7 @@ This is one of the [one-time setups](README.md#one-time-setups). For a new insta
 4. Go on. A small window asks for the **Client ID**, then the **secret**. Paste each one and press
    Enter. The secret is hidden while you type; that is normal. Nothing you paste is shown or saved
    anywhere except in a locked store that only your Windows user can open.
-5. Finish. Start Claude Desktop. Click the **+** in the chat box, choose **Connectors**, and switch
+5. Finish. Start Claude Desktop. Click the **+** in the chat box, choose **Plugins**, and switch
    on the ones you want (`foundry-mcp` is Core; Play and Prep are the ones you will use most).
    A connector that is switched off is not available in that chat. Then do "Stop the Allow
    questions" below once, so Claude does not ask "Allow?" on every tool call.
@@ -45,7 +49,7 @@ The address page is already filled in, but the installer asks for the Client ID 
 keep the key you were given and paste both.
 
 Do this when Claude seems to be missing tools that the guides mention. An old client hides newer
-tools without any error. To check: make sure the Prep connector is switched on (**+**, then **Connectors**), then in a new
+tools without any error. To check: make sure the Prep connector is switched on (the **+** menu, then **Plugins**), then in a new
 chat ask Claude _"Run get-preflight"_. The row **Claude Desktop connectors are up to date** is green
 when you are current. A warning means an old client is still connected: quit Claude Desktop from the
 tray, run the newest installer, start Claude Desktop again and ask once more. If the row says no
@@ -71,6 +75,22 @@ Switch it on or off with (PowerShell):
 & "$env:LOCALAPPDATA\FoundryMCPServer\client-update.ps1" -Action Status
 ```
 
+**Without the tunnel** (a direct connection over Tailscale) the installer sets the same thing up on
+its own and switches it **on** the first time. It reads the table's version from the address you
+gave the installer, and its sign-in task is called "Foundry AI Tool client update". Its files are in
+`%LOCALAPPDATA%\FoundryMCPServer\update`. If Claude Desktop starts with Windows it is usually
+already open at sign-in, so that day's check is skipped; the next sign-in with Desktop closed
+updates. To update at once, quit Claude Desktop from the tray and open "Update the client now"
+from the Start menu (folder "Foundry AI Tool Client"); it runs even if automatic updates are off.
+Switch automatic updates on or off with:
+
+```powershell
+& "$env:LOCALAPPDATA\FoundryMCPServer\client-update.ps1" -Action Disable -StateDir "$env:LOCALAPPDATA\FoundryMCPServer\update"
+& "$env:LOCALAPPDATA\FoundryMCPServer\client-update.ps1" -Action Enable -StateDir "$env:LOCALAPPDATA\FoundryMCPServer\update"
+```
+
+A silent install with `/NOAUTOUPDATE` leaves it off.
+
 This does not touch the Obsidian plugin. The server writes the newest plugin into the GM vault and
 Syncthing brings it to your PC (see the [Obsidian sync guide](setup-obsidian-sync.md)); restart
 Obsidian to load it.
@@ -88,7 +108,7 @@ Without this step Claude Desktop asks "Allow?" on almost every Foundry tool call
 Claude Desktop keeps this choice in your account, not in a file, so the installer cannot set it for
 you. You do it once per connector.
 
-1. In Claude Desktop open **Customize**, then **Connectors**.
+1. In Claude Desktop open **Settings**, then **Plugins**, and pick the **Connectors** filter.
 2. Click one of the Foundry connectors (`foundry-mcp`, `foundry-mcp-play`, `foundry-mcp-prep`,
    `foundry-mcp-build`, `foundry-mcp-admin`).
 3. Under **Tool permissions**, click the drop-down on the right of the **Read-only tools** line

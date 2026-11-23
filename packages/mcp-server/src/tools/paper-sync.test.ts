@@ -8,12 +8,13 @@
 import { promises as fsp } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { GuardedOp, PaperSyncPlan } from '@gnuminator/shared';
 
 import { GuardedWriteService } from '../guarded-write/service.js';
 import { FakeFoundry } from '../test-support/fake-foundry.js';
+import { makeLogger } from '../test-support/stub-tool-deps.js';
 import { AuditLog } from '../vault/audit.js';
 import { VaultStore } from '../vault/store.js';
 import { PaperSyncTools } from './paper-sync.js';
@@ -43,8 +44,7 @@ beforeEach(async () => {
   foundry.handlers['foundry-mcp-bridge.planPaperSync'] = (): PaperSyncPlan =>
     typeof built === 'function' ? built() : built;
   const store = new VaultStore({ dataDir });
-  logger = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
-  logger.child = (): unknown => logger;
+  logger = makeLogger();
   service = new GuardedWriteService({
     foundryClient: foundry,
     worldIds: {

@@ -11,6 +11,7 @@ import {
   mainLine,
   newestNote,
   plannerSections,
+  BOARD_REPO,
   REPO,
   prTable,
   trainLine,
@@ -152,7 +153,10 @@ test('ledgerLines skips a folder named *.md and a malformed date', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ledgers-'));
   fs.mkdirSync(path.join(dir, 'Odd.md'));
   const good = Array.from({ length: 10 }, (_, i) => `- 2026-11-10 PR 1 L${i}: x, y`).join('\n');
-  fs.writeFileSync(path.join(dir, 'Big.md'), `# Lows: Big\n\n${good}\n- 2026-13-45 PR 2 L1: x, y\n`);
+  fs.writeFileSync(
+    path.join(dir, 'Big.md'),
+    `# Lows: Big\n\n${good}\n- 2026-13-45 PR 2 L1: x, y\n`
+  );
   assert.equal(ledgerLines(dir, '2026-11-13'), 'Lows ledgers over 10 lines: none');
 });
 
@@ -177,40 +181,76 @@ test('plannerSections assembles every section from a vault dir and a fake gh', (
     seen.push(args);
     return ghAnswer(args);
   };
+  fs.writeFileSync(
+    path.join(dev, 'Handoff', 'Reviews 2026-11-12', 'board-7-review.md'),
+    note(H2, 'Merge.').text
+  );
   const ghAnswer = args =>
-    args[0] === 'pr'
+    args[0] === 'pr' && args.includes(BOARD_REPO)
       ? [
           {
-            number: 5,
-            title: 'Thing',
-            headRefOid: H1,
+            number: 7,
+            title: 'Board thing',
+            headRefOid: H2,
             isDraft: false,
             statusCheckRollup: [{ conclusion: 'SUCCESS', status: 'COMPLETED' }],
           },
         ]
-      : [{ status: 'completed', conclusion: 'success', headSha: H1 }];
-  const s = plannerSections({ devDir: dev, backlog: BACKLOG, today: '2026-11-12', gh }).join('\n');
-  assert.equal(seen.length, 2);
-  for (const a of seen)
+      : args[0] === 'pr'
+        ? [
+            {
+              number: 5,
+              title: 'Thing',
+              headRefOid: H1,
+              isDraft: false,
+              statusCheckRollup: [{ conclusion: 'SUCCESS', status: 'COMPLETED' }],
+            },
+          ]
+        : [{ status: 'completed', conclusion: 'success', headSha: H1 }];
+  fs.writeFileSync(
+    path.join(dev, 'last-run.json'),
+    JSON.stringify({ version: 1, last: { state: 'passed', at: '2026-11-12T01:00:00Z' } })
+  );
+  const s = plannerSections({
+    devDir: dev,
+    kitHome: dev,
+    runnerHome: dev,
+    backlog: BACKLOG,
+    today: '2026-11-12',
+    gh,
+  }).join('\n');
+  assert.match(s, /Merge runner is not running \(no heartbeat\)/);
+  assert.equal(seen.length, 3);
+  for (const a of seen.filter(x => !x.includes(BOARD_REPO)))
     assert.deepEqual(a.slice(a.indexOf('-R'), a.indexOf('-R') + 2), ['-R', REPO]);
+  assert.match(s, /Open board PRs \(1\):\n- #7 Board thing: CI green, review Merge \(head\)/);
   assert.match(s, /Accepted, unclaimed \(1\):/);
   assert.match(s, /#5 Thing: CI green, review Merge \(head\)/);
   assert.match(s, /Merge train: 1 of 4/);
   assert.match(s, /Main's CI: success/);
   assert.match(s, /W9 Do it/);
+  assert.match(s, /Kit: latest run passed/);
+  assert.doesNotMatch(s, /NO NIGHTLY RUN RECORDED/);
   const dark = plannerSections({
     devDir: dev,
+    kitHome: dev,
     backlog: '',
     today: '2026-11-12',
     gh: () => null,
   }).join('\n');
   assert.match(dark, /gh not available/);
   fs.rmSync(path.join(dev, 'Waiting.md'));
-  const gone = plannerSections({ devDir: dev, backlog: '', today: '2026-11-12', gh: () => null });
+  const gone = plannerSections({
+    devDir: dev,
+    kitHome: dev,
+    backlog: '',
+    today: '2026-11-12',
+    gh: () => null,
+  });
   assert.ok(gone.includes('Waiting due: not readable'));
 });
 
-test('kitLine reports the last run, its age, failures, staleness and a later skip', () => {
+test('kitLine reports the latest run, its age, failures and a later skip', () => {
   const now = Date.parse('2026-11-17T12:00:00Z');
   const ran = {
     at: '2026-11-17T09:00:00Z',
@@ -220,11 +260,14 @@ test('kitLine reports the last run, its age, failures, staleness and a later ski
     state: 'failed',
     failing: ['bridge-health'],
   };
-  const doc = { version: 1, last: ran, lastRun: ran };
-  const line = kitLine(JSON.stringify(doc), now);
-  assert.match(line, /last run FAILED: 1 of 25.*, 3 h ago, on abc1234; failing: bridge-health/);
-  assert.doesNotMatch(line, /STALE/);
-  assert.match(kitLine(JSON.stringify(doc), now + 40 * 3600000), /STALE/);
+  const line = kitLine(JSON.stringify({ version: 1, last: ran, lastRun: ran }), now);
+  assert.match(
+    line,
+    /^Kit: latest run FAILED: 1 of 25.*, 3 h ago, on abc1234; failing: bridge-health/
+  );
+  // Never a nightly line, a stale flag or a "no nightly" warning, also with only a lane's run.
+  for (const l of [line, kitLine(JSON.stringify({ version: 1, last: ran }), now + 90 * 3600000)])
+    assert.doesNotMatch(l, /nightly|NIGHTLY|STALE/i);
   const skipped = {
     at: '2026-11-17T11:00:00Z',
     state: 'skipped',
@@ -232,8 +275,8 @@ test('kitLine reports the last run, its age, failures, staleness and a later ski
   };
   assert.match(
     kitLine(JSON.stringify({ version: 1, last: skipped, lastRun: ran }), now),
-    /latest attempt: skipped: the lock was not free \(1 h ago\)/
+    /latest run FAILED.*latest attempt skipped: the lock was not free \(1 h ago\)/
   );
-  assert.match(kitLine(null, now), /no last-run\.json yet/);
+  assert.match(kitLine(null, now), /no last-run.json yet/);
   assert.match(kitLine('{bad', now), /unreadable/);
 });

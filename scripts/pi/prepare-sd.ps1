@@ -80,7 +80,7 @@ function Get-SetupFolder {
     throw @'
 No drive named DIETPISETUP found. Take the card out, put it back in and run this again.
 If Windows offers to format a drive, click Cancel. If the drive never appears, see
-"If the script cannot find the Pi" in docs/dev/PI-SETUP.md (monitor and keyboard route).
+Step 3 ("Put the settings on the card") in docs/dev/pi/part-a-you.md.
 '@
   }
   if (@($vol).Count -gt 1) { throw 'More than one DIETPISETUP drive is connected; keep only the Pi card in.' }

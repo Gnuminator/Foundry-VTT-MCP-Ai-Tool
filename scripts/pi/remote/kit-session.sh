@@ -58,9 +58,20 @@
 #   state file is removed, Foundry starts, and the Assistant GM browser starts again if it ran before (the stage waits
 #   for "joined world"). A state file from before the Kit GM existed (no KIT_GM_BROWSER line) is accepted: there is no
 #   Kit GM file and no browser then, and the teardown finds no Kit GM.
+# Containers (day two, D-149): after the cutover (stage 24) the stack runs as the containers of compose project
+#   foundry-ai-tool-pi, and lib.sh use_stack sets STACK=containers. The stage then does the same steps, with these differences:
+#   Foundry and the Assistant GM browser are stopped and started through the stack helpers on their existing containers (never
+#   recreated, never compose down); the Kit GM browser is not a transient unit but a plain container named
+#   foundry-ai-tool-kit-gm-browser (docker run -d, image foundry-ai-tool-pi/gm-browser:local, host network, the foundry
+#   user, the password file as --env-file, ports read from deploy/pi/.env, restart policy unless-stopped, so a reboot brings it
+#   back until MODE=down removes it). It has no compose label, so nothing counts it as the stack. Stopping it is a forced remove
+#   (harmless when absent); a leftover is any container of that name; "joined world strahd-kit as Kit GM" is read from its
+#   docker logs. The driver (kit-session.mjs through runuser, on the host's node and Chromium and the host build) is the same.
+#   No systemd-run, systemctl start or unit of the four stack services is used. The bridge must exist as a container, and
+#   the gm-browser image must be there, before anything stops.
 
 require_root
-refuse_when_cut_over "the kit session"
+use_stack "the kit session"
 require_arm64
 
 MODE="${MODE:-}"
@@ -70,7 +81,8 @@ case "$MODE" in up | down) ;; *) die "usage: MODE=up (set up the kit session) or
 KIT_WORLD=strahd-kit
 PLAYER_NAME='Kit Player'
 KIT_GM_USER='Kit GM'
-KIT_GM_UNIT=foundry-ai-tool-kit-gm-browser
+KIT_GM_UNIT=foundry-ai-tool-kit-gm-browser # the transient unit (units) or the container (containers) of the Kit GM browser
+KIT_GM_IMAGE=foundry-ai-tool-pi/gm-browser:local # the image compose.yml builds for the Assistant GM browser
 FORCE="${FORCE:-0}"
 SESSION_DRIVER="${SESSION_DRIVER:-/root/kit-session.mjs}"
 MAX_DELETE="${MAX_DELETE:-}"
@@ -102,7 +114,7 @@ case "$SESSION_DRIVER" in */../* | */..) die "SESSION_DRIVER must not hold .." ;
 id "$FOUNDRY_USER" >/dev/null 2>&1 || die "no user $FOUNDRY_USER: run stage 1 first"
 [ -f "$options" ] || die "no $options: has Foundry started once (stage 3)?"
 [ -x "$NODE_DIR/bin/node" ] || die "no Node at $NODE_DIR: run stage 2 first"
-have_systemd || die "no systemd here: the kit session needs the real Pi (it starts and stops Foundry)"
+[ "$STACK" = containers ] || have_systemd || die "no systemd here: the kit session needs the real Pi (it starts and stops Foundry)"
 [ -d "$TOOL_DATA" ] || die "no $TOOL_DATA: run stage 5 first"
 
 # options.json "world" is what Foundry launches. The kit session changes it; the first value is kept in the state file.
@@ -146,6 +158,22 @@ install_driver() {
   fi
 }
 
+# The command that reads Foundry's log, for messages.
+foundry_logs_hint() {
+  if [ "$STACK" = containers ]; then svc_logs_hint foundry; else echo "journalctl -u foundry -n 50"; fi
+}
+# gm_logs_hint N: the command that reads the last N log lines of the Assistant GM browser, for messages.
+gm_logs_hint() {
+  if [ "$STACK" = containers ]; then svc_logs_hint gm-browser; else echo "journalctl -u foundry-ai-tool-gm-browser -n $1"; fi
+}
+# gm_joined_since SINCE: the Assistant GM browser logged "joined world" since SINCE (a "YYYY-MM-DD HH:MM:SS" time).
+gm_joined_since() {
+  if [ "$STACK" = containers ]; then
+    svc_gm_joined "$1"
+  else
+    journalctl -u foundry-ai-tool-gm-browser --since "$1" --no-pager | grep -q 'joined world'
+  fi
+}
 # /join answers 200 even when no world runs (an error page), so look for the join form's template.
 world_up() { curl -fs http://127.0.0.1:30000/join 2>/dev/null | grep -q 'id="join-game"'; }
 wait_for_world() { # $1 world id
@@ -157,7 +185,7 @@ wait_for_world() { # $1 world id
     fi
     sleep 2
   done
-  [ "$up" = 1 ] || die "$1 is not running on port 30000 (see: journalctl -u foundry -n 50)"
+  [ "$up" = 1 ] || die "$1 is not running on port 30000 (see: $(foundry_logs_hint))"
 }
 
 # Nobody may be playing. An answer that cannot be read counts as "?" (unknown), not as nobody; the setup screen
@@ -246,10 +274,36 @@ state_value() { # $1 key
 
 # ---- the Kit GM: password file, profile folder and browser unit ----------------------------------------------------
 
-# The Kit GM browser is a transient unit, so it may not exist at all; reset-failed clears a failed leftover.
+# The Kit GM browser is a transient unit (units) or a plain container (containers), so it may not exist at all; reset-failed
+# clears a failed leftover unit, a forced remove takes away the container (also a stopped one), whose name would block the next run.
 stop_kit_gm_browser() {
-  systemctl stop "$KIT_GM_UNIT.service" 2>/dev/null || true
-  systemctl reset-failed "$KIT_GM_UNIT.service" 2>/dev/null || true
+  if [ "$STACK" = containers ]; then
+    stack_docker rm -f "$KIT_GM_UNIT" >/dev/null 2>&1 || true
+  else
+    systemctl stop "$KIT_GM_UNIT.service" 2>/dev/null || true
+    systemctl reset-failed "$KIT_GM_UNIT.service" 2>/dev/null || true
+  fi
+}
+# The Kit GM browser's state word, empty when there is none: units, systemctl is-active (inactive and unknown are "nothing");
+# containers, the container's State.Status (running, restarting, exited, created...), empty when no container has the name.
+kit_gm_state() {
+  if [ "$STACK" = containers ]; then
+    docker inspect -f '{{.State.Status}}' "$KIT_GM_UNIT" 2>/dev/null || true
+  else
+    systemctl is-active "$KIT_GM_UNIT.service" 2>/dev/null || true
+  fi
+}
+# The Kit GM browser runs now.
+kit_gm_active() {
+  if [ "$STACK" = containers ]; then
+    [ "$(docker inspect -f '{{.State.Running}}' "$KIT_GM_UNIT" 2>/dev/null || true)" = true ]
+  else
+    systemctl is-active --quiet "$KIT_GM_UNIT.service"
+  fi
+}
+# kit_gm_logs_hint N: the command that reads the last N log lines of the Kit GM browser, for messages.
+kit_gm_logs_hint() {
+  if [ "$STACK" = containers ]; then echo "docker logs --tail $1 $KIT_GM_UNIT"; else echo "journalctl -u $KIT_GM_UNIT -n $1"; fi
 }
 
 # The password file, the temp files the stage makes in /etc/foundry-ai-tool (.kit-gm.*: the password's, the state
@@ -301,6 +355,10 @@ make_kit_gm_password() {
 start_kit_gm_browser() {
   rm -rf "${KIT_GM_PROFILE:?}"
   runuser -u "$FOUNDRY_USER" -- mkdir -m 700 "$KIT_GM_PROFILE"
+  if [ "$STACK" = containers ]; then
+    start_kit_gm_container
+    return
+  fi
   systemctl reset-failed "$KIT_GM_UNIT.service" 2>/dev/null || true
   systemd-run --unit="$KIT_GM_UNIT" --collect --quiet \
     -p User="$FOUNDRY_USER" -p Group="$FOUNDRY_USER" \
@@ -313,11 +371,45 @@ start_kit_gm_browser() {
     "$NODE_DIR/bin/node" "$gm_driver" run
 }
 
+# Containers: the Kit GM browser as a plain container (docker run) of the gm-browser image compose.yml builds, with the
+# settings of the compose service that matter here: host network, the foundry user, init, shm, low CPU weight, no new
+# privileges. The ports come from deploy/pi/.env (the compose defaults 30000 and 31414 when it has none). The password file is
+# the --env-file (docker reads it as root; the password is on no command line). No compose label: use_stack and require_quiet
+# never take it for the stack. An earlier container of the name was removed before (the leftover check), and
+# stop_kit_gm_browser is called again here, so a name that is taken never stops the run.
+start_kit_gm_container() {
+  local envf_stack fport bport
+  envf_stack="$(stack_dir)/.env"
+  fport="$(env_file_value "$envf_stack" FOUNDRY_HTTP_PORT)"
+  bport="$(env_file_value "$envf_stack" BRIDGE_CONTROL_PORT)"
+  fport="${fport:-30000}"
+  bport="${bport:-31414}"
+  [[ "$fport" =~ ^[0-9]{1,5}$ && "$bport" =~ ^[0-9]{1,5}$ ]] || die "$envf_stack has a FOUNDRY_HTTP_PORT or BRIDGE_CONTROL_PORT that is not a port number: the Kit GM browser container needs both"
+  stop_kit_gm_browser
+  docker run -d --name "$KIT_GM_UNIT" --network host \
+    --user "$(id -u "$FOUNDRY_USER"):$(id -g "$FOUNDRY_USER")" \
+    --init --shm-size 512m --cpu-shares 20 --security-opt no-new-privileges:true --restart unless-stopped \
+    --env-file "$KIT_GM_ENV" -v "$TOOL_DATA:$TOOL_DATA" \
+    -e HOME="$TOOL_DATA" -e TOOL_APP=/opt/gm -e FOUNDRY_URL="http://127.0.0.1:$fport" \
+    -e CHROMIUM=/usr/local/bin/chromium-nosandbox -e MCP_CONTROL_PORT="$bport" \
+    -e GM_BROWSER_PROFILE="$KIT_GM_PROFILE" -e ASSISTANT_GM_USER="$KIT_GM_USER" \
+    "$KIT_GM_IMAGE" >/dev/null
+}
+
+# The Kit GM browser's log (containers: docker logs; the container is new for this run, so the time is not needed).
+kit_gm_log() { # $1 the time to look from (units)
+  if [ "$STACK" = containers ]; then
+    docker logs "$KIT_GM_UNIT" 2>&1
+  else
+    journalctl -u "$KIT_GM_UNIT" --since "$1" --no-pager 2>/dev/null
+  fi
+}
+
 # Waits (60 x 2 s) until the Kit GM browser's journal shows it joined strahd-kit as the Kit GM.
 wait_kit_gm_joined() { # $1 the time to look from
   local out
   for _ in $(seq 1 60); do
-    out="$(journalctl -u "$KIT_GM_UNIT" --since "$1" --no-pager 2>/dev/null)" || out=""
+    out="$(kit_gm_log "$1")" || out=""
     case "$out" in *"joined world $KIT_WORLD as $KIT_GM_USER"*) return 0 ;; esac
     sleep 2
   done
@@ -343,9 +435,17 @@ if [ "$MODE" = up ]; then
   [[ "$orig_world" =~ ^[a-z0-9-]*$ ]] || die "options.json launches '$orig_world', which is not a plain world id: nothing was changed"
   driver_available || die "no $SESSION_DRIVER: scp scripts/pi/remote/kit-session.mjs foundry-pi:/root/ first"
   # The Kit GM browser runs stage 5's Assistant GM driver under a transient unit and needs the bridge to talk to.
-  [ -f "$gm_driver" ] || die "the Assistant GM driver is not installed at $gm_driver (the Kit GM browser runs it): run stage 5 first. Nothing was changed"
-  command -v systemd-run >/dev/null 2>&1 || die "no systemd-run here (the Kit GM browser is a transient unit). Nothing was changed"
-  systemctl cat foundry-ai-tool-bridge.service >/dev/null 2>&1 || die "the bridge service (foundry-ai-tool-bridge.service) does not exist: run stage 5 first. Nothing was changed"
+  if [ "$STACK" = containers ]; then
+    # The container image has the Assistant GM driver baked in (/opt/gm), so the host copy is not needed. The stack must be
+    # there as containers: Foundry (it is stopped and started), the bridge (the Kit GM browser talks to it) and the image.
+    [ -n "$(svc_cid foundry -a)" ] || die "no Foundry container in $COMPOSE_LIVE_PROJECT: the stack is not whole. Nothing was changed"
+    [ -n "$(svc_cid bridge -a)" ] || die "no bridge container in $COMPOSE_LIVE_PROJECT (the Kit GM browser needs the bridge). Nothing was changed"
+    docker image inspect "$KIT_GM_IMAGE" >/dev/null 2>&1 || die "the image $KIT_GM_IMAGE is not there (the Kit GM browser container runs it): stage 24 builds it. Nothing was changed"
+  else
+    [ -f "$gm_driver" ] || die "the Assistant GM driver is not installed at $gm_driver (the Kit GM browser runs it): run stage 5 first. Nothing was changed"
+    command -v systemd-run >/dev/null 2>&1 || die "no systemd-run here (the Kit GM browser is a transient unit). Nothing was changed"
+    systemctl cat foundry-ai-tool-bridge.service >/dev/null 2>&1 || die "the bridge service (foundry-ai-tool-bridge.service) does not exist: run stage 5 first. Nothing was changed"
+  fi
   install -d -m 700 "$IMPORT"
   prev="$IMPORT/prev-$stamp"
   check_space "$IMPORT" "$IMPORT"
@@ -358,9 +458,10 @@ if [ "$MODE" = up ]; then
     if [ -e "$path" ] || [ -L "$path" ]; then leftover+=("$path"); fi
   done
   # Anything but inactive (or unknown) counts: running, restarting (activating) or failed units are in the way of
-  # systemd-run too. The stop is always called (harmless when nothing runs).
-  kit_unit_state="$(systemctl is-active "$KIT_GM_UNIT.service" 2>/dev/null || true)"
-  case "$kit_unit_state" in inactive | unknown | "") ;; *) leftover+=("the unit $KIT_GM_UNIT ($kit_unit_state)") ;; esac
+  # systemd-run too; a container of the name (running, restarting, exited) is in the way of docker run. The stop is always
+  # called (harmless when nothing runs).
+  kit_unit_state="$(kit_gm_state)"
+  case "$kit_unit_state" in inactive | unknown | "") ;; *) leftover+=("the $([ "$STACK" = containers ] && echo container || echo unit) $KIT_GM_UNIT ($kit_unit_state)") ;; esac
   stop_kit_gm_browser
   if [ "${#leftover[@]}" -gt 0 ]; then
     remove_kit_gm_files
@@ -397,14 +498,14 @@ if [ "$MODE" = up ]; then
         warn "$PLAYER_NAME and $KIT_GM_USER may exist in $KIT_WORLD: MODE=up and then MODE=down removes them"
       fi
       if [ "$was_foundry" = 1 ] && [ "$foundry_stopped" = 1 ]; then
-        systemctl restart foundry.service || true
+        svc_restart foundry || true
       elif [ "$was_foundry" = 1 ]; then
         : # never stopped (people were online) or already back on its world: leave it running
       else
-        systemctl stop foundry.service 2>/dev/null || true
+        svc_stop foundry 2>/dev/null || true
       fi
       if [ "$was_gm_browser" = 1 ]; then
-        systemctl is-active --quiet foundry-ai-tool-gm-browser.service || systemctl start foundry-ai-tool-gm-browser.service || true
+        svc_active gm-browser || svc_start gm-browser || true
       fi
       if [ "$state_written" = 1 ]; then rm -f "${STATE:?}" "${TOOL_ETC:?}"/.kit-gm.*; fi
       warn "the run did not finish: Foundry and the Assistant GM browser are back as they were before it, and there is no kit session"
@@ -414,15 +515,15 @@ if [ "$MODE" = up ]; then
   trap on_exit EXIT
 
   # Remember what ran, so a failed run starts only that again.
-  systemctl is-active --quiet foundry.service && was_foundry=1
-  systemctl is-active --quiet foundry-ai-tool-gm-browser.service && was_gm_browser=1
+  svc_active foundry && was_foundry=1
+  svc_active gm-browser && was_gm_browser=1
   say "stopping the Assistant GM browser and Foundry"
   stopped=1
-  systemctl stop foundry-ai-tool-gm-browser.service 2>/dev/null || true
+  svc_stop gm-browser 2>/dev/null || true
   # With the Assistant GM browser gone, /api/status counts the people still online.
   if [ "$was_foundry" = 1 ]; then check_nobody_online "run this when nobody plays"; fi
   foundry_stopped=1
-  systemctl stop foundry.service
+  svc_stop foundry
 
   # The state file first: from here on, MODE=down knows what to put back, and so does a run that fails.
   state_written=1 # before the write: on_exit removes a half written file too
@@ -445,7 +546,7 @@ if [ "$MODE" = up ]; then
   say "starting $KIT_WORLD and setting it up"
   world_changed=1 # before the write: putting the old world back is harmless when nothing was written
   set_world "$KIT_WORLD"
-  systemctl start foundry.service
+  svc_start foundry
   wait_for_world "$KIT_WORLD"
   ok "$KIT_WORLD is running"
 
@@ -470,10 +571,14 @@ if [ "$MODE" = up ]; then
   say "starting the Kit GM browser (joins $KIT_WORLD as $KIT_GM_USER and holds the bridge link)"
   kit_since="$(date '+%Y-%m-%d %H:%M:%S')"
   start_kit_gm_browser
-  ok "started $KIT_GM_UNIT.service (a transient unit: a reboot drops it)"
-  wait_kit_gm_joined "$kit_since" || die "the Kit GM browser did not join $KIT_WORLD as $KIT_GM_USER within 2 minutes (see: journalctl -u $KIT_GM_UNIT -n 30)"
+  if [ "$STACK" = containers ]; then
+    ok "started the container $KIT_GM_UNIT (not part of the compose project; MODE=down removes it)"
+  else
+    ok "started $KIT_GM_UNIT.service (a transient unit: a reboot drops it)"
+  fi
+  wait_kit_gm_joined "$kit_since" || die "the Kit GM browser did not join $KIT_WORLD as $KIT_GM_USER within 2 minutes (see: $(kit_gm_logs_hint 30))"
   # Only the "joined world" line is shown, never the rest of the journal.
-  journalctl -u "$KIT_GM_UNIT" --since "$kit_since" --no-pager 2>/dev/null | grep -m1 'joined world' || true
+  kit_gm_log "$kit_since" | grep -m1 'joined world' || true
   ok "the Kit GM browser joined $KIT_WORLD as $KIT_GM_USER"
   # The bridge does not log connects, so look for the connection itself: an established TCP connection on the
   # bridge's Foundry port 31415 (the Kit GM browser's module, same check as stage 11). A warning only.
@@ -488,7 +593,11 @@ if [ "$MODE" = up ]; then
   if [ "$linked" = 1 ]; then
     ok "a Foundry connection is established on the bridge's port 31415"
   else
-    warn "no established connection on the bridge's port 31415 yet; see: journalctl -u $KIT_GM_UNIT -n 30 and journalctl -u foundry-ai-tool-bridge -n 30"
+    if [ "$STACK" = containers ]; then
+      warn "no established connection on the bridge's port 31415 yet; see: $(kit_gm_logs_hint 30) and $(svc_logs_hint bridge)"
+    else
+      warn "no established connection on the bridge's port 31415 yet; see: journalctl -u $KIT_GM_UNIT -n 30 and journalctl -u foundry-ai-tool-bridge -n 30"
+    fi
   fi
 
   # Done: Foundry stays on strahd-kit, the Assistant GM browser stays stopped, and nothing is put back by itself.
@@ -503,7 +612,11 @@ if [ "$MODE" = up ]; then
   echo "    GM for the test kit: $KIT_GM_USER (Game Master, the module's bridge user); its browser ($KIT_GM_UNIT) holds the bridge link."
   echo "    Its password is in $KIT_GM_ENV (root only, mode 600): the PC reads it with a file read over ssh; it is never printed here."
   echo "    The Assistant GM browser is stopped until MODE=down (it would join $KIT_WORLD and move the bridge link to the test world)."
-  echo "    A reboot drops the Kit GM browser (nothing starts it again); MODE=down still cleans up."
+  if [ "$STACK" = containers ]; then
+    echo "    The Kit GM browser is a container ($KIT_GM_UNIT, restart policy unless-stopped): a reboot brings it back; MODE=down removes it."
+  else
+    echo "    A reboot drops the Kit GM browser (nothing starts it again); MODE=down still cleans up."
+  fi
   echo "    When the player is done and has left the game, run MODE=down: it deletes $PLAYER_NAME and the actors it owns that were made after MODE=up,"
   echo "    stops the Kit GM browser, deletes $KIT_GM_USER and its password file (the bridge user goes back to what it was),"
   echo "    puts options.json back on ${orig_world:-no world} and starts Foundry and the Assistant GM browser again."
@@ -545,20 +658,20 @@ fi
 [ -f "$TOOL_DIR/app/package.json" ] || die "the tool is not built at $TOOL_DIR/app: run stage 5 first"
 [ "$(current_world)" = "$KIT_WORLD" ] || die "options.json does not launch $KIT_WORLD (it launches '$(current_world)'): the kit session is not up. Nothing was changed"
 driver_available || die "no kit-session.mjs (not installed in $driver_dir, no upload in $SESSION_DRIVER): scp scripts/pi/remote/kit-session.mjs foundry-pi:/root/ first"
-systemctl is-active --quiet foundry.service || die "Foundry is not running: start it (systemctl start foundry) and run MODE=down again. Nothing was changed"
-world_up || die "$KIT_WORLD is not answering on port 30000 (see: journalctl -u foundry -n 50). Nothing was changed"
+svc_active foundry || die "Foundry is not running: start it ($([ "$STACK" = containers ] && echo "docker start the foundry container of $COMPOSE_LIVE_PROJECT" || echo "systemctl start foundry")) and run MODE=down again. Nothing was changed"
+world_up || die "$KIT_WORLD is not answering on port 30000 (see: $(foundry_logs_hint)). Nothing was changed"
 # The Kit GM browser is joined to strahd-kit and would count as online: it stops first. From here on it stays
 # stopped when the run stops (the kit session has no use for it any more; MODE=down can run again).
 ONLINE_NOTE=""
 if [ "$kit_gm_session" = 1 ]; then
   stop_kit_gm_browser
-  if systemctl is-active --quiet "$KIT_GM_UNIT.service"; then
-    die "the Kit GM browser ($KIT_GM_UNIT) did not stop: see systemctl status $KIT_GM_UNIT. Nothing else was changed"
+  if kit_gm_active; then
+    die "the Kit GM browser ($KIT_GM_UNIT) did not stop: see $([ "$STACK" = containers ] && echo "docker logs --tail 30 $KIT_GM_UNIT (never a bare docker inspect: it prints the container's password)" || echo "systemctl status $KIT_GM_UNIT"). Nothing else was changed"
   fi
   ONLINE_NOTE=" (the Kit GM browser is stopped now and stays stopped; run MODE=down again once the player has left)"
 fi
 # A reboot during the session starts the Assistant GM browser, which joins strahd-kit and would count as online.
-systemctl stop foundry-ai-tool-gm-browser.service 2>/dev/null || true
+svc_stop gm-browser 2>/dev/null || true
 check_nobody_online "the Kit Player must leave the game first"
 
 say "the in-browser part"
@@ -583,27 +696,27 @@ back_exit() {
   set +e
   trap '' PIPE HUP
   if [ "$restored" = 0 ]; then
-    if [ "$halted" = 1 ]; then systemctl start foundry.service; fi
+    if [ "$halted" = 1 ]; then svc_start foundry; fi
     warn "options.json still launches $KIT_WORLD and the state file stays (nothing was put back): start Foundry if it is stopped and run MODE=down again"
     return 0
   fi
   # The session is over, whether or not the run got any further: a dropped ssh session while Foundry stops or
   # starts must leave Foundry running and the Assistant GM browser back.
-  if [ "$halted" = 1 ] && ! systemctl is-active --quiet foundry.service; then systemctl start foundry.service; fi
+  if [ "$halted" = 1 ] && ! svc_active foundry; then svc_start foundry; fi
   came_back=0
-  if systemctl is-active --quiet foundry.service && world_up; then
+  if svc_active foundry && world_up; then
     came_back=1
   else
-    warn "Foundry did not come back on '${orig_world:-no world}' (see: journalctl -u foundry -n 50); the kit session is over and options.json is restored"
+    warn "Foundry did not come back on '${orig_world:-no world}' (see: $(foundry_logs_hint)); the kit session is over and options.json is restored"
   fi
   if [ "$was_gm_browser" = 1 ]; then
-    if systemctl is-active --quiet foundry.service; then
-      if ! systemctl is-active --quiet foundry-ai-tool-gm-browser.service; then
-        systemctl start foundry-ai-tool-gm-browser.service
+    if svc_active foundry; then
+      if ! svc_active gm-browser; then
+        svc_start gm-browser
         warn "the Assistant GM browser was started again; check it once Foundry runs"
       fi
     else
-      warn "Foundry is stopped, so the Assistant GM browser was not started: after fixing Foundry, run systemctl start foundry-ai-tool-gm-browser"
+      warn "Foundry is stopped, so the Assistant GM browser was not started: after fixing Foundry, run $([ "$STACK" = containers ] && echo "docker start on its gm-browser container (compose project $COMPOSE_LIVE_PROJECT)" || echo "systemctl start foundry-ai-tool-gm-browser")"
     fi
   fi
   return 0
@@ -612,13 +725,13 @@ trap back_exit EXIT
 
 say "Foundry launches ${orig_world:-no world} again"
 halted=1
-systemctl stop foundry.service
+svc_stop foundry
 set_world "$orig_world"
 restored=1
 rm -f "${STATE:?}"
 ok "options.json launches ${orig_world:-no world}; state file removed"
 since="$(date '+%Y-%m-%d %H:%M:%S')"
-systemctl start foundry.service
+svc_start foundry
 if [ -n "$orig_world" ]; then
   wait_for_world "$orig_world"
   ok "$orig_world is running"
@@ -626,23 +739,27 @@ fi
 trap - EXIT
 
 if [ "$was_gm_browser" = 1 ]; then
-  systemctl restart foundry-ai-tool-gm-browser.service
+  svc_restart gm-browser
   sleep 2
-  systemctl is-active --quiet foundry-ai-tool-gm-browser.service || die "the Assistant GM browser did not start; see: journalctl -u foundry-ai-tool-gm-browser -n 50"
+  svc_active gm-browser || die "the Assistant GM browser did not start; see: $(gm_logs_hint 50)"
   if [ -n "$orig_world" ]; then
     joined=0
     for _ in $(seq 1 45); do
-      if journalctl -u foundry-ai-tool-gm-browser --since "$since" --no-pager | grep -q 'joined world'; then
+      if gm_joined_since "$since"; then
         joined=1
         break
       fi
       sleep 2
     done
-    journalctl -u foundry-ai-tool-gm-browser -n 5 --no-pager | grep 'assistant-gm' || true
+    if [ "$STACK" = containers ]; then
+      svc_gm_log "$since" | grep 'assistant-gm' | tail -n 5 || true
+    else
+      journalctl -u foundry-ai-tool-gm-browser -n 5 --no-pager | grep 'assistant-gm' || true
+    fi
     if [ "$joined" = 1 ]; then
       ok "the Assistant GM browser joined the world"
     else
-      warn "no 'joined world' yet; see: journalctl -u foundry-ai-tool-gm-browser -n 30"
+      warn "no 'joined world' yet; see: $(gm_logs_hint 30)"
     fi
   fi
 else

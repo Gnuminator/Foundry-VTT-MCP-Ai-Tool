@@ -41,6 +41,7 @@ import {
   registerTarokkaTableSettings,
   startTableWatch,
 } from './tarokka-table-window.js';
+import { registerStingerSettings, startStingers } from './stinger.js';
 import { logInfo } from './log.js';
 import { warmPlayerIndexes } from './player-read.js';
 import { toGmMessage } from './gm-message.js';
@@ -145,6 +146,8 @@ class FoundryMCPBridge {
       registerPartyAuto();
       // The Tarokka card table (D-130): the public table every client reads, players included.
       registerTarokkaTableSettings();
+      // Stingers on the table TV (I-176): the setting; the hook acts for the Table user only.
+      registerStingerSettings();
       // Themed dice (I-085): every client, players included; silent without Dice So Nice.
       registerDiceThemes();
 
@@ -217,6 +220,11 @@ class FoundryMCPBridge {
         name: 'AI Tool: Table viewer (writes)',
         hint: 'Lets the AI create the Table user that the TV at the table signs in as, after you confirm.',
         defaultEnabled: true,
+      });
+      registerGuardedFeature({
+        id: 'macro-forge',
+        name: 'AI Tool: Macro forge (writes)',
+        hint: 'Lets the AI create a script macro that only you can see and run, after you confirm. Its full source is shown in the plan; it may not use the network, browser storage or dynamic code.',
       });
       registerGuardedFeature({
         id: SCENE_RESTORE_FEATURE_ID,
@@ -561,6 +569,7 @@ Hooks.once('ready', async () => {
     // A player who joins while the GM shows the Tarokka table sees it at once.
     onTableSettingChanged();
     startTableWatch();
+    startStingers();
 
     await foundryMCPBridge.onReady();
 

@@ -24,6 +24,7 @@ export const RISKY_CATEGORIES = [
       'packages/mcp-server/src/change-journal-pump*',
       'shared/src/guarded-write*',
       'shared/src/change-journal*',
+      'shared/src/macro-*',
     ],
   },
   {
@@ -45,10 +46,7 @@ export const RISKY_CATEGORIES = [
     // The write gate: what may change the world, and who may.
     name: 'the write gate',
     // queries/** registers every handler with its kind, which the gate reads.
-    patterns: [
-      'packages/foundry-module/src/write-gate*',
-      'packages/foundry-module/src/queries/**',
-    ],
+    patterns: ['packages/foundry-module/src/write-gate*', 'packages/foundry-module/src/queries/**'],
   },
   {
     // Security: dashboard auth (server and React side) and redaction, secret stripping, the

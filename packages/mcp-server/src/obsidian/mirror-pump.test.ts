@@ -8,7 +8,12 @@ import { promises as fsp } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
-import type { ExportFolderRef, ExportIndexRequest } from '@gnuminator/shared';
+import type {
+  ExportActorEntry,
+  ExportFolderRef,
+  ExportIndexRequest,
+  ExportSceneEntry,
+} from '@gnuminator/shared';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { REVEALS_FILE } from '../tarokka/service.js';
@@ -327,7 +332,7 @@ describe('ObsidianMirrorPump: first run and incremental cycles', () => {
       'actor:wolf000000000000',
       'journal:lore000000000000',
     ]);
-    fake.edit(ARENA.uuid, e => (e.navName = 'The Pit'), 70_000);
+    fake.edit<ExportSceneEntry>(ARENA.uuid, e => (e.navName = 'The Pit'), 70_000);
     await tickAfter(pump, 10_000);
     expect(await read(P.arena)).toContain('nav_name: "The Pit"');
     await tickAfter(pump, 10_000);
@@ -394,6 +399,18 @@ describe('ObsidianMirrorPump: reconcile and deletes', () => {
     expect(status.skipped).toEqual([]);
     expect(await read(P.status)).toContain('Deleted in Foundry, kept because you edited the note');
     expect(await read(P.status)).toContain(P.wolf);
+  });
+
+  it('lists a Syncthing conflict copy in the status and never writes it', async () => {
+    const pump = await started();
+    const copy = 'AI Tool/Foundry/NPCs/Wolf.sync-conflict-20261122-190000-ABCDEFG.md';
+    await fsp.writeFile(full(copy), (await read(P.wolf)) ?? '', 'utf8');
+    await reconcileNow(pump);
+    expect(pump.status().syncConflicts).toEqual([copy]);
+    expect(pump.status().duplicates).toEqual([]);
+    expect(await read(P.status)).toContain('Sync conflict copies');
+    expect(await read(P.status)).toContain(copy);
+    expect(await exists(full(P.wolf))).toBe(true);
   });
 
   it('trashes a page note when its page is gone from a freshly fetched journal', async () => {
@@ -510,7 +527,7 @@ describe('ObsidianMirrorPump: reconcile and deletes', () => {
     const pump = await started();
     await fsp.rm(full(P.wolf));
     await fsp.rm(full(P.village));
-    fake.edit(WOLF.uuid, e => (e.hpMax = 12), 60_000);
+    fake.edit<ExportActorEntry>(WOLF.uuid, e => (e.hpMax = 12), 60_000);
     await tickAfter(pump, 10_000); // the incremental cycle does not recreate it
     expect(await exists(full(P.wolf))).toBe(false);
     await tickAfter(pump, RECONCILE_MIN_INTERVAL_MS); // the gone note asked for a reconcile
@@ -818,7 +835,7 @@ describe('ObsidianMirrorPump: scheduling and failures', () => {
     expect(failures()).toHaveLength(1);
     expect(pump.status().lastError).toMatch(/Foundry is busy/);
     expect(pump.status().lastCycleAt).toBe(new Date(T0).toISOString());
-    fake.edit(WOLF.uuid, e => (e.hpMax = 30), 60_000);
+    fake.edit<ExportActorEntry>(WOLF.uuid, e => (e.hpMax = 30), 60_000);
     await tickAfter(pump, 10_000);
     expect(lastRequest()?.sinceModifiedTime).toBe(48_000);
     expect(await read(P.wolf)).toContain('hp_max: 30');

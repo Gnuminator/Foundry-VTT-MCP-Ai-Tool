@@ -3,6 +3,8 @@
 // Panels dock in their view's slots (Drawer.tsx, DockContext); the ones not in React yet show a
 // small card that points to the full dashboard. The look is moments.css.
 import {
+  lazy,
+  Suspense,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -20,6 +22,9 @@ import { usePlaySession, type PlaySession } from '../lib/session';
 
 import type { DuringFolds } from './Folds';
 import { LiveFeed } from './LiveFeed';
+
+// The spotlight card is a lazy chunk (bundle budget); the feed slot shows it once it has loaded.
+const Spotlight = lazy(() => import('./Spotlight').then(m => ({ default: m.Spotlight })));
 
 export type Moment = 'before' | 'during' | 'after';
 
@@ -264,6 +269,9 @@ export function MomentViews({
         </div>
         <div className="slot slot-feed" data-slot="feed">
           <LiveFeed {...(duringFolds ? { folds: duringFolds } : {})} />
+          <Suspense fallback={null}>
+            <Spotlight />
+          </Suspense>
         </div>
         <div className="slot slot-changes" data-slot="changes" ref={slotRefs['during-changes']} />
         <div

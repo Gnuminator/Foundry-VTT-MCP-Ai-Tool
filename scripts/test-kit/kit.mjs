@@ -42,7 +42,7 @@ import { consoleSummaryLines } from './lib/console-errors.mjs';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(here, '..', '..');
 const REPO_SCENARIOS = path.join(here, 'scenarios');
-const COMMANDS = ['init', 'build', 'run', 'all', 'check'];
+const COMMANDS = ['init', 'build', 'run', 'all', 'check', 'fixture'];
 
 export const HELP = `kit: the Foundry AI Tool test kit.
 
@@ -53,6 +53,7 @@ Commands
   build    open the GM session and build the kit (heroes, monsters, a combat scene); writes the manifest
   run      run the scenarios against the built kit and write a report
   all      build, then run
+  fixture  add a scene, two named tokens and a party group to the kit world (I-028; local only, no build)
   check    load and validate every scenario against the tool catalog; no target needed (CI)
 
 Options
@@ -562,13 +563,57 @@ async function cmdTarget(command, o) {
 }
 
 /**
+ * `fixture`: puts the scene fixture (a scene, two named tokens, a party group; lib/scene-fixture.mjs)
+ * into the kit world through the Kit GM's browser. Local target only; no build, no wipe.
+ * @param {any} o
+ */
+async function cmdFixture(o) {
+  const fake = await maybeStartFake(o);
+  /** @type {any} */
+  let gmSession = null;
+  let dashboard = null;
+  let gmActionsBefore = null;
+  try {
+    const target = resolveTarget({ world: o.world, fake: o.fake, fakeBase: fake && fake.base });
+    dashboard = createDashboardClient({ base: target.dashboard });
+    let gm = fake ? fake.gm : null;
+    if (!fake) {
+      gmSession = await openGm(o, target);
+      gm = gmSession;
+      await waitForLink(dashboard, o.world);
+    }
+    gmActionsBefore = await dashboard.getGmActions();
+    if (!gmActionsBefore) await dashboard.setGmActions(true);
+    const { buildSceneFixture } = await importLib('lib/scene-fixture.mjs');
+    const made = await buildSceneFixture({ gm, dashboard, log: say });
+    say(
+      made.created
+        ? `fixture made in ${o.world}: scene ${made.sceneId}, ${made.tokenIds.length} tokens, party ${made.groupId}`
+        : `fixture already in ${o.world}; nothing changed`
+    );
+    return EXIT.PASS;
+  } finally {
+    if (gmSession) await gmSession.close().catch(() => {});
+    if (dashboard && gmActionsBefore === false) {
+      await dashboard.setGmActions(false).catch(() => {});
+    }
+    if (fake) await Promise.resolve(fake.close()).catch(() => {});
+  }
+}
+
+/**
  * The options `--target pi` allows: only `run` (or `check`, which needs no target), no fake, the
  * default profile, no other world than strahd-kit. Everything here exits 2 with a clear message.
  * @param {ReturnType<typeof parseArgs>} o
  */
 export function checkPiOptions(o) {
   if (o.target !== 'pi') return;
-  if (o.command === 'init' || o.command === 'build' || o.command === 'all') {
+  if (
+    o.command === 'init' ||
+    o.command === 'build' ||
+    o.command === 'all' ||
+    o.command === 'fixture'
+  ) {
     throw new EnvError(
       `REFUSED: --target pi allows only "run": the Pi's ${PI_WORLD} is made by the kit session, and the kit never builds, wipes or inits there.`
     );
@@ -733,6 +778,7 @@ export async function main(argv) {
     if (o.target === 'pi') return await piRun(o);
     resolveProfile(o);
     if (o.command === 'init') return await cmdInit(o);
+    if (o.command === 'fixture') return await cmdFixture(o);
     return await cmdTarget(/** @type {'build' | 'run' | 'all'} */ (o.command), o);
   } catch (e) {
     if (e instanceof EnvError) {

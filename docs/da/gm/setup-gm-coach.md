@@ -1,6 +1,6 @@
 ---
 source: gm/setup-gm-coach.md
-sourceHash: 626b3b9f7652
+sourceHash: ed9658b179cd
 title: 'Engangsopsætning: GM-coachen'
 description: Læg Foundry GM coach-skillen ind på din egen Claude-konto, med et Claude Project som nødplan. Cirka 5 minutter, én gang.
 ---
@@ -12,23 +12,29 @@ Den virker på den gratis Claude-plan. Hvad den kan, og hvordan du spørger den,
 [Din GM-coach i Claude](gm-coach.md). Cirka 5 minutter, én gang.
 
 **Du skal bruge:** en Claude-konto (desktop-appen eller claude.ai) med Foundry-connectoren slået til
-i dine chats. På en Pro- eller Max-plan tilføjer du coachen som plugin (første afsnit nedenfor). På
+i dine chats (tilføjet med Windows-klienten eller [med webadresse](connect-claude-web.md)). På en Pro- eller Max-plan tilføjer du coachen som plugin (første afsnit nedenfor). På
 en gratis plan bruger du filen `foundry-gm-coach.zip` fra den, der byggede værktøjet.
 
 <!-- wiki:coach-download -->
 
 ## Læg den ind som plugin (Pro og Max)
 
-1. Åbn **Settings**, derefter **Customize** og plugin-siden i Claude Desktop.
-2. Tilføj en marketplace og skriv `Gnuminator/foundry-ai-tool-plugins`.
-3. Installer **foundry-gm-coach** fra den marketplace.
-4. Start en ny chat. Senere ændringer af coachen når nye chats af sig selv; du opdaterer ingenting.
+1. Åbn **Settings** i Claude Desktop, derefter **Plugins**. Filtrene øverst er **All**,
+   **Connectors** og **Skills**.
+2. Klik på **Add**-menuen ved siden af **Search** og tilføj en marketplace: skriv
+   `Gnuminator/foundry-ai-tool-plugins`. (Under **Find more plugins** er der også et **Plugins**-link,
+   der gør det samme.)
+3. Under **Discover** viser marketplacen tre kort: **Foundry dnd helper**, **Foundry gm coach** og
+   **Foundry player helper**. Installer **Foundry gm coach**.
+4. Har du uploadet coachen som zip tidligere (den står som **By you** under **Skills**), så fjern den
+   kopi nu, så Claude ikke har coachen to gange.
+5. Start en ny chat. Senere ændringer af coachen når nye chats af sig selv; du opdaterer ingenting.
 
 ## Læg den ind fra zip-filen (gratis plan)
 
 1. Åbn **Settings**, **Capabilities** i Claude, og slå **Code execution and file creation** til. Skills
    kræver det.
-2. Åbn **Customize**, derefter **Skills**.
+2. Åbn **Settings**, derefter **Plugins**, og vælg filteret **Skills**.
 3. Tilføj en skill og upload `foundry-gm-coach.zip`. Pak den ikke ud først.
 4. Sørg for, at skillen er slået til i listen.
 
@@ -52,10 +58,10 @@ D&D-hjælperen bygger karakterer, rådgiver om level-up og svarer på regelspør
 Foundry. Den læser kun; du ændrer spillet ved at klikke i Foundry. Den bruger samme Foundry-connector
 som coachen.
 
-- **Pro og Max (plugin):** installer **foundry-dnd-helper** fra den samme marketplace,
-  `Gnuminator/foundry-ai-tool-plugins`, ved siden af coachen. Start en ny chat. Senere ændringer når
-  nye chats af sig selv.
-- **Gratis plan (zip):** tilføj en skill under **Customize** og **Skills**, og upload
+- **Pro og Max (plugin):** installer **Foundry dnd helper** (under **Discover**) fra den samme marketplace,
+  `Gnuminator/foundry-ai-tool-plugins`, ved siden af coachen. Fjern en tidligere zip-kopi (**By you**)
+  først. Start en ny chat. Senere ændringer når nye chats af sig selv.
+- **Gratis plan (zip):** tilføj en skill under **Settings**, **Plugins**, **Skills**, og upload
   `foundry-dnd-helper.zip` fra den, der byggede værktøjet. Pak den ikke ud først.
 
 ## Nødplan: et Claude Project

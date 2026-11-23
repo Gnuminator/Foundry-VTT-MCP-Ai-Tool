@@ -137,6 +137,11 @@ export default {
     const monster = monsterOf(t.kit, 'beast');
     const sceneId = t.kit.scene.sceneId;
     const known = await page.evaluate(MESSAGE_IDS_SCRIPT);
+    const hasStrike = await page.evaluate(
+      ({ actorId }) => game.actors.get(actorId)?.items.some(i => i.name === 'Unarmed Strike') ?? false,
+      { actorId: hero.actorId }
+    );
+    t.check(hasStrike, `${hero.name} has no Unarmed Strike item, which the attack request uses`);
 
     const poison = (tokenId, active) => page.evaluate(POISON_SCRIPT, { sceneId, tokenId, active });
     t.cleanup(async () => {
@@ -158,7 +163,7 @@ export default {
     const modes = async () => {
       const before = await page.evaluate(MESSAGE_IDS_SCRIPT);
       await t.tool('request-ability-check', { targetPlayer: hero.name, ability: 'str', isPublic: true }, { confirm: true });
-      await t.tool('request-attack-roll', { targetPlayer: hero.name, weaponOrSpellName: 'Kit Sword', isPublic: true }, { confirm: true });
+      await t.tool('request-attack-roll', { targetPlayer: hero.name, weaponOrSpellName: 'Unarmed Strike', isPublic: true }, { confirm: true });
       const requests = await page.evaluate(NEW_ROLLS_SCRIPT, { known: before });
       const buttonMode = async label => {
         const b = requests.buttons.find(x => x.label.toLowerCase().includes(label.toLowerCase()));

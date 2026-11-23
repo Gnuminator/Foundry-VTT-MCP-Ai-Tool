@@ -30,6 +30,7 @@ import {
   sampleMonsters,
 } from '../lib/monsters.mjs';
 import { judgeUse } from '../lib/features.mjs';
+import { retryLinkLoss } from '../lib/helpers.mjs';
 import { loadProfile } from '../lib/profiles.mjs';
 
 /** @type {import('../lib/contract.mjs').Scenario} */
@@ -134,7 +135,9 @@ export default {
             }
 
             try {
-              const reply = await t.tool('get-character', { identifier: made.actorId });
+              const reply = await retryLinkLoss(() =>
+                t.tool('get-character', { identifier: made.actorId })
+              );
               bridgeChecked += 1;
               problems.push(...judgeBridge(row, reply, bridgeNotes));
             } catch (e) {

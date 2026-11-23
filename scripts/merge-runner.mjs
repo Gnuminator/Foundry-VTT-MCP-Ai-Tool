@@ -1,16 +1,15 @@
 #!/usr/bin/env node
+// @ts-check
 /**
  * Merge runner (D-140, D-141): merges ready PRs without a model, so no planner has to stand by.
- *
  *   node scripts/merge-runner.mjs [--once] [--interval <s>] [--vault <dir>] [--checkout <dir>]
  *
  * A Windows scheduled task starts it at logon (scripts/register-merge-runner.ps1) from the main
- * checkout. Each round it reads vault Backlog.md from the upstream branch (fetch, `git show @{u}:`,
+ * checkout. Each round it reads vault Backlog.md from the upstream branch (fetch, `git show` of the upstream branch,
  * never the shared working tree) and takes every item whose progress line is a ready line
  * (`PR #<n> ready, head <40-hex sha>`, written by `backlog.mjs progress <id> --ready`; parseReadyAll),
  * one PR at a time, in Backlog order. Before each PR the line is read again (an earlier gate run
  * can take half an hour); a line that changed meanwhile waits for the next round.
- *
  * Merge queue (main's ruleset has `merge_queue` and requires ci-all-green): the gate ends with
  * `lane:merge: enqueued #<PR>`; the runner replaces the ready line with "PR #<n> enqueued in the
  * merge queue, head <sha>" and each round follows those PRs: merged -> `backlog.mjs done` and one
@@ -45,7 +44,8 @@
  *       refused only for being behind main (not mergeable, or the drift check's moved lockfile): the
  *         runner merges aitool/main into the lane branch, pushes it (lease on the old head) and
  *         writes a ready line for the new head with the same review (merge-runner/refresh.mjs);
- *         a real conflict, a fork or draft PR, or a head that is already a refresh commit refuse.
+ *         generated tool pages in conflict or stale are regenerated into the merge commit; any other
+ *         real conflict, a fork or draft PR, or a head that is already a refresh commit refuse.
  *       any other refusal: `backlog.mjs progress <id> "PR #<n> refused by the merge gate: <why>"
  *         --if-ready <PR>@<sha>` (that replaces the ready line, so it is not tried again until a
  *         lane writes a new one; a newer ready line is never overwritten) and one #pr-log line.
@@ -55,14 +55,14 @@
  *
  * Train roundtrip (the user, 2026-11-17): while a PR waits for the full train the runner queues for
  * test server A's lock and, holding it, runs live:roundtrip (plus live:sweep) on main and
- * `--train-reset`; red stops it with a bisect hint (merge-runner/train-run.mjs says how, server A
- * only, never the live ports of shared/ports.json). One ready line per PR: an item with two PRs holds two lines
- * (a runner write with --if-ready changes only its own PR's line). A lock
- * file (~/.foundry-ai-tool/merge-runner.lock, the holder's pid) lets one runner run; a second one
- * posts one line and exits 1. A holder pid that is gone or is no longer a merge runner (Windows
- * reuses pids after a logoff) is taken over. A vault write that fails is logged; the PR is not tried
- * again in this run.
- * Discord lines go through main's copy of the bot's announce sender (`pr-note`, #pr-log, silent).
+ * `--train-reset`; red stops it with a bisect hint (merge-runner/train-run.mjs). One ready line per
+ * PR (an item with two PRs holds two lines; a runner write with --if-ready changes only its own).
+ * A lock file (~/.foundry-ai-tool/merge-runner.lock, the holder's pid) lets one runner run; a second
+ * posts one line and exits 1; a gone or reused pid is taken over. A failed vault write is logged and
+ * the PR is not tried again in this run. Discord lines go through main's copy of the bot's announce sender.
+ *
+ * Release step (merge-runner/release-ready.mjs): a `release-*` item whose dependencies have all
+ * merged gets live:roundtrip, one #pr-log line and one Waiting item. Never tags, never the Pi.
  *
  * Its own code: at the start of each round (not with --once) it compares its files (this one,
  * backlog.mjs and what they import) with aitool/main (merge-runner/self-check.mjs). When they
@@ -84,7 +84,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseBacklog, parseProgress, parseReadyAll, readyOrEnqueuedPr } from './backlog-items.mjs';
-import { readUpstreamBacklog } from './planner-wake.mjs';
+import { readUpstreamBacklog } from './backlog-items.mjs';
 import { queueQuery } from './lane-merge/constants.mjs';
 import {
   GHOST_MINUTES,
@@ -97,8 +97,10 @@ import { makeBaseDeps, runningInfo, skipMainWait } from './merge-runner/base-cur
 import { openLeft } from './merge-runner/open-steps.mjs';
 import { makeRefresh, refreshStep } from './merge-runner/refresh.mjs';
 import { EXIT_RESTART, makeSelfCheck, reexec } from './merge-runner/self-check.mjs';
+import { startLiveness } from './merge-runner/liveness.mjs';
 import { isRunnerProcess, takeRunnerLock } from './merge-runner/runner-lock.mjs';
 import { makeTrainDeps, makeTrainRun, trainTick } from './merge-runner/train-run.mjs';
+import { makeReleaseDeps, makeReleaseRun, releaseTick } from './merge-runner/release-ready.mjs';
 import { announceUnready, isPartOnly, makeUnreadyDeps } from './merge-runner/unready.mjs';
 
 export const REPO = 'Gnuminator/Foundry-VTT-MCP-Ai-Tool';
@@ -219,7 +221,7 @@ export function mainState(json, tip = '') {
  * already on main while the PR still reads OPEN (GitHub lost the merge event).
  */
 const TRANSIENT =
-  /gh pr view \d+ failed|git fetch .* failed|the gate on .* changed during the wait|mergeable is UNKNOWN|unexpected error|train lock|no reason line/;
+  /gh pr view \d+ failed|git fetch .* failed|the gate on .* changed during the wait|mergeable is UNKNOWN|unexpected error|train lock|no reason line|infrastructure, not the PR/;
 /** A GitHub blip on `gh pr merge`: a 5xx (GraphQL or REST), a bare `EOF`, or GraphQL "Something went wrong". */
 export const GH_MERGE_5XX =
   /merge: gh pr merge exited \d+: (?:.*?(?:non-200 OK status code: |\bHTTP )5\d\d\b|EOF\s*$|GraphQL: Something went wrong while executing your query)/;
@@ -268,7 +270,7 @@ const norm = p => {
 };
 
 /**
- * @typedef {{ status: number, stdout: string, stderr: string }} Ran
+ * @typedef {{ status: number, stdout: string, stderr: string, timedOut?: boolean }} Ran
  * @typedef {{
  *   readBacklog: () => string | null,
  *   gh: (args: string[]) => Ran,
@@ -288,6 +290,7 @@ const norm = p => {
  *   noticeSeen?: (key: string) => boolean,
  *   noticeMark?: (key: string) => void,
  *   trainRun?: ReturnType<typeof makeTrainRun>,
+ *   releaseRun?: ReturnType<typeof makeReleaseRun>,
  * }} Deps
  * `queueOn`: main's ruleset holds a merge queue (then a running main CI does not hold the next
  * PR back: the queue tests every PR on top of the ones ahead). `ghosts`: stuck checks, see
@@ -318,14 +321,14 @@ export function round(d, tried, attempts, tick) {
     return r.status === 0;
   };
   /**
-   * The refusal replaces the ready line only while it is still that same line (`--if-ready`,
-   * checked under backlog.mjs's lock): a lane that wrote a newer one keeps it.
+   * The refusal replaces the ready line only while it is still that same line (`--if-ready`, under
+   * backlog.mjs's lock). Once it is gone the head leaves `tried`: a rewritten ready line is gated again.
    * @param {{ id: string, pr: number, head: string }} r @param {string} why
    */
   const refuse = (r, why) => {
     const reason = oneLine(why, 300);
     d.log(`#${r.pr} (${r.id}) not merged: ${reason}`);
-    write(
+    const written = write(
       r.id,
       [
         'progress',
@@ -336,6 +339,7 @@ export function round(d, tried, attempts, tick) {
       ],
       'progress'
     );
+    if (written) tried.delete(`${r.pr}@${r.head}`); // a failed write keeps it: the line is still there
     d.post(`merge runner: #${r.pr} not merged: ${reason}`);
   };
   /**
@@ -751,6 +755,7 @@ function sh(cmd, args, o = {}) {
     maxBuffer: 64 * 1024 * 1024,
     timeout: o.timeout ?? SHORT_TIMEOUT_MS,
     cwd: o.cwd,
+    windowsHide: true,
     env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
   });
   return {
@@ -854,6 +859,7 @@ export { isRunnerProcess, takeRunnerLock };
  */
 export function parseArgs(argv) {
   const repo = path.resolve(here, '..').replace(/[\\/]\.claude[\\/]worktrees[\\/].*$/, '');
+  /** @type {{ once: boolean, interval: number, vault: string, checkout: string, releaseSession?: boolean }} */
   const o = {
     once: false,
     interval: DEFAULT_INTERVAL,
@@ -876,6 +882,7 @@ export function parseArgs(argv) {
         throw new Error('--interval is at least 10 seconds');
     } else if (a === '--vault') o.vault = value();
     else if (a === '--checkout') o.checkout = path.resolve(value());
+    else if (a === '--release-session') o.releaseSession = true;
     else throw new Error(`unknown argument ${a}`);
   }
   return o;
@@ -888,17 +895,31 @@ const stamp = line => console.log(`merge-runner: ${new Date().toISOString()} ${l
 function realDeps(o) {
   const vaultGit = (/** @type {string[]} */ args) =>
     sh('git', ['-C', o.vault, ...args], { timeout: 60_000 });
+  /** @param {{ pr: number, head: string }} r */
+  const prepare = r => {
+    try {
+      return prepareCheckout(o.checkout, r);
+    } catch (e) {
+      return e instanceof Error ? e.message : String(e);
+    }
+  };
+  const trainDeps = makeTrainDeps({
+    sh,
+    stamp,
+    repo: REPO,
+    repoRoot: path.resolve(here, '..'),
+    checkout: o.checkout,
+    vault: o.vault,
+    prepare,
+    mainCopy,
+    post: t => deps.post(t),
+    trainFile: path.join(os.homedir(), '.foundry-ai-tool', 'merge-train.json'),
+  });
   /** @type {Deps} */
   const deps = {
     readBacklog: () => readUpstreamBacklog(vaultGit, m => stamp(`WARNING: ${m}`)),
     gh: args => sh('gh', args),
-    prepare: r => {
-      try {
-        return prepareCheckout(o.checkout, r);
-      } catch (e) {
-        return e instanceof Error ? e.message : String(e);
-      }
-    },
+    prepare,
     refresh: makeRefresh({ checkout: o.checkout, run: sh, repo: REPO, mainRef: MAIN }),
     gate: pr => {
       const copy = mainCopy(o.checkout, 'scripts/lane-merge.mjs', 'scripts/lane-merge');
@@ -939,25 +960,9 @@ function realDeps(o) {
     ...makeUnreadyDeps({ sh, repo: REPO, vault: o.vault }),
     ...makeQueueDeps({ sh, stamp, repo: REPO }),
     ...makeBaseDeps({ sh, repo: REPO }),
-    trainRun: makeTrainRun(
-      makeTrainDeps({
-        sh,
-        stamp,
-        repo: REPO,
-        repoRoot: path.resolve(here, '..'),
-        checkout: o.checkout,
-        vault: o.vault,
-        prepare: r => {
-          try {
-            return prepareCheckout(o.checkout, r);
-          } catch (e) {
-            return e instanceof Error ? e.message : String(e);
-          }
-        },
-        mainCopy,
-        post: t => deps.post(t),
-        trainFile: path.join(os.homedir(), '.foundry-ai-tool', 'merge-train.json'),
-      })
+    trainRun: makeTrainRun(trainDeps),
+    releaseRun: makeReleaseRun(
+      makeReleaseDeps({ sh, stamp, repo: REPO, vaultGit, train: trainDeps, deps: () => deps, ...o })
     ),
     selfCheck:
       makeSelfCheck({
@@ -987,15 +992,21 @@ export async function main(argv, inject = {}) {
     console.error(`merge-runner: ${e instanceof Error ? e.message : e}`);
     return 2;
   }
-  const d = inject.deps ?? realDeps(o);
+  const base = inject.deps ?? realDeps(o);
   const lockFile =
     inject.lockFile ?? path.join(os.homedir(), '.foundry-ai-tool', 'merge-runner.lock');
   const lock = takeRunnerLock(lockFile, process.pid, inject.isRunner);
   if (!lock.ok) {
     const why = `another merge runner runs (pid ${lock.holder || 'unknown'}, ${lockFile})`;
-    d.log(`${why}; exiting`);
-    d.post(`merge runner not started: ${why}`);
+    base.log(`${why}; exiting`);
+    base.post(`merge runner not started: ${why}`);
     return 1;
+  }
+  const { deps: d, stop, blocked } = startLiveness(lockFile, base, o.once); // heartbeat, exit reason
+  if (blocked) {
+    base.log(blocked);
+    lock.release();
+    return EXIT_STOPPED;
   }
   const sleep = inject.sleep ?? (ms => new Promise(res => setTimeout(res, ms)));
   try {
@@ -1029,12 +1040,15 @@ export async function main(argv, inject = {}) {
         d.log(`exiting: ${tr.stop}`);
         return EXIT_STOPPED;
       }
+      if (!o.once) releaseTick(d.releaseRun, d); // never stops the runner
       if (o.once) return 0;
       await sleep(o.interval * 1000);
     }
   } finally {
     d.trainRun?.leave();
+    d.releaseRun?.leave();
     lock.release();
+    await stop();
   }
 }
 

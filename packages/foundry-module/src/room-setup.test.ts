@@ -412,6 +412,27 @@ describe('stairs', () => {
 describe('hazard', () => {
   const area = { x: 0, y: 0, width: 2, height: 2 };
 
+  it('warns about options that do not apply to the kind', async () => {
+    world.setActiveScene(scene('a', 'Hall').id);
+    const plan = await planRoomSetup({
+      action: 'hazard',
+      kind: 'difficult',
+      name: 'Mud',
+      area,
+      modifier: 0.3,
+      effectUuid: 'Actor.x.ActiveEffect.y',
+    });
+    expect(plan.warnings).toContain('modifier, effectUuid not used for kind difficult');
+    const dark = await planRoomSetup({
+      action: 'hazard',
+      kind: 'darkness',
+      name: 'Gloom',
+      area,
+      magical: true,
+    });
+    expect(dark.warnings).toContain('magical not used for kind darkness');
+  });
+
   it('difficult terrain uses the dnd5e behavior and needs the system', async () => {
     world.setActiveScene(scene('a', 'Hall').id);
     const plan = await planRoomSetup({
@@ -445,6 +466,7 @@ describe('hazard', () => {
       type: 'adjustDarknessLevel',
       system: { mode: 1, modifier: 0.25 },
     });
+    expect(plan.warnings).toEqual([]);
   });
 
   it('effect needs an existing ActiveEffect uuid', async () => {
@@ -525,4 +547,98 @@ it('refuses a non-GM and an unknown action', async () => {
   await expect(planRoomSetup({ action: 'dance' })).rejects.toThrow(/Unknown action "dance"/);
   (globalThis as any).game.user.isGM = false;
   await expect(planRoomSetup({ action: 'dance' })).rejects.toThrow(/Only a GM/);
+});
+
+describe('whisper (I-168)', () => {
+  const area = { x: 1, y: 1, width: 3, height: 2 };
+
+  it('makes a hidden card and one GM-visible Region with a tokenMoveIn script', async () => {
+    world.setActiveScene(scene('a', 'Hall').id);
+    const plan = await planRoomSetup({
+      action: 'whisper',
+      name: 'Hidden vault',
+      area,
+      text: 'Cold air.\n\nA <b>lever</b> hides behind the altar.',
+    });
+    expect(plan.ops).toHaveLength(2);
+    const card = plan.ops[0] as any;
+    expect(card).toMatchObject({ kind: 'create', documentName: 'JournalEntry', keepId: true });
+    expect(card.data.ownership).toEqual({ default: 0 });
+    const op = plan.ops[1] as any;
+    expect(op).toMatchObject({ kind: 'create', documentName: 'Region', parentUuid: 'Scene.a' });
+    // Foundry loads a behavior source on every client: no card text may be in the Region.
+    expect(JSON.stringify(op)).not.toContain('lever');
+    expect(JSON.stringify(op)).not.toContain('Cold air');
+    expect(op.data.behaviors[0].system.source).toContain(`JournalEntry.${card.data._id}`);
+    expect(op.data.shapes[0]).toMatchObject({ x: 100, y: 100, width: 300, height: 200 });
+    expect(op.data.visibility).toBe(1);
+    const b = op.data.behaviors[0];
+    expect(b.type).toBe('executeScript');
+    expect(b.system.events).toEqual(['tokenMoveIn']);
+    expect(plan.regions[0].role).toBe('whisper');
+  });
+
+  it('the script whispers to GMs only, escaped, once when asked', async () => {
+    world.setActiveScene(scene('a', 'Hall').id);
+    const nasty = 'A <b>lever</b> "q" \\ ${x} `t`   end\r\n\r\nSecond';
+    const plan = await planRoomSetup({
+      action: 'whisper',
+      name: 'Va"ult\\${y}',
+      area,
+      text: nasty,
+      once: true,
+    });
+    const card = (plan.ops[0] as any).data;
+    const source = (plan.ops[1] as any).data.behaviors[0].system.source as string;
+    const fromUuid = async (uuid: string): Promise<unknown> =>
+      uuid === `JournalEntry.${card._id}`
+        ? {
+            name: card.name,
+            pages: { contents: card.pages.map((p: any) => ({ text: p.text })) },
+          }
+        : null;
+    const create = vi.fn();
+    const update = vi.fn();
+    // Foundry builds the behavior script the same way (an AsyncFunction over the source).
+    const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor as new (
+      ...args: string[]
+    ) => (...a: unknown[]) => Promise<void>;
+    const run = (isActiveGM: boolean): Promise<void> =>
+      new AsyncFunction('game', 'ChatMessage', 'event', 'behavior', 'fromUuid', `{${source}\n}`)(
+        { user: { isActiveGM } },
+        {
+          create,
+          getWhisperRecipients: (n: string) => (n === 'GM' ? [{ id: 'gm1' }, { id: 'gm2' }] : []),
+        },
+        { data: { token: { name: '<Gob>"&' } } },
+        { update },
+        fromUuid
+      );
+    await run(false);
+    expect(create).not.toHaveBeenCalled();
+    await run(true);
+    const msg = create.mock.calls[0][0];
+    expect(msg.whisper).toEqual(['gm1', 'gm2']);
+    expect(msg.content).toContain('&lt;Gob&gt;&quot;&amp; entered.');
+    expect(msg.content).toContain('A &lt;b&gt;lever&lt;/b&gt; &quot;q&quot; \\ ${x} `t`   end');
+    expect(msg.content).toContain('<p>Second</p>');
+    expect(msg.content).toContain('Va&quot;ult\\${y}');
+    expect(update).toHaveBeenCalledWith({ disabled: true });
+  });
+
+  it('refuses empty or oversized text and a missing name', async () => {
+    world.setActiveScene(scene('a', 'Hall').id);
+    await expect(planRoomSetup({ action: 'whisper', name: 'V', area, text: ' ' })).rejects.toThrow(
+      /card text/
+    );
+    await expect(
+      planRoomSetup({ action: 'whisper', name: 'V', area, text: 'x'.repeat(2001) })
+    ).rejects.toThrow(/2000 at most/);
+    await expect(planRoomSetup({ action: 'whisper', name: '', area, text: 'x' })).rejects.toThrow(
+      /needs a name/
+    );
+    await expect(
+      planRoomSetup({ action: 'whisper', name: 'n'.repeat(121), area, text: 'x' })
+    ).rejects.toThrow(/120 characters at most/);
+  });
 });

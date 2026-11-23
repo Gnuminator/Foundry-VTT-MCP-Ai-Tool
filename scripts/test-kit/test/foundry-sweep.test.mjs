@@ -163,7 +163,7 @@ function dialogPage(title, buttons) {
       first: () => ({ click: async () => void clicked.push(selector) }),
     }),
   };
-  return { page: { locator: () => dialog }, clicked };
+  return { page: { locator: () => dialog, evaluate: async () => undefined }, clicked };
 }
 
 test('answerYes clicks the yes action, or the button the caller named', async () => {

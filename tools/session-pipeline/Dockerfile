@@ -14,6 +14,10 @@ COPY pyproject.toml README.md ./
 COPY src ./src
 RUN pip install .
 
+# Hash of the files above, set by scripts/voice-stack.ps1; it tells a stale image from a current one.
+ARG SOURCE_HASH=unknown
+LABEL fvtt.source-hash=$SOURCE_HASH
+
 WORKDIR /work
 ENTRYPOINT ["session-pipeline"]
 CMD ["--help"]

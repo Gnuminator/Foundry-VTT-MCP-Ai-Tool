@@ -448,7 +448,7 @@ describe('FoundryDataAccess: an asked initiative roll fills the tracker', () => 
     expect(await (da as any).playerRolls.rollTrackerInitiative({ id: 'a9' })).toBe(false);
     expect(rollInitiative).not.toHaveBeenCalled();
     world.currentCombat = null;
-    for (const c of [...world.combats.contents]) world.combats.delete(c.id);
+    for (const c of [...world.combats.contents]) world.combats.delete(c.id as string);
     expect(await (da as any).playerRolls.rollTrackerInitiative({ id: 'a1' })).toBe(false);
   });
 

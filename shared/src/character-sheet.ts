@@ -68,6 +68,8 @@ export interface SheetItem {
   damage: string | null;
   /** Plain text, at most 600 characters. */
   description: string;
+  /** False for an item the player has not identified (name and numbers are already hidden). */
+  identified?: boolean;
 }
 
 export interface SheetSpell {

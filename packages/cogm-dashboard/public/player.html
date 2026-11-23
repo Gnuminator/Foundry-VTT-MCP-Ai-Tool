@@ -63,6 +63,7 @@
         gap: 16px;
         padding: 16px 18px;
         max-width: 1100px;
+        margin: 0 auto;
       }
       @media (max-width: 760px) {
         .wrap {
@@ -356,6 +357,30 @@
         cursor: pointer;
         font-weight: 600;
       }
+      .quest-row-done summary,
+      .quest-row-failed summary {
+        color: var(--muted);
+        text-decoration: line-through;
+      }
+      .quest-date,
+      .quest-failed {
+        display: inline-block;
+        color: var(--muted);
+        font-size: 0.8em;
+        font-weight: 400;
+        margin-left: 6px;
+      }
+      .quest-done-head {
+        color: var(--muted);
+        font-size: 0.85em;
+        margin: 10px 12px 2px;
+        text-transform: uppercase;
+      }
+      .last-time {
+        margin: 0;
+        padding: 8px 12px;
+        border-bottom: 1px solid var(--line);
+      }
       .handout-new {
         color: var(--amber);
         font-size: 0.8em;
@@ -409,6 +434,37 @@
         border: 1px solid var(--line);
         border-radius: 4px;
         font: inherit;
+      }
+      /* Phones: the header wraps instead of squeezing four items into one row. */
+      @media (max-width: 600px) {
+        header {
+          flex-wrap: wrap;
+          row-gap: 6px;
+        }
+        header h1 {
+          flex: 1 0 100%;
+        }
+        header > span[style] {
+          display: none;
+        }
+      }
+      /* The Veil look (I-179): Gloock title, Spectral everywhere, controls in the page's font. */
+      :root[data-theme='veil'] header h1 {
+        font-family: var(--font-display);
+        font-weight: 400;
+        font-size: 1.3rem;
+        letter-spacing: 0.01em;
+      }
+      :root[data-theme='veil'] header {
+        border-bottom-color: color-mix(in srgb, var(--veil-lamp) 30%, transparent);
+      }
+      :root[data-theme='veil'] body {
+        font-size: 1rem;
+      }
+      :root[data-theme='veil'] button,
+      :root[data-theme='veil'] select,
+      :root[data-theme='veil'] input {
+        font-family: var(--font-sans);
       }
     </style>
     <link rel="stylesheet" href="themes/brand.css" />

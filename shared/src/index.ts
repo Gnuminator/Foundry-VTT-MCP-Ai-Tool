@@ -1,5 +1,5 @@
 /**
- * @gnuminator/shared — public surface
+ * @gnuminator/shared: public surface
  *
  * Re-exports the complete shared vocabulary for the Foundry AI Tool:
  *   - Domain types and interfaces   (types.ts)
@@ -24,6 +24,7 @@ export * from './player-view.js';
 export * from './export-index.js';
 export * from './library-index.js';
 export * from './version.js';
+export * from './tested-versions.js';
 export * from './client-versions.js';
 export * from './preflight.js';
 export * from './prep-digest.js';
@@ -34,6 +35,7 @@ export * from './ownership.js';
 export * from './foundry-setup.js';
 export * from './character-sheet.js';
 export * from './actor-image.js';
+export * from './handout-press.js';
 export * from './player-portrait.js';
 export * from './combat-change.js';
 export * from './scene-change.js';
@@ -46,6 +48,7 @@ export * from './pc-creation.js';
 export * from './room-setup.js';
 export * from './rules-check.js';
 export * from './table-viewer.js';
+export * from './macro-source.js';
 export * from './space-status.js';
 export * from './change-journal.js';
 export * from './character-entity.js';

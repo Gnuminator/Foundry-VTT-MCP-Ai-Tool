@@ -38,6 +38,52 @@ The player page is live behind the email-code login. The GM sends you its addres
 - **Tip:** nothing new? Handouts appear within a few seconds of the GM revealing them. Reload the
   page if one seems missing.
 
+## Check the quests and the party stash
+
+- **Look at:** **Quests** on the player page. An open quest shows the day the GM revealed it, a
+  finished one is struck through under **Done**, and a failed one has a **Failed** tag. The recap card
+  starts with a one-line **Last time**.
+- **Look at:** **Party stash**: what the party carries, with a search box and the group's gold. An item
+  you have not identified shows only as "Unidentified item".
+- **Good to know:** you see only what the GM has revealed. Nothing here is a spoiler.
+
+## Write your downtime and your diary
+
+Two optional fold-outs under your sheet on **My character**. Skip them if you like: the game works
+the same.
+
+- **Downtime:** write what your character does between sessions, for example "I visit the
+  blacksmith and ask about the strange coin". You can keep up to ten short entries and edit or
+  delete your own. Only you and your GM can read them, and the GM treats them as wishes, not as
+  things that have happened.
+- **My diary:** ask your Claude helper for a short diary entry in your character's voice about the
+  last session (it asks you for one feeling first, and uses only what you have been shown), paste
+  it into **Diary entry**, change it however you like and press **Save entry**. Only you can read
+  your diary: not the GM, not the other players. If the page says the table keeps diaries in memory
+  only, they disappear when the dashboard restarts, so copy anything you want to keep.
+- **Good to know:** you need your private My character link for both. Nothing has to be switched
+  on.
+
+## Get an omen on Discord
+
+Between sessions the GM may send each player a short private hint about what is coming. It arrives
+as a private Discord message from the table's bot, only to you, and only after the GM has approved
+it. You do not need to do anything. If you never get one, the GM may not have your Discord user id
+yet, so tell them. Nobody else sees your message, and it is not on the player page.
+
+## See what you can do on your turn
+
+- **Look at:** the **On my turn** card on **My character**. It groups what your character can do into
+  action, bonus action, reaction and free, so you do not have to remember. The switch **Show the "On my turn" card** at the bottom of the page
+  hides it if you do not want it.
+
+## Ask the Discord bot
+
+- **Do:** in Discord type `/recap` for the last recap, `/npc <name>` for what the GM has told everyone
+  about a person, or `/handouts` for the handouts revealed so far.
+- **Good to know:** only you see the answer. It is the handout's own text, the same as the player page,
+  and a name the GM has not revealed says "Nothing revealed yet".
+
 ## Know when the session is recorded
 
 - **Good to know:** when the person who runs the tool types `/record start` in Discord, the voice

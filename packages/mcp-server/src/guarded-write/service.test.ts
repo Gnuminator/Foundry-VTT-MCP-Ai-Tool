@@ -501,6 +501,84 @@ describe('recorded listeners and undo guards', () => {
   });
 });
 
+describe('undo takes off the Prone dnd5e added with the change', () => {
+  const PRONE = 'Actor.ilvara.ActiveEffect.dnd5eprone000000';
+
+  it('deletes the rider the source names, and leaves one that is already gone', async () => {
+    const applied = await service.applyPlan((await plan([HP_UPDATE])).planId, { confirm: true });
+    foundry.add(PRONE, 'ActiveEffect', { name: 'Prone', statuses: ['prone'] });
+    const asked: string[] = [];
+    service.batchRiders = (changeId): Promise<Array<{ uuid: string }>> => {
+      asked.push(changeId);
+      return Promise.resolve([
+        { uuid: PRONE },
+        { uuid: 'Actor.ilvara.ActiveEffect.dnd5egone000000' },
+      ]);
+    };
+    const undone = await service.undo(applied.changeId, { confirm: true });
+    expect(asked).toEqual([applied.changeId]);
+    expect(foundry.docs.has(PRONE)).toBe(false);
+    expect(foundry.docs.get('Actor.ilvara')!.source.system.hp).toBe(10);
+    expect(undone.changeId).toBeDefined();
+  });
+
+  it('says "Also removed: Prone" only for a rider the undo really removed', async () => {
+    const applied = await service.applyPlan((await plan([HP_UPDATE])).planId, { confirm: true });
+    foundry.add(PRONE, 'ActiveEffect', { name: 'Prone', statuses: ['prone'] });
+    service.batchRiders = (): Promise<Array<{ uuid: string }>> =>
+      Promise.resolve([{ uuid: PRONE }]);
+    const undone = await service.undo(applied.changeId, { confirm: true });
+    expect(undone.diff.filter(l => l.startsWith('Also removed'))).toHaveLength(1);
+  });
+
+  it('a redo and a rider the change already deleted add no second delete', async () => {
+    const applied = await service.applyPlan((await plan([HP_UPDATE])).planId, { confirm: true });
+    foundry.add(PRONE, 'ActiveEffect', { name: 'Prone', statuses: ['prone'] });
+    const asked: string[] = [];
+    // The updated actor is already among the change's own results: not a rider to delete again.
+    service.batchRiders = (changeId): Promise<Array<{ uuid: string }>> => {
+      asked.push(changeId);
+      return Promise.resolve([{ uuid: 'Actor.ilvara' }, { uuid: PRONE }]);
+    };
+    const undone = await service.undo(applied.changeId, { confirm: true });
+    expect(foundry.docs.has('Actor.ilvara')).toBe(true);
+    expect(foundry.docs.has(PRONE)).toBe(false);
+    // Undoing the undo (a redo) never looks for riders.
+    await service.undo(undone.changeId, { confirm: true });
+    expect(asked).toEqual([applied.changeId]);
+  });
+
+  it('a planned undo runs only its own ops: the planner names the Prone, undo does not look', async () => {
+    foundry.features.push({ id: 'change-undo', name: '', hint: '', enabled: true });
+    const applied = await service.applyPlan((await plan([HP_UPDATE])).planId, { confirm: true });
+    foundry.add(PRONE, 'ActiveEffect', { name: 'Prone', statuses: ['prone'] });
+    const asked: string[] = [];
+    service.batchRiders = (id): Promise<Array<{ uuid: string }>> => {
+      asked.push(id);
+      return Promise.resolve([{ uuid: PRONE }]);
+    };
+    const undoPlan = await service.createPlan({
+      feature: 'change-undo',
+      summary: 'Undo Hurt Ilvara',
+      ops: [{ kind: 'update', uuid: 'Actor.ilvara', changes: { 'system.hp': 10 } }],
+      undoes: { changes: [applied.changeId] },
+    });
+    await service.applyPlan(undoPlan.planId, { confirm: true });
+    expect(foundry.docs.get('Actor.ilvara')!.source.system.hp).toBe(10);
+    expect(asked).toEqual([]);
+    expect(foundry.docs.has(PRONE)).toBe(true);
+  });
+
+  it('still undoes the change when the source fails', async () => {
+    const applied = await service.applyPlan((await plan([HP_UPDATE])).planId, { confirm: true });
+    foundry.add(PRONE, 'ActiveEffect', { name: 'Prone', statuses: ['prone'] });
+    service.batchRiders = (): Promise<never> => Promise.reject(new Error('journal down'));
+    await service.undo(applied.changeId, { confirm: true });
+    expect(foundry.docs.get('Actor.ilvara')!.source.system.hp).toBe(10);
+    expect(foundry.docs.has(PRONE)).toBe(true);
+  });
+});
+
 describe('undo guards and redos', () => {
   async function undoPlanOf(changeId: string): Promise<{ planId: string }> {
     return service.createPlan({

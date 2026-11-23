@@ -117,17 +117,14 @@ export class DnD5eNpcTools {
       {
         name: 'dnd5e-create-npc',
         description:
-          'Direct write. D&D 5e only. Create an NPC from scratch with a full stat block: identity, ability scores, ' +
-          'saves, HP, AC, speeds, senses, skills, damage and condition traits, languages and biography. ' +
-          'It adds no items, actions, features or spells: add them afterwards with dnd5e-add-feature. ' +
-          'The actor goes in the "Foundry MCP Creatures" folder.',
+          'Direct write. D&D 5e only. Create an NPC from scratch with a full stat block (no items, actions or spells: ' +
+          'add them afterwards with dnd5e-add-feature). The actor goes in the "Foundry MCP Creatures" folder.',
         inputSchema: {
           type: 'object',
           properties: {
             // --- Identity ---
             name: {
               type: 'string',
-              description: 'Name of the NPC',
               ...freeText('The name of the new NPC actor this call creates'),
             },
             creatureType: {
@@ -149,22 +146,18 @@ export class DnD5eNpcTools {
                 'celestial',
                 'swarm',
               ],
-              description: 'Creature type',
             },
             creatureSubtype: {
               type: 'string',
-              description: 'Optional subtype (e.g. "Goblinoid", "Shapechanger")',
-              default: '',
+              description: 'Subtype (e.g. "Goblinoid")',
             },
             size: {
               type: 'string',
               enum: ['tiny', 'small', 'medium', 'large', 'huge', 'gargantuan'],
-              description: 'Creature size',
             },
             alignment: {
               type: 'string',
-              description: 'Alignment string (e.g. "Neutral Evil", "Chaotic Good")',
-              default: '',
+              description: 'Alignment (e.g. "Neutral Evil")',
             },
             cr: {
               description:
@@ -183,19 +176,17 @@ export class DnD5eNpcTools {
             },
             hpFormula: {
               type: 'string',
-              description: 'Hit dice formula used for re-rolls (e.g. "2d6", "3d8+9")',
+              description: 'Hit dice formula (e.g. "3d8+9")',
             },
             // --- AC ---
             acMode: {
               type: 'string',
               enum: ['default', 'flat'],
-              description:
-                '"default": Foundry calculates AC from equipped items and abilities; ' +
-                '"flat": set a fixed AC value via acValue',
+              description: '"default": Foundry calculates AC; "flat": use acValue',
             },
             acValue: {
               type: 'number',
-              description: 'Fixed AC value (0–30). Required when acMode is "flat".',
+              description: 'Fixed AC (0–30) for acMode "flat"',
               minimum: 0,
               maximum: 30,
             },
@@ -204,95 +195,83 @@ export class DnD5eNpcTools {
               type: 'object',
               description: 'The six ability scores (1–30 each)',
               properties: {
-                str: { type: 'number', minimum: 1, maximum: 30 },
-                dex: { type: 'number', minimum: 1, maximum: 30 },
-                con: { type: 'number', minimum: 1, maximum: 30 },
-                int: { type: 'number', minimum: 1, maximum: 30 },
-                wis: { type: 'number', minimum: 1, maximum: 30 },
-                cha: { type: 'number', minimum: 1, maximum: 30 },
+                str: { type: 'number' },
+                dex: { type: 'number' },
+                con: { type: 'number' },
+                int: { type: 'number' },
+                wis: { type: 'number' },
+                cha: { type: 'number' },
               },
               required: ['str', 'dex', 'con', 'int', 'wis', 'cha'],
             },
             // --- Saving throws ---
             savingThrows: {
               type: 'array',
-              description: 'Abilities with saving throw proficiency',
+              description: 'Save proficiencies',
               items: {
                 type: 'string',
                 enum: ['str', 'dex', 'con', 'int', 'wis', 'cha'],
               },
-              default: [],
             },
             // --- Movement ---
             walkSpeed: {
               type: 'number',
-              description: 'Walk speed in feet',
+              description: 'Walk speed, ft',
               minimum: 0,
-              default: 30,
             },
             flySpeed: {
               type: 'number',
-              description: 'Fly speed in feet',
+              description: 'Fly speed, ft',
               minimum: 0,
-              default: 0,
             },
             swimSpeed: {
               type: 'number',
-              description: 'Swim speed in feet',
+              description: 'Swim speed, ft',
               minimum: 0,
-              default: 0,
             },
             climbSpeed: {
               type: 'number',
-              description: 'Climb speed in feet',
+              description: 'Climb speed, ft',
               minimum: 0,
-              default: 0,
             },
             burrowSpeed: {
               type: 'number',
-              description: 'Burrow speed in feet',
+              description: 'Burrow speed, ft',
               minimum: 0,
-              default: 0,
             },
             hover: {
               type: 'boolean',
-              description: 'Whether the creature hovers (cannot fall)',
-              default: false,
+              description: 'Hovers (cannot fall)',
             },
             // --- Senses ---
             darkvision: {
               type: 'number',
-              description: 'Darkvision range in feet',
+              description: 'Darkvision, ft',
               minimum: 0,
-              default: 0,
             },
             blindsight: {
               type: 'number',
-              description: 'Blindsight range in feet',
+              description: 'Blindsight, ft',
               minimum: 0,
-              default: 0,
             },
             tremorsense: {
               type: 'number',
-              description: 'Tremorsense range in feet',
+              description: 'Tremorsense, ft',
               minimum: 0,
-              default: 0,
             },
             truesight: {
               type: 'number',
-              description: 'Truesight range in feet',
+              description: 'Truesight, ft',
               minimum: 0,
-              default: 0,
             },
             specialSenses: {
               type: 'string',
-              description: 'Any additional senses not covered by the standard fields',
-              default: '',
+              description: 'Other senses as text',
             },
             // --- Skills ---
             skills: {
               type: 'array',
-              description: 'Skills with proficiency or expertise',
+              description: 'Skill proficiencies',
               items: {
                 type: 'object',
                 properties: {
@@ -322,73 +301,56 @@ export class DnD5eNpcTools {
                   proficiency: {
                     type: 'string',
                     enum: ['proficient', 'expert'],
-                    description:
-                      '"proficient" = proficiency bonus once; "expert" = double proficiency',
+                    description: 'proficient or expert (double)',
                   },
                 },
                 required: ['skill', 'proficiency'],
               },
-              default: [],
             },
             // --- Damage traits ---
             damageImmunities: {
               type: 'array',
-              description:
-                'Damage types the creature is immune to (e.g. ["necrotic", "poison"]), lowercase 5e names. ' +
-                'Other values are accepted with a warning.',
+              description: 'Lowercase 5e damage types (e.g. ["necrotic"]); others warn',
               items: { type: 'string' },
-              default: [],
             },
             damageResistances: {
               type: 'array',
-              description:
-                'Damage types the creature is resistant to. Same canonical set as damageImmunities.',
+              description: 'Damage types, as damageImmunities',
               items: { type: 'string' },
-              default: [],
             },
             damageVulnerabilities: {
               type: 'array',
-              description:
-                'Damage types the creature is vulnerable to. Same canonical set as damageImmunities.',
+              description: 'Damage types, as damageImmunities',
               items: { type: 'string' },
-              default: [],
             },
             conditionImmunities: {
               type: 'array',
-              description:
-                'Conditions the creature is immune to (e.g. ["charmed", "frightened"]), lowercase 5e names. ' +
-                'Other values are accepted with a warning.',
+              description: 'Lowercase 5e conditions (e.g. ["charmed"]); others warn',
               items: { type: 'string' },
-              default: [],
               ...toolRef('condition', 'id'),
             },
             // --- Languages ---
             languages: {
               type: 'array',
-              description: 'Languages the creature speaks (e.g. ["Common", "Goblin"])',
+              description: 'Languages (e.g. ["Common"])',
               items: { type: 'string' },
-              default: [],
             },
             languagesCustom: {
               type: 'string',
-              description: 'Free-text language note (e.g. "telepathy 60 ft.")',
-              default: '',
+              description: 'Language note (e.g. "telepathy 60 ft.")',
             },
             // --- Biography & source ---
             biography: {
               type: 'string',
-              description: 'HTML biography text shown in the character sheet',
-              default: '',
+              description: 'HTML biography',
             },
             sourceBook: {
               type: 'string',
-              description: 'Source book abbreviation (e.g. "MM\'14", "VGM")',
-              default: '',
+              description: 'Source book (e.g. "MM\'14")',
             },
             sourcePage: {
               type: 'string',
-              description: 'Page number in the source book',
-              default: '',
+              description: 'Source page',
             },
             sourceRules: {
               type: 'string',

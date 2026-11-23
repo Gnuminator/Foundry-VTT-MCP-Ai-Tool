@@ -150,8 +150,13 @@ ssh foundry-pi 'runuser -u foundry -- systemctl is-active foundry-ai-tool-discor
 scp scripts/gamenight-watch.mjs scripts/gamenight-watch-pi.mjs foundry-pi:/root/
 cat scripts/pi/remote/lib.sh scripts/pi/remote/29-gamenight-watch.sh | ssh foundry-pi 'DRY_RUN=1 bash -s'
 cat scripts/pi/remote/lib.sh scripts/pi/remote/29-gamenight-watch.sh | ssh foundry-pi 'bash -s'
-cat scripts/pi/remote/lib.sh scripts/pi/remote/29-gamenight-watch.sh | ssh foundry-pi 'CHECK=1 bash -s'
+cat scripts/pi/remote/lib.sh scripts/pi/remote/lib-gm-passwords.sh scripts/pi/remote/29-gamenight-watch.sh | ssh foundry-pi 'CHECK=1 bash -s'
 ```
+
+After the five checks, `CHECK=1` also reads (read-only, by name) whether Foundry has an administrator password and whether any
+world has a Gamemaster or Assistant GM without a password, the same check as stage 12 and `gm-passwords.sh`. It prints
+`FOUND: no administrator password` or `FOUND: <world>: Gamemaster "<name>" has no password` and exits 1; without
+`lib-gm-passwords.sh` in the pipe it fails and says so. Run it before a game night.
 
 It needs stage 8 and 26 done (the bot token and `GAMENIGHT_WATCH_CHANNEL_ID` in `discord-bot.env`; it checks the names only).
 It restarts nothing but itself, and itself also when `discord-bot.env` changed or is newer than the running watch. `UNDO=1` removes the service and the files and keeps the settings file.
@@ -179,6 +184,13 @@ dashboard 30 in 600 s), `RestartMode=direct` and `OnFailure=foundry-ai-tool-aler
 `Restart=always`, so a clean exit no longer leaves it down. When a unit trips its limit, the alert unit (as `foundry`,
 bot token from `discord-bot.env`) posts one fixed line to #gm-bot. A timer runs the clock check every 15 minutes: two
 bad checks in a row post once, the first good one posts "synchronized again".
+
+**A missed nightly backup is announced too** (backlog `backup-miss-alert`). When stage 6's `foundry-backup.service` exists,
+the stage adds `foundry-backup.service.d/10-backup-alert.conf` (`OnFailure=` only: the backup is a oneshot, no start limit).
+The 04:30 restic backup exits 1 both when it fails and when it skips the night (players still online after the waits,
+critical disk space), so either one posts "last night's backup failed or was skipped" to #gm-bot the same morning (the
+last wait ends about 07:30). Run stage 32 again after stage 6 if the backup unit was not there the first time. The
+dietpi-backup snapshot at 01:25 is not covered, and a night where the timer never fires (the Pi was off at 04:30; the timer has `Persistent=false`) posts nothing; the PC's pull record (PB-06) and the bot watch the copies.
 
 **A tripped unit stays down.** Before this stage a Foundry fault of a few minutes cleared by itself; now, after the limit,
 Foundry stays failed until someone runs this over ssh (the alert text says so):

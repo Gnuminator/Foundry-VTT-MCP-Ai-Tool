@@ -77,6 +77,7 @@ const PINNED_RECORDLESS_WRITES = [
   'sendChatMessage',
   'showJournalPage',
   'uploadActorImage',
+  'uploadHandoutImage',
   'uploadPlayerPortrait',
 ];
 const PINNED_WRITES = [
@@ -142,6 +143,7 @@ const PINNED_READS = [
   'getJournalPageContent',
   'getLevelUpOptions',
   'getLibraryDocuments',
+  'getScenePages',
   'getLibraryIndex',
   'getModuleErrors',
   'getModuleManifest',

@@ -73,6 +73,7 @@ get round it with another tool, another name or a repeated search.
 | The next level: what they get, what they choose          | `references/level-up.md`                |
 | A rules question                                         | `references/rules-question.md`          |
 | Keep a plan for later levels                             | `references/plan-note.md`               |
+| A diary entry for the last session, in character         | `references/diary.md`                   |
 | The player's own click-through guide for Actor Studio    | `references/player/make-a-character.md` |
 | Logging in to the game                                   | `references/player/join.md`             |
 

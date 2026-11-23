@@ -33,6 +33,9 @@ import {
 
 type AnyDoc = Record<string, any> & Identified;
 
+/** A document the world has stored: its `id` is always set. */
+type StoredDoc = AnyDoc & { id: string };
+
 export interface TestWorldOptions {
   /** dnd5e by default, the only supported system after the Phase 2.5 trim. */
   systemId?: string;
@@ -83,29 +86,29 @@ export class TestWorld {
    * Register a document into a world collection and give it a top-level
    * `delete()` bound to that collection (used by rollback / delete paths).
    */
-  private register(coll: MockCollection<AnyDoc>, doc: AnyDoc): AnyDoc {
+  private register(coll: MockCollection<AnyDoc>, doc: AnyDoc): StoredDoc {
     coll.add(doc);
     (doc as any).delete = (): Promise<AnyDoc> => {
       coll.delete(doc.id ?? '');
       return Promise.resolve(doc);
     };
-    return doc;
+    return doc as StoredDoc;
   }
 
-  addActor(opts?: MakeActorOptions): AnyDoc {
+  addActor(opts?: MakeActorOptions): StoredDoc {
     return this.register(this.actors, makeActor(opts));
   }
 
-  addScene(opts?: MakeSceneOptions): AnyDoc {
+  addScene(opts?: MakeSceneOptions): StoredDoc {
     const scene = this.register(this.scenes, makeScene(opts));
     if (scene.active && this.currentSceneId === null) this.currentSceneId = scene.id ?? null;
     return scene;
   }
 
-  addUser(opts?: MakeUserOptions): AnyDoc {
+  addUser(opts?: MakeUserOptions): StoredDoc {
     const user = makeUser(opts);
     this.users.add(user);
-    return user;
+    return user as StoredDoc;
   }
 
   addPack(opts?: MakePackOptions): AnyDoc {
@@ -114,22 +117,22 @@ export class TestWorld {
     return pack;
   }
 
-  addJournal(opts?: MakeJournalOptions): AnyDoc {
+  addJournal(opts?: MakeJournalOptions): StoredDoc {
     return this.register(this.journal, makeJournal(opts));
   }
 
   /** Register a generic world item (`game.items`). */
-  addItem(opts?: Record<string, any>): AnyDoc {
+  addItem(opts?: Record<string, any>): StoredDoc {
     return this.register(this.items, makeDocument(opts));
   }
 
   /** Register a folder (`game.folders`). */
-  addFolder(opts?: Record<string, any>): AnyDoc {
+  addFolder(opts?: Record<string, any>): StoredDoc {
     return this.register(this.folders, makeDocument(opts));
   }
 
   /** Register a chat message (`game.messages`). */
-  addMessage(opts?: Record<string, any>): AnyDoc {
+  addMessage(opts?: Record<string, any>): StoredDoc {
     return this.register(this.messages, makeDocument(opts));
   }
 
@@ -140,11 +143,11 @@ export class TestWorld {
   }
 
   /** Set the active combat (`game.combat`) and register it under `game.combats`. */
-  setCombat(opts?: MakeCombatOptions): AnyDoc {
+  setCombat(opts?: MakeCombatOptions): StoredDoc {
     const combat = makeCombat(opts);
     this.combats.add(combat);
     this.currentCombat = combat;
-    return combat;
+    return combat as StoredDoc;
   }
 
   /** Set the active scene (what `game.scenes.current` returns). */
@@ -341,10 +344,11 @@ export function installFoundryGlobals(world: TestWorld): () => void {
         path.split('.').reduce((node, key) => (node == null ? undefined : node[key]), obj),
       setProperty: (obj: any, path: string, value: unknown): boolean => {
         const parts = path.split('.');
+        if (parts.some(key => key === '__proto__' || key === 'constructor' || key === 'prototype'))
+          return false;
         let node = obj;
         for (let i = 0; i < parts.length; i++) {
           const key = parts[i];
-          if (key === '__proto__' || key === 'constructor' || key === 'prototype') return false;
           if (i === parts.length - 1) node[key] = value;
           else node = node[key] ??= {};
         }

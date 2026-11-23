@@ -15,6 +15,7 @@
 
 import { mkdirSync, readFileSync, existsSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { ciLines } from '../ci-health.mjs';
 
 const KEYS = [
   ['startup', 'startup', 0],
@@ -56,6 +57,8 @@ export function sectionFor(report) {
     lines.push(`- tools-used: ${calls.used}`);
     if (Number.isInteger(calls.never)) lines.push(`- tools-never-used: ${calls.never}`);
   }
+  // CI health of the last 7 days (scripts/ci-health.mjs, I-160); only when gh answered.
+  if (report.ci) lines.push(...ciLines(report.ci));
   return lines.join('\n');
 }
 
@@ -66,7 +69,7 @@ const HEAD = [
   '',
   '# Weekly check',
   '',
-  'Written by `npm run usage:week -- --write-vault` at the Saturday weekly check; do not edit by hand.',
+  'Written by `npm run usage:now` (the first run after each weekly reset) or `npm run usage:week -- --write-vault`; do not edit by hand.',
   "The board's Week page reads the sections below (newest first). Only numbers go here.",
   '',
 ].join('\n');

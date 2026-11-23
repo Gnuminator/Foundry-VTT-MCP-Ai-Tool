@@ -46,6 +46,8 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 2 # `--run pi` diffs the merge commit against its first parent (PI_GROUP_PATHS)
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
@@ -65,6 +67,9 @@ jobs:
       - name: Scripts, hooks and the merge gate
         run: node scripts/checks.mjs --run scripts
 
+      # On a pull request that touches no Pi input this step skips itself with a summary line and
+      # exits 0 (piGroupApplies in checks.mjs), so build-test and ci-all-green stay green. Push to
+      # main, merge_group and dispatch runs always run it (drift:check has no Pi guard of its own).
       - name: Pi scripts
         run: node scripts/checks.mjs --run pi
 
@@ -76,6 +81,14 @@ jobs:
         with:
           name: foundry-gm-coach
           path: tools/gm-coach/dist/foundry-gm-coach.zip
+          retention-days: 30
+
+      - name: Keep the prep ritual zip
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: foundry-prep-ritual
+          path: tools/prep-ritual/dist/foundry-prep-ritual.zip
+          if-no-files-found: error
           retention-days: 30
 
       - name: Build and dashboard bundle budget
@@ -603,7 +616,7 @@ jobs:
           changed=$(git -c core.quotePath=false diff --name-only --no-renames HEAD^1 HEAD)
           echo "Changed files against the base:"
           echo "$changed"
-          if echo "$changed" | grep -qE '^(scripts/pi/|scripts/plan-b/|scripts/gamenight-watch|scripts/checks\.mjs$|deploy/|package-lock\.json$|\.github/workflows/ci\.yml$)'; then
+          if echo "$changed" | grep -qE '^(scripts/pi/|scripts/plan-b/|scripts/gamenight-watch|scripts/who-uses-what\.mjs$|scripts/checks\.mjs$|deploy/|package-lock\.json$|\.github/workflows/ci\.yml$)'; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "Nothing the Pi container tests depend on changed: skip them."

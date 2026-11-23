@@ -44,7 +44,8 @@ export function defaultImageRoots(env: NodeJS.ProcessEnv = process.env): string[
     .map(s => s.trim())
     .filter(Boolean)
     .filter(s => isAbsolute(s));
-  return listed.length > 0 ? listed : [dataFolder('Foundry Art', env.FVTT_DATA_DIR)];
+  // A relative FVTT_DATA_DIR would give a relative root that the absolute-path checks refuse.
+  return listed.length > 0 ? listed : [path.resolve(dataFolder('Foundry Art', env.FVTT_DATA_DIR))];
 }
 
 /** The parts of `node:path` the text checks use; `path.win32` and `path.posix` both fit. */
@@ -53,6 +54,16 @@ export type PathModule = Pick<typeof path, 'isAbsolute' | 'relative' | 'resolve'
 /** A network (UNC) or device path: Windows connects out just by looking such a path up. */
 export function isNetworkPath(p: string): boolean {
   return p.startsWith('\\\\') || p.startsWith('//') || p.startsWith('\\??\\');
+}
+
+/**
+ * A link target the walk will not follow: a network or device path, and on Windows any absolute
+ * target that is not a drive path (a root-relative link or a stray prefix). Relative
+ * targets and drive paths pass.
+ */
+export function isRefusedLinkTarget(target: string, mod: PathModule = path): boolean {
+  if (isNetworkPath(target)) return true;
+  return mod === path.win32 && mod.isAbsolute(target) && !/^[A-Za-z]:[\\/]/.test(target);
 }
 
 function inside(mod: PathModule, root: string, file: string): boolean {
@@ -103,7 +114,7 @@ async function refuseNetworkLinks(file: string, notAllowed: Error): Promise<void
     }
     if (++hops > 40) throw notAllowed;
     const target = await readlink(next);
-    if (isNetworkPath(target)) throw notAllowed;
+    if (isRefusedLinkTarget(target, path)) throw notAllowed;
     const resolved = split(path.resolve(acc, target));
     acc = resolved.root;
     parts = [...resolved.parts, ...parts.slice(i + 1)];
@@ -124,7 +135,8 @@ export async function checkImagePath(file: string, roots: string[]): Promise<str
   // Before any filesystem call: a path outside every folder must not even be probed.
   if (text === 'denied') throw notAllowed;
   // A link to a network share would make realpath connect out (and send the Windows login hash).
-  if (!roots.some(isNetworkPath)) await refuseNetworkLinks(file, notAllowed);
+  // Skipped only for a file that is itself inside a network folder (a folder the user listed).
+  if (!isNetworkPath(file)) await refuseNetworkLinks(file, notAllowed);
   let real: string;
   try {
     real = await realpath(path.resolve(file));

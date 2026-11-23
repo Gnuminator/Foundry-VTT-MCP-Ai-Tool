@@ -76,10 +76,44 @@ function runKnip() {
   return JSON.parse(out);
 }
 
+/** Unused files, exports and types of knip's report that sit in the given files, one line each. */
+export function itemsInFiles(report, files) {
+  const set = new Set(files);
+  const lines = (report.files ?? []).filter(f => set.has(f)).map(f => `  ${f}: unused file`);
+  for (const issue of report.issues ?? []) {
+    if (!set.has(issue.file)) continue;
+    for (const kind of ['exports', 'types']) {
+      for (const item of issue[kind] ?? []) {
+        lines.push(`  ${issue.file}:${item.line ?? '?'}: unused ${kind.slice(0, -1)} ${item.name}`);
+      }
+    }
+  }
+  return lines;
+}
+
+/** Files this branch changed against the first base that exists, or [] when git cannot tell. */
+function changedFiles() {
+  for (const base of ['aitool/main', 'origin/main', 'main']) {
+    try {
+      const git = args =>
+        execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+      // The merge base, so a branch behind main does not list main's own changes; plus new untracked files.
+      const mergeBase = git(['merge-base', base, 'HEAD']).trim();
+      const changed = git(['diff', '--name-only', '-z', mergeBase]).split('\0');
+      const added = git(['ls-files', '-z', '--others', '--exclude-standard']).split('\0');
+      return [...changed, ...added].filter(Boolean);
+    } catch {
+      /* try the next base */
+    }
+  }
+  return [];
+}
+
 function main() {
   const update = process.argv.includes('--update');
   const allowIncrease = process.argv.includes('--allow-increase');
-  const current = countReport(runKnip());
+  const report = runKnip();
+  const current = countReport(report);
   const total = sum(current);
   const hasBaseline = existsSync(baselinePath);
   const baseline = hasBaseline ? JSON.parse(readFileSync(baselinePath, 'utf8')) : { total: 0, counts: {} };
@@ -102,6 +136,8 @@ function main() {
   if (increases.length > 0) {
     console.error(`unused-ratchet: unused code went up (baseline ${baseline.total}, now ${total}):`);
     console.error(increases.join('\n'));
+    const mine = itemsInFiles(report, changedFiles());
+    if (mine.length > 0) console.error(`Unused in the files this branch changed:\n${mine.join('\n')}`);
     console.error('Delete or use the new code (run `npx knip` to see it), or add a real entry point to knip.json.');
     process.exit(1);
   }

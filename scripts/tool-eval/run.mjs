@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Tool eval (npm run tool-eval): runs the 22 cases of cases.mjs through `claude -p` on the
+ * Tool eval (npm run tool-eval): runs the 33 cases of cases.mjs through `claude -p` on the
  * subscription (no API key, no paid API: D-066) against a stub MCP server that serves main's real
  * tool list, then scores the calls (score.mjs) and prints a report.
  *

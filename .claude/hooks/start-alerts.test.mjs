@@ -19,6 +19,7 @@ import {
   mainRedAlert,
   parseWaiting,
   readLockFile,
+  runnerAlert,
   testEnvRootBFor,
   testEnvRootCFor,
   waitingAlert,
@@ -552,6 +553,7 @@ test('the hook as a process: silent when clean, JSON when an alert fires', () =>
       START_ALERTS_TEST_ROOT: f.testEnv,
       START_ALERTS_SNAPSHOT_URL: 'off',
       START_ALERTS_MAIN_CI: 'off',
+      START_ALERTS_RUNNER_HOME: 'off',
       START_ALERTS_SNAPSHOT_FILE: path.join(f.root, 'none.json'),
       START_ALERTS_CC_DIR: path.join(f.root, 'none'),
     };
@@ -705,6 +707,7 @@ test('cloudflare allow entry: a lane in a worktree reads the main checkout file'
       START_ALERTS_TEST_ROOT: f.testEnv,
       START_ALERTS_SNAPSHOT_URL: 'off',
       START_ALERTS_MAIN_CI: 'off',
+      START_ALERTS_RUNNER_HOME: 'off',
       START_ALERTS_SNAPSHOT_FILE: path.join(f.root, 'none.json'),
       START_ALERTS_CC_DIR: path.join(f.root, 'none'),
     };
@@ -715,5 +718,25 @@ test('cloudflare allow entry: a lane in a worktree reads the main checkout file'
     assert.ok(out.systemMessage.includes(EXECUTE));
   } finally {
     f.cleanup();
+  }
+});
+
+test('runnerAlert: silent where the runner never ran, a line for a dead or stale one', () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'runner-alert-'));
+  try {
+    const now = Date.now();
+    assert.equal(runnerAlert({ runnerHome: dir, nowMs: now }), null);
+    const hb = path.join(dir, 'merge-runner.heartbeat.json');
+    writeFileSync(hb, JSON.stringify({ pid: 1, at: now - 30 * 60_000 }));
+    assert.match(runnerAlert({ runnerHome: dir, nowMs: now }) ?? '', /Merge runner is not running/);
+    writeFileSync(path.join(dir, 'merge-runner.lock'), `${process.pid}\n`);
+    assert.match(
+      runnerAlert({ runnerHome: dir, nowMs: now }) ?? '',
+      /looks stuck: heartbeat 30 min/
+    );
+    writeFileSync(hb, JSON.stringify({ pid: process.pid, at: now - 60_000 }));
+    assert.equal(runnerAlert({ runnerHome: dir, nowMs: now }), null);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
   }
 });

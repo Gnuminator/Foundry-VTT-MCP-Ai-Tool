@@ -9,13 +9,14 @@ import { afterAll, beforeEach, describe, expect, it, vi, type Mock } from 'vites
 
 import { ACTOR_IMAGE_FEATURE_ID } from '@gnuminator/shared';
 
-import { ActorImageTools, checkPathText, defaultImageRoots } from './actor-image.js';
+import { makeLogger } from '../test-support/stub-tool-deps.js';
 
-function logger(): any {
-  const l: any = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
-  l.child = (): unknown => l;
-  return l;
-}
+import {
+  ActorImageTools,
+  checkPathText,
+  defaultImageRoots,
+  isRefusedLinkTarget,
+} from './actor-image.js';
 
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
 const base = mkdtempSync(join(tmpdir(), 'actor-image-'));
@@ -63,7 +64,7 @@ beforeEach(() => {
   tools = new ActorImageTools({
     foundryClient: { query },
     guardedWrites: { createPlan },
-    logger: logger(),
+    logger: makeLogger(),
     roots: [root],
   });
 });
@@ -145,20 +146,35 @@ describe('plan-actor-image', () => {
     );
   });
 
-  it('refuses a link to a network share without following it', async () => {
-    // A symlink whose target text is a network path; it dangles here, and must not be resolved.
-    let made = true;
-    try {
-      symlinkSync('//198.51.100.7/share/pic.png', join(root, 'unc.png'), 'file');
-    } catch {
-      made = false; // no symlink right on this PC
-    }
-    if (!made) return;
+  // A symlink whose target text is a network path; it dangles here, and must not be resolved.
+  let fileLinked = true;
+  try {
+    symlinkSync('//198.51.100.7/share/pic.png', join(root, 'unc.png'), 'file');
+  } catch {
+    fileLinked = false; // no symlink right on this PC
+  }
+  it.runIf(fileLinked)('refuses a link to a network share without following it', async () => {
     await expect(call({ actor: 'Ebbe', file: join(root, 'unc.png') })).rejects.toThrow(
       /not in an allowed folder/
     );
     expect(query).not.toHaveBeenCalled();
   });
+
+  it.runIf(linked)(
+    'follows a chain of local junctions hop by hop and still refuses the way out',
+    async () => {
+      const hop1 = join(root, 'hop1');
+      const hop2 = join(root, 'hop2');
+      symlinkSync(root, hop2, 'junction');
+      symlinkSync(hop2, hop1, 'junction');
+      await expect(call({ actor: 'Ebbe', file: join(hop1, 'ebbe.png') })).resolves.toMatchObject({
+        planId: 'p1',
+      });
+      await expect(call({ actor: 'Ebbe', file: join(hop1, 'link', 'secret.png') })).rejects.toThrow(
+        /not in an allowed folder/
+      );
+    }
+  );
 
   it.runIf(linked)('reads a picture from an allowed folder that is itself a link', async () => {
     const via = join(base, 'via-link');
@@ -166,7 +182,7 @@ describe('plan-actor-image', () => {
     tools = new ActorImageTools({
       foundryClient: { query },
       guardedWrites: { createPlan },
-      logger: logger(),
+      logger: makeLogger(),
       roots: [via],
     });
     await expect(call({ actor: 'Ebbe', file: join(via, 'ebbe.png') })).resolves.toMatchObject({
@@ -269,6 +285,23 @@ describe('checkPathText (Windows paths on every platform)', () => {
   });
 });
 
+describe('isRefusedLinkTarget', () => {
+  it('refuses network and device targets, and on Windows any absolute target that is not a drive path', () => {
+    expect(isRefusedLinkTarget('//host/share/x.png', path.win32)).toBe(true);
+    expect(isRefusedLinkTarget('\\\\host\\share', path.win32)).toBe(true);
+    expect(isRefusedLinkTarget('\\??\\UNC\\host\\share', path.win32)).toBe(true);
+    expect(isRefusedLinkTarget('\\Windows\\System32', path.win32)).toBe(true);
+    expect(isRefusedLinkTarget('C:\\art\\x.png', path.win32)).toBe(false);
+    expect(isRefusedLinkTarget('d:/art/x.png', path.win32)).toBe(false);
+    expect(isRefusedLinkTarget('..\\art\\x.png', path.win32)).toBe(false);
+    expect(isRefusedLinkTarget('sub/x.png', path.win32)).toBe(false);
+  });
+  it('leaves absolute targets on other systems to the folder check', () => {
+    expect(isRefusedLinkTarget('/tmp/art/x.png', path.posix)).toBe(false);
+    expect(isRefusedLinkTarget('//host/share', path.posix)).toBe(true);
+  });
+});
+
 describe('defaultImageRoots', () => {
   it('reads the semicolon list, keeps absolute folders only, else one default folder', () => {
     const art = join(base, 'Art');
@@ -290,5 +323,17 @@ describe('defaultImageRoots', () => {
     expect(
       defaultImageRoots({ FOUNDRY_AI_TOOL_IMAGE_ROOTS: art, FVTT_DATA_DIR: data } as any)
     ).toEqual([art]);
+  });
+
+  it('falls back to an absolute Foundry Art folder when FVTT_DATA_DIR is unset', () => {
+    const roots = defaultImageRoots({});
+    expect(roots).toHaveLength(1);
+    expect(path.isAbsolute(roots[0])).toBe(true);
+    expect(path.basename(roots[0])).toBe('Foundry Art');
+  });
+
+  it('turns a relative FVTT_DATA_DIR into an absolute root', () => {
+    const roots = defaultImageRoots({ FVTT_DATA_DIR: 'rel-data' });
+    expect(roots.every(r => path.isAbsolute(r))).toBe(true);
   });
 });

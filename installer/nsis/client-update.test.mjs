@@ -8,6 +8,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import http from 'node:http';
+import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, test, before, after } from 'node:test';
@@ -28,10 +29,35 @@ describe('client-update.ps1 source', () => {
     const hash = src.indexOf('Get-FileHash');
     const run = src.indexOf('Start-Process -FilePath $exe');
     assert.ok(hash > 0 && run > hash);
-    assert.equal(src.split('Test-ClaudeRunning)').length - 1, 2);
+    // one check before the download and one after the checksum, before the backup and the installer
+    const before = src.indexOf('if (Test-ClaudeRunning)');
+    const download = src.indexOf('Invoke-WebRequest');
+    const after = src.indexOf('if (Test-ClaudeRunning)', before + 1);
+    assert.ok(before > 0 && before < download, 'checked before the download');
+    assert.ok(after > hash && after < run, 'checked again after the checksum, before the installer runs');
+  });
+  test('Claude Code (claude.exe under .local\\bin, .claude or node_modules) does not count as Claude Desktop', () => {
+    assert.match(src, /\$claudeCodePath = .*\.local.*\.claude.*node_modules/);
+  });
+  test('the logon task logs a failed updater launch', () => {
+    assert.match(tunnelSrc, /Win32_Process[\s\S]*ReturnValue -ne 0[\s\S]*Add-Content -LiteralPath \(Join-Path \$StateDir 'update\.log'\)/);
   });
   test('the logon task script starts it only when the flag exists', () => {
     assert.match(tunnelSrc, /autoupdate\.on[\s\S]*client-update\.ps1/);
+  });
+  test('direct installs: own sign-in task, read-only version read from the configured host, same safety checks', () => {
+    assert.match(src, /'Install'[\s\S]*Register-ScheduledTask[\s\S]*'Uninstall'/);
+    assert.match(src, /direct\.json/);
+    assert.match(src, /\/HOST=\$directHost/);
+    // the only control request it ever sends is the read-only wrapper_status
+    assert.equal(src.split("Invoke-Control $readHost $port '").length - 1, 1);
+    assert.match(src, /Invoke-Control \$readHost \$port 'wrapper_status'/);
+    const nsi = readFileSync(path.join(here, 'foundry-mcp-server.nsi'), 'utf8');
+    assert.match(nsi, /client-update\.ps1" -Action Install -StateDir "\$INSTDIR\\update"/);
+    assert.match(nsi, /\/NOAUTOUPDATE/);
+    assert.match(nsi, /update-client-now\.cmd/);
+    assert.match(readFileSync(path.join(here, '..', 'build-nsis.js'), 'utf8'), /'update-client-now\.cmd'/);
+    assert.match(readFileSync(path.join(here, 'update-client-now.cmd'), 'utf8'), /-Action Check -Now/);
   });
   test('the installer ships and removes it', () => {
     const nsi = readFileSync(path.join(here, 'foundry-mcp-server.nsi'), 'utf8');
@@ -133,6 +159,16 @@ class P { static int Main(string[] a) {
     assert.ok(!existsSync(path.join(d.inst, 'args.txt')));
   });
 
+  test('no tunnel.json and no direct.json: skipped, nothing downloaded', async () => {
+    const d = fresh('noconfig');
+    rmSync(path.join(d.state, 'tunnel.json'));
+    sumsLine = goodSums();
+    const r = await run(d, ['-ClaudeProcess', 'NoSuchProcessXyz']);
+    assert.equal(r.code, 0, r.out);
+    assert.equal(status(d).result, 'skipped');
+    assert.ok(!existsSync(path.join(d.inst, 'args.txt')));
+  });
+
   test('wrong checksum: failed, installer never runs', async () => {
     const d = fresh('badsum');
     sumsLine = `${'0'.repeat(64)}  FoundryMCPServer-Setup-v0.29.1.exe\n`;
@@ -163,6 +199,133 @@ class P { static int Main(string[] a) {
     assert.equal(status(d).result, 'failed');
     assert.equal(readFileSync(path.join(d.inst, 'sentinel.txt'), 'utf8'), 'old');
     assert.equal(readFileSync(path.join(d.state, 'token.dpapi'), 'utf8'), 'TOKEN-BYTES');
+  });
+
+  // A direct install: no tunnel.json, a direct.json instead, and the table answered over TCP.
+  function freshDirect(name, ctlPort, { flag = true } = {}) {
+    const inst = path.join(root, name);
+    const state = path.join(inst, 'update');
+    mkdirSync(state, { recursive: true });
+    writeFileSync(path.join(inst, 'sentinel.txt'), 'old');
+    writeFileSync(path.join(state, 'direct.json'), JSON.stringify({ host: '127.0.0.1', port: ctlPort }));
+    if (flag) writeFileSync(path.join(state, 'autoupdate.on'), 'on');
+    return { inst, state };
+  }
+  // Same as run(), but without the -PiVersion hook, so the version is read from the control port.
+  function runDirect({ inst, state }, extra = [], proc = 'NoSuchProcessXyz') {
+    return new Promise(resolve => {
+      const p = spawn(
+        'powershell.exe',
+        ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script, '-Action', 'Check',
+          '-StateDir', state, '-InstallDir', inst, '-ReleaseBase', `http://127.0.0.1:${port}`, '-InstalledVersion', '0.29.0',
+          '-ClaudeProcess', proc, ...extra],
+        { windowsHide: true }
+      );
+      let out = '';
+      p.stdout.on('data', d => (out += d));
+      p.stderr.on('data', d => (out += d));
+      p.on('close', code => resolve({ code, out }));
+    });
+  }
+  async function withControl(fn) {
+    const requests = [];
+    const srv = net.createServer(sock => {
+      sock.on('data', d => {
+        for (const line of d.toString().split('\n').filter(Boolean)) {
+          requests.push(JSON.parse(line).method);
+          sock.write(JSON.stringify({ id: 'upd', result: { current: '0.29.1' } }) + '\n');
+        }
+      });
+    });
+    await new Promise(ok => srv.listen(0, '127.0.0.1', ok));
+    try {
+      return await fn(srv.address().port, requests);
+    } finally {
+      srv.close();
+    }
+  }
+
+  test('direct install: reads the version from the configured host, installs with /HOST= /PORT=', async () => {
+    sumsLine = goodSums();
+    await withControl(async (ctl, requests) => {
+      const d = freshDirect('direct-ok', ctl);
+      const r = await runDirect(d);
+      assert.equal(r.code, 0, r.out);
+      assert.equal(status(d).result, 'updated');
+      assert.deepEqual(requests, ['wrapper_status'], 'only the read-only status request');
+      const args = readFileSync(path.join(d.inst, 'args.txt'), 'utf8');
+      assert.match(args, new RegExp(`^/S /HOST=127\\.0\\.0\\.1 /PORT=${ctl} /D=`));
+    });
+  });
+
+  test('direct install: Claude Desktop running is skipped, nothing installed', async () => {
+    sumsLine = goodSums();
+    await withControl(async ctl => {
+      const d = freshDirect('direct-running', ctl);
+      const r = await runDirect(d, [], 'node');
+      assert.equal(r.code, 0);
+      assert.equal(status(d).result, 'skipped');
+      assert.ok(!existsSync(path.join(d.inst, 'args.txt')));
+    });
+  });
+
+  test('direct install: the table does not answer: skipped, nothing installed', async () => {
+    const d = freshDirect('direct-silent', 1); // port 1: nothing listens
+    const r = await runDirect(d, ['-ReadAttempts', '1']);
+    assert.equal(r.code, 0);
+    assert.ok(!existsSync(path.join(d.inst, 'args.txt')));
+  });
+
+  test('direct install: bad checksum fails and rolls nothing in; failed installer restores', async () => {
+    await withControl(async ctl => {
+      const bad = freshDirect('direct-badsum', ctl);
+      sumsLine = `${'0'.repeat(64)}  FoundryMCPServer-Setup-v0.29.1.exe\n`;
+      assert.equal((await runDirect(bad)).code, 1);
+      assert.ok(!existsSync(path.join(bad.inst, 'args.txt')));
+      const rb = freshDirect('direct-restore', ctl);
+      sumsLine = goodSums();
+      const r = await new Promise(resolve => {
+        const p = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script, '-Action', 'Check',
+          '-StateDir', rb.state, '-InstallDir', rb.inst, '-ReleaseBase', `http://127.0.0.1:${port}`, '-InstalledVersion', '0.29.0', '-ClaudeProcess', 'NoSuchProcessXyz'],
+          { env: { ...process.env, FAKE_EXIT: '1' }, windowsHide: true });
+        p.on('close', code => resolve({ code }));
+      });
+      assert.equal(r.code, 1);
+      assert.equal(readFileSync(path.join(rb.inst, 'sentinel.txt'), 'utf8'), 'old');
+    });
+  });
+
+  test('-Now runs although auto-update is off; without it an off install does nothing', async () => {
+    sumsLine = goodSums();
+    await withControl(async ctl => {
+      const off = freshDirect('direct-off', ctl, { flag: false });
+      assert.equal((await runDirect(off)).code, 0);
+      assert.ok(!existsSync(path.join(off.inst, 'args.txt')));
+      const now = freshDirect('direct-now', ctl, { flag: false });
+      assert.equal((await runDirect(now, ['-Now'])).code, 0);
+      assert.equal(status(now).result, 'updated');
+    });
+  });
+
+  test('Install: on by default the first time, keeps an earlier off, -NoEnable switches off, bad host refused', () => {
+    const inst = path.join(root, 'install-action');
+    const state = path.join(inst, 'update');
+    mkdirSync(inst, { recursive: true });
+    const ps = args =>
+      spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script, '-Action', 'Install',
+        '-StateDir', state, '-NoTask', ...args], { encoding: 'utf8', windowsHide: true });
+    const flag = path.join(state, 'autoupdate.on');
+    assert.equal(ps(['-ControlHost', '100.64.0.7', '-ControlPort', '31414']).status, 0);
+    assert.ok(existsSync(flag), 'first install is on');
+    const direct = readFileSync(path.join(state, 'direct.json'), 'utf8');
+    assert.deepEqual(JSON.parse(direct.slice(direct.indexOf('{'))), { host: '100.64.0.7', port: 31414 });
+    rmSync(flag); // the user switched it off
+    assert.equal(ps(['-ControlHost', 'pi.tail1234.ts.net', '-ControlPort', '31414']).status, 0);
+    assert.ok(!existsSync(flag), 'an upgrade keeps the off choice');
+    writeFileSync(flag, 'on');
+    assert.equal(ps(['-ControlHost', '100.64.0.7', '-ControlPort', '31414', '-NoEnable']).status, 0);
+    assert.ok(!existsSync(flag), '-NoEnable switches off');
+    assert.equal(ps(['-ControlHost', 'bad host";x']).status, 2);
   });
 
   test('installer exit 4 (bridge did not answer yet) counts as updated, not rolled back', async () => {

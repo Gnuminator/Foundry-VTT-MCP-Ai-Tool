@@ -65,6 +65,11 @@ export interface LiveActorRequest {
   level?: number;
   /** condition (on): lasts this many rounds, then Foundry expires it; omitted = until removed. */
   rounds?: number;
+  /**
+   * condition (on, timed): when in the target's turn the timer ends: its turn start (Foundry's
+   * default) or its turn end ("until the end of its next turn"). Without rounds it means the target's next turn (this round if it has not acted yet).
+   */
+  ends?: 'turn-start' | 'turn-end';
   /** clear-conditions: names or ids to remove; omitted = only expired effects. */
   conditions?: string[];
   /** resource: spell level ("spell3"), "pact", a class resource label or key, or an item name. */

@@ -72,7 +72,7 @@ const SET_TEXT: Readonly<Record<ToolSetName, Omit<ToolSetSpec, 'tools'>>> = {
   admin: {
     title: 'Admin',
     purpose:
-      'Set up and troubleshoot: installed modules and their errors, Foundry settings, modules on or off, user roles, who can open a compendium pack, a journal or a scene, who owns which actor, round token rings for all actors, and the Obsidian mirror settings.',
+      'Set up and troubleshoot: installed modules and their errors, Foundry settings, modules on or off, user roles, who can open a pack, journal or scene, who owns which actor, round token rings, and the Obsidian mirror settings.',
   },
   player: {
     title: 'Player',
@@ -101,6 +101,13 @@ export const TOOL_SETS: Readonly<Record<ToolSetName, ToolSetSpec>> = Object.from
 ) as unknown as Record<ToolSetName, ToolSetSpec>;
 
 /** The environment variable a Claude Desktop entry sets, e.g. `core` or `prep,admin`. */
+/**
+ * The place in Claude Desktop where the per-connector switches live (checked on the app
+ * 2026-11-21: the + menu under the message box, then Plugins). One spelling for the server
+ * instructions; `claude-menu-name.test.ts` fails when a doc or stub uses another.
+ */
+export const CLAUDE_CONNECTOR_MENU = 'the + menu, then Plugins';
+
 export const TOOL_SETS_ENV = 'FOUNDRY_AI_TOOL_SETS';
 
 const SET_OF_TOOL: ReadonlyMap<string, ToolSetName> = new Map(
@@ -195,6 +202,17 @@ export function filterToolsBySets<T extends { name: string }>(
 const LANGUAGE_LINE =
   "Answer in the same language as the user's latest message: English gets English, Danish gets Danish (not Norwegian or Swedish). Keep the English game terms (attack, saving throw, hit points, token).";
 
+/** Short instructions for a connector without core: its own set line, switch-first, language. */
+function shortToolSetInstructions(sets: readonly ServedToolSetName[]): string {
+  const own = sets.map(set => `${TOOL_SETS[set].title}: ${TOOL_SETS[set].purpose}`).join(' ');
+  return [
+    `Foundry AI Tool, ${own}`,
+    'plan-* tools only prepare a change; apply-planned-change (Core) applies it.',
+    `If a tool is not in your list, first say which set to switch on (Core, Play, Prep, Build or Admin; in ${CLAUDE_CONNECTOR_MENU}; Core lists them), before looking anything up.`,
+    LANGUAGE_LINE,
+  ].join('\n');
+}
+
 /**
  * The MCP `instructions` for a wrapper serving part of the tools: which sets
  * this connector holds and which other connectors hold the rest, so Claude can
@@ -205,13 +223,16 @@ export function toolSetInstructions(selection: Pick<ToolSetSelection, 'sets' | '
     'Foundry AI Tool: access to the Foundry VTT game (D&D 5e). Tools named plan-* only prepare a change; it happens when apply-planned-change runs, and undo-change takes it back. A tool whose description starts "Direct write." acts at once, with no plan. A change it makes to Foundry documents is recorded in the change journal (listed as the GM\'s own change) and can be taken back with list-changes and plan-undo-changes while the journal is on. The journal covers actors, items, effects, tokens, scenes, combat and journals; it does not record music (playlists), folders, chat messages or rolls, so plan-undo-changes cannot take those back (an AI music change still undoes with undo-change). plan-undo-changes needs the "AI Tool: Undo for everything" switch and "AI Tool: Allow Write Operations" turned on in Foundry; undo-change needs only the latter. Records are kept for 7 days.';
   // Serving every set: no other connector to name, so no switch-first text.
   if (selection.all) return `${intro} This connector serves every tool set.\n${LANGUAGE_LINE}`;
+  // Only core carries the plan story and the full list of sets; the other connectors point to it,
+  // so the long text is paid for once, not five times (backlog connector-instructions-once).
+  if (!selection.sets.includes('core')) return shortToolSetInstructions(selection.sets);
   const lines = [intro, 'This connector serves:'];
   for (const set of selection.sets)
     lines.push(`- ${TOOL_SETS[set].title}: ${TOOL_SETS[set].purpose}`);
   const others = TOOL_SET_NAMES.filter(set => !selection.sets.includes(set));
   if (others.length > 0) {
     lines.push(
-      'Other Foundry AI Tool sets (each is its own connector; the GM switches them on in the Search and tools menu, and some may be on already):'
+      `Other Foundry AI Tool sets (each is its own connector; the GM switches them on in ${CLAUDE_CONNECTOR_MENU}, and some may be on already):`
     );
     for (const set of others) lines.push(`- ${TOOL_SETS[set].title}: ${TOOL_SETS[set].purpose}`);
     lines.push(

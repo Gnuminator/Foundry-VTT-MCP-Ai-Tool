@@ -1,6 +1,6 @@
 ---
 source: gm/README.md
-sourceHash: 9af2482ee89f
+sourceHash: ba7ea0c73f38
 title: GM-guides
 description: Guides til en GM, der kører et spil med Foundry AI Tool, skrevet til en, der er ny i Foundry og i værktøjet.
 ---
@@ -16,7 +16,8 @@ Så i denne rækkefølge:
 3. Tjeklisterne [før en session](before-session.md) og [efter en session](after-session.md), hver gang
    du spiller.
 
-På en ny PC [forbinder du først Claude Desktop til serveren](connect-claude-desktop.md). Et ord, du
+På en ny PC [forbinder du først Claude Desktop til serveren](connect-claude-desktop.md), eller
+[tilføjer connectorerne med webadresse](connect-claude-web.md) (uden installer, betalt plan). Et ord, du
 ikke kender, står i [ordlisten](glossary.md).
 
 **Inde fra Foundry:** fanen Settings, **Game Settings**, kategorien **Foundry AI Tool**, knappen
@@ -27,14 +28,15 @@ ikke kender, står i [ordlisten](glossary.md).
 Hver af disse er en kort side, du kan klare alene. Hver ender med, hvad du skal se, når det lykkedes, og hvad
 du gør, hvis det ikke gjorde.
 
-| Opsætning                                                             | Hvad du gør                                                              | Tid    |
-| --------------------------------------------------------------------- | ------------------------------------------------------------------------ | ------ |
-| [Forbind Claude Desktop til serveren](connect-claude-desktop.md)      | Installer den lille Windows-klient og tunnelnøglen; opdater den senere.  | 10 min |
-| [Dashboardet](setup-dashboard.md)                                     | Åbn det, log ind gennem Cloudflare, sæt bogmærke og vælg et layout.      | 10 min |
-| [GM-coachen](setup-gm-coach.md)                                       | Læg Foundry GM coach-skillen ind på din Claude-konto.                    | 5 min  |
-| [Din vault på din pc (Obsidian og Syncthing)](setup-obsidian-sync.md) | Installer begge, par med serveren og tjek, at en note rejser begge veje. | 20 min |
-| [Obsidian-pluginet](setup-obsidian-plugin.md)                         | Installer pluginet og forbind det til dashboardet.                       | 10 min |
-| [Tv'et ved bordet](setup-tv-table.md)                                 | Kun til spil i samme rum: lav Table-spilleren og log tv'et ind.          | 15 min |
+| Opsætning                                                             | Hvad du gør                                                                | Tid    |
+| --------------------------------------------------------------------- | -------------------------------------------------------------------------- | ------ |
+| [Forbind Claude Desktop til serveren](connect-claude-desktop.md)      | Installer den lille Windows-klient og tunnelnøglen; opdater den senere.    | 10 min |
+| [Forbind Claude med webadresse](connect-claude-web.md)                | De fem connectors som custom connectors med e-mail-login; ingen installer. | 5 min  |
+| [Dashboardet](setup-dashboard.md)                                     | Åbn det, log ind gennem Cloudflare, sæt bogmærke og vælg et layout.        | 10 min |
+| [GM-coachen](setup-gm-coach.md)                                       | Læg Foundry GM coach-skillen ind på din Claude-konto.                      | 5 min  |
+| [Din vault på din pc (Obsidian og Syncthing)](setup-obsidian-sync.md) | Installer begge, par med serveren og tjek, at en note rejser begge veje.   | 20 min |
+| [Obsidian-pluginet](setup-obsidian-plugin.md)                         | Installer pluginet og forbind det til dashboardet.                         | 10 min |
+| [Tv'et ved bordet](setup-tv-table.md)                                 | Kun til spil i samme rum: lav Table-spilleren og log tv'et ind.            | 15 min |
 
 ## Alle guides
 
@@ -42,6 +44,7 @@ du gør, hvis det ikke gjorde.
 | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | [De første 15 minutter](first-15-minutes.md)                     | Siden du læser først: hvad det er, fire små trin, og hvad du kan ignorere indtil videre.                         |
 | [Din første time som GM](first-hour.md)                          | En fast læserækkefølge: Foundrys egne guides til det basale, vores sider til værktøjet.                          |
+| [Manuskript til session 0](session-0-walkthrough.md)             | Et manuskript på ti minutter til den optagede værktøjsgennemgang på session 0, i klikrækkefølge.                 |
 | [Quest: din første time](first-hour-quest.md)                    | Den første time som fire trin, du kan sætte flueben ved.                                                         |
 | [Kom i gang](getting-started.md)                                 | Hvad værktøjet er, dets dele, hvordan de hænger sammen og dagens opsætning.                                      |
 | [Ordliste](glossary.md)                                          | Foundry-ordene og værktøjsordene i guiderne.                                                                     |
@@ -52,6 +55,7 @@ du gør, hvis det ikke gjorde.
 | [Funktioner og hvornår du slår dem til](features.md)             | Hver funktionskontakt, hvad den gør, og hvornår du slår den til.                                                 |
 | [Spørg Claude](asking-claude.md)                                 | Gode forespørgsler, de færdige prompts, hvordan Claudes ændringer godkendes, og dens grænser.                    |
 | [Din GM-coach i Claude](gm-coach.md)                             | Læg Foundry GM coach-skillen ind på din Claude-konto, og lær, hvordan du spørger den.                            |
+| [Lad os forberede: forberedelsen på 30 minutter](prep-ritual.md) | Sig "let's prep", og Claude fører dig gennem fem faste trin, der slutter med pre-flight-tjekket.                 |
 | [Kogebog](cookbook.md)                                           | Færdige forespørgsler og klik før, under og efter en session.                                                    |
 | [Din Obsidian-vault](obsidian.md)                                | Hvad der ligger i din vault, hvor din forberedelse havner, og hvordan du forbinder pluginet til serveren.        |
 | [Forberedelse og forventninger](prep-and-expectations.md)        | Hvad du skal forberede, forventningssnakken, ability scores og en dagsorden til session 0.                       |
@@ -61,12 +65,14 @@ du gør, hvis det ikke gjorde.
 | [Før hver session](before-session.md)                            | En tjekliste til de 15 minutter før spil.                                                                        |
 | [Quest: før en session](before-session-quest.md)                 | De 15 minutter før spil som fire trin.                                                                           |
 | [Efter hver session](after-session.md)                           | En tjekliste til lige efter spil.                                                                                |
+| [Efter en session: noterne](after-session-notes.md)              | Fra Discord-optagelsen til spillerne læser recap'en: hvor noterne lander, hvad du godkender.                     |
 | [Når en karakter dør](death-and-new-characters.md)               | Dødsøjeblikket, en dødslog og at tage en ny karakter ind.                                                        |
 | [Gør aldrig dette, gør kun dette hvis](never-and-only-if.md)     | Korte regler, hver med sin begrundelse.                                                                          |
 | [Runbook til spilaftenen](game-night-runbook.md)                 | Én side til aftenen: hvad du gør, når noget fejler, og hvornår du skal bede om hjælp.                            |
 | [TV'et ved bordet](tv-table-viewer.md)                           | Vis kortet på et TV ved en session ansigt til ansigt; det logger ind én gang som en spiller ved navn Table.      |
 | [Fejlfinding](troubleshooting.md)                                | Symptom, sandsynlig årsag og løsning.                                                                            |
 | [Forbind Claude Desktop til serveren](connect-claude-desktop.md) | Installer den lille Windows-klient og tunnelnøglen, så Claude Desktop når serveren.                              |
+| [Forbind Claude med webadresse](connect-claude-web.md)           | Tilføj de fem connectors med adresse og e-mail-login, uden installer og uden tunnelnøgle.                        |
 | [Claude Free eller Pro](claude-plans.md)                         | Hvad der virker på den gratis Claude-plan, dens grænser, og hvad Pro giver dig.                                  |
 
 Hvad spillerne ser, og hvad værktøjet registrerer om dem: [spillerguiden](../player/README.md) og

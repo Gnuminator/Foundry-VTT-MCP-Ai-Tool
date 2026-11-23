@@ -27,6 +27,11 @@ interface Member {
   silenceReported: boolean;
 }
 
+/** One packet is about this much audio. */
+const PACKET_MS = 20;
+/** A gap between two packets longer than this is a pause, not speech. */
+const SPEECH_GAP_MS = 500;
+
 /** "42 s", "7 min", "2 h 5 min". */
 export function formatAge(ms: number): string {
   const s = Math.max(0, Math.round(ms / 1000));
@@ -47,6 +52,8 @@ export interface RecorderProblem {
 export class RecorderHealth {
   private readonly members = new Map<string, Member>();
   private readonly lastAlertAt = new Map<string, number>();
+  /** Estimated speaking time per user since the recording started (spotlight balance). */
+  private readonly spoken = new Map<string, { name: string; ms: number }>();
   /** Who left the channel and has not joined again (their late packets are ignored). */
   private readonly left = new Set<string>();
   /** Speakers whose audio stream failed and who have not sent a packet since. */
@@ -90,15 +97,36 @@ export class RecorderHealth {
     if (muted) this.streamErrors.delete(userId);
   }
 
+  /** Estimated speaking time per person in the channel, longest first (spotlight balance). */
+  speaking(): { name: string; ms: number }[] {
+    return [...this.spoken.values()]
+      .filter(s => s.ms > 0)
+      .map(s => ({ name: s.name, ms: Math.round(s.ms) }))
+      .sort((a, b) => b.ms - a.ms);
+  }
+
   /** A packet arrived for this speaker. */
   packet(userId: string, name: string, now: number): void {
     let m = this.members.get(userId);
     // A late packet from someone who already left must not bring them back as a silent member.
     if (!m && this.left.has(userId)) return;
     if (!m) {
-      m = { name, muted: false, joinedAt: now, lastPacket: null, silenceReported: false };
+      m = {
+        name,
+        muted: false,
+        joinedAt: now,
+        lastPacket: null,
+        silenceReported: false,
+      };
       this.members.set(userId, m);
     }
+    // Packets come about every 20 ms while someone speaks: a short gap is speech, a long one a
+    // pause. Kept per user, so leaving and rejoining the channel does not wipe the time.
+    const spoken = this.spoken.get(userId) ?? { name, ms: 0 };
+    spoken.name = name;
+    spoken.ms +=
+      m.lastPacket === null ? PACKET_MS : Math.min(Math.max(now - m.lastPacket, 0), SPEECH_GAP_MS);
+    this.spoken.set(userId, spoken);
     m.lastPacket = now;
     m.silenceReported = false;
     this.streamErrors.delete(userId);

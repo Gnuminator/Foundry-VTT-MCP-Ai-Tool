@@ -9,8 +9,8 @@
 //   --res 1080|1440|2160   output size, always 60 fps MP4 (default 2160)
 //   --no-reset             skip reset-demo-world.ps1 (the world must already run)
 //   --no-record            drive the take without OBS (rehearsal; still saves screenshots)
-//   --recorder ffmpeg      record with ffmpeg ddagrab + NVENC (top-left of the primary monitor)
-//                          instead of OBS (OBS 32.2.2 froze on window captures)
+//   --recorder ffmpeg|obs  ffmpeg (default) records with ddagrab + NVENC of the top-left of the
+//                          primary monitor; obs uses OBS (OBS 32.2.2 froze on window captures)
 //   --keep-open            leave the browser windows open afterwards
 //   --world <id>           another demo world (ai-tool-demo-<name>); default ai-tool-demo
 //
@@ -27,7 +27,14 @@ import { ensureObs } from './lib/obs-setup.mjs';
 import { Take } from './lib/take.mjs';
 
 function parseArgs(argv) {
-  const opts = { _: [], res: 2160, reset: true, record: true, keepOpen: false };
+  const opts = {
+    _: [],
+    res: 2160,
+    reset: true,
+    record: true,
+    keepOpen: false,
+    recorder: 'ffmpeg'
+  };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--res') opts.res = Number(argv[++i]);
@@ -39,7 +46,7 @@ function parseArgs(argv) {
     else if (a.startsWith('--')) throw new Error(`Unknown option ${a}`);
     else opts._.push(a);
   }
-  if (opts.recorder !== undefined && opts.recorder !== 'ffmpeg' && opts.recorder !== 'obs')
+  if (opts.recorder !== 'ffmpeg' && opts.recorder !== 'obs')
     throw new Error(`--recorder must be ffmpeg or obs (got ${opts.recorder}).`);
   demoWorld(); // checks --world
   if (!RESOLUTIONS[opts.res])
@@ -112,9 +119,9 @@ async function cmdTake(opts) {
   if (opts.reset) resetWorld();
   const obs = !opts.record
     ? undefined
-    : opts.recorder === 'ffmpeg'
-      ? new FfmpegRecorder(RESOLUTIONS[opts.res])
-      : await ensureObs({ res: opts.res, recordDir: outDir });
+    : opts.recorder === 'obs'
+      ? await ensureObs({ res: opts.res, recordDir: outDir })
+      : new FfmpegRecorder(RESOLUTIONS[opts.res]);
   const take = new Take({ name, outDir, res: opts.res, env, obs });
   take.lib = await import('./lib/index.mjs');
   const report = {

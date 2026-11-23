@@ -12,6 +12,7 @@ import {
   parseDamageLine,
   rollBannerLines,
   turnLine,
+  turnOptions,
   turnStatus,
 } from '../public/player-me.js';
 
@@ -205,5 +206,57 @@ describe('rollBannerLines', () => {
   it('lets an old request fade', () => {
     const old = [{ id: 'c', sentAt: now - 31 * 60 * 1000, label: 'Stealth', userId: 'u1' }];
     expect(rollBannerLines(old, 'u1', now, true)).toBeNull();
+  });
+});
+
+describe('turnOptions', () => {
+  const ebbe = {
+    inventory: [{ name: 'Mace', equipped: true, attack: '+4', damage: '1d6+2 bludgeoning' }],
+    features: [{ name: 'Channel Divinity', uses: { value: 2, max: 2 } }, { name: 'Darkvision' }],
+    spells: [
+      {
+        name: 'Spare the Dying',
+        level: 0,
+        prepared: true,
+        castingTime: 'Action',
+        range: '15 ft',
+      },
+      { name: 'Healing Word', level: 1, prepared: true, castingTime: 'Bonus Action' },
+      { name: 'Shield of Faith', level: 1, prepared: false, castingTime: 'Bonus Action' },
+      { name: 'Identify', level: 1, prepared: true, castingTime: '1 Minute' },
+    ],
+  };
+
+  it('groups a level 3 cleric by action cost with at least eight options', () => {
+    const groups = turnOptions(ebbe);
+    const names = (id: string): string[] =>
+      (groups.find(g => g.id === id)?.options ?? []).map((o: { name: string }) => o.name);
+    expect(names('action')).toEqual(
+      expect.arrayContaining(['Spare the Dying', 'Channel Divinity', 'Dodge', 'Attack'])
+    );
+    expect(names('bonus')).toEqual(['Healing Word']);
+    expect(names('reaction')).toContain('Opportunity attack');
+    const all = groups.flatMap(g => g.options);
+    expect(all.length).toBeGreaterThanOrEqual(8);
+    expect(all.some(o => o.name === 'Shield of Faith' || o.name === 'Identify')).toBe(false);
+    expect(all.every(o => o.note.length <= 70)).toBe(true);
+  });
+
+  it('files 2024 costs right and keeps odd action labels', () => {
+    const groups = turnOptions({
+      features: [{ name: 'Wild Shape' }, { name: 'Lay on Hands' }, { name: 'Divine Smite' }],
+      spells: [{ name: 'Zap', level: 0, prepared: true, castingTime: 'Magic action' }],
+    });
+    const names = (id: string): string[] =>
+      (groups.find(g => g.id === id)?.options ?? []).map((o: { name: string }) => o.name);
+    expect(names('bonus')).toEqual(['Wild Shape', 'Lay on Hands']);
+    expect(names('action')).toContain('Zap');
+    expect(groups.flatMap(g => g.options.map((o: { name: string }) => o.name))).not.toContain(
+      'Divine Smite'
+    );
+  });
+
+  it('returns nothing without a sheet', () => {
+    expect(turnOptions(null)).toEqual([]);
   });
 });

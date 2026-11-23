@@ -1,5 +1,7 @@
 import { describe, expect, it, vi, type Mock } from 'vitest';
 
+import { makeTools } from '../test-support/make-tool-harness.js';
+
 import { OwnershipTools } from './ownership.js';
 
 /**
@@ -42,7 +44,7 @@ function fakeCreatePlan(
   );
 }
 
-function makeTools(
+function buildTools(
   queryImpl?: (method: string, data: unknown) => unknown,
   createPlan: ReturnType<typeof fakeCreatePlan> = fakeCreatePlan()
 ): {
@@ -50,22 +52,11 @@ function makeTools(
   query: Mock<(method: string, data: unknown) => unknown>;
   createPlan: ReturnType<typeof fakeCreatePlan>;
 } {
-  const query = vi.fn(queryImpl ?? ((): unknown => ({ success: true })));
-  const foundryClient = { query } as any;
-  // Minimal Logger stub: `.child()` returns itself; level methods are no-ops.
-  const logger: any = {
-    error: vi.fn(),
-    warn: vi.fn(),
-    info: vi.fn(),
-    debug: vi.fn(),
-  };
-  logger.child = (): unknown => logger;
-  const guardedWrites = { createPlan } as any;
-  return {
-    tools: new OwnershipTools({ foundryClient, guardedWrites, logger }),
-    query,
-    createPlan,
-  };
+  const { tools, query } = makeTools(OwnershipTools, {
+    ...(queryImpl ? { queryImpl } : {}),
+    extra: { guardedWrites: { createPlan } },
+  });
+  return { tools, query, createPlan };
 }
 
 // ---------------------------------------------------------------------------
@@ -74,7 +65,7 @@ function makeTools(
 
 describe('OwnershipTools.getToolDefinitions', () => {
   it('exposes plan-ownership-change and list-actor-ownership with object input schemas', () => {
-    const { tools } = makeTools();
+    const { tools } = buildTools();
     const defs = tools.getToolDefinitions();
     expect(defs.map(d => d.name)).toEqual(['plan-ownership-change', 'list-actor-ownership']);
     for (const d of defs) {
@@ -83,27 +74,27 @@ describe('OwnershipTools.getToolDefinitions', () => {
   });
 
   it('plan-ownership-change requires action, actor and playerIdentifier', () => {
-    const { tools } = makeTools();
+    const { tools } = buildTools();
     const plan = tools.getToolDefinitions().find(d => d.name === 'plan-ownership-change')!;
     expect((plan.inputSchema as any).required).toEqual(['action', 'actor', 'playerIdentifier']);
     expect((plan.inputSchema as any).properties.action.enum).toEqual(['assign', 'remove']);
   });
 
   it('plan-ownership-change permissionLevel enum includes the four levels', () => {
-    const { tools } = makeTools();
+    const { tools } = buildTools();
     const plan = tools.getToolDefinitions().find(d => d.name === 'plan-ownership-change')!;
     const permProp = (plan.inputSchema as any).properties.permissionLevel;
     expect(permProp.enum).toEqual(['NONE', 'LIMITED', 'OBSERVER', 'OWNER']);
   });
 
   it('list-actor-ownership has no required fields', () => {
-    const { tools } = makeTools();
+    const { tools } = buildTools();
     const list = tools.getToolDefinitions().find(d => d.name === 'list-actor-ownership')!;
     expect((list.inputSchema as any).required).toBeUndefined();
   });
 
   it('no longer exposes the direct assign and remove tools', () => {
-    const { tools } = makeTools();
+    const { tools } = buildTools();
     const names = tools.getToolDefinitions().map(d => d.name);
     expect(names).not.toContain('assign-actor-ownership');
     expect(names).not.toContain('remove-actor-ownership');
@@ -116,14 +107,14 @@ describe('OwnershipTools.getToolDefinitions', () => {
 
 describe('OwnershipTools.handleToolCall: unknown tool name', () => {
   it('throws when given an unrecognised tool name', async () => {
-    const { tools } = makeTools();
+    const { tools } = buildTools();
     await expect(tools.handleToolCall('does-not-exist', {})).rejects.toThrow(
       'Unknown ownership tool: does-not-exist'
     );
   });
 
   it('rejects the removed direct tools', async () => {
-    const { tools } = makeTools();
+    const { tools } = buildTools();
     await expect(tools.handleToolCall('assign-actor-ownership', {})).rejects.toThrow(
       'Unknown ownership tool: assign-actor-ownership'
     );
@@ -151,7 +142,7 @@ describe("OwnershipTools.handleToolCall('plan-ownership-change')", () => {
   };
 
   it('plans one update op for a single actor and player, with the numeric level', async () => {
-    const { tools, query, createPlan } = makeTools(singleQueries);
+    const { tools, query, createPlan } = buildTools(singleQueries);
     const result = (await tools.handleToolCall('plan-ownership-change', {
       action: 'assign',
       actor: 'Aragorn',
@@ -185,7 +176,7 @@ describe("OwnershipTools.handleToolCall('plan-ownership-change')", () => {
     ['OBSERVER', 2],
     ['OWNER', 3],
   ])('maps %s to numeric level %i', async (permissionLevel, level) => {
-    const { tools, createPlan } = makeTools(singleQueries);
+    const { tools, createPlan } = buildTools(singleQueries);
     await tools.handleToolCall('plan-ownership-change', {
       action: 'assign',
       actor: 'Aragorn',
@@ -196,7 +187,7 @@ describe("OwnershipTools.handleToolCall('plan-ownership-change')", () => {
   });
 
   it('remove sets the level to NONE (0), ignoring any permissionLevel', async () => {
-    const { tools, createPlan } = makeTools(singleQueries);
+    const { tools, createPlan } = buildTools(singleQueries);
     await tools.handleToolCall('plan-ownership-change', {
       action: 'remove',
       actor: 'Aragorn',
@@ -211,7 +202,7 @@ describe("OwnershipTools.handleToolCall('plan-ownership-change')", () => {
   });
 
   it('assign without permissionLevel throws and plans nothing', async () => {
-    const { tools, createPlan } = makeTools(singleQueries);
+    const { tools, createPlan } = buildTools(singleQueries);
     await expect(
       tools.handleToolCall('plan-ownership-change', {
         action: 'assign',
@@ -223,7 +214,7 @@ describe("OwnershipTools.handleToolCall('plan-ownership-change')", () => {
   });
 
   it('throws (zod parse error) when permissionLevel is not a valid enum value', async () => {
-    const { tools, createPlan } = makeTools(singleQueries);
+    const { tools, createPlan } = buildTools(singleQueries);
     await expect(
       tools.handleToolCall('plan-ownership-change', {
         action: 'assign',
@@ -236,7 +227,7 @@ describe("OwnershipTools.handleToolCall('plan-ownership-change')", () => {
   });
 
   it('throws on an unknown action', async () => {
-    const { tools } = makeTools(singleQueries);
+    const { tools } = buildTools(singleQueries);
     await expect(
       tools.handleToolCall('plan-ownership-change', {
         action: 'transfer',
@@ -247,7 +238,7 @@ describe("OwnershipTools.handleToolCall('plan-ownership-change')", () => {
   });
 
   it('plans one op per actor for "all friendly NPCs"', async () => {
-    const { tools, query, createPlan } = makeTools((method: string) => {
+    const { tools, query, createPlan } = buildTools((method: string) => {
       if (method === 'foundry-mcp-bridge.getFriendlyNPCs')
         return [
           { id: 'a1', name: 'Goblin A' },
@@ -275,7 +266,7 @@ describe("OwnershipTools.handleToolCall('plan-ownership-change')", () => {
   });
 
   it('uses foundry-mcp-bridge.getPartyCharacters for "party characters"', async () => {
-    const { tools, query, createPlan } = makeTools((method: string) => {
+    const { tools, query, createPlan } = buildTools((method: string) => {
       if (method === 'foundry-mcp-bridge.getPartyCharacters') return [{ id: 'a1', name: 'Hero' }];
       if (method === 'foundry-mcp-bridge.findPlayers') return [{ id: 'p1', name: 'John' }];
       return { success: true };
@@ -293,7 +284,7 @@ describe("OwnershipTools.handleToolCall('plan-ownership-change')", () => {
   });
 
   it('uses foundry-mcp-bridge.getConnectedPlayers for "party" and puts every player on each op', async () => {
-    const { tools, query, createPlan } = makeTools((method: string) => {
+    const { tools, query, createPlan } = buildTools((method: string) => {
       if (method === 'foundry-mcp-bridge.findActor') return { id: 'a1', name: 'Aragorn' };
       if (method === 'foundry-mcp-bridge.getConnectedPlayers')
         return [
@@ -327,7 +318,7 @@ describe("OwnershipTools.handleToolCall('plan-ownership-change')", () => {
   });
 
   it('throws when no actor matches', async () => {
-    const { tools, createPlan } = makeTools((method: string) => {
+    const { tools, createPlan } = buildTools((method: string) => {
       if (method === 'foundry-mcp-bridge.findActor') return null;
       if (method === 'foundry-mcp-bridge.findPlayers') return [{ id: 'p1', name: 'John' }];
       return { success: true };
@@ -344,7 +335,7 @@ describe("OwnershipTools.handleToolCall('plan-ownership-change')", () => {
   });
 
   it('throws when no player matches', async () => {
-    const { tools, createPlan } = makeTools((method: string) => {
+    const { tools, createPlan } = buildTools((method: string) => {
       if (method === 'foundry-mcp-bridge.findActor') return { id: 'a1', name: 'Aragorn' };
       if (method === 'foundry-mcp-bridge.findPlayers') return [];
       return { success: true };
@@ -364,7 +355,7 @@ describe("OwnershipTools.handleToolCall('plan-ownership-change')", () => {
     const ambiguous =
       'Multiple characters match "Aria": Aria Stormwind (aria-storm), Aria Brightwood (aria-bright). ' +
       'Use the exact name or the 16-character id.';
-    const { tools, createPlan } = makeTools((method: string) => {
+    const { tools, createPlan } = buildTools((method: string) => {
       // Real bridge errors arrive wrapped like this.
       if (method === 'foundry-mcp-bridge.findActor') {
         throw new Error(`Query foundry-mcp-bridge.findActor failed: ${ambiguous}`);
@@ -382,7 +373,7 @@ describe("OwnershipTools.handleToolCall('plan-ownership-change')", () => {
   });
 
   it('treats a failing lookup as no match and throws', async () => {
-    const { tools, createPlan } = makeTools((method: string) => {
+    const { tools, createPlan } = buildTools((method: string) => {
       if (method === 'foundry-mcp-bridge.findActor') throw new Error('bridge unavailable');
       return [{ id: 'p1', name: 'John' }];
     });
@@ -398,7 +389,7 @@ describe("OwnershipTools.handleToolCall('plan-ownership-change')", () => {
 
   describe('targets preview from the plan diff', () => {
     it('says "was default" when the user had no ownership entry', async () => {
-      const { tools } = makeTools(singleQueries);
+      const { tools } = buildTools(singleQueries);
       const result = (await tools.handleToolCall('plan-ownership-change', {
         action: 'assign',
         actor: 'Aragorn',
@@ -419,7 +410,7 @@ describe("OwnershipTools.handleToolCall('plan-ownership-change')", () => {
         'Actor.a1': { 'ownership.p1': { present: true, value: 3 } },
         'Actor.a2': { 'ownership.p1': { present: true, value: 2 } },
       });
-      const { tools } = makeTools((method: string) => {
+      const { tools } = buildTools((method: string) => {
         if (method === 'foundry-mcp-bridge.getFriendlyNPCs')
           return [
             { id: 'a1', name: 'Goblin A' },
@@ -455,7 +446,7 @@ describe("OwnershipTools.handleToolCall('plan-ownership-change')", () => {
       const createPlan = fakeCreatePlan({
         'Actor.a1': { 'ownership.p1': { present: true, value: 0 } },
       });
-      const { tools } = makeTools(singleQueries, createPlan);
+      const { tools } = buildTools(singleQueries, createPlan);
       await expect(
         tools.handleToolCall('plan-ownership-change', {
           action: 'remove',
@@ -474,7 +465,7 @@ describe("OwnershipTools.handleToolCall('plan-ownership-change')", () => {
 describe("OwnershipTools.handleToolCall('list-actor-ownership')", () => {
   it('dispatches foundry-mcp-bridge.getActorOwnership with the provided identifiers', async () => {
     const ownershipData = { actors: [{ name: 'Aragorn', owners: ['John'] }] };
-    const { tools, query } = makeTools(() => ownershipData);
+    const { tools, query } = buildTools(() => ownershipData);
 
     const result = (await tools.handleToolCall('list-actor-ownership', {
       actor: 'Aragorn',
@@ -490,7 +481,7 @@ describe("OwnershipTools.handleToolCall('list-actor-ownership')", () => {
   });
 
   it('dispatches with undefined identifiers when no args provided', async () => {
-    const { tools, query } = makeTools(() => ({}));
+    const { tools, query } = buildTools(() => ({}));
     await tools.handleToolCall('list-actor-ownership', {});
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getActorOwnership', {
       actorIdentifier: undefined,
@@ -501,7 +492,7 @@ describe("OwnershipTools.handleToolCall('list-actor-ownership')", () => {
   it('returns success:false (not throws) when foundry query throws', async () => {
     const consoleErr = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-    const { tools } = makeTools(() => {
+    const { tools } = buildTools(() => {
       throw new Error('bridge unavailable');
     });
 
@@ -515,7 +506,7 @@ describe("OwnershipTools.handleToolCall('list-actor-ownership')", () => {
   it('returns success:false with generic error string when a non-Error is thrown', async () => {
     const consoleErr = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-    const { tools } = makeTools(() => {
+    const { tools } = buildTools(() => {
       // eslint-disable-next-line @typescript-eslint/only-throw-error
       throw 'oops';
     });

@@ -12,6 +12,7 @@ import {
   unreadyKey,
   unreadyLine,
   unreadySection,
+  UNREADY_GRACE_MS,
 } from './unready.mjs';
 import { parseReviewNote } from '../lane-merge/reviews.mjs';
 import { plannerSections } from '../planner-state.mjs';
@@ -78,6 +79,26 @@ test('a PR with no Backlog line in its body still shows, without an item', () =>
   assert.deepEqual(backlogIds('Backlog-part: x\nBacklog: a, `b`'), ['a', 'b']);
 });
 
+test('a PR naming a Backlog item that does not exist gets an add-then-progress hint, not a failing progress command', () => {
+  const [u] = findUnready([pr({ body: 'Backlog: none, ghost-item\n' })], backlog(''), () =>
+    notes(H1)
+  );
+  assert.deepEqual(u.ids, []);
+  assert.deepEqual(u.missing, ['none', 'ghost-item']);
+  assert.match(unreadyLine(u), /no such Backlog item: none, ghost-item/);
+  const cmd = readyCommand(u);
+  assert.match(cmd, /no Backlog item exists/);
+  assert.match(cmd, /backlog\.mjs add --id <slug>/);
+  assert.doesNotMatch(cmd, /progress none /);
+  assert.match(cmd, new RegExp(`progress <slug> --ready 7 --head ${H1}`));
+  // an existing item among the named ones still gets the plain command
+  const [v] = findUnready([pr({ body: 'Backlog: ghost, skip-item\n' })], backlog(''), () =>
+    notes(H1)
+  );
+  assert.deepEqual(v.ids, ['skip-item']);
+  assert.match(readyCommand(v), /^node scripts\/backlog\.mjs progress skip-item --ready 7/);
+});
+
 /** A vault with one review note, for the planner section. */
 function vaultWith(head) {
   const vault = fs.mkdtempSync(path.join(os.tmpdir(), 'unready-'));
@@ -121,24 +142,46 @@ function deps(unready, extra = {}) {
   return { d, posts };
 }
 
-test('the runner posts the notice once per head, not every round, and writes nothing', () => {
+test('a ready line written inside the grace keeps it silent; a return starts the clock over', () => {
   const [u] = findUnready([pr()], backlog(''), () => notes(H1));
-  const { d, posts } = deps([u]);
+  let t = 5_000_000;
+  let current = [u];
+  const { d, posts } = deps([], { now: () => t, unready: () => current });
   const tried = new Set();
   round(d, tried, new Map());
-  assert.equal(
-    posts.length,
-    0,
-    'the first sighting posts nothing (the usual handoff is under way)'
-  );
+  t += 10 * 60_000;
+  current = []; // the lane wrote its ready line
+  round(d, tried, new Map());
+  t += 10 * 60_000;
+  current = [u]; // back in the state: the clock restarts
+  round(d, tried, new Map());
+  t += 10 * 60_000;
+  round(d, tried, new Map());
+  assert.equal(posts.length, 0);
+  t += 6 * 60_000;
+  round(d, tried, new Map());
+  assert.equal(posts.length, 1);
+});
+
+test('the runner posts the notice once per head, after the grace, and writes nothing', () => {
+  const [u] = findUnready([pr()], backlog(''), () => notes(H1));
+  let t = 1_000_000;
+  const { d, posts } = deps([u], { now: () => t });
+  const tried = new Set();
+  round(d, tried, new Map());
+  t += 120_000;
+  round(d, tried, new Map());
+  assert.equal(posts.length, 0, 'within the grace nothing is posted (the handoff is under way)');
+  t += UNREADY_GRACE_MS;
   round(d, tried, new Map());
   round(d, tried, new Map());
   assert.equal(posts.length, 1);
   assert.match(posts[0], /#7 .*skip-item.*backlog\.mjs progress skip-item --ready 7 --head a{40}/);
   // a new head is a new notice
   const [u2] = findUnready([pr({ headRefOid: H2 })], backlog(''), () => notes(H2));
-  const next = deps([u2]);
+  const next = deps([u2], { now: () => t });
   round(next.d, tried, new Map());
+  t += UNREADY_GRACE_MS;
   round(next.d, tried, new Map());
   assert.equal(next.posts.length, 1);
   assert.notEqual(unreadyKey(u), unreadyKey(u2));
@@ -147,14 +190,21 @@ test('the runner posts the notice once per head, not every round, and writes not
 test('a notice remembered across restarts is not posted again', () => {
   const [u] = findUnready([pr()], backlog(''), () => notes(H1));
   const seen = new Set([unreadyKey(u)]);
-  const { d, posts } = deps([u], { noticeSeen: k => seen.has(k), noticeMark: k => seen.add(k) });
+  let t = 0;
+  const { d, posts } = deps([u], {
+    noticeSeen: k => seen.has(k),
+    noticeMark: k => seen.add(k),
+    now: () => t,
+  });
   const t1 = new Set();
   round(d, t1, new Map());
+  t += UNREADY_GRACE_MS;
   round(d, t1, new Map());
   assert.equal(posts.length, 0);
-  const fresh = deps([u], { noticeSeen: () => false, noticeMark: k => seen.add(k) });
+  const fresh = deps([u], { noticeSeen: () => false, noticeMark: k => seen.add(k), now: () => t });
   const t2 = new Set();
   round(fresh.d, t2, new Map());
+  t += UNREADY_GRACE_MS;
   round(fresh.d, t2, new Map());
   assert.equal(fresh.posts.length, 1);
 });

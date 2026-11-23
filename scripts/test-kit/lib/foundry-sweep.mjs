@@ -20,6 +20,13 @@ const GRACE_MS = 600;
 /** @typedef {'gm' | 'player'} Who */
 /** @typedef {{name: string, who: Who, status: 'pass' | 'fail' | 'skip', ms: number, note: string}} FoundryResult */
 
+/**
+ * Page errors of third-party modules that are not ours and that no row can cause: Monks TokenBar 14.01
+ * sets `.buttons` of a null element on the player's page while it loads (seen in the modules-all
+ * profile, 2026-11-18). Foundry names the module in the message, so only that module's error is excused.
+ */
+const THIRD_PARTY_KNOWN = [/setting 'buttons'\)[\s\S]*Detected 1 package: monks-tokenbar/];
+
 /** A row that cannot run in this world: the message is the reason. */
 export class Skip extends Error {}
 
@@ -35,6 +42,7 @@ export function watchErrors(page) {
   const times = [];
   /** @param {string} text */
   const add = text => {
+    if (THIRD_PARTY_KNOWN.some(re => re.test(text))) return;
     errors.push(text);
     times.push(Date.now());
   };
@@ -367,11 +375,29 @@ export async function closeWindow(page, windowId) {
 }
 
 /**
+ * Closes Foundry's own "Difference in client settings detected" dialog, which pops up at random
+ * on a fresh browser profile and sat on top of the Changes undo dialog in the 2026-11-18 rerun.
+ * It is not ours, so a row must never read it as its dialog.
+ * @param {import('playwright-core').Page} page
+ */
+async function closeStrayCoreDialogs(page) {
+  await page.evaluate(async () => {
+    for (const app of [...foundry.applications.instances.values()]) {
+      const title = String(
+        app.title ?? app.element?.querySelector('.window-title')?.textContent ?? ''
+      );
+      if (/difference in client settings/i.test(title)) await app.close({ animate: false });
+    }
+  });
+}
+
+/**
  * The DialogV2 that is open now: its title, button actions and text. Waits for one to appear.
  * @param {import('playwright-core').Page} page
  * @returns {Promise<{title: string, buttons: Array<{action: string, label: string}>, actions: string[], labels: string[], text: string}>}
  */
 export async function readDialog(page) {
+  await closeStrayCoreDialogs(page);
   const dialog = page.locator('.application.dialog').last();
   await dialog.waitFor({ state: 'visible', timeout: WAIT_MS });
   return dialog.evaluate(el => ({

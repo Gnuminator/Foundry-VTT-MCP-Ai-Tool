@@ -26,11 +26,13 @@ const WRITES = [
   'dnd5e-add-feature',
   'dnd5e-add-features-from-compendium',
   'dnd5e-create-npc',
+  'draft-omens',
   'link-quest-to-npc',
   'manage-rest',
   'manage-world-items',
   'mark-play-session',
   'plan-actor-image', // a plan tool, but it stores the picture file in the world when planned
+  'plan-handout-press', // the same: it stores the rendered picture when planned
   'play-playlist',
   'request-ability-check',
   'request-attack-roll',

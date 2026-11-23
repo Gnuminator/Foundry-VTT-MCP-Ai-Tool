@@ -15,9 +15,13 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { itemRefs, parseBacklog } from './backlog-items.mjs';
 import { UNREADY_PR_FIELDS, unreadySection } from './merge-runner/unready.mjs';
+import { runnerFiles, runnerLivenessLine } from './merge-runner/liveness.mjs';
+import { isRunnerProcess } from './merge-runner/runner-lock.mjs';
 
 /** The repo gh must ask: never whatever remote the current folder happens to have. */
 export const REPO = 'Gnuminator/Foundry-VTT-MCP-Ai-Tool';
+/** The PM board's repository: its PRs are merged by the planner or the user, not the merge runner. */
+export const BOARD_REPO = 'Gnuminator/foundry-ai-tool-pm-board';
 
 export const UNCLAIMED_DAYS = 3;
 export const WAITING_LEAD_DAYS = 7;
@@ -69,12 +73,13 @@ export function unclaimedAccepted(backlogText, today) {
  * Newest = highest round number in the name (`-round2`), the plain name being round 1.
  * @param {{ file: string, text: string }[]} notes @param {number} pr @param {string} [head]
  */
-export function newestNote(notes, pr, head) {
+export function newestNote(notes, pr, head, prefix = '') {
   const mine = notes
     .map(n => {
       const m = /^(\d+)-(opus-)?review(?:-round(\d+))?(?:-delta(\d*))?\.md$/.exec(
-        n.file.split(/[\\/]/).pop() ?? ''
+        (n.file.split(/[\\/]/).pop() ?? '').replace(new RegExp(`^${prefix}`), '')
       );
+      if (prefix && !(n.file.split(/[\\/]/).pop() ?? '').startsWith(prefix)) return null;
       if (!m || Number(m[1]) !== pr) return null;
       const delta = m[4] === undefined ? 0 : Number(m[4] || 1);
       return { ...n, round: Number(m[3] ?? 1), delta, opus: !!m[2] };
@@ -128,15 +133,18 @@ export function ciState(rollup) {
 /**
  * @param {any[] | null} prs `gh pr list --json number,title,headRefOid,isDraft,statusCheckRollup`
  * @param {{ file: string, text: string }[]} notes
+ * @param {{ label?: string, prefix?: string }} [o] board PRs: label `Open board PRs`, notes `board-<n>-review.md`
  */
-export function prTable(prs, notes) {
-  if (prs === null) return ['Open PRs: gh not available'];
-  const out = [`Open PRs (${prs.length}):`];
+export function prTable(prs, notes, o = {}) {
+  const label = o.label ?? 'Open PRs';
+  const prefix = o.prefix ?? '';
+  if (prs === null) return [`${label}: gh not available`];
+  const out = [`${label} (${prs.length}):`];
   for (const pr of prs) {
     const title = String(pr.title).split(/\s+/).slice(0, 8).join(' ');
     const draft = pr.isDraft ? ' draft,' : '';
     out.push(
-      `- #${pr.number} ${title}:${draft} CI ${ciState(pr.statusCheckRollup)}, review ${verdictFor(newestNote(notes, pr.number, pr.headRefOid), pr.headRefOid)}`
+      `- #${pr.number} ${title}:${draft} CI ${ciState(pr.statusCheckRollup)}, review ${verdictFor(newestNote(notes, pr.number, pr.headRefOid, prefix), pr.headRefOid)}`
     );
   }
   return out;
@@ -180,7 +188,7 @@ export function dueWaiting(waitingText, today) {
  * Only the chosen note per PR is read.
  * @param {string} devDir vault `Dev/Foundry AI Tool` @param {number[]} prs
  */
-export function gatherNotes(devDir, prs) {
+export function gatherNotes(devDir, prs, prefix = '') {
   const handoff = path.join(devDir, 'Handoff');
   /** @type {{ file: string, text: string, full: string }[]} */
   const names = [];
@@ -195,7 +203,7 @@ export function gatherNotes(devDir, prs) {
   for (const pr of prs) {
     // Every note of the PR is read (a handful): the one for the head may be a delta note.
     for (const n of names)
-      if (new RegExp(`^${pr}-.*review.*\\.md$`).test(n.file))
+      if (new RegExp(`^${prefix}${pr}-.*review.*\\.md$`).test(n.file))
         out.push({ file: n.file, text: fs.readFileSync(n.full, 'utf8') });
   }
   return out;
@@ -252,11 +260,10 @@ export function ledgerLines(lowsDir, today) {
     : `Lows ledgers over ${LEDGER_LIMIT} lines: none`;
 }
 
-export const KIT_STALE_HOURS = 36;
-
 /**
- * One line on the nightly kit run, from `<kit home>/last-run.json`: the last run that got as far
- * as a report (result, age, failing scenarios) and the last attempt when it was a skip or error.
+ * One line on the latest kit run, from `<kit home>/last-run.json` (no schedule is expected, D-150
+ * follow-up): the latest run that got as far as a report (result, age, failing scenarios) and the
+ * last attempt when it was a skip or error.
  * @param {string | null} json the file's text, null when unreadable @param {number} nowMs
  */
 export function kitLine(json, nowMs) {
@@ -267,35 +274,30 @@ export function kitLine(json, nowMs) {
   } catch {
     doc = null;
   }
-  if (json === null)
-    return 'Nightly kit: no last-run.json yet (the task has not run, or register-nightly.ps1 is not registered)';
-  if (!doc?.last) return 'Nightly kit: last-run.json is unreadable';
+  if (json === null) return 'Kit: no last-run.json yet (no kit run recorded on this PC)';
+  if (!doc?.last) return 'Kit: last-run.json is unreadable';
   const age = (/** @type {any} */ e) => {
     const t = Date.parse(e?.finishedAt || e?.at || '');
-    return Number.isFinite(t) ? `${Math.max(0, Math.round((nowMs - t) / 3600000))} h ago` : 'age unknown';
+    return Number.isFinite(t)
+      ? `${Math.max(0, Math.round((nowMs - t) / 3600000))} h ago`
+      : 'age unknown';
   };
-  const hours = (/** @type {any} */ e) => {
-    const t = Date.parse(e?.finishedAt || e?.at || '');
-    return Number.isFinite(t) ? (nowMs - t) / 3600000 : null;
-  };
-  const ran = doc.lastRun;
+  const finished = (/** @type {any} */ e) => e?.state === 'passed' || e?.state === 'failed';
+  const run = [doc.lastRun, doc.lastNightlyRun, doc.last].find(finished);
   const parts = [];
-  if (ran) {
-    const fail = ran.failing?.length ? `; failing: ${ran.failing.slice(0, 5).join(', ')}` : '';
-    parts.push(`last run ${ran.text ?? ran.state}, ${age(ran)}, on ${ran.git}${fail}`);
-    const h = hours(ran);
-    if (h !== null && h > KIT_STALE_HOURS) parts.push(`STALE (over ${KIT_STALE_HOURS} h)`);
-  } else {
-    parts.push('no run has finished yet');
+  if (run) {
+    const fail = run.failing?.length ? `; failing: ${run.failing.slice(0, 5).join(', ')}` : '';
+    parts.push(`latest run ${run.text ?? run.state}, ${age(run)}, on ${run.git}${fail}`);
   }
-  if (doc.last.state !== 'passed' && doc.last.state !== 'failed')
-    parts.push(`latest attempt: ${doc.last.text ?? doc.last.state} (${age(doc.last)})`);
-  return `Nightly kit: ${parts.join('; ')}`;
+  if (!finished(doc.last))
+    parts.push(`latest attempt ${doc.last.text ?? doc.last.state} (${age(doc.last)})`);
+  return `Kit: ${parts.join('; ')}`;
 }
 
 /**
  * The extra sections of `status --planner`.
- * @param {{ devDir: string, backlog: string, today: string, gh?: (a: string[]) => any, kitHome?: string, nowMs?: number }} o
+ * @param {{ devDir: string, backlog: string, today: string, gh?: (a: string[]) => any, kitHome?: string, nowMs?: number,
+ *   runnerHome?: string, isRunner?: (pid: number) => boolean }} o
  */
 export function plannerSections(o) {
   const gh = o.gh ?? ghJson;
@@ -307,6 +309,7 @@ export function plannerSections(o) {
     }
   };
   const prs = gh(['pr', 'list', '-R', REPO, '--json', UNREADY_PR_FIELDS]);
+  const boardPrs = gh(['pr', 'list', '-R', BOARD_REPO, '--json', UNREADY_PR_FIELDS]);
   const runs = gh([
     'run',
     'list',
@@ -333,15 +336,33 @@ export function plannerSections(o) {
         (prs ?? []).map((/** @type {any} */ p) => p.number)
       )
     ).join('\n'),
+    prTable(
+      boardPrs,
+      gatherNotes(
+        o.devDir,
+        (boardPrs ?? []).map((/** @type {any} */ p) => p.number),
+        'board-'
+      ),
+      { label: 'Open board PRs', prefix: 'board-' }
+    ).join('\n'),
     unreadySection(prs, o.backlog, path.resolve(o.devDir, '..', '..')),
     trainLine(read('Merge train.md') ?? ''),
     mainLine(runs?.[0] ?? null),
+    runnerLivenessLine({
+      lockFile: runnerFiles(o.runnerHome).lock,
+      heartbeatFile: runnerFiles(o.runnerHome).heartbeat,
+      nowMs: o.nowMs,
+      isRunner: o.isRunner ?? isRunnerProcess,
+    }) ?? 'Merge runner: running, heartbeat fresh',
     ledgerLines(path.join(o.devDir, 'Lows'), o.today),
     kitLine(
       (() => {
         try {
           return fs.readFileSync(
-            path.join(o.kitHome ?? process.env.TEST_KIT_HOME ?? 'C:\\FoundryTest\\test-kit', 'last-run.json'),
+            path.join(
+              o.kitHome ?? process.env.TEST_KIT_HOME ?? 'C:\\FoundryTest\\test-kit',
+              'last-run.json'
+            ),
             'utf8'
           );
         } catch {

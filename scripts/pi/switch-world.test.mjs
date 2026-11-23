@@ -28,6 +28,58 @@ const posix = p => p.replace(/\\/g, '/');
 const roots = [];
 after(() => roots.forEach(d => rmSync(d, { recursive: true, force: true })));
 
+// The stand-in docker. State lives in the fake Pi's folder (FAKE_D): `running` (Foundry runs that world), `stopped-gm` (the
+// Assistant GM container was stopped). Switches (environment): STACK_MODE=containers (the four stack containers exist),
+// GM_ACTIVE=0 (no Assistant GM container), KIT_ACTIVE=1 (the Kit GM browser container runs), GM_NOJOIN, DOCKER_DOWN=1 (the
+// daemon does not answer), FOUNDRY_RUNS_INSTEAD and FOUNDRY_FAIL_FOR (as for the systemctl stand-in in run()).
+const FAKE_DOCKER = `#!/usr/bin/env bash
+D="$FAKE_D"
+echo "docker $*" >>"$D/calls"
+mode="\${STACK_MODE:-units}"
+world() { "$FAKE_NODE" -e 'process.stdout.write(require(process.argv[1]).world)' "$OPTIONS_FILE"; }
+svc_of() { echo "\${1#cid-}"; }
+start_foundry() {
+  if [ -n "\${FOUNDRY_RUNS_INSTEAD:-}" ] && [ "$(world)" = curse-of-strahd ]; then printf '%s' "$FOUNDRY_RUNS_INSTEAD" >"$D/running"; return 0; fi
+  [ -z "\${FOUNDRY_FAIL_FOR:-}" ] || [ "$(world)" != "$FOUNDRY_FAIL_FOR" ] || return 0
+  world >"$D/running"
+}
+case "\${1:-}" in
+  info) [ -z "\${DOCKER_DOWN:-}" ] || exit 1; exit 0 ;;
+  ps)
+    [ "$mode" = containers ] || exit 0
+    all=0; svc=""
+    for a in "$@"; do
+      case "$a" in -aq) all=1 ;; label=com.docker.compose.service=*) svc="\${a#label=com.docker.compose.service=}" ;; esac
+    done
+    for s in foundry bridge dashboard gm-browser; do
+      [ -z "$svc" ] || [ "$svc" = "$s" ] || continue
+      [ "$s" != gm-browser ] || [ "\${GM_ACTIVE-1}" = 1 ] || continue
+      if [ "$all" = 0 ]; then
+        [ "$s" != foundry ] || [ -e "$D/running" ] || continue
+        [ "$s" != gm-browser ] || [ ! -e "$D/stopped-gm" ] || continue
+      fi
+      echo "cid-$s"
+    done
+    ;;
+  stop)
+    case "$(svc_of "$2")" in foundry) rm -f "$D/running" ;; gm-browser) touch "$D/stopped-gm" ;; esac
+    ;;
+  start | restart)
+    case "$(svc_of "$2")" in foundry) start_foundry ;; gm-browser) rm -f "$D/stopped-gm" ;; esac
+    ;;
+  inspect)
+    if [ "\${KIT_ACTIVE:-}" = 1 ] && [ "\${*: -1}" = foundry-ai-tool-kit-gm-browser ]; then echo running; exit 0; fi
+    exit 1
+    ;;
+  logs)
+    if [ "\${*: -1}" = cid-gm-browser ] && [ -z "\${GM_NOJOIN:-}" ]; then
+      echo "[assistant-gm] joined world $(cat "$D/running" 2>/dev/null) as Assistant GM (GM: true)"
+    fi
+    ;;
+esac
+exit 0
+`;
+
 // A fake Pi: three installed worlds, options.json launching `launch`, Foundry running that world.
 function fakePi({ launch = 'frostmaiden-training', running = launch, snapshot = true } = {}) {
   const d = mkdtempSync(path.join(tmpdir(), 'switch-world-'));
@@ -57,8 +109,15 @@ function fakePi({ launch = 'frostmaiden-training', running = launch, snapshot = 
     `#!/usr/bin/env bash\nexec "${posix(process.execPath)}" "$@"\n`
   );
   chmodSync(path.join(bin, 'node'), 0o755);
+  // A stand-in docker on PATH (lib.sh runs it through `timeout`, so a shell function would not do). With STACK_MODE unset
+  // it answers like a Docker host without containers (the units run the stack); STACK_MODE=containers is a cut-over Pi.
+  const fakeBin = path.join(d, 'fakebin');
+  mkdirSync(fakeBin);
+  writeFileSync(path.join(fakeBin, 'docker'), FAKE_DOCKER);
+  chmodSync(path.join(fakeBin, 'docker'), 0o755);
   return {
     d,
+    fakeBin,
     worlds,
     options,
     dietpiDir,
@@ -79,12 +138,16 @@ TOOL_DATA="${dd}/tool"
 SYSTEM_TRIAL_DIR="${dd}/system-trial"
 id() { echo 0; }
 sleep() { :; }
-have_systemd() { return 0; }
+have_systemd() { [ -z "\${NO_SYSTEMD:-}" ]; }
 require_quiet() { echo "quiet-check: $*" >>"${dd}/calls"; [ -z "\${QUIET_FAIL:-}" ] || die "3 player(s) are online in Foundry"; }
 runuser() { shift 3; "$@"; }
 running_world() { cat "${dd}/running" 2>/dev/null || true; }
 systemctl() {
   echo "systemctl $*" >>"${dd}/calls"
+  # A cut-over Pi: the four units are off (MIXED_UNIT=1: Foundry's unit runs next to the containers).
+  if [ "\${STACK_MODE:-units}" = containers ]; then
+    case "$1" in is-active | is-enabled) [ -z "\${MIXED_UNIT:-}" ] || [ "$2 $3" != "--quiet foundry.service" ] || return 0; return 1 ;; esac
+  fi
   case "$1 \${@: -1}" in
     "is-active foundry.service") [ -e "${dd}/running" ] ;;
     "is-active foundry-ai-tool-kit-gm-browser.service") [ -n "\${KIT_ACTIVE:-}" ] ;;
@@ -122,6 +185,9 @@ ${stage}`;
     encoding: 'utf8',
     env: {
       ...process.env,
+      PATH: `${pi.fakeBin}${path.delimiter}${process.env.PATH}`,
+      FAKE_D: posix(pi.d),
+      FAKE_NODE: posix(process.execPath),
       OPTIONS_FILE: posix(pi.options),
       WORLDS_DIR: posix(pi.worlds),
       KIT_STATE_FILE: `${dd}/kit-session.env`,
@@ -304,6 +370,140 @@ describe('switch-world.sh', () => {
   });
 });
 
+// A Pi after the cutover (stage 24): the stack runs as the containers of compose project foundry-ai-tool-pi, the units are
+// off. The stand-in docker keeps them; no unit may be started, restarted or enabled.
+describe('switch-world.sh on a cut-over Pi (containers)', () => {
+  const cut = { STACK_MODE: 'containers' };
+  const noUnitStart = calls =>
+    assert.doesNotMatch(calls, /systemctl (start|restart|enable|stop|try-restart)/);
+  const at = (calls, s) => calls.indexOf(s);
+
+  test('a real run docker-stops the browser and Foundry, sets options.json, docker-starts Foundry then the browser', () => {
+    const pi = fakePi({ launch: 'frostmaiden-training' });
+    const r = run(pi, { ...cut, WORLD: 'curse-of-strahd' });
+    assert.equal(r.status, 0, r.out);
+    assert.match(r.out, /world after: running curse-of-strahd, launch choice curse-of-strahd/);
+    assert.match(r.out, /the Assistant GM browser joined curse-of-strahd/);
+    assert.equal(pi.launched().world, 'curse-of-strahd');
+    const calls = pi.calls();
+    noUnitStart(calls);
+    assert.doesNotMatch(calls, /docker (rm|compose|run|kill)/);
+    assert.ok(
+      at(calls, 'docker stop cid-gm-browser') < at(calls, 'docker stop cid-foundry'),
+      calls
+    );
+    assert.ok(at(calls, 'docker stop cid-foundry') < at(calls, 'docker start cid-foundry'), calls);
+    assert.ok(
+      at(calls, 'docker start cid-foundry') < at(calls, 'docker start cid-gm-browser'),
+      calls
+    );
+    // Only the Foundry and the Assistant GM browser containers were touched: never the bridge or the dashboard.
+    assert.doesNotMatch(calls, /docker (stop|start|restart) cid-(bridge|dashboard)/);
+    assert.match(calls, /docker logs --since \d+ cid-gm-browser/);
+    assert.match(calls, /quiet-check: switching the world to curse-of-strahd/);
+  });
+
+  test('it runs on a host without systemd as long as the containers answer', () => {
+    const pi = fakePi({ launch: 'frostmaiden-training' });
+    const r = run(pi, { ...cut, WORLD: 'curse-of-strahd', NO_SYSTEMD: '1' });
+    assert.equal(r.status, 0, r.out);
+    assert.doesNotMatch(r.out, /nothing was started/);
+    assert.match(pi.calls(), /docker start cid-foundry/);
+  });
+
+  test('the world that already runs and launches is left alone: no container is touched', () => {
+    const pi = fakePi({ launch: 'strahd-kit' });
+    const r = run(pi, { ...cut, WORLD: 'strahd-kit' });
+    assert.equal(r.status, 0, r.out);
+    assert.match(r.out, /nothing to do/);
+    assert.doesNotMatch(pi.calls(), /docker (stop|start|restart)/);
+    noUnitStart(pi.calls());
+  });
+
+  test('a dry run changes nothing', () => {
+    const pi = fakePi();
+    const r = run(pi, { ...cut, WORLD: 'strahd-kit', DRY_RUN: '1' });
+    assert.equal(r.status, 0, r.out);
+    assert.match(r.out, /dry run: people online in Foundry: 0/);
+    assert.doesNotMatch(pi.calls(), /docker (stop|start|restart)/);
+    assert.equal(pi.launched().world, 'frostmaiden-training');
+  });
+
+  test('the Kit GM browser container (no compose label) refuses before anything stops', () => {
+    const pi = fakePi();
+    const r = run(pi, { ...cut, WORLD: 'curse-of-strahd', KIT_ACTIVE: '1' });
+    assert.notEqual(r.status, 0);
+    assert.match(r.out, /a kit session is running \(the kit GM browser container/);
+    assert.match(r.out, /Nothing was changed/);
+    assert.doesNotMatch(pi.calls(), /docker (stop|start|restart)/);
+    assert.equal(pi.launched().world, 'frostmaiden-training');
+  });
+
+  test('when the new world does not come up, options.json goes back and both containers start again', () => {
+    const pi = fakePi({ launch: 'frostmaiden-training' });
+    const r = run(pi, { ...cut, WORLD: 'curse-of-strahd', FOUNDRY_FAIL_FOR: 'curse-of-strahd' });
+    assert.notEqual(r.status, 0);
+    assert.match(r.out, /does not answer/);
+    assert.match(r.out, /docker logs --tail 50/);
+    assert.match(r.out, /options.json is put back/);
+    assert.equal(pi.launched().world, 'frostmaiden-training');
+    const calls = pi.calls();
+    noUnitStart(calls);
+    assert.doesNotMatch(calls, /docker (rm|compose|run)/);
+    assert.ok(
+      calls.lastIndexOf('docker start cid-foundry') > calls.lastIndexOf('docker stop cid-foundry'),
+      calls
+    );
+    assert.ok(
+      calls.lastIndexOf('docker start cid-gm-browser') >
+        calls.lastIndexOf('docker stop cid-foundry'),
+      calls
+    );
+    assert.equal(readFileSync(path.join(pi.d, 'running'), 'utf8'), 'frostmaiden-training');
+  });
+
+  test('when Foundry comes up on another world, options.json is put back and the old world runs', () => {
+    const pi = fakePi({ launch: 'frostmaiden-training' });
+    const r = run(pi, { ...cut, WORLD: 'curse-of-strahd', FOUNDRY_RUNS_INSTEAD: 'strahd-kit' });
+    assert.notEqual(r.status, 0);
+    assert.match(r.out, /Foundry runs 'strahd-kit', not curse-of-strahd/);
+    assert.equal(pi.launched().world, 'frostmaiden-training');
+    assert.equal(readFileSync(path.join(pi.d, 'running'), 'utf8'), 'frostmaiden-training');
+    noUnitStart(pi.calls());
+  });
+
+  test('a browser container that does not join leaves the switch in place and names the docker logs command', () => {
+    const pi = fakePi();
+    const r = run(pi, { ...cut, WORLD: 'curse-of-strahd', GM_NOJOIN: '1' });
+    assert.equal(r.status, 1, r.out);
+    assert.match(r.out, /did not report 'joined world curse-of-strahd'/);
+    assert.match(r.out, /docker logs --tail 50/);
+    assert.equal(pi.launched().world, 'curse-of-strahd');
+    noUnitStart(pi.calls());
+  });
+
+  test('no Assistant GM container: it is left alone with a warning', () => {
+    const pi = fakePi();
+    const r = run(pi, { ...cut, WORLD: 'curse-of-strahd', GM_ACTIVE: '0' });
+    assert.equal(r.status, 0, r.out);
+    assert.match(r.out, /left stopped/);
+    assert.doesNotMatch(pi.calls(), /docker start cid-gm-browser/);
+  });
+
+  test('a unit that runs next to the containers refuses (mixed state), and so does a silent Docker daemon', () => {
+    const pi = fakePi();
+    const mixed = run(pi, { ...cut, WORLD: 'curse-of-strahd', MIXED_UNIT: '1' });
+    assert.notEqual(mixed.status, 0);
+    assert.match(mixed.out, /runs next to the containers/);
+    const down = run(pi, { WORLD: 'curse-of-strahd', DOCKER_DOWN: '1' });
+    assert.notEqual(down.status, 0);
+    assert.match(down.out, /Docker daemon does not answer/);
+    assert.doesNotMatch(pi.calls(), /docker (stop|start|restart)/);
+    noService(pi.calls());
+    assert.equal(pi.launched().world, 'frostmaiden-training');
+  });
+});
+
 describe('switch-world.sh as text', () => {
   test('writes only options.json: no world folder is copied, removed or written', () => {
     assert.doesNotMatch(stage, /\brm\b|\bmv\b|\bcp\b|\binstall\b|tee |>>? *"?\$(dir|worlds_dir)/);
@@ -311,7 +511,7 @@ describe('switch-world.sh as text', () => {
   });
 
   test('the checks come before the first stop', () => {
-    const firstStop = stage.indexOf('systemctl stop');
+    const firstStop = stage.indexOf('svc_stop');
     for (const check of [
       'refuse_during_system_trial',
       'require_quiet "',

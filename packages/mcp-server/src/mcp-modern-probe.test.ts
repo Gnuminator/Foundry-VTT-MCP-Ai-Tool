@@ -14,7 +14,12 @@ import { fileURLToPath } from 'node:url';
 
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
-import { FAKE_TOOLS, startFakeBridge } from './test-support/fake-control-bridge.js';
+import {
+  FAKE_TOOLS,
+  bridgeState,
+  openSockets,
+  startFakeBridge,
+} from './test-support/fake-control-bridge.js';
 import { rmTmp } from './test-support/rm-tmp.js';
 
 const distIndex = path.resolve(
@@ -38,6 +43,7 @@ const MODERN_META = {
 type Frame = {
   jsonrpc: '2.0';
   id?: number;
+  method?: string;
   result?: unknown;
   error?: { code: number; message: string };
 };
@@ -109,6 +115,16 @@ class Wrapper {
         });
       });
     }
+  }
+
+  /** Whether a notification with this method has arrived, waiting up to the reply timeout. */
+  async notified(method: string): Promise<boolean> {
+    const deadline = Date.now() + REPLY_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+      if (this.frames.some(f => f.id === undefined && f.method === method)) return true;
+      await new Promise<void>(resolve => setTimeout(resolve, 50));
+    }
+    return false;
   }
 
   async request(method: string, params?: unknown): Promise<Frame> {
@@ -202,6 +218,15 @@ describe('MCP 2026-07-28 probe against dist/index.js', () => {
     const second = await w.toolNames();
     expect(first).toEqual(FAKE_TOOLS.map(t => t.name));
     expect(second).toEqual(first);
+    // The 2025 era stays clean on the other results too: no modern fields.
+    const called = await w.request('tools/call', { name: 'get-world-info', arguments: {} });
+    expect(called.error).toBeUndefined();
+    expect(called.result).not.toHaveProperty('resultType');
+    expect(called.result).not.toHaveProperty('ttlMs');
+    const prompts = await w.request('prompts/list');
+    expect(prompts.error).toBeUndefined();
+    expect(prompts.result).not.toHaveProperty('resultType');
+    expect(prompts.result).not.toHaveProperty('ttlMs');
   });
 
   it('exits with code 0 when stdin ends, in either era', async () => {
@@ -231,7 +256,11 @@ describe('MCP 2026-07-28 probe against dist/index.js', () => {
     expect(res.error).toBeUndefined();
     const found = res.result as { supportedVersions: string[]; capabilities: object };
     expect(found.supportedVersions).toContain('2026-07-28');
-    expect(found.capabilities).toEqual({ tools: {}, prompts: {} });
+    expect(found.capabilities).toEqual({
+      tools: { listChanged: true },
+      prompts: {},
+      resources: {},
+    });
     // The connection is modern from here on: lists carry the cache fields.
     const listed = (await w.request('tools/list', { _meta: MODERN_META })).result as {
       tools: Array<{ name: string }>;
@@ -305,6 +334,35 @@ describe('MCP 2026-07-28 probe against dist/index.js', () => {
     const ok = await w.request('tools/list', { _meta: MODERN_META });
     expect(ok.error).toBeUndefined();
     expect(w.exited).toBeUndefined();
+  });
+
+  it('reconnects after the bridge drops and says tools/list_changed only when the list moved', async () => {
+    const w = start();
+    await w.initialize();
+    expect(await w.toolNames()).toEqual(FAKE_TOOLS.map(t => t.name));
+    // Same list after a reconnect: no notification, and the call still works.
+    for (const s of openSockets) s.destroy();
+    await new Promise<void>(resolve => setTimeout(resolve, 300)); // the wrapper sees the close
+    const same = await w.request('tools/call', { name: 'get-world-info', arguments: {} });
+    expect(JSON.stringify(same.result)).toContain('fake result');
+    await new Promise<void>(resolve => setTimeout(resolve, 500));
+    expect(await w.notified('notifications/tools/list_changed')).toBe(false);
+    // A different list on the next backend: the client is told.
+    bridgeState.tools = FAKE_TOOLS.slice(0, 2);
+    try {
+      for (const s of openSockets) s.destroy();
+      await new Promise<void>(resolve => setTimeout(resolve, 300));
+      // Concurrent calls share one reconnect (single flight).
+      const calls = await Promise.all([
+        w.request('tools/call', { name: 'get-world-info', arguments: {} }),
+        w.request('tools/call', { name: 'get-world-info', arguments: {} }),
+      ]);
+      for (const c of calls) expect(c.error).toBeUndefined();
+      expect(await w.notified('notifications/tools/list_changed')).toBe(true);
+      expect(await w.toolNames()).toEqual(FAKE_TOOLS.slice(0, 2).map(t => t.name));
+    } finally {
+      bridgeState.tools = null;
+    }
   });
 
   it('answers a tool call for an unknown method with a protocol error and stays up', async () => {

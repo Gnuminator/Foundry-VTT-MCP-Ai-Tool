@@ -13,13 +13,9 @@ import {
   type SceneChangePlan,
 } from '@gnuminator/shared';
 
-import { SceneChangeTools } from './scene-change.js';
+import { makeLogger } from '../test-support/stub-tool-deps.js';
 
-function logger(): any {
-  const l: any = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
-  l.child = (): unknown => l;
-  return l;
-}
+import { SceneChangeTools } from './scene-change.js';
 
 const OPS: GuardedOp[] = [
   {
@@ -60,7 +56,7 @@ beforeEach(() => {
   tools = new SceneChangeTools({
     foundryClient: { query },
     guardedWrites: { createPlan, autoApplyEnabled },
-    logger: logger(),
+    logger: makeLogger(),
   });
 });
 

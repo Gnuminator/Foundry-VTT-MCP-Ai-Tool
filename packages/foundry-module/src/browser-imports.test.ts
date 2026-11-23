@@ -5,7 +5,7 @@
  * memory and checks that no import is left over.
  */
 import { fileURLToPath } from 'node:url';
-import { build } from 'esbuild';
+import { build, type BuildOptions } from 'esbuild';
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error plain .mjs build options without type declarations
 import { moduleBuildOptions } from '../build-options.mjs';
@@ -21,13 +21,15 @@ function importSpecifiers(code: string): string[] {
     found.push(m[1]);
   for (const m of code.matchAll(/(?:^|[\s;}])import\s*["']([^"']+)["']/g)) found.push(m[1]);
   for (const m of code.matchAll(/\bimport\(\s*["']([^"']+)["']\s*\)/g)) found.push(m[1]);
-  return found;
+  // A module specifier never holds white space; text that does is a string inside bundled code
+  // (the JavaScript parser the macro forge bundles has error messages that mention "import").
+  return found.filter(specifier => !/\s/.test(specifier));
 }
 
 describe('browser-loadable module build', () => {
   it('bundles main.js with no import left to resolve', async () => {
     const result = await build({
-      ...moduleBuildOptions(MODULE_DIR),
+      ...(moduleBuildOptions(MODULE_DIR) as BuildOptions),
       write: false,
       sourcemap: false,
       outfile: 'main.js',
@@ -44,5 +46,6 @@ describe('browser-loadable module build', () => {
     expect(importSpecifiers("export * from './x.js';")).toEqual(['./x.js']);
     expect(importSpecifiers("const m = await import('./y.js');")).toEqual(['./y.js']);
     expect(importSpecifiers('const a = 1; // import me from home')).toEqual([]);
+    expect(importSpecifiers('throw new Error("import x from "+a+", 6: ")')).toEqual([]);
   });
 });

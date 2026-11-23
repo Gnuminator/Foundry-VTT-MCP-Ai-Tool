@@ -91,6 +91,69 @@ export function visibleHandouts(handouts, userId) {
   );
 }
 
+// --- Quest log (item quest-log-status) ---
+// Only what the GM revealed ever gets here (the server projects the handouts). These helpers read
+// the status line create-quest-journal writes ("Status: Active / Completed / Failed") or a plain
+// "status: done" a hand-written page may carry.
+
+function plainText(html) {
+  let t = String(html || '');
+  for (let prev = ''; prev !== t; ) {
+    prev = t;
+    t = t.replace(/<[^<>]*>/g, ' ');
+  }
+  return t
+    .replace(/&(?:amp|lt|gt|quot|#39|nbsp);/g, e => ENTITIES[e])
+    .replace(/[<>]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** 'done', 'failed' or 'active' (the default) from the page's status line. */
+export function questStatus(h) {
+  // The status line stands at the start of a list item or paragraph, never mid-sentence.
+  const m = /(?:<(?:li|p)>\s*(?:<strong>)?)\s*status\s*:\s*(?:<\/strong>)?\s*(\p{L}+)/iu.exec(
+    String((h && h.html) || '')
+  );
+  const word = m ? m[1].toLowerCase() : '';
+  if (/^(done|completed?|finished|afsluttet|færdig)$/.test(word)) return 'done';
+  if (/^(failed|fail|mislykkedes|abandoned|cancelled|canceled)$/.test(word)) return 'failed';
+  return 'active';
+}
+
+/** Splits the quest pages into the open ones and the done or failed ones. */
+export function groupQuests(quests) {
+  const active = [];
+  const closed = [];
+  for (const q of Array.isArray(quests) ? quests : []) {
+    (questStatus(q) === 'active' ? active : closed).push(q);
+  }
+  return { active, closed };
+}
+
+/** "12 Nov" from the reveal time, or '' when there is none. */
+export function revealDate(h) {
+  const t = Date.parse((h && h.revealedAt) || '');
+  if (!Number.isFinite(t)) return '';
+  return new Date(t).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+  });
+}
+
+/** The "last time" line: the first sentence of the recap, cut to 160 characters. */
+export function lastTimeLine(recap) {
+  // Headings are not a sentence: drop them before reading the first one.
+  const text = plainText(
+    String((recap && recap.html) || '').replace(/<h[1-6]>[\s\S]*?<\/h[1-6]>/gi, ' ')
+  );
+  if (!text) return '';
+  const m = /^.{20,}?[.!?](?=\s|$)/u.exec(text);
+  const line = m ? m[0] : text;
+  const chars = Array.from(line);
+  return chars.length > 160 ? `${chars.slice(0, 157).join('').trimEnd()}...` : line;
+}
+
 /** The line that always says which name the page thinks the viewer is. */
 export function whoLine(who) {
   return who && who.name ? `Playing as ${who.name}` : 'No name picked';

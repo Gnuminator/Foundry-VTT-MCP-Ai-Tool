@@ -32,6 +32,7 @@ import { SHARED_STEPS } from './check-shared-link.mjs';
 import { HELD_ENV, acquire, lockDir } from './heavy-lock.mjs';
 import { STEPS, HEAVY_STEPS, CI_ONLY } from './checks.mjs';
 import { lineRatchetQuickSteps } from './line-ratchet.mjs';
+import { cheapCiQuickSteps } from './cheap-ci-steps.mjs';
 export { STEPS, HEAVY_STEPS, CI_ONLY };
 
 /**
@@ -180,10 +181,13 @@ function stamp(d) {
   return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
 }
 
+/** Options for a child that must not open a console window on Windows. */
+const HIDE = { encoding: /** @type {const} */ ('utf8'), windowsHide: true };
+
 /** The git top level of the current directory, else the directory itself. */
 function repoRoot() {
-  const r = spawnSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' });
-  return r.status === 0 && r.stdout.trim() ? path.resolve(r.stdout.trim()) : process.cwd();
+  const top = spawnSync('git', ['rev-parse', '--show-toplevel'], HIDE).stdout?.trim();
+  return top ? path.resolve(top) : process.cwd();
 }
 
 /**
@@ -194,7 +198,7 @@ function repoRoot() {
  */
 export function cleanTreeHash(cwd) {
   const git = (/** @type {string[]} */ args) =>
-    spawnSync('git', args, { cwd, encoding: 'utf8', windowsHide: true });
+    spawnSync('git', args, { cwd, ...HIDE });
   const status = git(['status', '--porcelain']);
   if (status.status !== 0 || status.stdout.trim() !== '') return null;
   const tree = git(['rev-parse', 'HEAD^{tree}']);
@@ -210,12 +214,7 @@ export function cleanTreeHash(cwd) {
  */
 export function worktreeTreeHash(cwd) {
   const git = (/** @type {string[]} */ args, /** @type {Record<string, string>} */ extra = {}) =>
-    spawnSync('git', args, {
-      cwd,
-      encoding: 'utf8',
-      windowsHide: true,
-      env: { ...process.env, ...extra },
-    });
+    spawnSync('git', args, { cwd, ...HIDE, env: { ...process.env, ...extra } });
   const real = git(['rev-parse', '--git-path', 'index']);
   if (real.status !== 0 || !real.stdout.trim()) return null;
   const index = path.join(os.tmpdir(), `green-index-${process.pid}-${Date.now()}`);
@@ -459,6 +458,7 @@ function spawnStep(step, fd, cwd) {
     const r = spawnSync(commandLine(step), {
       cwd,
       shell: true,
+      windowsHide: true,
       stdio: ['ignore', fd, fd],
       env: {
         ...stepEnvironment(process.env, PORTABLE_NODE_DIR),
@@ -904,8 +904,7 @@ export function quickLintSteps(files, cwd) {
  * runs only that spec; a change under the dashboard web app or `scripts/test-kit/` also builds the
  * mcp-server and runs the kit scenario check; that or a usage-catalogue input also runs the kit
  * control tests (a new control without its skip row); a change to a `docs:ui` input (guides, UI
- * source) runs `docs:ui`, and to a `docs:kit` input runs `docs:kit:check`. None of these step names is in HEAVY_STEPS (hence `unit-*`, not `test-*`), so a quick run never takes a
- * heavy slot (the e2e spec step keeps the small solo lock the e2e port needs).
+ * source) runs `docs:ui`, and to a `docs:kit` input runs `docs:kit:check`; TypeScript changes add the unused ratchet, tool modules the sweep coverage test (cheap-ci-steps.mjs); no step is in HEAVY_STEPS.
  * @param {string[]} files repo-relative paths, forward slashes
  * @returns {Step[]}
  */
@@ -958,7 +957,7 @@ export function quickSteps(files, cwd = process.cwd()) {
   const tests = [...nodeTests].filter(f => fs.existsSync(path.join(cwd, f))).sort();
   if (tests.length > 0)
     steps.push({ name: 'node-tests', cmd: 'node', args: ['--test', ...tests], env: CI });
-  steps.push(...lineRatchetQuickSteps(files));
+  steps.push(...lineRatchetQuickSteps(files), ...cheapCiQuickSteps(files));
   const webTouched = touchesDashboardWeb(files);
   // Same order as the checks list: usage catalogue after typecheck, bundle budget after the build (dashboard typecheck covers web).
   if (files.some(f => USAGE_CATALOG_INPUT.test(f))) {
@@ -1036,7 +1035,7 @@ export function quickSteps(files, cwd = process.cwd()) {
  * @returns {string[] | null} null when no base ref exists
  */
 export function changedFiles(cwd) {
-  const git = (/** @type {string[]} */ args) => spawnSync('git', args, { cwd, encoding: 'utf8' });
+  const git = (/** @type {string[]} */ args) => spawnSync('git', args, { cwd, ...HIDE });
   const base = ['aitool/main', 'origin/main', 'main'].find(
     b => git(['rev-parse', '--verify', '--quiet', b]).status === 0
   );

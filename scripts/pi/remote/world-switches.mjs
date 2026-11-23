@@ -1,11 +1,11 @@
-// The AI Tool and dnd5e world switches a world starts with (the user, 2026-10-30; docs/dev/PI-SETUP.md, "World
-// switches"). Run by stage 11 (scripts/pi/remote/11-world.sh) for a world that run installs or resets, and by hand
+// The AI Tool and dnd5e world switches a world starts with (the user, 2026-10-30; docs/dev/pi/licensed-content.md,
+// "World switches"). Run by stage 11 (scripts/pi/remote/11-world.sh) for a world that run installs or resets, and by hand
 // with WORLD_SWITCHES=1 for a world that was kept. A headless Chromium joins the world as its GM (the same way
 // player-creation-settings.mjs does) and sets, through Foundry's own settings API, every entry of PROFILE that
 // differs. It prints the values before and after, reloads the world and reads them back, and exits 1 on any
 // mismatch. A second run changes nothing. Passwords are never printed.
 //
-// The table in docs/dev/PI-SETUP.md is the same list with the reasons; world-switches.test.mjs fails when the two
+// The table in docs/dev/pi/licensed-content.md is the same list with the reasons; world-switches.test.mjs fails when the two
 // differ. Keys are `<namespace>.<key>`. All are world settings: a client setting cannot be set from here, so an
 // entry whose setting is not a world setting is reported and not written.
 //

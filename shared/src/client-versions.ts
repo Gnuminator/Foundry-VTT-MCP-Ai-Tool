@@ -166,7 +166,7 @@ export function isSkillStubBehind(revision: unknown): boolean {
  */
 export function skillStubNotice(skill: SkillName, current: string): string {
   const file = `foundry-${skill === 'gm-coach' ? 'gm-coach' : skill === 'dnd-helper' ? 'dnd-helper' : 'dnd-helper-player'}.zip`;
-  return `Update available: this skill is older than the table's, which runs ${current}. Update the plugin, or upload ${file} again (Customize, Skills): ${RELEASE_DOWNLOAD_BASE}/v${current}/${file}`;
+  return `Update available: this skill is older than the table's, which runs ${current}. Update the plugin, or upload ${file} again (Settings, Plugins, Skills): ${RELEASE_DOWNLOAD_BASE}/v${current}/${file}`;
 }
 
 export interface ClientVersionsView {

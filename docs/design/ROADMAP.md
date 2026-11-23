@@ -77,7 +77,7 @@ staged plan + locked decisions live in [DETACH-PLAN.md](../history/DETACH-PLAN.m
   dashboard runs without it; reach the **hosted** Foundry over the network; later move to a Pi/VPS;
   expose to you + your GM via a **Cloudflare Tunnel + Access gate**; add the **player vs GM split**
   (server-side-filtered, write surface behind auth).
-- **Presentation** (Phase 7, once polished): a real landing README (branding + demo GIF) **and** a
+- **Presentation** (Phase 7, once polished): a real landing README (branding + MP4 loops) **and** a
   standalone showcase page; in-app visual polish later.
 - **Priority rule:** mobile/tablet support is **last**: never built in parallel; only after v1 desktop
   is done.

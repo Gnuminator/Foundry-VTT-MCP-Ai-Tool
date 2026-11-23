@@ -114,11 +114,14 @@ function asActor(value: unknown): LiveActor | null {
  * The combatants of the fight the dashboard shows (the active one, else the latest), as the
  * combat strip lists them: a fight can run on another scene than the one being viewed.
  */
-function fightCombatants(): Rec[] {
+function currentFight(): Rec | null {
   const g = rec(game);
   const combats = contentsOf(g?.combats);
-  const fight = rec(g?.combat) ?? rec(combats[combats.length - 1]);
-  return contentsOf(fight?.combatants)
+  return rec(g?.combat) ?? rec(combats[combats.length - 1]);
+}
+
+function fightCombatants(): Rec[] {
+  return contentsOf(currentFight()?.combatants)
     .map(rec)
     .filter((c): c is Rec => c !== null);
 }
@@ -481,6 +484,41 @@ function freshStart(): Rec {
   };
 }
 
+/**
+ * For "until its next turn": the actor's combatant in the running fight, which Foundry must stamp
+ * as the effect's holder (it counts the expiry at that combatant's turn, not the current one's), and
+ * how many round changes lie before that turn. 0 when the turn is still to come this round (the
+ * effect then ends in this round), 1 when it has passed or is the current one. Null outside a fight
+ * or when the actor is not in it.
+ */
+function turnHolder(actor: LiveActor): TurnHolder | 'not-started' | null {
+  const fight = currentFight();
+  if (!fight) return null;
+  const mine = fightCombatants().find(c => asActor(c.actor)?.uuid === actor.uuid);
+  const id = str(mine?.id);
+  if (!id) return null;
+  const turns = contentsOf(fight.turns).map(rec);
+  const idx = turns.findIndex(t => str(t?.id) === id);
+  const turn = num(fight.turn);
+  if (idx < 0) return null;
+  if (turn === null) return 'not-started';
+  return {
+    combatantId: id,
+    rounds: idx > turn ? 0 : 1,
+    combatId: str(fight.id),
+    round: num(fight.round),
+    turn,
+  };
+}
+
+interface TurnHolder {
+  combatantId: string;
+  rounds: 0 | 1;
+  combatId: string | null;
+  round: number | null;
+  turn: number;
+}
+
 /** A whole number of rounds from 1 to 100, null when the request has none. */
 function validRounds(rounds: number | undefined): number | null {
   if (rounds === undefined) return null;
@@ -497,9 +535,15 @@ export async function planCondition(
   if (!request.condition) throw new Error('Name the condition (prone, poisoned, exhaustion...)');
   const status = statusInfo(request.condition);
   const on = request.active !== false;
-  const rounds = on ? validRounds(request.rounds) : null;
-  if (rounds !== null && status.levels !== null) {
-    throw new Error(`${status.name} is a level, not a timed condition: leave rounds out`);
+  // "Until the end of its turn" with no count means one round.
+  if (request.ends && !on) throw new Error('ends only goes with putting a condition on');
+  const baseRounds = on ? (validRounds(request.rounds) ?? (request.ends ? 1 : null)) : null;
+  const expiry = request.ends === 'turn-end' ? 'turnEnd' : 'turnStart';
+  const endsText = request.ends === 'turn-end' ? ', ends at the end of its turn' : '';
+  if (baseRounds !== null && status.levels !== null) {
+    throw new Error(
+      `${status.name} is a level, not a timed condition: leave ${request.rounds === undefined ? 'ends' : 'rounds'} out`
+    );
   }
   const ops: GuardedOp[] = [];
   const previews: LiveTargetPreview[] = [];
@@ -553,10 +597,32 @@ export async function planCondition(
     }
     if (hasStatus(actor, status.id)) {
       skip(
-        `is already ${status.name}${rounds !== null ? ' (remove it first to put it on for a time)' : ''}`
+        `is already ${status.name}${baseRounds !== null ? ' (remove it first to put it on for a time)' : ''}`
       );
       continue;
     }
+    // Without a count, "until the end of its turn" counts from the target's own place in the order.
+    const found = request.ends ? turnHolder(actor) : null;
+    if (found === 'not-started') {
+      skip('its fight has not started: its turn cannot be timed');
+      continue;
+    }
+    const holder = found;
+    if (request.ends && !holder && currentFight()) {
+      skip('is not in the fight: its turn cannot be timed');
+      continue;
+    }
+    const rounds = holder && request.rounds === undefined ? holder.rounds : baseRounds;
+    // The stamp comes from the same fight as the holder, not from the active one.
+    const start = holder
+      ? {
+          ...freshStart(),
+          combat: holder.combatId,
+          combatant: holder.combatantId,
+          round: holder.round,
+          turn: holder.turn,
+        }
+      : freshStart();
     const extras: string[] = [];
     // An expired or disabled effect leaves actor.statuses but keeps dnd5e's fixed id, so a create
     // would clash with it: bring that effect back with an update instead.
@@ -607,7 +673,12 @@ export async function planCondition(
     const data = await statusEffectData(status.id);
     if (rounds !== null) {
       data.duration = { ...rec(data.duration), value: rounds, units: 'rounds' };
-      extras.unshift(rounds === 1 ? 'for 1 round' : `for ${rounds} rounds`);
+      if (request.ends) (data.duration as Rec).expiry = expiry;
+      if (holder) data.start = start;
+      const span =
+        rounds === 0 ? 'this round' : rounds === 1 ? 'for 1 round' : `for ${rounds} rounds`;
+      extras.unshift(`${span}${endsText}`);
+      if (holder) extras.push('counted from now: plan again if the turn moves first');
     }
     if (staleUuid) {
       ops.push({
@@ -619,9 +690,9 @@ export async function planCondition(
           'duration.units': rounds !== null ? 'rounds' : null,
           // The ended one still carries its old expiry: a revived untimed effect must not end at
           // the owner's next turn start, a timed one ends there (Foundry's default for a timed create).
-          'duration.expiry': rounds !== null ? 'turnStart' : null,
+          'duration.expiry': rounds !== null ? expiry : null,
           'duration.expired': false,
-          start: freshStart(),
+          start,
         },
       });
       extras.push(`brings back the ${isExpired(stale ?? {}) ? 'expired' : 'inactive'} one`);

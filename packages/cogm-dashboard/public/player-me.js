@@ -147,3 +147,107 @@ export function concentrationReminders(events, sheets, seen) {
   }
   return out;
 }
+
+// "What can I do on my turn" card (I-170): the character's options grouped by action cost. Built
+// from the sheet the page already holds; features carry no action cost in the sheet, so known
+// class features come from a name table and spells from their casting time.
+
+export const TURN_GROUPS = [
+  { id: 'action', label: 'Action' },
+  { id: 'bonus', label: 'Bonus action' },
+  { id: 'reaction', label: 'Reaction' },
+  { id: 'free', label: 'Free' },
+];
+
+const BASIC_ACTIONS = [
+  ['Dodge', 'Attacks against you have disadvantage until your next turn.'],
+  ['Dash', 'Gain extra movement equal to your Speed.'],
+  ['Disengage', 'Your movement does not provoke opportunity attacks.'],
+  ['Help', 'Give an ally advantage on their next check or attack.'],
+  ['Hide', 'Make a Stealth check to hide.'],
+  ['Search', 'Look for something with Perception, Insight or the like.'],
+];
+
+/** Known class features: [name pattern, group, one short line]. */
+const FEATURE_COSTS = [
+  [/^channel divinity/i, 'action', 'Spend a use: Divine Spark or Turn Undead.'],
+  [/^(divine spark|turn undead)/i, 'action', 'Channel Divinity option.'],
+  [/^second wind/i, 'bonus', 'Heal 1d10 + your level.'],
+  [/^action surge/i, 'free', 'Take one extra action this turn.'],
+  [/^(rage|barbarian rage)$/i, 'bonus', 'Enter a rage.'],
+  [/^bardic inspiration/i, 'bonus', 'Give an ally a die to add to a roll.'],
+  [/^lay on hands/i, 'bonus', 'Heal from your pool of points.'],
+  [/^wild shape/i, 'bonus', 'Turn into a beast.'],
+  [/^cunning action/i, 'bonus', 'Dash, Disengage or Hide.'],
+  [/^flurry of blows/i, 'bonus', 'Two unarmed strikes after Attack (Focus Point).'],
+  [/^patient defense/i, 'bonus', 'Dodge as a bonus action.'],
+  [/^step of the wind/i, 'bonus', 'Dash or Disengage as a bonus action.'],
+  [/^uncanny dodge/i, 'reaction', 'Halve the damage of an attack you can see.'],
+  [/^deflect attacks?/i, 'reaction', 'Reduce damage from an attack.'],
+  [/^hellish rebuke/i, 'reaction', 'Burn the creature that hit you.'],
+  [/^sneak attack/i, 'free', 'Extra damage once per turn.'],
+  [/^preserve life/i, 'action', 'Channel Divinity: heal creatures near you.'],
+];
+
+const CASTING_GROUP = [
+  // dnd5e's label is "Action", "Bonus Action" or "Reaction" (older data may say "1 Action").
+  [/^(1 )?bonus action/i, 'bonus'],
+  [/^(1 )?reaction/i, 'reaction'],
+  [/action/i, 'action'], // "Action", "Magic action", "Utilize action" and the like
+];
+
+/** The shortest text that still says it: at most `max` characters, cut at a word. */
+function brief(text, max = 70) {
+  const t = String(text ?? '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (t.length <= max) return t;
+  return `${t.slice(0, max - 1).replace(/\s+\S*$/, '')}…`;
+}
+
+function usesText(u) {
+  return u && typeof u.max === 'number' && u.max > 0 ? `${u.value}/${u.max} left` : '';
+}
+
+/**
+ * Options for one sheet (the shape /api/me gives), as `[{ id, label, options: [{ name, note }] }]`
+ * with empty groups left out. Spare the Dying is a cantrip with a 1 action casting time and so
+ * lands under Action; unprepared leveled spells are left out.
+ */
+export function turnOptions(sheet) {
+  const by = { action: [], bonus: [], reaction: [], free: [] };
+  if (!sheet) return [];
+  const seen = new Set();
+  const add = (group, name, note) => {
+    const k = `${group}:${name.toLowerCase()}`;
+    if (seen.has(k)) return;
+    seen.add(k);
+    by[group].push({ name, note: brief(note) });
+  };
+  const inventory = Array.isArray(sheet.inventory) ? sheet.inventory : [];
+  const attacks = inventory.filter(i => i && i.equipped && i.attack);
+  if (attacks.length) {
+    add(
+      'action',
+      'Attack',
+      attacks.map(i => `${i.name} ${i.attack}${i.damage ? `, ${i.damage}` : ''}`).join('; ')
+    );
+  }
+  for (const [name, note] of BASIC_ACTIONS) add('action', name, note);
+  add('reaction', 'Opportunity attack', 'Strike a creature that leaves your reach.');
+  for (const f of Array.isArray(sheet.features) ? sheet.features : []) {
+    if (!f || typeof f.name !== 'string') continue;
+    const hit = FEATURE_COSTS.find(([re]) => re.test(f.name));
+    if (!hit) continue;
+    add(hit[1], f.name, [hit[2], usesText(f.uses)].filter(Boolean).join(' '));
+  }
+  for (const sp of Array.isArray(sheet.spells) ? sheet.spells : []) {
+    if (!sp || typeof sp.name !== 'string') continue;
+    if (sp.level > 0 && !sp.prepared) continue;
+    const g = CASTING_GROUP.find(([re]) => re.test(sp.castingTime ?? ''));
+    if (!g) continue;
+    const bits = [sp.level === 0 ? 'Cantrip' : `Level ${sp.level}`, sp.range, sp.duration];
+    add(g[1], sp.name, bits.filter(Boolean).join(', '));
+  }
+  return TURN_GROUPS.filter(g => by[g.id].length).map(g => ({ ...g, options: by[g.id] }));
+}

@@ -17,6 +17,7 @@ import {
   renderRoundHtml,
   rollRequest,
   setPickField,
+  type RollMessageLike,
   type RollPick,
 } from './party-rolls.js';
 import { openPartyWindow, resetPartyWindowForTests } from './party-window.js';
@@ -252,7 +253,7 @@ describe('in the Party window', () => {
   const action = (name: string, dataset: Record<string, string> = {}): Promise<void> => {
     const w = rendered[0];
     w.constructor.DEFAULT_OPTIONS.actions[name].call(w, new Event('click'), { dataset });
-    return vi.advanceTimersByTimeAsync(0);
+    return vi.advanceTimersByTimeAsync(0).then(() => undefined);
   };
 
   it('draws the bar and an Ask button per character, enabled while writes are on', async () => {

@@ -38,6 +38,7 @@ import path from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { contextOf } from '../../.claude/hooks/context-alert.mjs';
+import { buildCiHealth, fetchRuns as fetchCiRuns } from '../ci-health.mjs';
 import { noteFile, writeNote } from './weekly-check-note.mjs';
 import { activeHours, buildProfile, paceNow, weekStartFor } from './usage-pace.mjs';
 import {
@@ -297,7 +298,9 @@ export function weeklyPoints(readings) {
 // (an old fixture, a gh without `files`) counts as product, so the figure never silently drops it.
 export function isProductPr(pr) {
   if (!Array.isArray(pr?.files)) return true;
-  return pr.files.some(f => /^(packages|shared)\//.test(String(f?.path ?? '').replaceAll('\\', '/')));
+  return pr.files.some(f =>
+    /^(packages|shared)\//.test(String(f?.path ?? '').replaceAll('\\', '/'))
+  );
 }
 
 export function fetchMergedPrs() {
@@ -670,7 +673,7 @@ export async function main(argv = process.argv.slice(2), env = process.env, out 
 
   const report = await buildReport({ root, now, days: opts.days, prs, usageLog });
   report.notes = notes;
-  // Real tool usage (I-113): the MCP tool call log on this PC (USAGE_WEEK_CALLS_DIR overrides).
+  // Real tool usage (I-113): the MCP tool call log in this PC's data folder (empty when the connectors log on the Pi; USAGE_WEEK_CALLS_DIR overrides).
   const callsDir = env.USAGE_WEEK_CALLS_DIR || path.join(dataDir(env), '_usage');
   let callList = [];
   try {
@@ -691,6 +694,15 @@ export async function main(argv = process.argv.slice(2), env = process.env, out 
     never: callSummary.never ? callSummary.never.length : null,
     line: weekLine(callSummary, opts.days),
   };
+  // CI health of the last 7 days for the Saturday section (I-160): skipped when gh is off or fails.
+  if (env.USAGE_WEEK_GH !== 'off') {
+    try {
+      report.ci = buildCiHealth(await fetchCiRuns(), now).find(w => w.hours === 24 * 7);
+      if (report.ci.truncated) notes.push('CI health skipped: 7 days hold more than 1000 runs.');
+    } catch (e) {
+      notes.push(`CI health unavailable (gh failed: ${String(e.message).split('\n')[0]}).`);
+    }
+  }
   report.runMs = Date.now() - started;
   if (argv.includes('--write-vault')) {
     const file = noteFile(vaultDirFor(env));

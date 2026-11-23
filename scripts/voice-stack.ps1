@@ -20,14 +20,14 @@
   Refuses to run if .env points any port at a Foundry or bridge port (Foundry 30000-30001, dashboard
   3100, live bridge 31414-31416, test bridge 31514-31516; test servers B and C: 30002-30003,
   3101-3102, 31524-31525, 31534-31535; rehearsal 30100, 31614-31615, 3300; Control Center 3200). Never touches containers outside the
-  fvtt-voice project. One GPU job at a time: transcribe warns when the GPU is already busy.
+  fvtt-voice project. One GPU job at a time: transcribe takes the GPU lock (scripts/gpu-lock.ps1) and refuses, naming the holder, while another job holds it.
 
   names options: -Dashboard <url> (default http://127.0.0.1:3100), -Offline (extra list only), -Items,
   -Journals (also list world item and journal names; off by default), GM_DASHBOARD_TOKEN is sent as the
   dashboard token when set.
 
   transcribe options: -Model <name|path> (default large-v3), -Force (redo finished tracks),
-  -NoPipeline (transcriber only), -NoAutoFix (the pipeline only suggests name fixes), -Hotwords (pass
+  -NoRebuild (stop with one line when an image is stale instead of rebuilding it), -NoPipeline (transcriber only), -NoAutoFix (the pipeline only suggests name fixes), -Hotwords (pass
   <session>/names.txt, or vocab.txt when there is no names file, to Whisper as hotwords, cut to a token
   budget; off by default because the 2026-10 benchmark found they hurt). -NoHotwords cancels -Hotwords
   if both are given. If <session>/names.txt exists it is passed to the pipeline as the known names for
@@ -45,6 +45,7 @@ param(
   [switch]$Hotwords,
   [switch]$Force,
   [switch]$NoPipeline,
+  [switch]$NoRebuild,
   [switch]$NoHotwords,
   [switch]$NoAutoFix,
   [string]$Dashboard = 'http://127.0.0.1:3100',
@@ -55,6 +56,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'data-folder.ps1')
+. (Join-Path $PSScriptRoot 'gpu-lock.ps1')
+. (Join-Path $PSScriptRoot 'voice-image-hash.ps1')
 $Root = Join-Path (Split-Path -Parent $PSScriptRoot) 'tools/voice-stack'
 $ComposeFile = Join-Path $Root 'docker-compose.yml'
 $EnvFile = Join-Path $Root '.env'
@@ -120,6 +123,35 @@ function Invoke-Compose {
   if ($LASTEXITCODE -ne 0) { throw "docker compose $($ComposeArgs -join ' ') failed ($LASTEXITCODE)" }
 }
 
+# Both job images carry a label with a hash of their source folder (tools/transcriber, tools/session-pipeline).
+# The hashes of the checkout go to compose as build args; an image built from older sources has another label.
+function Get-VoiceImageSpec {
+  $repo = Split-Path -Parent $PSScriptRoot
+  $dotEnv = Read-DotEnv
+  $tag = if ($env:TRANSCRIBER_TAG) { $env:TRANSCRIBER_TAG } elseif ($dotEnv['TRANSCRIBER_TAG']) { $dotEnv['TRANSCRIBER_TAG'] } else { 'latest' }
+  return @(
+    @{ Name = 'transcriber'; Image = "fvtt-transcriber:$tag"; Dir = (Join-Path $repo 'tools/transcriber'); Var = 'TRANSCRIBER_SOURCE_HASH' },
+    @{ Name = 'pipeline'; Image = 'fvtt-session-pipeline:latest'; Dir = (Join-Path $repo 'tools/session-pipeline'); Var = 'PIPELINE_SOURCE_HASH' }
+  )
+}
+
+# Sets the build-arg variables and returns the expected hash per image name.
+function Set-VoiceSourceHashes {
+  $expected = @{}
+  foreach ($spec in Get-VoiceImageSpec) {
+    $h = Get-VoiceSourceHash -Dir $spec.Dir
+    Set-Item -Path "env:$($spec.Var)" -Value $h
+    $expected[$spec.Name] = $h
+  }
+  return $expected
+}
+
+function Get-StaleVoiceImages([hashtable]$expected) {
+  $actual = @{}
+  foreach ($spec in Get-VoiceImageSpec) { $actual[$spec.Name] = Get-ImageSourceHash -Image $spec.Image }
+  return @(Compare-VoiceImageHashes -Expected $expected -Actual $actual)
+}
+
 function Get-GpuLine {
   $smi = Get-Command nvidia-smi -ErrorAction SilentlyContinue
   if (-not $smi) { return $null }
@@ -180,6 +212,7 @@ switch ($Command) {
         Invoke-Compose @('--profile', 'livekit', '--profile', 'tls', 'up', '-d', '--build')
       }
       'transcribe' {
+        $null = Set-VoiceSourceHashes
         Invoke-Compose @('--profile', 'transcribe', 'build')
         Write-Host 'Images built. Run a job with: voice-stack.ps1 transcribe <session folder>'
       }
@@ -232,11 +265,25 @@ switch ($Command) {
     else { throw 'Give a session folder or a Craig .zip.' }
     $inside = if ($inputName) { "/session/$inputName" } else { '/session' }
 
+    # An image built from older sources (a stale transcriber ran turbo instead of large-v3 on 2026-10-29)
+    # is rebuilt before the job, or the run stops with one line under -NoRebuild.
+    $expected = Set-VoiceSourceHashes
+    if ($NoPipeline) { $expected.Remove('pipeline') }   # the pipeline image is not used by this run
+    $stale = Get-StaleVoiceImages $expected
+    if ($stale.Count -gt 0) {
+      $names = $stale -join ' and '
+      if ($NoRebuild) { throw "The $names image is older than this checkout. Rebuild with: voice-stack.ps1 up transcribe" }
+      Write-Host "The $names image is older than this checkout: rebuilding it."
+      Invoke-Compose @('--profile', 'transcribe', 'build')
+      $stale = Get-StaleVoiceImages $expected
+      if ($stale.Count -gt 0) { throw "The $($stale -join ' and ') image is still older than this checkout after a rebuild. Run: voice-stack.ps1 up transcribe" }
+    }
+
     $gpu = Get-GpuLine
     if ($gpu) {
       Write-Host "GPU: $gpu"
       if ((Get-GpuUsedMiB) -gt 6000) {
-        Write-Warning 'The GPU already holds more than 6 GB. Another GPU job may be running; the transcriber may run out of memory or slow down.'
+        Write-Warning 'The GPU already holds more than 6 GB. Something outside the GPU lock may be using it; the transcriber may run out of memory or slow down.'
       }
     }
 
@@ -255,7 +302,11 @@ switch ($Command) {
       }
     }
     if ($Force) { $tArgs += '--force' }
-    Invoke-Compose $tArgs
+    # The transcriber is the GPU job: hold the GPU lock for it alone (the pipeline below is CPU).
+    # A held lock stops here with a message that names the holder; the release runs on any failure.
+    $gpuSession = Enter-GpuLock -Holder 'voice-stack transcribe' -Purpose "transcribe $(Split-Path -Leaf $folder)"
+    try { Invoke-Compose $tArgs }
+    finally { Exit-GpuLock -Session $gpuSession }
 
     if ($NoPipeline) {
       Write-Host "Transcripts: $(Join-Path $folder 'transcripts/json')"

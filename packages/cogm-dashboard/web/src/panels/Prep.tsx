@@ -2,8 +2,9 @@
 // (shared/src/prep-digest.ts has the full shape; only the fields shown here are typed). Loads on
 // open, on Refresh and on "All beats"; nothing in it writes. "Open" buttons run open-in-foundry,
 // which the dashboard counts as a read.
+import type { PrepLooseEnd, PrepLooseEnds } from '@gnuminator/shared';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useRef, useState, type JSX, type ReactNode } from 'react';
+import { Suspense, lazy, useEffect, useRef, useState, type JSX, type ReactNode } from 'react';
 
 import { Drawer, DrawerClose } from '../components/Drawer';
 import { useToast } from '../components/Toasts';
@@ -11,6 +12,9 @@ import { callTool, errorText } from '../lib/api';
 import { usage } from '../lib/usage';
 import { Button, EmptyState, ErrorState, LoadingState } from '../ui';
 import { PREFLIGHT_ICONS, type CheckStatus } from './Preflight';
+
+// The omens list loads from its own chunk, only once the Prep drawer is open (bundle budget).
+const OmensSection = lazy(() => import('./Omens').then(m => ({ default: m.OmensSection })));
 
 type PrepAction = 'summary' | 'last-session';
 
@@ -65,6 +69,8 @@ interface PrepDigest {
   preflight: { fail: number; warn: number; items: { severity: string; title: string }[] } | null;
   recentChanges: { count: number; latest: { title: string; appliedAt: string }[] };
   tarokka: { hasReading: boolean };
+  /** Missing on an older bridge; null when no session is logged yet. */
+  looseEnds?: PrepLooseEnds | null;
   warnings: string[];
 }
 
@@ -256,6 +262,79 @@ function Threads({ d, onOpen }: { d: PrepDigest; onOpen: OpenJournal }): JSX.Ele
           </div>
         ))
       )}
+    </>
+  );
+}
+
+function LooseEndsList({
+  title,
+  items,
+  omitted,
+  unavailable,
+  none,
+}: {
+  title: string;
+  items: PrepLooseEnd[];
+  omitted: number;
+  unavailable: boolean;
+  none: string;
+}): JSX.Element {
+  return (
+    <>
+      <SubHead>{title}</SubHead>
+      {unavailable ? (
+        <Empty>Needs Foundry: not checked.</Empty>
+      ) : items.length === 0 ? (
+        <Empty>{none}</Empty>
+      ) : (
+        <ul className="preflight-list" aria-label={title}>
+          {items.map((it, i) => (
+            <Row
+              key={i}
+              label={it.name}
+              detail={
+                it.lastSeenSession === null
+                  ? 'Not seen in any logged session'
+                  : `Last seen session ${it.lastSeenSession}`
+              }
+            />
+          ))}
+          {omitted > 0 ? <Row label={`${omitted} more`} /> : null}
+        </ul>
+      )}
+    </>
+  );
+}
+
+/** Things the table left hanging: quests nobody touched, NPCs met once, scenes not used lately. */
+function LooseEnds({ le }: { le: PrepLooseEnds | null | undefined }): JSX.Element {
+  if (le == null) return <Empty>No logged session yet, so nothing is left hanging.</Empty>;
+  return (
+    <>
+      <LooseEndsList
+        title="Quests nobody touched"
+        items={le.quests}
+        omitted={le.omitted.quests}
+        unavailable={le.unavailable.includes('quests')}
+        none="None."
+      />
+      <LooseEndsList
+        title="NPCs met once"
+        items={le.npcs}
+        omitted={le.omitted.npcs}
+        unavailable={false}
+        none="None."
+      />
+      <LooseEndsList
+        title="Scenes not used lately"
+        items={le.scenes}
+        omitted={le.omitted.scenes}
+        unavailable={le.unavailable.includes('scenes')}
+        none="None."
+      />
+      {le.neverVisitedScenes ? (
+        <p className="pf-detail">{count(le.neverVisitedScenes, 'scene', 'scenes')} never used.</p>
+      ) : null}
     </>
   );
 }
@@ -532,6 +611,8 @@ export function PrepDrawer({
       <div>{last}</div>
       <h3 className="preflight-h">Open threads</h3>
       <div>{d && <Threads d={d} onOpen={openJournal} />}</div>
+      <h3 className="preflight-h">Loose ends</h3>
+      <div>{d && <LooseEnds le={d.looseEnds} />}</div>
       <h3 className="preflight-h">Next session notes</h3>
       <div>{d && <NextSessionNotes next={d.nextSession} onOpen={openJournal} />}</div>
       <h3 className="preflight-h">Ready</h3>
@@ -539,6 +620,8 @@ export function PrepDrawer({
       <h3 className="preflight-h">Recent changes</h3>
       <div>{d && <Changes rc={d.recentChanges} />}</div>
       <div>{d?.tarokka?.hasReading && <p className="pf-detail">A Tarokka reading exists.</p>}</div>
+      <h3 className="preflight-h">Omens by post</h3>
+      <Suspense fallback={null}>{open && <OmensSection open={open} />}</Suspense>
     </Drawer>
   );
 }

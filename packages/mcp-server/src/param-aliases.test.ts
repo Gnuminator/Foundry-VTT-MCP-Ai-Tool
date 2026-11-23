@@ -1,5 +1,30 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
 import { describe, expect, it } from 'vitest';
-import { ACTOR_ALIASES, TOOL_ALIASES, actorToolNames, applyParamAliases } from './param-aliases.js';
+import {
+  ACTOR_ALIASES,
+  RENAMED_TOOLS,
+  TOOL_ALIASES,
+  actorToolNames,
+  applyParamAliases,
+} from './param-aliases.js';
+
+describe('RENAMED_TOOLS', () => {
+  it('drops every alias once the package version reaches its until release', () => {
+    const { version } = JSON.parse(
+      readFileSync(fileURLToPath(new URL('../../../package.json', import.meta.url)), 'utf8')
+    ) as { version: string };
+    const [major = 0, minor = 0] = version.split('.').map(Number);
+    for (const [old, { until }] of Object.entries(RENAMED_TOOLS)) {
+      const [untilMajor = 0, untilMinor = 0] = until.split('.').map(Number);
+      const expired = major > untilMajor || (major === untilMajor && minor >= untilMinor);
+      expect(expired, `${old}: delete this RENAMED_TOOLS entry, it ended with ${until}`).toBe(
+        false
+      );
+    }
+  });
+});
 
 const actorTools = new Set(['get-character']);
 

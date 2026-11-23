@@ -29,7 +29,7 @@ const report = {
 
 test('renders a row per person, versions flagged and never-called tools', () => {
   const md = renderWhoUsesWhat(report);
-  assert.match(md, /\| GM \| 4 \| 1 \|/);
+  assert.match(md, /\| GM \| 4 \| 0 \| 1 \|/);
   assert.match(md, /gm-coach \(stub 1\) 1/);
   assert.match(md, /BEHIND/);
   assert.match(md, /Never called \(1\): a-tool/);

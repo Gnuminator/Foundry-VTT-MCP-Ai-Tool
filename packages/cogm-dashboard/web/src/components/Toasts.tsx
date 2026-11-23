@@ -1,38 +1,82 @@
-import { Toast } from 'radix-ui';
 import {
+  Component,
   createContext,
+  lazy,
+  Suspense,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
-  useRef,
   useState,
   type JSX,
   type ReactNode,
 } from 'react';
 
-import { closeTopPanel } from '../lib/escape';
 import { usage } from '../lib/usage';
+import type { ToastAction, ToastItem } from './ToastStack';
+
+export type { ToastAction } from './ToastStack';
 
 type ToastKind = 'ok' | 'err' | 'warn';
-
-/** The button on an applied change's toast (Undo); a click runs it and closes the toast. */
-export interface ToastAction {
-  label: string;
-  /** A promise keeps the toast up, its button busy, until it settles; then the toast closes. */
-  onClick: () => void | Promise<void>;
-}
-
-interface ToastItem {
-  id: number;
-  kind: ToastKind;
-  text: string;
-  action?: ToastAction | undefined;
-}
 
 /** `code` is the usage code of an error toast when the caller knows it (the failed call's kind or status). */
 type ShowToast = (text: string, kind?: ToastKind, action?: ToastAction, code?: string) => void;
 
 const ToastContext = createContext<ShowToast>(() => undefined);
+
+// Radix Toast lives in its own chunk (the first load budget); it downloads on the first toast.
+const ToastStack = lazy(() => import('./ToastStack'));
+
+/** The chunk is fetched this long after the provider mounts. */
+const PRELOAD_DELAY_MS = 3000;
+
+/** Catches a failed ToastStack chunk (a restarted server, a dropped network): the page stays up. */
+class StackGuard extends Component<
+  { fallback: ReactNode; children: ReactNode },
+  { failed: boolean }
+> {
+  override state = { failed: false };
+  static getDerivedStateFromError(): { failed: boolean } {
+    return { failed: true };
+  }
+  override render(): ReactNode {
+    return this.state.failed ? this.props.fallback : this.props.children;
+  }
+}
+
+/** What shows when the Radix stack cannot load: the texts and any action, each gone after 6 s. */
+function PlainStack({
+  items,
+  remove,
+}: {
+  items: ToastItem[];
+  remove: (id: number) => void;
+}): JSX.Element {
+  useEffect(() => {
+    const timers = items.map(t => window.setTimeout(() => remove(t.id), t.action ? 8000 : 6000));
+    return (): void => timers.forEach(id => window.clearTimeout(id));
+  }, [items, remove]);
+  return (
+    <ol className="toast-stack" aria-live="polite">
+      {items.map(t => (
+        <li key={t.id} className={`toast ${t.kind}${t.action ? ' toast-undo' : ''}`}>
+          <span className={t.action ? 'toast-text' : undefined}>{t.text}</span>
+          {t.action && (
+            <button
+              type="button"
+              className="toast-action"
+              onClick={() => {
+                void Promise.resolve(t.action?.onClick()).finally(() => remove(t.id));
+              }}
+            >
+              {t.action.label}
+            </button>
+          )}
+        </li>
+      ))}
+    </ol>
+  );
+}
 
 /** The usage code of an error toast from its text, when the caller gave none (a status or a timeout). */
 function toastCode(text: string): string {
@@ -41,24 +85,9 @@ function toastCode(text: string): string {
   return /time(?:d)? ?out/i.test(text) ? 'timeout' : 'error';
 }
 
-/** How long a toast stays: errors 6 seconds, an Undo toast 8 (paused while hovered), others 3.5. */
-const duration = (t: ToastItem): number => (t.action ? 8000 : t.kind === 'err' ? 6000 : 3500);
-
 /**
- * Escape while a toast shows: the newest toast is the top Radix layer, so it gets the key first.
- * It stays up (the Undo button must survive a GM closing a drawer) and the panel under it closes
- * (lib/escape.ts). Escape on a focused toast still closes that toast.
- */
-function handOnEscape(event: KeyboardEvent): void {
-  if (event.defaultPrevented) return;
-  if (event.target instanceof Element && event.target.closest('.toast-stack')) return;
-  event.preventDefault();
-  closeTopPanel();
-}
-
-/**
- * The toast stack (bottom right), styled by styles.css (.toast-stack, .toast.ok/.err/.warn, and
- * .toast-undo with its .toast-action button).
+ * The toast provider: the state and `useToast` stay here; the stack on screen (bottom right) is
+ * ToastStack, mounted from the first toast on.
  */
 export function ToastProvider({
   children,
@@ -69,69 +98,36 @@ export function ToastProvider({
   persistent?: boolean;
 }): JSX.Element {
   const [items, setItems] = useState<ToastItem[]>([]);
+  const [shown, setShown] = useState(false);
   const show = useCallback<ShowToast>((text, kind = 'ok', action, code) => {
     if (kind === 'err') {
       usage().track('error', 'dash.toast.error', { code: code ?? toastCode(text) });
     }
+    setShown(true);
     setItems(list => [...list, { id: Date.now() + Math.random(), kind, text, action }]);
   }, []);
   const remove = useCallback((id: number) => {
     setItems(list => list.filter(t => t.id !== id));
   }, []);
-  // The toasts whose action is running (Undo): the button says so and ignores a second click; the
-  // toast stays up (a timeout or a swipe does not close it) until the action is done.
-  const [running, setRunning] = useState<ReadonlySet<number>>(new Set());
-  const viewportRef = useRef<HTMLOListElement>(null);
-  const runAction = (t: ToastItem, event: { preventDefault(): void }): void => {
-    event.preventDefault();
-    if (running.has(t.id) || !t.action) return;
-    setRunning(set => new Set(set).add(t.id));
-    void Promise.resolve(t.action.onClick()).finally(() => {
-      setRunning(set => {
-        const next = new Set(set);
-        next.delete(t.id);
-        return next;
-      });
-      // The button the focus was on goes with the toast: keep the focus in the toast stack.
-      if (document.activeElement?.closest('.toast-stack li') !== null) viewportRef.current?.focus();
-      remove(t.id);
-    });
-  };
   const value = useMemo(() => show, [show]);
+  // Fetch the chunk a few seconds after the page loads, so the first toast is not waiting for it.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void import('./ToastStack').catch(() => undefined);
+    }, PRELOAD_DELAY_MS);
+    return (): void => window.clearTimeout(timer);
+  }, []);
 
   return (
     <ToastContext.Provider value={value}>
-      <Toast.Provider swipeDirection="right" label="Notification">
-        {children}
-        {items.map(t => (
-          <Toast.Root
-            key={t.id}
-            className={`toast ${t.kind}${t.action ? ' toast-undo' : ''}`}
-            duration={persistent ? Infinity : duration(t)}
-            onEscapeKeyDown={handOnEscape}
-            open
-            onOpenChange={open => {
-              if (!open && !running.has(t.id)) remove(t.id);
-            }}
-          >
-            <Toast.Description className={t.action ? 'toast-text' : undefined}>
-              {t.text}
-            </Toast.Description>
-            {t.action && (
-              <Toast.Action
-                className="toast-action"
-                altText={`${t.action.label}: ${t.text}`}
-                data-track="dash.toast.undo"
-                aria-disabled={running.has(t.id) ? true : undefined}
-                onClick={event => runAction(t, event)}
-              >
-                {running.has(t.id) ? 'Working...' : t.action.label}
-              </Toast.Action>
-            )}
-          </Toast.Root>
-        ))}
-        <Toast.Viewport className="toast-stack" ref={viewportRef} />
-      </Toast.Provider>
+      {children}
+      {shown && (
+        <StackGuard fallback={<PlainStack items={items} remove={remove} />}>
+          <Suspense fallback={null}>
+            <ToastStack items={items} remove={remove} persistent={persistent} />
+          </Suspense>
+        </StackGuard>
+      )}
     </ToastContext.Provider>
   );
 }

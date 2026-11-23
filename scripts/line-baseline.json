@@ -1,33 +1,34 @@
 {
   "limit": 1000,
   "files": {
-    ".claude/hooks/guard-remote-commands.mjs": 1020,
+    ".claude/hooks/guard-remote-commands.mjs": 1034,
     "packages/foundry-module/src/data-access/actor-builder.ts": 1418,
-    "packages/foundry-module/src/data-access/guarded-write.ts": 1094,
+    "packages/foundry-module/src/data-access/guarded-write.ts": 1100,
     "packages/foundry-module/src/data-access/player-rolls.ts": 1252,
     "packages/foundry-module/src/export-index.ts": 1425,
     "packages/foundry-module/src/npc-turn.ts": 1158,
     "packages/foundry-module/src/play-recorder.ts": 2127,
     "packages/foundry-module/src/session-events.ts": 1301,
-    "packages/mcp-server/src/change-history.ts": 1443,
-    "packages/mcp-server/src/guarded-write/service.ts": 1543,
-    "packages/mcp-server/src/handouts/service.ts": 1210,
+    "packages/mcp-server/src/change-history.ts": 1446,
+    "packages/mcp-server/src/guarded-write/service.ts": 1548,
+    "packages/mcp-server/src/handouts/service.ts": 1296,
     "packages/mcp-server/src/obsidian/library-sync.ts": 1240,
-    "packages/mcp-server/src/obsidian/mirror-pump.ts": 2146,
-    "packages/mcp-server/src/obsidian/mirror-render.ts": 1503,
+    "packages/mcp-server/src/obsidian/mirror-pump.ts": 2151,
+    "packages/mcp-server/src/obsidian/mirror-render.ts": 1510,
     "packages/mcp-server/src/obsidian/render.ts": 1172,
     "packages/mcp-server/src/stats/build.ts": 1035,
-    "packages/mcp-server/src/tools/character.ts": 1051,
+    "packages/mcp-server/src/tools/character.ts": 1045,
     "packages/mcp-server/src/tools/compendium.ts": 1079,
     "packages/mcp-server/src/tools/dnd5e/add-feature.ts": 1189,
     "packages/mcp-server/src/tools/quest-creation.ts": 1346,
-    "scripts/green.mjs": 1210,
-    "scripts/live-write-sweep.mjs": 1690,
-    "scripts/merge-runner.mjs": 1064,
-    "scripts/test-kit/lib/dashboard-controls.mjs": 1252,
+    "scripts/backlog.mjs": 1006,
+    "scripts/green.mjs": 1209,
+    "scripts/live-write-sweep.mjs": 1850,
+    "scripts/merge-runner.mjs": 1069,
+    "scripts/test-kit/lib/dashboard-controls.mjs": 1305,
     "scripts/test-kit/lib/fake/origins.mjs": 1051,
     "scripts/test-kit/lib/features.mjs": 1387,
-    "scripts/test-kit/lib/gm-actions.mjs": 1975,
+    "scripts/test-kit/lib/gm-actions.mjs": 1977,
     "scripts/test-kit/lib/monsters.mjs": 1187,
     "scripts/test-kit/lib/origins.mjs": 1038,
     "scripts/test-kit/lib/spells-deep.mjs": 1020
@@ -56,6 +57,108 @@
       "lines": 1812,
       "reason": "one more read-only query registration (getRenownState); the file is the registration table",
       "pr": "1126"
+    },
+    {
+      "file": "packages/foundry-module/src/data-access/guarded-write.ts",
+      "lines": 1100,
+      "reason": "Three dispatch lines that route a Macro create and update to the Macro forge guards (macro-forge.ts, shared macro-source.ts); the file is split later",
+      "pr": "1165"
+    },
+    {
+      "file": "scripts/test-kit/lib/dashboard-controls.mjs",
+      "lines": 1254,
+      "reason": "two catalogue lines for the roll tracker buttons (I-166)",
+      "pr": "1156"
+    },
+    {
+      "file": "scripts/test-kit/lib/dashboard-controls.mjs",
+      "lines": 1255,
+      "reason": "one catalogue row for the monster action buttons (I-165); the file is a flat list of control rows",
+      "pr": "1167"
+    },
+    {
+      "file": "scripts/test-kit/lib/dashboard-controls.mjs",
+      "lines": 1261,
+      "reason": "one row per dashboard control: the table grows with every new control (read-aloud I-167)",
+      "pr": "1158"
+    },
+    {
+      "file": "packages/mcp-server/src/change-history.ts",
+      "lines": 1446,
+      "reason": "PR undo-leaves-prone: +3 lines to file the Prone rider as a follow-up; the logic is in guarded-write/rider-undo.ts",
+      "pr": "1175"
+    },
+    {
+      "file": "packages/mcp-server/src/guarded-write/service.ts",
+      "lines": 1548,
+      "reason": "PR undo-leaves-prone: +5 lines to call guarded-write/rider-undo.ts from undoChange",
+      "pr": "1175"
+    },
+    {
+      "file": "scripts/test-kit/lib/dashboard-controls.mjs",
+      "lines": 1301,
+      "reason": "one row per dashboard control: the table grows with every new control (read-aloud, pin controls)",
+      "pr": "1155"
+    },
+    {
+      "file": "scripts/test-kit/lib/dashboard-controls.mjs",
+      "lines": 1305,
+      "reason": "one honest skip entry for dash.live.monster-action (lows sweep), 4 lines",
+      "pr": ""
+    },
+    {
+      "file": "packages/mcp-server/src/handouts/service.ts",
+      "lines": 1296,
+      "reason": "planPressedPage needs the service's private load, snapshot and plan helpers (I-184); a split is a later refactor",
+      "pr": ""
+    },
+    {
+      "file": "scripts/merge-runner.mjs",
+      "lines": 1069,
+      "reason": "runner liveness: the blocked-restart guard in main() (5 lines); the rest lives in merge-runner/liveness.mjs",
+      "pr": "1226"
+    },
+    {
+      "file": ".claude/hooks/guard-remote-commands.mjs",
+      "lines": 1034,
+      "reason": "the stack_docker/stack_compose rule of PR 1230 (the guard must read the command and non-stage files apart from the reviewed stage scripts); the guard is one rule table",
+      "pr": ""
+    },
+    {
+      "file": "scripts/test-kit/lib/gm-actions.mjs",
+      "lines": 1977,
+      "reason": "targetToken lives in target-token.mjs; the import and the registry entry add 2 lines to the GM action table",
+      "pr": ""
+    },
+    {
+      "file": "scripts/live-write-sweep.mjs",
+      "lines": 1850,
+      "reason": "the sweep keeps every step and its helpers in one file; the new plan-tool steps share them (write-sweep-new-plans); a split is its own item",
+      "pr": ""
+    },
+    {
+      "file": "scripts/live-write-sweep.mjs",
+      "lines": 1856,
+      "reason": "the sweep keeps every step and its helpers in one file; the new plan-tool steps share them (write-sweep-new-plans); a split is its own item",
+      "pr": ""
+    },
+    {
+      "file": "packages/mcp-server/src/obsidian/mirror-pump.ts",
+      "lines": 2151,
+      "reason": "+5..7 lines for the sync-conflict status list; one field through scan, status and render, not worth a split",
+      "pr": "1270"
+    },
+    {
+      "file": "packages/mcp-server/src/obsidian/mirror-render.ts",
+      "lines": 1510,
+      "reason": "+5..7 lines for the sync-conflict status list; one field through scan, status and render, not worth a split",
+      "pr": "1270"
+    },
+    {
+      "file": "scripts/backlog.mjs",
+      "lines": 1006,
+      "reason": "the --board check against Board.md areas (set and add) added 6 lines to the one writer of the Backlog; splitting backlog.mjs is its own item",
+      "pr": ""
     }
   ]
 }

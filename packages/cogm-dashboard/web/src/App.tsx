@@ -93,6 +93,9 @@ const partyChunk = panelChunk(() =>
 const twinChunk = panelChunk(() =>
   import('./panels/StatblockTwin').then(m => ({ default: m.StatblockTwinDrawer }))
 );
+const readAloudChunk = panelChunk(() =>
+  import('./panels/ReadAloud').then(m => ({ default: m.ReadAloudDrawer }))
+);
 const paperChunk = panelChunk(() =>
   import('./panels/PaperSync').then(m => ({ default: m.PaperSyncDrawer }))
 );
@@ -106,6 +109,7 @@ const DOCKED_CHUNKS = [partyChunk, prepChunk, handoutsChunk, changesChunk, prefl
 const FLOATING_CHUNKS = [
   afterChunk,
   paperChunk,
+  readAloudChunk,
   twinChunk,
   tarokkaChunk,
   toolsChunk,
@@ -163,6 +167,7 @@ type DrawerName =
   | 'handouts'
   | 'paper'
   | 'twin'
+  | 'readaloud'
   | 'tarokka'
   | 'tools';
 const NO_DRAWERS: Record<DrawerName, boolean> = {
@@ -172,6 +177,7 @@ const NO_DRAWERS: Record<DrawerName, boolean> = {
   handouts: false,
   paper: false,
   twin: false,
+  readaloud: false,
   tarokka: false,
   tools: false,
 };
@@ -184,6 +190,7 @@ const DRAWER_IDS: Record<DrawerName, string> = {
   handouts: 'handouts-drawer',
   paper: 'paper-drawer',
   twin: 'twin-drawer',
+  readaloud: 'readaloud-drawer',
   tarokka: 'tarokka-drawer',
   tools: 'tools-drawer',
 };
@@ -224,6 +231,7 @@ function Dashboard(): JSX.Element {
     name !== 'tools' &&
     name !== 'paper' &&
     name !== 'twin' &&
+    name !== 'readaloud' &&
     dockOf(name) !== null;
   const setDrawer = (name: DrawerName, open: boolean): void => {
     if (!open) setFloated(f => (f[name as DockName] ? { ...f, [name]: false } : f));
@@ -234,7 +242,11 @@ function Dashboard(): JSX.Element {
   // A docked one is already on screen: it scrolls into view and takes the focus instead.
   const openDrawer = (name: DrawerName): void => {
     const slot =
-      name === 'tarokka' || name === 'tools' || name === 'paper' || name === 'twin'
+      name === 'tarokka' ||
+      name === 'tools' ||
+      name === 'paper' ||
+      name === 'twin' ||
+      name === 'readaloud'
         ? null
         : dockOf(name);
     if (slot?.getClientRects().length === 0) {
@@ -388,6 +400,15 @@ function Dashboard(): JSX.Element {
                 title="After a paper night: type the numbers from the paper sheets back into Foundry (GM only)"
               >
                 📝 After a paper night
+              </Button>
+            </AdvancedItem>
+            <AdvancedItem onSelect={() => openDrawer('readaloud')}>
+              <Button
+                id="btn-readaloud"
+                data-track="dash.header.readaloud"
+                title="The boxed read-aloud text of the pages this scene links (GM only)"
+              >
+                📖 Read-aloud
               </Button>
             </AdvancedItem>
             <AdvancedItem onSelect={() => openDrawer('twin')}>
@@ -584,6 +605,13 @@ function Dashboard(): JSX.Element {
         show={drawers.paper}
         open={drawers.paper}
         onOpenChange={open => setDrawer('paper', open)}
+      />
+      <LazyPanel
+        chunk={readAloudChunk}
+        shell={{ id: 'readaloud-drawer', title: '📖 Read-aloud' }}
+        show={drawers.readaloud}
+        open={drawers.readaloud}
+        onOpenChange={open => setDrawer('readaloud', open)}
       />
       <LazyPanel
         chunk={twinChunk}

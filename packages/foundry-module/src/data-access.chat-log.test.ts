@@ -145,7 +145,7 @@ describe('FoundryDataAccess: getChatLog: filter key omission', () => {
     await da.getChatLog({});
 
     expect(spy).toHaveBeenCalledWith({});
-    const received = spy.mock.calls[0][0];
+    const received = spy.mock.calls[0][0] as object;
     expect(Object.keys(received)).toEqual([]);
   });
 
@@ -155,7 +155,7 @@ describe('FoundryDataAccess: getChatLog: filter key omission', () => {
     await da.getChatLog({ limit: 10 });
 
     expect(spy).toHaveBeenCalledWith({ limit: 10 });
-    const received = spy.mock.calls[0][0];
+    const received = spy.mock.calls[0][0] as object;
     expect(Object.keys(received)).toEqual(['limit']);
   });
 
@@ -165,7 +165,7 @@ describe('FoundryDataAccess: getChatLog: filter key omission', () => {
     await da.getChatLog({ speakerName: 'Gandalf' });
 
     expect(spy).toHaveBeenCalledWith({ speakerName: 'Gandalf' });
-    const received = spy.mock.calls[0][0];
+    const received = spy.mock.calls[0][0] as object;
     expect(Object.keys(received)).toEqual(['speakerName']);
   });
 
@@ -175,7 +175,7 @@ describe('FoundryDataAccess: getChatLog: filter key omission', () => {
     await da.getChatLog({ messageType: 'roll' });
 
     expect(spy).toHaveBeenCalledWith({ messageType: 'roll' });
-    const received = spy.mock.calls[0][0];
+    const received = spy.mock.calls[0][0] as object;
     expect(Object.keys(received)).toEqual(['messageType']);
   });
 
@@ -185,7 +185,7 @@ describe('FoundryDataAccess: getChatLog: filter key omission', () => {
     await da.getChatLog({ sinceTimestamp: '2026-06-16T00:00:00.000Z' });
 
     expect(spy).toHaveBeenCalledWith({ sinceTimestamp: '2026-06-16T00:00:00.000Z' });
-    const received = spy.mock.calls[0][0];
+    const received = spy.mock.calls[0][0] as object;
     expect(Object.keys(received)).toEqual(['sinceTimestamp']);
   });
 
@@ -195,7 +195,7 @@ describe('FoundryDataAccess: getChatLog: filter key omission', () => {
     await da.getChatLog({ limit: 10, speakerName: 'Gandalf' });
 
     expect(spy).toHaveBeenCalledWith({ limit: 10, speakerName: 'Gandalf' });
-    const received = spy.mock.calls[0][0];
+    const received = spy.mock.calls[0][0] as object;
     expect(Object.keys(received).sort()).toEqual(['limit', 'speakerName']);
     expect('messageType' in received).toBe(false);
     expect('sinceTimestamp' in received).toBe(false);
@@ -217,7 +217,7 @@ describe('FoundryDataAccess: getChatLog: filter key omission', () => {
       messageType: 'ic',
       sinceTimestamp: '2026-06-16T09:00:00.000Z',
     });
-    const received = spy.mock.calls[0][0];
+    const received = spy.mock.calls[0][0] as object;
     expect(Object.keys(received).sort()).toEqual([
       'limit',
       'messageType',
@@ -236,7 +236,7 @@ describe('FoundryDataAccess: getChatLog: filter key omission', () => {
       sinceTimestamp: undefined,
     });
 
-    const received = spy.mock.calls[0][0];
+    const received = spy.mock.calls[0][0] as object;
     expect('messageType' in received).toBe(false);
     expect('sinceTimestamp' in received).toBe(false);
     expect(received).toEqual({ limit: 5, speakerName: 'Legolas' });

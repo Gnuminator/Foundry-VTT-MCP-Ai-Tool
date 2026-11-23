@@ -186,6 +186,8 @@ export const GM_ACTIONS = {
   startCombat: 'startCombat',
   /** () => {ended: number} ends every combat on kit scenes */
   endCombats: 'endCombats',
+  /** ({sceneId, tokenId?}) => {targeted: string[]} the Kit GM targets that token (what pressing T does) and only it; no tokenId clears the targets */
+  targetToken: 'targetToken',
   /**
    * ({sceneId, tokenId}) => {name, item, before: {max, spent}, after: {max, spent}, messageId} the token's
    * actor uses its first usable legendary activity with action consumption on, so the system spends the
@@ -204,6 +206,8 @@ export const GM_ACTIONS = {
   setFeatureSwitches: 'setFeatureSwitches',
   /** ({name, memberIds, folderId?}) => {groupId, created} the kit's party group actor, made when missing */
   ensurePartyGroup: 'ensurePartyGroup',
+  /** ({names, folderId?}) => {actorIds} plain kit actors for the scene fixture (first a character, the rest npcs), reused by name */
+  createFixtureActors: 'createFixtureActors',
   /** ({since?}) => {errors: [{at, message, source}]} console errors the GM page collected */
   consoleErrors: 'consoleErrors',
   /**
@@ -414,7 +418,8 @@ export const GM_ACTIONS = {
  * @property {number} version         {@link KIT_FORMAT_VERSION}
  * @property {string} world
  * @property {string} builtAt         ISO time
- * @property {string} systemVersion
+ * @property {string} systemVersion   the dnd5e version
+ * @property {string} [coreVersion]   the Foundry build (builds from before it was kept lack it)
  * @property {Record<string, string>} folders   type -> folderId
  * @property {string} profile         the content profile id
  * @property {Array<{actorId: string, name: string, classIdentifier: string, level: number, tokenId?: string,

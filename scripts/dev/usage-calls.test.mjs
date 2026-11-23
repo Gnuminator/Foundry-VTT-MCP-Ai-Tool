@@ -5,14 +5,26 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
+  BRIDGE_LOG_HINT,
   connectorLogging,
   emptyLogHint,
+  emptyPcLogHints,
   parseCallLines,
   parsePiOutput,
   readCallsPi,
   summarize,
   weekLine,
 } from './usage-calls.mjs';
+
+test('the bridge log hint points at the Pi and prints only for an empty PC log', () => {
+  assert.match(BRIDGE_LOG_HINT, /usage:calls -- --pi/);
+  assert.deepEqual(emptyPcLogHints(3, null), []);
+  const stale = { config: 'c', stale: ['foundry-mcp'] };
+  assert.deepEqual(emptyPcLogHints(3, stale), [emptyLogHint(stale)]);
+  assert.deepEqual(emptyPcLogHints(0, null), [BRIDGE_LOG_HINT]);
+  const info = { config: 'c', stale: ['foundry-mcp'] };
+  assert.deepEqual(emptyPcLogHints(0, info), [emptyLogHint(info), BRIDGE_LOG_HINT]);
+});
 
 test('readCallsPi runs one fixed read-only ssh command with a large buffer', () => {
   let seen;
@@ -72,13 +84,37 @@ test('weekLine: used of catalog, never used, error rate, worst tools', () => {
   const text = weekLine(summarize(calls, catalog), 7);
   assert.equal(
     text,
-    'Tool calls, last 7 days: 4 calls, 2 tools used of 4; 2 never used; 2 errors (50.0%); most errors: b 1/1, a 1/3.'
+    'Tool calls, last 7 days: 4 calls, 2 tools used of 4; 2 never used; 2 errors (50.0%); most errors: b 1/1, a 1/3; errors by class: unclassified 2; largest results: a 5 chars, a 5 chars.'
   );
 });
 
 test('weekLine without a catalog leaves out the never-used part', () => {
   const text = weekLine(summarize(parseCallLines(line('a')), null), 7);
-  assert.equal(text, 'Tool calls, last 7 days: 1 call, 1 tool used; 0 errors (0.0%).');
+  assert.equal(
+    text,
+    'Tool calls, last 7 days: 1 call, 1 tool used; 0 errors (0.0%); largest results: a 5 chars.'
+  );
+});
+
+test('summarize counts errors per class and lists the three largest results', () => {
+  const calls = [
+    { tool: 'get-world-info', ok: false, err: 'not-connected', size: 40 },
+    { tool: 'get-world-info', ok: false, err: 'not-connected', size: 40 },
+    { tool: 'x', ok: false, err: 'timeout', size: 1 },
+    { tool: 'y', ok: true, size: 9000 },
+    { tool: 'z', ok: true, size: 500 },
+    { tool: 'w', ok: true, size: 70000 },
+    { tool: 'v', ok: true, size: 3 },
+  ];
+  const s = summarize(calls, null);
+  assert.deepEqual(s.errorClasses, { 'not-connected': 2, timeout: 1 });
+  assert.deepEqual(
+    s.largest.map(c => c.tool),
+    ['w', 'y', 'z']
+  );
+  const text = weekLine(s, 7);
+  assert.match(text, /errors by class: not-connected 2, timeout 1;/);
+  assert.match(text, /largest results: w 70000 chars, y 9000 chars, z 500 chars\.$/);
 });
 
 test('weekLine wording: one day, all days; ranks by error count before rate', () => {
@@ -87,7 +123,7 @@ test('weekLine wording: one day, all days; ranks by error count before rate', ()
   );
   const text = weekLine(summarize(calls, null), 1);
   assert.match(text, /^Tool calls, last 1 day: 5 calls/);
-  assert.match(text, /most errors: y 2\/4, x 1\/1\./);
+  assert.match(text, /most errors: y 2\/4, x 1\/1;/);
   assert.match(weekLine(summarize(calls, null), 0), /^Tool calls, all days: /);
   assert.equal(weekLine(summarize([], null), 0), 'Tool calls, all days: none logged.');
 });

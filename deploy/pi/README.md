@@ -79,9 +79,16 @@ runner.
 
 ### What changes after the cutover
 
+- **Day two works on the containers (D-149).** Stage 5 (a new release), stage 21 (player vaults), stage 25 (modules),
+  `switch-world` and `kit-session` run on a cut-over Pi through `use_stack` in `lib.sh`: they stop and start the existing
+  containers (`docker stop|start|restart`, never a recreate), except where a container has to change. Stage 5 builds the
+  host checkout as before, copies the old `deploy/pi/.env` into it, builds the images first (the running containers stay
+  untouched while that builds) and then recreates only the containers whose image or settings changed, on a quiet Pi.
+  Stage 21 keeps `FOUNDRY_AI_PLAYER_VAULTS_DIR` in `deploy/pi/.env` and recreates only the dashboard when it changes. The
+  kit session's Kit GM browser is a plain container named `foundry-ai-tool-kit-gm-browser` (same image as the Assistant GM,
+  not in the compose project). A release update, a module update, a world switch or a kit run no longer needs a rollback.
 - **Every other stage refuses.** A stage that would start, restart or enable `foundry.service`, the bridge, the dashboard
-  or the Assistant GM (3, 5, 7, 11, 12, 13, 14, 19, 21, 25, 27, 28, 30, `gm-script`, `kit-session`, `switch-world`,
-  `set-dashboard-access`) stops at once with "the stack runs as containers", before it changes anything, because it would
+  or the Assistant GM (3, 7, 11, 12, 13, 14, 19, 27, 28, 30, `gm-script`, `set-dashboard-access`) stops at once with "the stack runs as containers", before it changes anything, because it would
   start a second copy next to the containers. `FORCE=1` does not lift it. It looks for any container of the live
   project, a stopped one too, and a Docker daemon that does not answer counts as "containers may exist". The way back is
   `MODE=rollback`. The read-only modes of the guarded stages (14 `MODE=status`, 30 `CHECK=1`, kit-session `MODE=status`)

@@ -67,6 +67,19 @@ export interface PreflightModuleFinding {
   reason: string;
 }
 
+/**
+ * Whether players can build and level characters through Actor Studio (Foundry's
+ * Player role right to create actors plus Actor Studio's own world settings).
+ */
+export interface PreflightCharacterBuilding {
+  /** The Player role may create actors (Foundry's "Create New Actors" permission). */
+  playerCanCreateActors: boolean;
+  /** Actor Studio's "Level Up" setting (`enableLevelUp`). */
+  levelUpEnabled: boolean;
+  /** Actor Studio's "Milestone Levelling" setting (`milestoneLeveling`): levels without XP. */
+  milestoneLeveling: boolean;
+}
+
 /** What `getPreflightScan` returns. */
 export interface PreflightScan {
   schema: 1;
@@ -77,6 +90,8 @@ export interface PreflightScan {
   settings: PreflightSettingFinding[];
   names: PlayerVisibleName[];
   modules: PreflightModuleFinding[];
+  /** Absent or null when Actor Studio is not active (the check stays quiet). */
+  characterBuilding?: PreflightCharacterBuilding | null;
 }
 
 /** A player-visible name that matches a secret term. */
@@ -89,11 +104,13 @@ export type PreflightCheckStatus = 'ok' | 'warn' | 'fail' | 'info' | 'unknown';
 export const PREFLIGHT_CHECK_IDS = [
   'foundry-link',
   'versions',
+  'tested-versions',
   'wrapper',
   'write-switches',
   'world-settings',
   'visible-names',
   'modules',
+  'character-building',
   'obsidian',
   'play-session',
   'recording',
@@ -118,6 +135,7 @@ export interface PreflightScanResult {
   namesChecked: number;
   names: PreflightNameFinding[];
   modules: PreflightModuleFinding[];
+  characterBuilding?: PreflightCharacterBuilding | null;
 }
 
 /** `get-preflight` with `action: "checks"` (the default). */

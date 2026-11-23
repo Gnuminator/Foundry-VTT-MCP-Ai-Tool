@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * PRs that are ready in every way except the ready line: open, not a draft, CI green on the head,
  * and a Merge review note for that head, but no ready (or enqueued) progress line on any item. The
@@ -11,7 +12,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { parseProgress, parseReadyAll } from '../backlog-items.mjs';
+import { parseBacklog, parseProgress, parseReadyAll } from '../backlog-items.mjs';
 import { findReviewNotes, judgeReviews } from '../lane-merge/reviews.mjs';
 import { ciState } from '../planner-state.mjs';
 import { enqueuedItems } from './queue.mjs';
@@ -45,7 +46,8 @@ export function isPartOnly(body, id) {
 /**
  * @typedef {{ number: number, title?: string, headRefOid: string, isDraft?: boolean, body?: string,
  *   statusCheckRollup?: any[] }} OpenPr
- * @typedef {{ pr: number, head: string, ids: string[], title: string, note: string }} Unready
+ * @typedef {{ pr: number, head: string, ids: string[], title: string, note: string,
+ *   missing?: string[] }} Unready ids: the PR's Backlog items that exist; missing: ids it names that do not
  */
 
 /**
@@ -67,6 +69,7 @@ export function findUnready(prs, backlogText, notesFor) {
       if (refused) handled.add(Number(refused[1]));
     }
   }
+  const existing = new Set(parseBacklog(backlogText).items.map(i => i.id));
   /** @type {Unready[]} */
   const out = [];
   for (const p of prs) {
@@ -76,10 +79,12 @@ export function findUnready(prs, backlogText, notesFor) {
     if (!notes?.length) continue;
     const verdict = judgeReviews(notes, p.headRefOid, false, {}, p.number);
     if (!verdict.ok) continue;
+    const named = [...backlogIds(p.body ?? ''), ...backlogIds(p.body ?? '', 'Backlog-part')];
     out.push({
       pr: p.number,
       head: p.headRefOid,
-      ids: [...backlogIds(p.body ?? ''), ...backlogIds(p.body ?? '', 'Backlog-part')],
+      ids: named.filter(i => existing.has(i)),
+      missing: named.filter(i => !existing.has(i)),
       title: String(p.title ?? '')
         .split(/\s+/)
         .slice(0, 10)
@@ -92,37 +97,58 @@ export function findUnready(prs, backlogText, notesFor) {
 
 /** The command that writes the ready line. @param {Unready} u */
 export function readyCommand(u) {
-  const id = u.ids[0] ?? '<item id>';
-  return `node scripts/backlog.mjs progress ${id} --ready ${u.pr} --head ${u.head} --review "${u.note.split(', ')[0]}"`;
+  const ready = (/** @type {string} */ id) =>
+    `node scripts/backlog.mjs progress ${id} --ready ${u.pr} --head ${u.head} --review "${u.note.split(', ')[0]}"`;
+  if (u.ids.length) return ready(u.ids[0]);
+  // No item to write the line on (progress fails with "no item with id"): add one first.
+  return `no Backlog item exists for it; add one (node scripts/backlog.mjs add --id <slug> --size S --title <t> --board <area> --done-when <t>), then ${ready('<slug>')}`;
 }
 
 /** One line for `status --planner` and #pr-log. @param {Unready} u */
 export function unreadyLine(u) {
-  const item = u.ids.length ? `item ${u.ids.join(', ')}` : 'no Backlog: line in the PR body';
+  const item = u.ids.length
+    ? `item ${u.ids.join(', ')}`
+    : u.missing?.length
+      ? `no such Backlog item: ${u.missing.join(', ')}`
+      : 'no Backlog: line in the PR body';
   return `#${u.pr}${u.title ? ` ${u.title}` : ''} (${item}): open, CI green and a Merge note for head ${u.head.slice(0, 7)}, but no ready line; the runner skips it. To queue it: ${readyCommand(u)}`;
 }
 
 /** A once-only key per PR and head. @param {Unready} u */
 export const unreadyKey = u => `unready${u.pr}@${u.head}`;
 
+/** How long a PR must stay in this state before the runner posts (lanes write the ready line minutes after the note). */
+export const UNREADY_GRACE_MS = 15 * 60 * 1000;
+
+/** First sighting time per notice key, per `tried` set (the runner's in-memory state; a restart only delays a post). @type {WeakMap<Set<string>, Map<string, number>>} */
+const firstSeen = new WeakMap();
+
 /**
  * One #pr-log line per PR and head, once: kept in `tried` for this run and, through the deps'
  * `noticeSeen`/`noticeMark`, across restarts. Posts nothing else and writes no Backlog line.
+ * A PR is posted only after it has been in this state for UNREADY_GRACE_MS (a lane usually writes the
+ * ready line a few minutes after the note); a PR that leaves the state in between starts over.
+ * `status --planner` shows it at once.
  * @param {{ unready?: (t: string) => Unready[], noticeSeen?: (k: string) => boolean,
- *   noticeMark?: (k: string) => void, post: (t: string) => void, log: (l: string) => void }} d
+ *   noticeMark?: (k: string) => void, post: (t: string) => void, log: (l: string) => void,
+ *   now?: () => number }} d
  * @param {string} backlogText @param {Set<string>} tried
  */
 export function announceUnready(d, backlogText, tried) {
-  for (const u of d.unready?.(backlogText) ?? []) {
+  const now = (d.now ?? Date.now)();
+  let seen = firstSeen.get(tried);
+  if (!seen) firstSeen.set(tried, (seen = new Map()));
+  const current = d.unready?.(backlogText) ?? [];
+  const keys = new Set(current.map(unreadyKey));
+  for (const k of [...seen.keys()]) if (!keys.has(k)) seen.delete(k);
+  for (const u of current) {
     const key = unreadyKey(u);
     if (tried.has(key) || d.noticeSeen?.(key)) continue;
-    // The usual handoff (note, then ready line) takes minutes: post only when a second round
-    // still finds the PR in this state.
-    if (!tried.has(`pending-${key}`)) {
-      tried.add(`pending-${key}`);
-      continue;
-    }
+    const since = seen.get(key) ?? now;
+    seen.set(key, since);
+    if (now - since < UNREADY_GRACE_MS) continue;
     tried.add(key);
+    seen.delete(key);
     d.log(`#${u.pr}: CI green and a Merge note for the head, but no ready line`);
     d.post(`merge runner: ${unreadyLine(u)}`);
     d.noticeMark?.(key);
@@ -161,7 +187,7 @@ export function makeUnreadyDeps({ sh, repo, vault, file }) {
     noticeMark: (/** @type {string} */ key) => {
       try {
         fs.mkdirSync(path.dirname(store), { recursive: true });
-        fs.writeFileSync(store, JSON.stringify([...read(), key].slice(-200)));
+        fs.writeFileSync(store, JSON.stringify([...read(), key].slice(-1000)));
       } catch {
         // not remembered: it may be posted once more after a restart
       }

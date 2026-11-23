@@ -27,6 +27,25 @@ export async function waitFor(fn, { label, timeoutMs = 20000, intervalMs = 1000 
 }
 
 /**
+ * Runs `fn`, retrying up to 15 times, 3 s apart, while it fails with "lost its link": the bridge link can drop
+ * for a few seconds mid-run (2026-11-18: three scenarios in a row saw it for about 15 s).
+ * @template T
+ * @param {() => Promise<T>} fn
+ * @returns {Promise<T>}
+ */
+export async function retryLinkLoss(fn) {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await fn();
+    } catch (err) {
+      const text = err instanceof Error ? err.message : String(err);
+      if (attempt >= 15 || !/lost its link/i.test(text)) throw err;
+      await new Promise(resolve => setTimeout(resolve, 3000));
+    }
+  }
+}
+
+/**
  * A first step for scenarios that read Foundry through the GM page and would otherwise pass with
  * the bridge stopped (the negative control, `kit run --fake --stopped-bridge`): the bridge must
  * be linked to the kit world. The scenario declares `tools: ['get-world-info']`.
@@ -34,7 +53,7 @@ export async function waitFor(fn, { label, timeoutMs = 20000, intervalMs = 1000 
  */
 export async function bridgeProbe(t) {
   await t.step('the bridge is linked to the kit world', async () => {
-    const info = await t.tool('get-world-info', {});
+    const info = await retryLinkLoss(() => t.tool('get-world-info', {}));
     t.equal(info.id, t.kit.world, 'world id through the bridge');
   });
 }

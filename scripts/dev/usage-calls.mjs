@@ -167,6 +167,11 @@ export function connectorLogging(env = process.env) {
 export const BRIDGE_LOG_HINT =
   'Note: the bridge writes the call log (D-146), so with the connectors pointed at the Pi the calls are in the Pi folder: run "npm run usage:calls -- --pi".';
 
+/** The hints for a PC log: the stale connector note whenever it applies, the bridge note only when the log is empty. */
+export function emptyPcLogHints(total, info) {
+  return [emptyLogHint(info), total ? null : BRIDGE_LOG_HINT].filter(Boolean);
+}
+
 /** One line for an empty log when a connector build is the likely reason; null otherwise. */
 export function emptyLogHint(info) {
   if (!info || !info.stale.length) return null;
@@ -229,9 +234,24 @@ export function summarize(calls, catalog = null) {
     .sort((a, b) => (Number(b.ms) || 0) - (Number(a.ms) || 0))
     .slice(0, 5)
     .map(c => ({ t: c.t, tool: c.tool, ms: c.ms, ok: c.ok }));
+  const errorClasses = {};
+  for (const c of calls) {
+    if (c.ok !== false) continue;
+    // A line from before the class existed has none: counted as unclassified.
+    const k = typeof c.err === 'string' && c.err ? c.err : 'unclassified';
+    errorClasses[k] = (errorClasses[k] ?? 0) + 1;
+  }
+  // Only answers that came back fine: a failed call's size is just its error text.
+  const largest = calls
+    .filter(c => c.ok !== false)
+    .sort((a, b) => (Number(b.size) || 0) - (Number(a.size) || 0))
+    .slice(0, 3)
+    .map(c => ({ t: c.t, tool: c.tool, size: Number(c.size) || 0 }));
   return {
     total: calls.length,
     errors: calls.filter(c => c.ok === false).length,
+    errorClasses,
+    largest,
     sets,
     tools,
     slowest,
@@ -264,6 +284,15 @@ export function weekLine(summary, days = 7) {
     .slice(0, 3)
     .map(t => `${t.tool} ${t.errors}/${t.calls}`);
   if (bad.length) parts.push(`most errors: ${bad.join(', ')}`);
+  const classes = Object.entries(summary.errorClasses ?? {}).sort(
+    (a, b) => b[1] - a[1] || a[0].localeCompare(b[0])
+  );
+  if (classes.length) parts.push(`errors by class: ${classes.map(([k, n]) => `${k} ${n}`).join(', ')}`);
+  if (summary.largest?.length) {
+    parts.push(
+      `largest results: ${summary.largest.map(c => `${c.tool} ${c.size} chars`).join(', ')}`
+    );
+  }
   return `${parts.join('; ')}.`;
 }
 
@@ -286,6 +315,13 @@ export function render(summary, days) {
       `  ${t.tool.padEnd(34)} ${t.set.padEnd(8)} ${String(t.calls).padStart(5)} ${String(t.errors).padStart(4)} ${String(t.medianMs).padStart(6)} ${String(t.p95Ms).padStart(5)} ${String(t.maxSize).padStart(10)}`
     );
   }
+  out.push('', 'Errors by class:');
+  const classes = Object.entries(summary.errorClasses ?? {});
+  if (!classes.length) out.push('  none');
+  for (const [k, n] of classes.sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])))
+    out.push(`  ${k.padEnd(14)} ${n}`);
+  out.push('', 'Largest results:');
+  for (const c of summary.largest ?? []) out.push(`  ${c.size} chars  ${c.tool}  ${c.t}`);
   out.push('', 'Slowest calls:');
   for (const c of summary.slowest)
     out.push(`  ${c.ms} ms  ${c.tool}  ${c.t}${c.ok === false ? '  (error)' : ''}`);
@@ -328,9 +364,9 @@ async function main(argv) {
   const summary = summarize(calls, await loadCatalog());
   const customDir = argv.includes('--dir') || process.env.USAGE_WEEK_CALLS_DIR;
   if (!argv.includes('--pi') && !customDir) {
-    const hint = emptyLogHint(connectorLogging());
-    if (hint) process.stderr.write(`${hint}\n`);
-    process.stderr.write(`${BRIDGE_LOG_HINT}\n`);
+    for (const hint of emptyPcLogHints(summary.total, connectorLogging())) {
+      process.stderr.write(`${hint}\n`);
+    }
   }
   if (argv.includes('--line')) process.stdout.write(`${weekLine(summary, days)}\n`);
   else

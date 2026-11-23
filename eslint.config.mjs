@@ -17,6 +17,7 @@ export const PLAIN_JS_SKIP = {
   // `return` and `await` are legal there but are not a valid script or module for any parser.
   'scripts/pi/remote/ddb-source-filter.js': 'macro body with top-level return and await',
   'scripts/pi/remote/grave-domain-patch.js': 'macro body with top-level return and await',
+  'scripts/pi/remote/map-upscale-scenes.js': 'macro body with top-level return and await',
   'scripts/pi/remote/seven-books-baseline.js': 'macro body with top-level return and await',
   'scripts/pi/remote/seven-books-delete-legacy.js': 'macro body with top-level return and await',
   'scripts/pi/remote/seven-books-trim.js': 'macro body with top-level return and await',
@@ -195,7 +196,28 @@ export default defineConfig(
               name: '@gnuminator/shared',
               allowTypeImports: true,
               message:
-                'The module build runs in the browser and cannot load the shared package: use `import type`.',
+                'The module build runs in the browser and cannot load the shared package: use `import type`, or import values from `@gnuminator/shared/browser`.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // A value import from the main shared entry drags the whole package (and zod) into the first
+    // load; values come from `@gnuminator/shared/browser`, the main entry is for `import type`.
+    files: ['packages/cogm-dashboard/web/src/**/*.ts', 'packages/cogm-dashboard/web/src/**/*.tsx'],
+    ignores: ['**/*.test.ts', '**/*.test.tsx', '**/*.stories.tsx'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@gnuminator/shared',
+              allowTypeImports: true,
+              message:
+                'Value imports from the main shared entry bloat the dashboard first load: use `import type`, or import values from `@gnuminator/shared/browser`.',
             },
           ],
         },

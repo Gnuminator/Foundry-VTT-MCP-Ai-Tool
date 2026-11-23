@@ -30,14 +30,17 @@ case "$cmd" in
     exit 0
     ;;
   is-enabled)
-    # Stage 25 scenarios: a unit is enabled unless /tmp/disabled-<unit> exists.
+    # Stage 25 scenarios: a unit is enabled unless /tmp/disabled-<unit> exists (or /tmp/units-off: a cut-over Pi).
+    [ ! -f /tmp/units-off ] || exit 1
     [ -z "$unit" ] || [ ! -f "/tmp/disabled-$unit" ] || exit 1
     exit 0
     ;;
   is-active)
     state=inactive
     code=3
-    if [ -z "$unit" ]; then
+    if [ -f /tmp/units-off ]; then
+      state=inactive # a cut-over Pi (stage 25 scenarios): the stack runs as containers, every unit is off
+    elif [ -z "$unit" ]; then
       state=inactive
     elif [ "$unit" = foundry-ai-tool-kit-gm-browser.service ]; then
       if [ -f /tmp/started-kit ]; then

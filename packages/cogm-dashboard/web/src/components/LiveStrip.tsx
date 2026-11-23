@@ -61,6 +61,9 @@ import styles from './LiveStrip.module.css';
 // The picker and the Damage / Heal form are lazy chunks, as on the combat strip (bundle budget).
 const StartCombat = lazy(() => import('./StartCombat').then(m => ({ default: m.StartCombat })));
 const DamageForm = lazy(() => import('./DamageForm').then(m => ({ default: m.DamageForm })));
+const MonsterActions = lazy(() =>
+  import('./MonsterActions').then(m => ({ default: m.MonsterActions }))
+);
 
 const AI_KEY = [...CHANGES_KEY, 'ai'] as const;
 /** The header buttons that say they are busy while their own write runs. */
@@ -271,6 +274,8 @@ export function LiveStrip(): JSX.Element {
   const targets = pickedRows.map(c => c.tokenId ?? c.name);
   const party = rows.filter(c => c.isPC && !c.defeated);
   const pickedPcs = pickedRows.filter(c => c.isPC);
+  // One NPC picked: its action buttons show under the pick bar.
+  const monster = pickedRows.length === 1 && !pickedRows[0]?.isPC ? pickedRows[0] : undefined;
 
   // A single-row strip scrolls the creature whose turn it is into view when the turn changes.
   const currentId = rows.find(c => c.isCurrentTurn)?.id;
@@ -582,6 +587,19 @@ export function LiveStrip(): JSX.Element {
                   locked={busy}
                   once={once}
                   onClose={clearPick}
+                />
+              </Suspense>
+            )}
+            {monster?.tokenId && (
+              <Suspense fallback={null}>
+                <MonsterActions
+                  token={monster.tokenId}
+                  name={names.get(monster.id) ?? monster.name}
+                  stale={stale}
+                  locked={busy}
+                  damageOff={liveOff.length > 0 ? offReason(liveOff) : ''}
+                  offTitle={stale ? 'The bridge is away' : nextOff ? titleFor(plainOff) : undefined}
+                  once={once}
                 />
               </Suspense>
             )}

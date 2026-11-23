@@ -102,7 +102,7 @@ const CTRL_C_EXIT = 3221225786;
 
 /** @param {string} cwd @param {string[]} args */
 function git(cwd, args) {
-  const r = spawnSync('git', args, { cwd, encoding: 'utf8' });
+  const r = spawnSync('git', args, { cwd, encoding: 'utf8', windowsHide: true });
   return { ok: r.status === 0, out: (r.stdout ?? '').trim(), err: (r.stderr ?? '').trim() };
 }
 
@@ -252,6 +252,7 @@ function buildMergedShared(cwd, dir, buildCommand, log) {
   const r = spawnSync(buildCommand, {
     cwd: path.join(dir, 'shared'),
     shell: true,
+    windowsHide: true,
     encoding: 'utf8',
   });
   if (r.status === 0) return null;
@@ -292,7 +293,10 @@ function sharedEntry(shared) {
  */
 export function ensureSharedBuilt(cwd, buildCommand, log) {
   const shared = path.join(cwd, 'shared');
-  if (!fs.existsSync(path.join(shared, 'package.json')) || !fs.existsSync(path.join(shared, 'src'))) {
+  if (
+    !fs.existsSync(path.join(shared, 'package.json')) ||
+    !fs.existsSync(path.join(shared, 'src'))
+  ) {
     return null;
   }
   const dist = path.join(shared, 'dist');
@@ -302,8 +306,15 @@ export function ensureSharedBuilt(cwd, buildCommand, log) {
   if (!fs.existsSync(path.join(cwd, 'node_modules'))) {
     return 'shared/dist is missing or out of date and node_modules is missing: run npm ci, then npm run build -w @gnuminator/shared';
   }
-  log(`drift-check: shared/dist is ${distTime ? 'older than shared/src' : 'missing'}; building shared.`);
-  const r = spawnSync(buildCommand, { cwd: shared, shell: true, encoding: 'utf8' });
+  log(
+    `drift-check: shared/dist is ${distTime ? 'older than shared/src' : 'missing'}; building shared.`
+  );
+  const r = spawnSync(buildCommand, {
+    cwd: shared,
+    shell: true,
+    windowsHide: true,
+    encoding: 'utf8',
+  });
   if (r.status === 0) {
     if (entry && !fs.existsSync(entry)) {
       return `the build ran but emitted no ${path.relative(cwd, entry).replaceAll('\\', '/')}; delete shared/*.tsbuildinfo and run again`;
@@ -326,7 +337,15 @@ function changedFiles(cwd, main) {
   if (!base.ok) return null;
   const files = [];
   for (const tip of ['HEAD', main]) {
-    const d = git(cwd, ['-c', 'core.quotePath=false', 'diff', '--name-only', '--no-renames', base.out, tip]);
+    const d = git(cwd, [
+      '-c',
+      'core.quotePath=false',
+      'diff',
+      '--name-only',
+      '--no-renames',
+      base.out,
+      tip,
+    ]);
     if (!d.ok) return null;
     files.push(...d.out.split('\n').filter(Boolean));
   }
@@ -475,9 +494,46 @@ export function lockedCommand(check, dir) {
   if (!check.heavy || !fs.existsSync(script) || !/^[\w .:/@=-]+$/.test(check.command)) {
     return check.command;
   }
-  const label = `drift-check ${check.name.split('(')[0].replace(/[^\w -]/g, '').trim()}`;
+  const label = `drift-check ${check.name
+    .split('(')[0]
+    .replace(/[^\w -]/g, '')
+    .trim()}`;
   // High priority: a merge waits on it, so it goes ahead of queued greens (an older lock ignores the flag).
   return `node "${script}" run --label "${label}" --priority high -- ${check.command}`;
+}
+
+/**
+ * Does a guard's output say Vitest could not start a worker (a loaded machine), as opposed to a test
+ * failing? Copied, not shared: the merge gate runs this file from a temp copy.
+ * @param {string} output
+ */
+export function isWorkerStartFailure(output) {
+  return /Failed to start (?:forks|threads|vmThreads|vmForks) worker|Timeout (?:waiting for worker to respond|starting (?:forks|threads|vmThreads|vmForks) runner)|\[vitest-pool\]: (?:Failed|Timeout)/i.test(
+    output
+  );
+}
+
+/**
+ * Does a guard's output show Vitest test or hook timeouts and no failed assertion (a loaded machine
+ * made a slow test miss its limit)? Copied, not shared, as above.
+ * @param {string} output
+ */
+export function isVitestTimeout(output) {
+  const timeouts = (output.match(/(?:Test|Hook) timed out in \d+ms/gi) ?? []).length;
+  if (timeouts === 0) return false;
+  // Any other error line (assertion, TypeError, snapshot, import) is a real failure beside the timeout.
+  const other = output
+    .split('\n')
+    .some(
+      l =>
+        (/\b\w*Error\b/.test(l) ||
+          /expected .+ to (?:be|equal|match|contain|deeply)|Snapshot/.test(l)) &&
+        !/timed out in \d+ms/i.test(l)
+    );
+  if (other) return false;
+  // Vitest's summary: every failed test must be one of the timeouts.
+  const failed = /Tests\s+(\d+) failed/.exec(output);
+  return !failed || Number(failed[1]) <= timeouts;
 }
 
 /**
@@ -498,18 +554,38 @@ export function runChecks(dir, checks, log, main, sha, merged, changed = null) {
       log(`  skip ${check.name} (${check.needs} failed)`);
       continue;
     }
-    const r = spawnSync(lockedCommand(check, dir), {
-      cwd: path.join(dir, check.cwd ?? '.'),
-      env: { ...process.env, CI: 'true' },
-      shell: true,
-      encoding: 'utf8',
-    });
+    const exec = () =>
+      spawnSync(lockedCommand(check, dir), {
+        cwd: path.join(dir, check.cwd ?? '.'),
+        env: { ...process.env, CI: 'true' },
+        shell: true,
+        windowsHide: true,
+        encoding: 'utf8',
+      });
+    let r = exec();
+    // Vitest could not start a worker (the PC was loaded): not the PR's fault, so run the guard once more.
+    if (r.status !== 0 && !r.signal && isWorkerStartFailure(`${r.stdout ?? ''}${r.stderr ?? ''}`)) {
+      log(`  retry ${check.name} (vitest could not start a worker; load on this PC)`);
+      r = exec();
+    } else if (
+      r.status !== 0 &&
+      !r.signal &&
+      isVitestTimeout(`${r.stdout ?? ''}${r.stderr ?? ''}`)
+    ) {
+      log(`  retry ${check.name} (vitest tests timed out; load on this PC)`);
+      r = exec();
+    }
     if (r.signal || r.status === CTRL_C_EXIT) {
       log(`  stopped during ${check.name}`);
       return 130;
     }
     const ok = r.status === 0;
     log(`  ${ok ? 'ok  ' : 'FAIL'} ${check.name}`);
+    if (!ok && isWorkerStartFailure(`${r.stdout ?? ''}${r.stderr ?? ''}`)) {
+      log(`  INFRA ${check.name}: vitest could not start a worker, also on the retry`);
+    } else if (!ok && isVitestTimeout(`${r.stdout ?? ''}${r.stderr ?? ''}`)) {
+      log(`  INFRA ${check.name}: vitest tests timed out, also on the retry`);
+    }
     // The tool-set size test prints how much room each set has left; show it, and mark a low one.
     for (const line of `${r.stdout ?? ''}`.split('\n')) {
       const m = /tool-set headroom: .*/.exec(line);
@@ -571,7 +647,9 @@ export function entryDecision(argv1, self) {
 
 const entry = entryDecision(process.argv[1], fileURLToPath(import.meta.url));
 if (entry === 'mismatch') {
-  console.error(`drift-check: started as ${process.argv[1]}, which is not ${fileURLToPath(import.meta.url)}.`);
+  console.error(
+    `drift-check: started as ${process.argv[1]}, which is not ${fileURLToPath(import.meta.url)}.`
+  );
   process.exit(1);
 } else if (entry === 'run') {
   const args = process.argv.slice(2);

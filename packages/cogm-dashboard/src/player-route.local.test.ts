@@ -34,7 +34,10 @@ function deps(seen: string[]): LocalPlayerToolDeps {
   };
 }
 
-async function start(local: LocalPlayerToolDeps | undefined): Promise<string> {
+async function start(
+  local: LocalPlayerToolDeps | undefined,
+  recordCall?: (entry: Record<string, unknown>) => Promise<unknown>
+): Promise<string> {
   const app = express();
   mountPlayerRoute(app, {
     config: { ...config, host: '127.0.0.1' },
@@ -50,6 +53,7 @@ async function start(local: LocalPlayerToolDeps | undefined): Promise<string> {
           ],
         }),
       playerTool: () => Promise.resolve({ content: [{ type: 'text', text: 'bridge' }] }),
+      ...(recordCall ? { recordCall } : {}),
     },
     directory: {
       get: () => ({ userId: 'u1', name: 'One' }),
@@ -104,6 +108,21 @@ describe('/mcp/player local tools', () => {
     });
     expect(res.status).toBe(200);
     expect(seen).toEqual(['u1']);
+  });
+
+  it('puts a local tool call in the bridge call log, a bridge tool call not (the bridge logs it)', async () => {
+    const entries: Array<Record<string, unknown>> = [];
+    const url = await start(deps([]), entry => {
+      entries.push(entry);
+      return Promise.resolve({ ok: true });
+    });
+    await post(url, 'tools/call', { name: 'get-my-handouts', arguments: {} });
+    await post(url, 'tools/call', { name: 'get-my-character', arguments: {} });
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({ tool: 'get-my-handouts', userId: 'u1', ok: true });
+    expect(typeof entries[0]?.ms).toBe('number');
+    expect(typeof entries[0]?.size).toBe('number');
+    expect(JSON.stringify(entries[0])).not.toContain('bridge');
   });
 
   it('lists the local tools only with a local source', async () => {

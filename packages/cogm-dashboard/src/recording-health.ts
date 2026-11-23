@@ -23,6 +23,8 @@ export interface HealthDot {
 export interface RecordingHealth {
   recorder: HealthDot | null;
   playLog: HealthDot | null;
+  /** Speaking time per person while a recording runs (spotlight balance); absent otherwise. */
+  speaking?: SpeakerTime[];
 }
 
 /** A pump's health as `get-preflight` action "pumps" returns it (mcp-server pump-health.ts). */
@@ -87,10 +89,38 @@ export function playLogDot(pumps: PumpSnapshot[] | null, now: number): HealthDot
   return null;
 }
 
+/** "norecord" and "overrun" (item record-start-nudge) show even when no recording runs. */
+type ProblemKind = 'silent' | 'stream' | 'rejoin' | 'norecord' | 'overrun';
+const KINDS: readonly string[] = ['silent', 'stream', 'rejoin', 'norecord', 'overrun'];
+
 /** The bot's answer (feeds `GET /status`); null = unreachable or unreadable. */
 export interface BotAnswer {
   recording: boolean;
-  problems: Array<{ kind: 'silent' | 'stream' | 'rejoin'; text: string }>;
+  problems: Array<{ kind: ProblemKind; text: string }>;
+  /** Estimated speaking time per person (ms); absent from an older bot. */
+  speaking?: unknown;
+}
+
+/** One person's speaking time as the page gets it (spotlight balance). */
+export interface SpeakerTime {
+  name: string;
+  ms: number;
+}
+
+/** The speaking times of a bot answer that is recording; bad entries are dropped. */
+export function speakingOf(answer: BotAnswer | null): SpeakerTime[] {
+  if (!answer || !answer.recording || !Array.isArray(answer.speaking)) return [];
+  const out: SpeakerTime[] = [];
+  for (const s of answer.speaking as unknown[]) {
+    if (s === null || typeof s !== 'object') continue;
+    const o = s as Record<string, unknown>;
+    if (typeof o['name'] !== 'string' || typeof o['ms'] !== 'number' || !(o['ms'] > 0)) continue;
+    out.push({
+      name: o['name'].slice(0, 64),
+      ms: Math.max(1000, Math.round(o['ms'] / 1000) * 1000),
+    });
+  }
+  return out;
 }
 
 /** The Recorder dot; null when no recording runs or all is well. */
@@ -103,14 +133,17 @@ export function recorderDot(answer: BotAnswer | null): HealthDot | null {
         'The recording bot does not answer, so it cannot be seen whether a recording is healthy.',
     };
   }
-  if (!answer.recording || answer.problems.length === 0) return null;
-  const rejoin = answer.problems.some(p => p.kind === 'rejoin');
-  const first = answer.problems[0].text;
-  const more = answer.problems.length - 1;
+  const problems = answer.recording
+    ? answer.problems
+    : answer.problems.filter(p => p.kind === 'norecord' || p.kind === 'overrun');
+  if (problems.length === 0) return null;
+  const rejoin = problems.some(p => p.kind === 'rejoin');
+  const first = problems[0].text;
+  const more = problems.length - 1;
   return {
     tone: rejoin ? 'bad' : 'warn',
     text: more > 0 ? `${first} (+${more} more)` : first,
-    detail: `${answer.problems.map(p => p.text).join('; ')}.`,
+    detail: `${problems.map(p => p.text).join('; ')}.`,
   };
 }
 
@@ -125,8 +158,7 @@ function isBotAnswer(v: unknown): v is BotAnswer {
       if (p === null || typeof p !== 'object') return false;
       const q = p as Record<string, unknown>;
       return (
-        (q['kind'] === 'silent' || q['kind'] === 'stream' || q['kind'] === 'rejoin') &&
-        typeof q['text'] === 'string'
+        typeof q['kind'] === 'string' && KINDS.includes(q['kind']) && typeof q['text'] === 'string'
       );
     })
   );
@@ -146,12 +178,19 @@ export async function readRecordingHealth(src: RecordingHealthSources): Promise<
   const doFetch = src.fetchImpl ?? fetch;
   const now = (src.now ?? Date.now)();
   let recorder: HealthDot | null = null;
+  let speaking: SpeakerTime[] = [];
   if (src.botStatusUrl) {
     const answer = await doFetch(src.botStatusUrl, { signal: AbortSignal.timeout(3000) })
       .then(async res => (res.ok ? ((await res.json()) as unknown) : null))
       .catch(() => null);
-    recorder = recorderDot(isBotAnswer(answer) ? answer : null);
+    const bot = isBotAnswer(answer) ? answer : null;
+    recorder = recorderDot(bot);
+    speaking = speakingOf(bot);
   }
   const pumps = await src.readPumps().catch(() => null);
-  return { recorder, playLog: playLogDot(pumps, now) };
+  return {
+    recorder,
+    playLog: playLogDot(pumps, now),
+    ...(speaking.length > 0 ? { speaking } : {}),
+  };
 }

@@ -1,12 +1,10 @@
-import * as fs from 'fs';
-
 import * as os from 'os';
 
 import * as path from 'path';
 
 import * as net from 'net';
 
-import { evaluateLockFile } from './lock.js';
+import { acquireLock, releaseLock } from './backend-lock.js';
 
 import {
   BACKEND_LOCK_HELD_EXIT_CODE,
@@ -36,12 +34,20 @@ import { FoundryClient } from './foundry-client.js';
 
 import { createTools, guardedChangesModule, playerModule } from './tools/index.js';
 import { splitPlayerTools } from './tool-sets.js';
-import { PLAYER_CONFIG_ENV, handlePlayerTool, readExtraDenyTerms } from './tools/player.js';
+import { remoteGmCall, remoteGmList, remoteGmSet } from './remote-gm.js';
+import {
+  PLAYER_CONFIG_ENV,
+  PLAYER_DASHBOARD_TOOL_NAMES,
+  handlePlayerTool,
+  readExtraDenyTerms,
+} from './tools/player.js';
 import { GameEventHub } from './game-event-hub.js';
 import { WrapperRegistry } from './wrapper-registry.js';
 import {
   ToolCallLog,
   buildCallLine,
+  errorText,
+  recordedCallLine,
   gmCaller,
   skillFields,
   type CallCaller,
@@ -49,8 +55,11 @@ import {
 import type { ToolResultLike } from './tool-router.js';
 import { ClientsFile, handleWhoUsesWhat } from './who-uses-what.js';
 import { TarokkaService } from './tarokka/service.js';
+import { handleDowntime } from './downtime/store.js';
 import { HandoutsService, handleRecordHandoutSeen } from './handouts/service.js';
+import { createOmensStore, omensControlReply } from './omens/store.js';
 import { SecretTermsService } from './secret-terms.js';
+import { isBatchRider } from './guarded-write/rider-undo.js';
 import { GuardedWriteService } from './guarded-write/service.js';
 import { UndoPlanner } from './guarded-write/undo-planner.js';
 import { AuditLog, VaultStore, WorldIdResolver, resolveDataDir } from './vault/index.js';
@@ -97,111 +106,6 @@ const CONTROL_PORT = parseInt(
 // Used to smoke-test the standalone entrypoint on an
 // alternate port without colliding with a live bridge. Default: enabled (full backend).
 const FOUNDRY_LINK_ENABLED = !/^(off|false|0|no)$/i.test(process.env.MCP_FOUNDRY_LINK ?? '');
-
-// Lock file is port-scoped for non-default ports so an alternate-port standalone
-// instance never fights the live 31414 backend's lock. The default port keeps the
-// original lock name for exact backward compatibility.
-const LOCK_FILE = path.join(
-  os.tmpdir(),
-  CONTROL_PORT === DEFAULT_CONTROL_PORT
-    ? 'foundry-mcp-backend.lock'
-    : `foundry-mcp-backend-${CONTROL_PORT}.lock`
-);
-
-let lockFd: number | null = null;
-
-function acquireLock(): boolean {
-  try {
-    try {
-      lockFd = fs.openSync(LOCK_FILE, 'wx');
-    } catch (err: unknown) {
-      if ((err as { code?: unknown } | null | undefined)?.code === 'EEXIST') {
-        try {
-          const lockData = fs.readFileSync(LOCK_FILE, 'utf8');
-
-          const lockPid = parseInt(lockData.trim(), 10);
-
-          try {
-            process.kill(lockPid, 0);
-
-            // A process with this PID is alive. Validate it is actually our
-            // backend (node.exe / node) and that the lock file is not stale.
-            // PID reuse by unrelated OS processes (e.g. GameInputRedistService
-            // on Windows) would otherwise cause a false "already running" exit.
-            if (evaluateLockFile(lockPid, LOCK_FILE) === 'orphaned') {
-              console.error(
-                `Removing orphaned backend lock for PID ${lockPid} ` +
-                  `(process is not node.exe or lock file is stale)`
-              );
-              try {
-                fs.unlinkSync(LOCK_FILE);
-              } catch {}
-              lockFd = fs.openSync(LOCK_FILE, 'wx');
-            } else {
-              // Backend is genuinely running: exit gracefully
-              return false;
-            }
-          } catch {
-            console.error(`Removing stale backend lock for PID ${lockPid}`);
-
-            try {
-              fs.unlinkSync(LOCK_FILE);
-            } catch {}
-
-            lockFd = fs.openSync(LOCK_FILE, 'wx');
-          }
-        } catch (readErr) {
-          console.error('Corrupt backend lock file, removing:', readErr);
-
-          try {
-            fs.unlinkSync(LOCK_FILE);
-          } catch {}
-
-          lockFd = fs.openSync(LOCK_FILE, 'wx');
-        }
-      } else {
-        console.error('Failed to open backend lock file:', err);
-
-        return false;
-      }
-    }
-
-    if (lockFd === null) return false;
-
-    fs.writeFileSync(lockFd, String(process.pid));
-
-    try {
-      fs.fsyncSync(lockFd);
-    } catch {}
-
-    console.error(`Acquired backend lock with PID ${process.pid}`);
-
-    return true;
-  } catch (error) {
-    console.error('Failed to acquire backend lock:', error);
-
-    return false;
-  }
-}
-
-function releaseLock(): void {
-  try {
-    if (lockFd !== null) {
-      try {
-        fs.closeSync(lockFd);
-      } catch {}
-      lockFd = null;
-    }
-
-    if (fs.existsSync(LOCK_FILE)) {
-      try {
-        fs.unlinkSync(LOCK_FILE);
-      } catch {}
-    }
-  } catch (error) {
-    console.error('Failed to release backend lock:', error);
-  }
-}
 
 async function startBackend(): Promise<void> {
   // Logger: file output allowed; avoid stdout noise
@@ -280,9 +184,16 @@ async function startBackend(): Promise<void> {
     caller: CallCaller
   ): void => {
     try {
-      void callLog
-        .record(buildCallLine(tool, startedAt, result, Date.now(), caller))
-        .catch(() => undefined);
+      const line = buildCallLine(tool, startedAt, result, Date.now(), caller);
+      // The call log keeps only the class; the message goes to the backend log once.
+      if (!line.ok) {
+        logger.warn('Tool call failed', {
+          tool: line.tool,
+          class: line.err,
+          message: errorText(result).slice(0, 500),
+        });
+      }
+      void callLog.record(line).catch(() => undefined);
     } catch {
       // logging never breaks a tool call
     }
@@ -333,6 +244,13 @@ async function startBackend(): Promise<void> {
       ? journalLinks((): ChangeJournalPump | null => changeJournalPump)
       : {}),
   });
+  if (FOUNDRY_LINK_ENABLED && changeJournalConfig.enabled) {
+    // humanActions fetches the newest records first: the rider arrives a moment after the write.
+    guardedWrites.batchRiders = async (changeId): Promise<Array<{ uuid: string }>> => {
+      await changeHistory.humanActions();
+      return (await changeHistory.aiFollowUps(changeId)).filter(r => isBatchRider(r));
+    };
+  }
   if (obsidianVaultDir && changeJournalConfig.enabled) {
     everyoneNotes = new EveryoneNotes({ changeHistory, vaultDir: obsidianVaultDir, logger });
   }
@@ -356,6 +274,7 @@ async function startBackend(): Promise<void> {
     worldIds,
     foundryClient,
   });
+  const omens = createOmensStore(vaultStore, worldIds, secretTerms);
   // Session notes into Foundry (recap lane, D-087): staged by the pipeline, put automatically.
   const sessionNotes = new SessionNotesService({
     foundryClient,
@@ -396,6 +315,7 @@ async function startBackend(): Promise<void> {
     tarokka: tarokkaService,
     secretTerms,
     handouts,
+    omens,
     onPlaySessionMarked: renderObsidian,
     wrapperStatus: () => wrapperRegistry.status(),
     pumpHealth: (): PumpHealthSnapshot[] => pumpHealthSources.map(source => source()),
@@ -596,10 +516,21 @@ async function startBackend(): Promise<void> {
           // none). get-preflight reads the registry in-process; `wrapper_status` serves the same view.
           if (msg.method === 'hello') {
             wrapperRegistry.hello(connectionId, msg.params);
-            const hp = (msg.params ?? {}) as { version?: unknown; client?: unknown };
+            const hp = (msg.params ?? {}) as {
+              version?: unknown;
+              client?: unknown;
+              install?: unknown;
+              autoUpdate?: unknown;
+            };
             if (hp.client === 'dashboard') dashboardConnection = true;
             else {
-              void clientsFile.record({ piece: 'connectors', who: 'gm', version: hp.version });
+              void clientsFile.record({
+                piece: 'connectors',
+                who: 'gm',
+                install: hp.install,
+                autoUpdate: hp.autoUpdate,
+                version: hp.version,
+              });
             }
             socket.write(`${JSON.stringify({ id: msg.id, result: { ok: true } })}\n`);
 
@@ -691,7 +622,12 @@ async function startBackend(): Promise<void> {
                 recordCall(String(name), startedAt, payload, caller);
               } catch (e: unknown) {
                 const errorMessage = e instanceof Error ? e.message : 'Unknown error occurred';
-                recordCall(String(name), startedAt, { content: [], isError: true }, caller);
+                recordCall(
+                  String(name),
+                  startedAt,
+                  { content: [{ type: 'text', text: `Error: ${errorMessage}` }], isError: true },
+                  caller
+                );
 
                 if (!socket.destroyed) {
                   socket.write(
@@ -719,6 +655,16 @@ async function startBackend(): Promise<void> {
           if (msg.method === 'record_client') {
             const ok = await clientsFile.record(msg.params);
             socket.write(`${JSON.stringify({ id: msg.id, result: { ok } })}\n`);
+
+            continue;
+          }
+
+          // A call the dashboard answered itself (a player's get-my-handouts or get-my-play-stats):
+          // the line for the call log, with the tool name checked against that fixed list.
+          if (msg.method === 'record_call') {
+            const line = recordedCallLine(msg.params, PLAYER_DASHBOARD_TOOL_NAMES);
+            if (line) void callLog.record(line).catch(() => undefined);
+            socket.write(`${JSON.stringify({ id: msg.id, result: { ok: line !== null } })}\n`);
 
             continue;
           }
@@ -754,6 +700,26 @@ async function startBackend(): Promise<void> {
           if (msg.method === 'record_handout_seen') {
             try {
               const result: unknown = await handleRecordHandoutSeen(handouts, msg.params);
+              socket.write(`${JSON.stringify({ id: msg.id, result })}\n`);
+            } catch (e: unknown) {
+              const message = e instanceof Error ? e.message : 'Bad request';
+              socket.write(`${JSON.stringify({ id: msg.id, error: { message } })}\n`);
+            }
+
+            continue;
+          }
+
+          if (msg.method === 'omens') {
+            socket.write(`${JSON.stringify(await omensControlReply(omens, msg.id, msg.params))}\n`);
+            continue;
+          }
+
+          // Downtime inbox (I-180): the dashboard passes the mapped user id; not a tool, never forwarded.
+          if (msg.method === 'downtime') {
+            try {
+              // Vault only, so it also works between sessions with no GM client joined.
+              const worldId = await worldIds.currentOrLastKnown();
+              const result: unknown = await handleDowntime(vaultStore, worldId, msg.params);
               socket.write(`${JSON.stringify({ id: msg.id, result })}\n`);
             } catch (e: unknown) {
               const message = e instanceof Error ? e.message : 'Bad request';
@@ -813,6 +779,52 @@ async function startBackend(): Promise<void> {
             continue;
           }
 
+          // The remote GM connector (item remote-gm-connector): the dashboard's /mcp/<set> routes
+          // forward a GM whom Cloudflare Access has signed in. The set comes from the path, the
+          // tools are that set's only, and each call runs the same route as a stdio entry's.
+          if (msg.method === 'remote_gm_list' || msg.method === 'remote_gm_call') {
+            const rp = (msg.params ?? {}) as { set?: unknown; name?: unknown; args?: unknown };
+            const rset = remoteGmSet(rp.set);
+            if (!rset) {
+              socket.write(
+                `${JSON.stringify({ id: msg.id, error: { message: 'Unknown set' } })}\n`
+              );
+              continue;
+            }
+            if (msg.method === 'remote_gm_list') {
+              socket.write(
+                `${JSON.stringify({ id: msg.id, result: remoteGmList(allTools, rset) })}\n`
+              );
+              continue;
+            }
+            const answer = async (): Promise<void> => {
+              const result = await remoteGmCall(
+                {
+                  allTools,
+                  run: (n, a) =>
+                    repeatGuard.run(n, a, '', () => {
+                      const route = Object.hasOwn(toolRouter, n) ? toolRouter[n] : undefined;
+                      if (typeof route !== 'function') {
+                        throw new Error(unknownToolMessage(n));
+                      }
+                      return route(a, { signal: socketAbort.signal });
+                    }),
+                  record: (tool, startedAt, r) =>
+                    recordCall(tool, startedAt, r, { who: 'gm', via: 'connector' }),
+                },
+                rset,
+                rp.name,
+                rp.args
+              );
+              if (!socket.destroyed) socket.write(`${JSON.stringify({ id: msg.id, result })}\n`);
+            };
+            // A long wait (wait-for-game-event) must not hold up the lines behind it.
+            if (typeof rp.name === 'string' && DETACHED_TOOLS.has(rp.name)) void answer();
+            else await answer();
+
+            continue;
+          }
+
           // A player's own Claude (D-136): the dashboard's /mcp/player route sends the verified
           // Foundry user id in `params.userId`; the tool arguments are untrusted and never carry
           // one. Only the player tools run here, all read-only. Not a call_tool route, never
@@ -837,7 +849,12 @@ async function startBackend(): Promise<void> {
           // player's picture for a character they own. Not a tool, never listed to Claude.
           if (msg.method === 'player_portrait') {
             try {
-              const result = await handlePlayerPortrait(foundryClient, guardedWrites, msg.params);
+              const result = await handlePlayerPortrait(
+                foundryClient,
+                guardedWrites,
+                msg.params,
+                logger
+              );
               socket.write(`${JSON.stringify({ id: msg.id, result })}\n`);
             } catch (e: unknown) {
               const message = e instanceof Error ? e.message : 'The picture was not saved.';
@@ -925,7 +942,7 @@ async function startBackend(): Promise<void> {
 // Check lock BEFORE any async operations
 // If another instance is running, wait forever silently (don't exit)
 // This prevents Claude Desktop from seeing a "server closed" error
-const hasLock = acquireLock();
+const hasLock = acquireLock(CONTROL_PORT);
 
 void (async function main(): Promise<void> {
   if (!hasLock) {

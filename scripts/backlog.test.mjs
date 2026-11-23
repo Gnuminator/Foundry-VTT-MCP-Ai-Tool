@@ -9,6 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  boardAreas,
   checkEdit,
   isMerged,
   newestProgress,
@@ -28,6 +29,7 @@ import {
   lowEdit,
   progressEdit,
   releaseEdit,
+  setFieldEdit,
   run,
   statusText,
   piListStatus,
@@ -252,6 +254,58 @@ test('progress puts several old progress lines into one and inserts one where no
   assert.throws(() => progressEdit(FIXTURE, { id: 'second', text: 'a\nb', date: D }), /one line/);
 });
 
+test('set replaces, adds and removes one planning field; refuses claim, progress and an unknown item', () => {
+  const r = setFieldEdit(FIXTURE, { id: 'second', name: 'gate', value: 'G1 (revisit 2026-11-29)' });
+  assert.match(
+    block(r.text, 'second') ?? '',
+    /- board: Process and tooling\r?\n- gate: G1 \(revisit/
+  );
+  const again = setFieldEdit(r.text, { id: 'second', name: 'gate', value: 'G1' });
+  assert.equal(((block(again.text, 'second') ?? '').match(/- gate:/g) ?? []).length, 1);
+  const gone = setFieldEdit(again.text, { id: 'second', name: 'gate', value: '' });
+  assert.doesNotMatch(block(gone.text, 'second') ?? '', /- gate:/);
+  const area = 'Docs, videos, Danni onboarding';
+  const board = setFieldEdit(FIXTURE, { id: 'first', name: 'board', value: area });
+  assert.match(block(board.text, 'first') ?? '', /- board: Docs, videos, Danni onboarding/);
+  assert.equal(parseBacklog(board.text).items.length, parseBacklog(FIXTURE).items.length);
+  for (const name of ['claimed', 'progress', 'id']) {
+    assert.throws(
+      () => setFieldEdit(FIXTURE, { id: 'first', name, value: 'x' }),
+      /set changes only/
+    );
+  }
+  assert.throws(() => setFieldEdit(FIXTURE, { id: 'nope', name: 'gate', value: 'G1' }), /nope/);
+});
+
+test('set retitles an item and repairs the link of a claimed one', () => {
+  const t = setFieldEdit(FIXTURE, { id: 'second', name: 'title', value: 'Second, retitled' });
+  assert.match(t.text, /^## S Second, retitled$/m);
+  assert.equal(parseBacklog(t.text).items.length, parseBacklog(FIXTURE).items.length);
+  assert.throws(() => setFieldEdit(FIXTURE, { id: 'second', name: 'title', value: '' }), /keeps/);
+  const good = 'claude://claude.ai/epitaxy/local_bb64ca65-8689-447c-9a77-560b3c881d4a';
+  const l = setFieldEdit(FIXTURE, { id: 'first', name: 'link', value: good });
+  assert.match(block(l.text, 'first') ?? '', /claimed: First lane 2026-11-11\r?\n- link: claude:/);
+  const again = setFieldEdit(l.text, {
+    id: 'first',
+    name: 'link',
+    value: good.replace('bb64ca65', 'cc221c20'),
+  });
+  assert.equal(((block(again.text, 'first') ?? '').match(/- link:/g) ?? []).length, 1);
+  assert.throws(
+    () =>
+      setFieldEdit(FIXTURE, {
+        id: 'first',
+        name: 'link',
+        value: 'claude://claude.ai/epitaphy/local_x',
+      }),
+    /link must look like/
+  );
+  assert.throws(
+    () => setFieldEdit(FIXTURE, { id: 'second', name: 'link', value: good }),
+    /not claimed/
+  );
+});
+
 test('release refuses an unclaimed item', () => {
   assert.throws(() => releaseEdit(FIXTURE, { id: 'second' }), /not claimed/);
 });
@@ -263,6 +317,15 @@ test('done keeps a private marker and refuses a PR that is not a number', () => 
     () => doneEdit(FIXTURE, DONE_FIXTURE, { id: 'fifth', pr: 'soon', date: D }),
     /must be a number/
   );
+});
+
+test('done writes Unsorted, not the area field, when an item has no board line', () => {
+  const text = FIXTURE.replace(
+    '- board: Docs\n- blocked by: item:gone-already',
+    '- area: MCP tools\n- blocked by: item:gone-already'
+  );
+  const r = doneEdit(text, DONE_FIXTURE, { id: 'fifth', pr: '7', date: D });
+  assert.match(r.line, /\| Unsorted \| private$/);
 });
 
 test('add refuses a used id, a bad block and an unknown chapter; places --after and --chapter', () => {
@@ -745,6 +808,39 @@ test('dry run prints the change and writes nothing; unknown commands are usage e
   assert.equal(v.cli(['frobnicate']).code, 2);
 });
 
+test('set: the CLI needs a value argument, keeps CRLF, quotes two-word fields; board cannot go empty', () => {
+  const v = vaults();
+  assert.equal(v.cli(['set', 'second', 'gate']).code, 2, 'a forgotten value is a usage error');
+  const r = v.cli(['set', 'third', 'blocked by', 'item:first']);
+  assert.equal(r.code, 0, r.err);
+  assert.match(v.remoteFile(BACKLOG), /- id: third\r\n- board: CI\r\n- blocked by: item:first\r\n/);
+  assert.equal(v.cli(['set', 'second', 'touches', 'scripts/x.mjs']).code, 0);
+  assert.match(
+    v.remoteFile(BACKLOG),
+    /- board: Process and tooling\r\n- touches: scripts\/x\.mjs\r\n- done when/
+  );
+  assert.equal(v.cli(['set', 'second', 'board', '']).code, 1, 'an empty board is refused');
+  assert.equal(v.cli(['set', 'second', 'link', 'x']).code, 1, 'link has its own command');
+  assert.equal(v.cli(['set', 'second', 'Claimed', 'x']).code, 1, 'any case');
+});
+
+test('set: the CLI checks the link format of a claimed item and retitles on the CRLF vault', () => {
+  const v = vaults();
+  const bad = v.cli(['set', 'first', 'link', 'claude://claude.ai/epitaphy/local_x']);
+  assert.equal(bad.code, 1);
+  assert.match(bad.err, /link must look like/);
+  const good = 'claude://claude.ai/epitaxy/local_bb64ca65-8689-447c-9a77-560b3c881d4a';
+  const l = v.cli(['set', 'first', 'link', good]);
+  assert.equal(l.code, 0, l.err);
+  assert.match(v.remoteFile(BACKLOG), new RegExp(`- link: ${good}\\r\\n`));
+  const t = v.cli(['set', 'second', 'title', 'Second, retitled']);
+  assert.equal(t.code, 0, t.err);
+  assert.match(v.remoteFile(BACKLOG), /^## S Second, retitled\r$/m);
+  assert.equal(v.cli(['set', 'second', 'title', '']).code, 1, 'an empty title is refused');
+  assert.equal(v.cli(['set', 'first', 'link', '']).code, 0, 'an empty link removes it');
+  assert.doesNotMatch(v.remoteFile(BACKLOG), /- link: claude:/);
+});
+
 test('git: a second writer on the same vault is refused while the first holds the lock', () => {
   const v = vaults();
   /** @type {{ code: number, err: string } | undefined} */
@@ -1001,4 +1097,44 @@ test('progress: one ready line per PR; a new one or a runner write keeps the oth
   // Plain text takes the lane's own ready lines back (nothing is left for the runner).
   const plain = progressEdit(two, { id: 'second', text: 'fixing a review finding', date: D }).text;
   assert.deepEqual(readyOf(plain), []);
+});
+
+test('boardAreas reads the ### headings under ## Areas only', () => {
+  const board = [
+    '## Intro',
+    '### Not an area',
+    '## Areas',
+    'text',
+    '### Orange Pi',
+    '### Dev',
+    '## Later',
+    '### Other',
+  ];
+  assert.deepEqual(boardAreas(board.join('\r\n')), ['Orange Pi', 'Dev']);
+  assert.deepEqual(boardAreas(''), []);
+});
+
+test('set and add refuse a board value that is not a Board.md area; no areas means no check', () => {
+  const areas = ['Orange Pi', 'Process and tooling'];
+  assert.throws(
+    () => setFieldEdit(FIXTURE, { id: 'first', name: 'board', value: 'Pi', areas }),
+    /not an area in Board\.md/
+  );
+  const ok = setFieldEdit(FIXTURE, { id: 'first', name: 'board', value: 'Orange Pi', areas });
+  assert.match(block(ok.text, 'first') ?? '', /- board: Orange Pi/);
+  assert.doesNotThrow(() => setFieldEdit(FIXTURE, { id: 'first', name: 'board', value: 'Pi' }));
+  const newBlock = (/** @type {string} */ b) => [
+    '## S N',
+    '',
+    '- id: n-item',
+    `- board: ${b}`,
+    '- done when: x',
+  ];
+  assert.throws(
+    () => addEdit(FIXTURE, DONE_FIXTURE, { block: newBlock('MCP tools'), date: D, areas }),
+    /not an area in Board\.md/
+  );
+  assert.doesNotThrow(() =>
+    addEdit(FIXTURE, DONE_FIXTURE, { block: newBlock('Orange Pi'), date: D, areas })
+  );
 });

@@ -2,7 +2,7 @@
 /**
  * Build the "Foundry D&D helper" skill (I-152 step 1) for a player's own Claude account: SKILL.md
  * and the working pages from this folder plus two public player guides, as a folder and as the zip
- * claude.ai takes (Customize, Skills). Uses the zip writer of the GM coach build.
+ * claude.ai takes (Settings, Plugins, Skills). Uses the zip writer of the GM coach build.
  *
  *   references/          the pages in tools/dnd-helper/pages (flows, checklists, plan-note format)
  *   references/player/   docs/player make-a-character and join (the public click-through guides)
@@ -92,6 +92,7 @@ export function collectPlayerFiles() {
   files.set('SKILL.md', read('SKILL.md'));
   files.set('references/level-up.md', read('pages/level-up.md'));
   files.set('references/rules-question.md', read('pages/rules-question.md'));
+  files.set('references/diary.md', read('pages/diary.md'));
   files.set(
     'references/character-creation.md',
     swap(

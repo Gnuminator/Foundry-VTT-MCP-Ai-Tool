@@ -124,13 +124,15 @@ describe('handlePlayerPortrait', () => {
     });
     s.writes.applyPlan.mockResolvedValueOnce({ changeId: 'chg1' });
     s.writes.applyPlan.mockRejectedValueOnce(new Error('Conflict'));
-    const r = await run(s, {
-      userId: USER,
-      actorId: ACTOR,
-      target: 'both',
-      data: PNG.toString('base64'),
-    });
+    const warn = vi.fn();
+    const r = await handlePlayerPortrait(
+      s.foundry,
+      s.writes,
+      { userId: USER, actorId: ACTOR, target: 'both', data: PNG.toString('base64') },
+      { warn }
+    );
     expect(r).toMatchObject({ ok: true, changeId: 'chg1' });
+    expect(warn).toHaveBeenCalledTimes(1);
   });
 
   it('leaves placed tokens alone when only the portrait is chosen', async () => {

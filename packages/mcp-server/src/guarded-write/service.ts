@@ -54,8 +54,10 @@ import {
 /** The read tools that find a document by name, for the "not found" next step. */
 const DOCUMENT_LOOKUP_TOOLS = 'list-characters, list-scenes or list-journals';
 
+import { isLostAnswerMessage } from '../direct-write-timeout.js';
 import type { FoundryClient } from '../foundry-client.js';
 import type { Logger } from '../logger.js';
+import { removedRiderLines, riderUndoOps, type BatchRiderSource } from './rider-undo.js';
 import { mergeChangeHistory } from '../obsidian/audit-merge.js';
 import { changeNoteNames, changeNoteParts } from '../obsidian/change-note-parts.js';
 import type { AuditEntry, AuditLog, VaultOpRecord } from '../vault/audit.js';
@@ -298,8 +300,7 @@ export type UndoGuard = (worldId: string, entry: AuditEntry) => Promise<string |
 
 /** Errors that mean "no answer arrived", as opposed to Foundry refusing the change. */
 function isLostAnswer(error: unknown): boolean {
-  const message = errorMessage(error);
-  return /query timeout|connection closed/i.test(message);
+  return isLostAnswerMessage(errorMessage(error));
 }
 
 /**
@@ -552,6 +553,8 @@ export class GuardedWriteService {
   private readonly outcomeDeadlineMs: number;
   private readonly listenerWaitMs: number;
   private lock: Promise<unknown> = Promise.resolve();
+  /** Set once the change history exists: where `undo-change` finds the Prone dnd5e added. */
+  batchRiders: BatchRiderSource | null = null;
 
   constructor(options: GuardedWriteServiceOptions) {
     this.foundry = options.foundryClient;
@@ -1082,6 +1085,7 @@ export class GuardedWriteService {
     if (executed.length === 0 && records.length === 0) {
       throw new Error(`Change ${entry.changeId} has nothing to undo`);
     }
+    const riders = await riderUndoOps(this.batchRiders, this.foundry, this.logger, entry);
     // A delete that found its document already gone (dnd5e took it first) removed nothing, so
     // there is nothing to put back: it stays out of the undo instead of becoming a blank create.
     const results = executed.filter(r => !isNoOpResult(r));
@@ -1106,8 +1110,8 @@ export class GuardedWriteService {
         feature: entry.feature,
         mode: 'undo',
         summary,
-        ops: results.map(inverseGuardedOp),
-        expected: results.map(expectedAfterApply),
+        ops: [...results.map(inverseGuardedOp), ...riders.ops],
+        expected: [...results.map(expectedAfterApply), ...riders.expected],
       });
     }
     if (vault) await this.commitVaultOrRollBack(worldId, vault, foundry, entry.feature);
@@ -1142,6 +1146,7 @@ export class GuardedWriteService {
           )
           .map(line => `undone: ${line}`),
         ...leftAlone,
+        ...removedRiderLines(riders.lines, foundry?.results.slice(results.length)),
       ],
       undoOf: entry.changeId,
       ...(requestedBy ? { requestedBy } : {}),

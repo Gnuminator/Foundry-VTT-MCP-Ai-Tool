@@ -1,6 +1,6 @@
 ---
 source: gm/tv-table-viewer.md
-sourceHash: ab613b020da8
+sourceHash: 2a89447e0438
 title: TV'et ved bordet
 description: Vis kortet på et tv ved en session, hvor I sidder i samme rum. Tv'et logger ind én gang som en spiller ved navn Table og bliver logget ind.
 ---
@@ -57,6 +57,13 @@ Når tv'et viser Cloudflares loginside, gør du login-trinnet på [opsætningssi
 - Vis spillerne den scene, du vil have på tv'et, med **Activate** på den scene. Tv'et følger
   den aktive scene.
 - For at forlade fuld skærm trykker du **Alt + F4** på tv'ets tastatur.
+
+## Blink ved natural 20 og natural 1
+
+Når en natural 20 eller en natural 1 lander på et attack eller et saving throw, blinker tv'et i 2
+sekunder med **CRITICAL!** (guld) eller **FUMBLE!** (rød) og figurens navn. Det vises kun på tv'et,
+højst én gang hvert 20. sekund, og aldrig for et hvisket eller blindt slag. I Foundrys
+modulindstillinger kan **Table TV stingers** slå det fra eller begrænse det til natural 20.
 
 ## Hvad tv'et aldrig kan vise
 

@@ -5,6 +5,7 @@ import type { AccessJwtVerifier } from './access-jwt.js';
 import type { ClientRegistry } from './client-versions.js';
 import type { Config } from './config.js';
 import type { GameFeedHandlers } from './feed/types.js';
+import type { GmConnectorOptions } from './gm-connector.js';
 import type { Logger } from './logger.js';
 import type { OpenRouteOptions } from './open-route.js';
 import type { PlayerConnectorOptions } from './player-connector.js';
@@ -28,6 +29,8 @@ export interface DashboardClient {
   recordUsage?(events: UsageEvent[]): Promise<RecordUsageResult>;
   /** A player opened a handout (I-039 seen log); absent on fakes and old backends. */
   recordHandoutSeen?(pageId: string, userId: string, name: string): Promise<{ recorded: boolean }>;
+  /** Omens by post (I-181): list, decide and send steps; absent on fakes and old backends. */
+  omens?(action: string, params?: Record<string, unknown>): Promise<unknown>;
   /** The live write sweep's helper (I-016; test world only); absent on fakes. */
   liveSweep?(request: Record<string, unknown>): Promise<unknown>;
   /** Turn on for tonight (D3): read, turn on or turn back off tonight's switches; absent on fakes. */
@@ -36,6 +39,8 @@ export interface DashboardClient {
   featureSwitches?(): Promise<unknown>;
   /** My character (I-096): one player's character sheets; absent on fakes. */
   characterSheet?(userId: string): Promise<unknown>;
+  /** The downtime inbox (I-180): the player's own entries; absent on fakes and old backends. */
+  downtime?(params: Record<string, unknown>): Promise<unknown>;
   /** The player's roll button: the module rolls for their character; absent on fakes. */
   playerRoll?(userId: string, buttonId: string): Promise<unknown>;
   /** "Upload my portrait": a player's picture for their own character; absent on fakes. */
@@ -52,6 +57,8 @@ export interface DashboardClient {
   wrapperStatus?(): Promise<unknown>;
   /** Which version a person's piece runs (D-146); absent on fakes, "Unknown method" on old backends. */
   recordClient?(entry: Record<string, unknown>): Promise<unknown>;
+  /** A call the dashboard answered itself, for the bridge's call log; absent on fakes, "Unknown method" on old backends. */
+  recordCall?(entry: Record<string, unknown>): Promise<unknown>;
   /** The "who uses what" report for the last `days` days (D-146). */
   whoUsesWhat?(days: number): Promise<unknown>;
   /** Session notes (recap lane, D-087): list, get, put, approve; absent on fakes. */
@@ -71,6 +78,8 @@ export interface DashboardDeps {
   accessFetch?: ConstructorParameters<typeof AccessJwtVerifier>[1];
   /** The player connector (D-136); default from the environment (`FOUNDRY_AI_PLAYER_CONNECTOR*`). */
   playerConnector?: PlayerConnectorOptions;
+  /** The remote GM connector (/mcp/core to /mcp/admin); default from `FOUNDRY_AI_GM_CONNECTOR*`. */
+  gmConnector?: GmConnectorOptions;
   /** The storage space check's status file; default env FOUNDRY_AI_SPACE_STATUS, else the Pi's path. */
   spaceStatusFile?: string;
   /** Test clock for the space check's age. */

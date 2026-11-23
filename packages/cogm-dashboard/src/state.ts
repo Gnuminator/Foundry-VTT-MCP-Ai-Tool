@@ -1,4 +1,5 @@
 import type { CombatState, ModuleError, SessionEvent } from './feed/types.js';
+import { SpotlightTally } from './spotlight.js';
 
 /**
  * Bounded in-memory view of the game. Keeps a rolling window of recent events
@@ -11,6 +12,8 @@ export class GameState {
   private errors: ModuleError[] = [];
   private readonly seenErrors = new Set<string>();
   private combatState: CombatState | null = null;
+  /** What each player character did, over every event seen (not only the window); GM only. */
+  readonly spotlight = new SpotlightTally();
 
   constructor(
     private readonly maxEvents = 80,
@@ -26,6 +29,7 @@ export class GameState {
       added.push(event);
     }
     if (added.length === 0) return added;
+    this.spotlight.add(added);
 
     this.events.push(...added);
     this.events.sort((a, b) => a.timestampMs - b.timestampMs);
@@ -40,6 +44,7 @@ export class GameState {
   reset(): void {
     this.events = [];
     this.seen.clear();
+    this.spotlight.reset();
     this.errors = [];
     this.seenErrors.clear();
     this.combatState = null;

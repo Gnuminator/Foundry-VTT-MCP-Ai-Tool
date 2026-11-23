@@ -130,4 +130,10 @@ describe('the stdio wrapper', () => {
     expect(source).toContain('...PROMPTS_CAPABILITY');
     expect(source).toContain('registerPromptHandlers(mcp, ');
   });
+
+  it('declares the resources capability, serves the change card and tags plan tools', () => {
+    expect(source).toContain('...RESOURCES_CAPABILITY');
+    expect(source).toContain('registerChangeCardHandlers(mcp)');
+    expect(source).toContain('.map(withChangeCardMeta)');
+  });
 });

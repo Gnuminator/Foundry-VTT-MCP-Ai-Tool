@@ -120,6 +120,7 @@ export function createLiveState(inputs: LiveStateInputs): LiveState {
   /** The last world id seen, kept when `world` is nulled on a drop, to spot a switch. */
   let lastWorldId: string | null = null;
   let lastCombatJson = '';
+  let lastSpotlightJson = '';
   let worldRefreshInflight = false;
   let worldRetryTimer: NodeJS.Timeout | null = null;
   let heartbeatTimer: NodeJS.Timeout | null = null;
@@ -155,9 +156,19 @@ export function createLiveState(inputs: LiveStateInputs): LiveState {
   let lastHandoutsJson = '';
   let lastRollsJson = '';
 
-  const playerView = new PlayerViewSource(client, logger.child('player-view'), () =>
-    schedulePlayerBroadcast()
-  );
+  const playerView = new PlayerViewSource(client, logger.child('player-view'), () => {
+    // A play session started (or was read after a restart): the spotlight counts from its start.
+    const started = playerView.sessionStartedMs;
+    if (started !== null && state.spotlight.setSessionStart(started)) broadcastSpotlight();
+    schedulePlayerBroadcast();
+  });
+
+  function broadcastSpotlight(): void {
+    const spotlightJson = JSON.stringify(state.spotlight.snapshot());
+    if (spotlightJson === lastSpotlightJson) return;
+    lastSpotlightJson = spotlightJson;
+    sse.broadcast('spotlight', state.spotlight.snapshot(), gmOnly);
+  }
 
   // O7 player vaults: one kept-current Obsidian vault per player, off unless the folder is set.
   const playerVaults = config.playerVaultsDir
@@ -286,6 +297,9 @@ export function createLiveState(inputs: LiveStateInputs): LiveState {
     state.reset();
     readCache.clear();
     lastCombatJson = '';
+    lastSpotlightJson = '';
+    const started = playerView.sessionStartedMs;
+    if (started !== null) state.spotlight.setSessionStart(started);
     sse.broadcast('reset', {}, gmOnly);
     // The new world's first reads may have come before this; read them again.
     inputs.resyncFeed();
@@ -359,6 +373,7 @@ export function createLiveState(inputs: LiveStateInputs): LiveState {
       // A change made elsewhere (Claude Desktop, Foundry itself) must not read back stale.
       readCache.clear();
       sse.broadcast('events', { events: added, initial: meta.initial }, gmOnly);
+      broadcastSpotlight();
       schedulePlayerBroadcast();
     },
     onErrors(errors, meta) {

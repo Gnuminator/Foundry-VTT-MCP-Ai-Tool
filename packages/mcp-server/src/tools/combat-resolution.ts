@@ -180,7 +180,9 @@ export class CombatResolutionTools {
     } catch (error: unknown) {
       this.logger.error('Error rolling saving throws', error);
       if (error instanceof z.ZodError) {
-        return `Parameter error: ${error.issues.map(e => e.message).join(', ')}`;
+        throw new Error(`Parameter error: ${error.issues.map(e => e.message).join(', ')}`, {
+          cause: error,
+        });
       }
       throw error;
     }
@@ -212,7 +214,9 @@ export class CombatResolutionTools {
     } catch (error: unknown) {
       this.logger.error('Error using NPC activity', error);
       if (error instanceof z.ZodError) {
-        return `Parameter error: ${error.issues.map(e => e.message).join(', ')}`;
+        throw new Error(`Parameter error: ${error.issues.map(e => e.message).join(', ')}`, {
+          cause: error,
+        });
       }
       throw error;
     }
@@ -229,7 +233,9 @@ export class CombatResolutionTools {
     } catch (error: unknown) {
       this.logger.error('Error managing rest', error);
       if (error instanceof z.ZodError) {
-        return `Parameter error: ${error.issues.map(e => e.message).join(', ')}`;
+        throw new Error(`Parameter error: ${error.issues.map(e => e.message).join(', ')}`, {
+          cause: error,
+        });
       }
       throw error;
     }

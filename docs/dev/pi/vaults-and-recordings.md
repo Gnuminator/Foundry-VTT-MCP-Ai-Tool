@@ -111,16 +111,12 @@ Stage 20 (`scripts/pi/remote/20-vault-sync.sh`, Obsidian O8) is the check that i
 - **Conflicts:** every `.sync-conflict-*` file, listed with its date. Syncthing makes one when the same note was changed on
   two PCs before they met; both versions are kept. The GM opens both in Obsidian, keeps what is wanted and deletes the extra
   file. The stage never moves, merges or deletes a vault file.
+- **The trash:** how many files Obsidian's `.trash` in the GM vault holds, how large it is and the date of the oldest one.
+  Only reported; a later mode may drop old entries, with the user's OK.
 - **The time zone:** must be `Europe/Copenhagen` (`TIMEZONE=<zone>` for another), because the session log, the change log and
   the play stats stamp their notes with the Pi's local time. Today's Pi is already on it.
 
 Without `SET_TIMEZONE=1` the stage only reads: no snapshot, any time, game night included.
-
-**Sync check** (`scripts/pi/remote/sync-check.sh`, backlog obsidian-staleness): which PC holds how much of the GM vault and of
-each player vault, when each was last seen, and the last file the Pi received from a PC. A warning means a PC holds less than
-everything (still catching up if it is connected, out of date if it is not) or has never connected; how long a PC was away is
-only printed. Read only, no snapshot, any time. Run it with
-`cat scripts/pi/remote/lib.sh scripts/pi/remote/sync-check.sh | ssh foundry-pi 'bash -s'`; `STRICT=1` exits 1 on a warning.
 
 - **Report:** `cat scripts/pi/remote/lib.sh scripts/pi/remote/20-vault-sync.sh | ssh foundry-pi 'bash -s'` (warnings are
   not failures; it fails when Syncthing, its service, the foundry user or the folder is missing, or `TIMEZONE` is not a zone name).
@@ -132,6 +128,12 @@ only printed. Read only, no snapshot, any time. Run it with
   `PEER_ID=<the PC's ID>` and `PEER_NAME` to add a PC), then this stage's report, and a test note written on each side.
 - Tests: `scripts/pi/vault-sync.test.mjs` (the stage as text, and with `PI_STAGE20_CONTAINER=1` two real Syncthings in a
   Debian 13 ARM64 container: a note each way, a forced conflict, the zone checks).
+
+**Sync check** (`scripts/pi/remote/sync-check.sh`, backlog obsidian-staleness): which PC holds how much of the GM vault and of
+each player vault, when each was last seen, and the last file the Pi received from a PC. A warning means a PC holds less than
+everything (still catching up if it is connected, out of date if it is not) or has never connected (when Syncthing gives no completion figure the warning says unknown, not out of date); how long a PC was away is
+only printed. Read only, no snapshot, any time. Run it with
+`cat scripts/pi/remote/lib.sh scripts/pi/remote/sync-check.sh | ssh foundry-pi 'bash -s'`; `STRICT=1` exits 1 on a warning.
 
 ## Who the GM vault is shared with (stage 31)
 
@@ -232,3 +234,30 @@ is `docs/player/obsidian.md`.
 - Tests: `scripts/pi/player-vault.test.mjs` (the stage as text, and with `PI_STAGE21_CONTAINER=1` three real Syncthings in a
   Debian 13 ARM64 container: a note reaches only its player, what a player changes never reaches the Pi, one device per player,
   remove and off).
+
+## Who uses what note (stage 35)
+
+A timer on the Pi sends the usage reading to the PM board's Who tab, so the reading stays fresh without the PC (D-146,
+`who-uses-what-pi-job`; sent to the board since D-149, `stage35-board-endpoint`). Every 4 hours (25 minutes past 00, 04, 08, 12,
+16 and 20) and Sunday 23:00, `foundry-ai-tool-who-uses-what.timer` runs `scripts/who-uses-what.mjs` against the Pi dashboard
+(`127.0.0.1:3000`, the GM token from `dashboard-access.env`) and POSTs the report JSON to the board
+(`https://board.spennerit.com/api/who-uses-what`) the way stage 16 posts the Pi's health. The report holds names, versions, tool
+names and counts only.
+
+- **Credential:** none of its own. The job reuses the Cloudflare Access service token of stage 16 (`board-status.conf`, root:root
+  0600, read by `curl -K`, so it never shows in the process list), so run stage 16 first. The unit therefore runs as root, sandboxed
+  (no writable path, no new privileges). There is no key to the vault repo on the Pi and no clone of it: the internet-facing
+  foundry user holds no write access to the vault (D-149).
+- **The board side:** the board repo (`foundry-ai-tool-pm-board`) needs `POST /api/who-uses-what` for the `pi` role, storing the
+  report the way `/api/pi-status` does. Until that is deployed the stage's first reading fails and the timer stays off.
+- **Leftovers of the first version:** a real run removes `/var/lib/foundry-ai-tool-who-uses-what` (the old deploy key, known hosts
+  and vault clone), after turning the first version's timer off; the timer comes back only when the board accepts a reading.
+  dietpi-backup excluded that folder, so no snapshot holds the old key: it is replaced, not restored. The old deploy key on
+  GitHub (vault repo, Settings, Deploy keys) is deleted by the user.
+- **Run it** (snapshot and the user's OK first):
+  1. `scp scripts/who-uses-what.mjs scripts/pi/who-uses-what-push.sh foundry-pi:/root/`
+  2. `cat scripts/pi/remote/lib.sh scripts/pi/remote/35-who-uses-what.sh | ssh foundry-pi 'bash -s'` (`DRY_RUN=1` first): it takes
+     one reading and enables the timer only when the board accepted it.
+  3. `CHECK=1` reads the report and checks the token file (nothing posted); `UNDO=1` removes the units and files.
+- Tests: `scripts/pi/who-uses-what-stage.test.mjs` (the stage and job as text, the job against stand-in dashboard and board servers,
+  and with `PI_STAGE35_CONTAINER=1` the stage in a Debian 13 ARM64 container).

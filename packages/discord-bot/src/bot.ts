@@ -28,6 +28,7 @@ import { convertSession } from './convert/convert.js';
 import { RecordingSession, hrtimeClock, type SpeakerInfo } from './rec/session.js';
 import { VoiceRecorder } from './rec/voice.js';
 import { RecorderHealth } from './rec/health.js';
+import { RecordNudge } from './rec/record-nudge.js';
 import { startStatusServer } from './status-server.js';
 import { bi, da, plural } from './i18n.js';
 import { alertTarget, isMuted, statusText, voiceAction } from './bot-health.js';
@@ -37,7 +38,8 @@ import {
   markerPath,
   restartAfterCrashMessage,
 } from './run-marker.js';
-import { recoverMessage, recoverOrphans } from './rec/recover.js';
+import { recoverMessage, recoverOrphans, startRecoverRetry } from './rec/recover.js';
+import { LOOKUP_NOT_HERE, createPlayerStateReader, lookupAllowed, lookupReply } from './lookup.js';
 import {
   SPACE_CHECK_INTERVAL_MS,
   LogThrottle,
@@ -46,8 +48,10 @@ import {
   type ApplicationOwnerLike,
 } from './space-notify.js';
 import { createSpaceStatusReader } from './space-status.js';
+import { OMENS_POST_INTERVAL_MS, createOmensPoster } from './omens-post.js';
 import { DEFAULT_BACKUP_STALE_DAYS, createBackupPullReader } from './backup-pull-status.js';
 import { BackupPullNotifier } from './backup-pull-notify.js';
+import { UnpulledNotifier, findUnpulled } from './unpulled-notify.js';
 import {
   SESSION_POST_INTERVAL_MS,
   SessionPostNotifier,
@@ -77,6 +81,32 @@ export const RECORD_COMMAND = new SlashCommandBuilder()
       .setDescription('Show what is being recorded')
       .setDescriptionLocalizations(da('Vis, hvad der bliver optaget'))
   );
+
+/** I-186: lookups for players, answered from revealed handouts only (lookup.ts). */
+const LOOKUP_COMMANDS = [
+  new SlashCommandBuilder()
+    .setName('recap')
+    .setDescription('The latest recap the GM has shared')
+    .setDescriptionLocalizations(da('Det seneste resumé, GM har delt')),
+  new SlashCommandBuilder()
+    .setName('npc')
+    .setDescription('What the party knows about a person')
+    .setDescriptionLocalizations(da('Hvad gruppen ved om en person'))
+    .addStringOption(o =>
+      o
+        .setName('name')
+        .setDescription('The name to look up')
+        .setDescriptionLocalizations(da('Navnet, der skal slås op'))
+        .setRequired(true)
+        .setMaxLength(100)
+    ),
+  new SlashCommandBuilder()
+    .setName('handouts')
+    .setDescription('The handouts the GM has shared')
+    .setDescriptionLocalizations(da('De handouts, GM har delt')),
+];
+
+const LOOKUP_NAMES = new Set(LOOKUP_COMMANDS.map(c => c.name));
 
 const NOTICE = bi(
   'Optagelsen er startet: denne voice channel bliver optaget, ét spor pr. person, til session notes. ' +
@@ -132,13 +162,20 @@ export class RecorderBot {
   });
   private active: Active | undefined;
   private spaceTimer: NodeJS.Timeout | undefined;
+  private stopRecoverRetry: (() => void) | undefined;
+  /** Folders of recordings this run stopped itself (stop() converts them). */
+  private readonly stoppedDirs = new Set<string>();
   private sessionPostTimer: NodeJS.Timeout | undefined;
+  private readonly nudge = new RecordNudge();
+  private nudgeTimer: NodeJS.Timeout | undefined;
+  private omensTimer: NodeJS.Timeout | undefined;
   private statusServer: Server | undefined;
   /** DM to the owner; set once the owner is known. */
   private notifyOwner: ((text: string) => Promise<boolean>) | undefined;
 
   private readonly alertFailureLog = new LogThrottle();
   private crashNotice: string | null = null;
+  private readPlayerState: (() => Promise<unknown>) | undefined;
 
   constructor(private readonly config: BotConfig) {}
 
@@ -198,7 +235,7 @@ export class RecorderBot {
         log.info(text);
         void this.alertGm(text);
       }
-      const body = [RECORD_COMMAND.toJSON()];
+      const body = [RECORD_COMMAND.toJSON(), ...LOOKUP_COMMANDS.map(c => c.toJSON())];
       const guildId = this.config.guildId;
       const registered = guildId
         ? c.application.commands.set(body, guildId).then(() => `in server ${guildId}`)
@@ -208,13 +245,21 @@ export class RecorderBot {
         (err: unknown) => log.error('Registering /record failed', err)
       );
       this.startSessionPost(c);
+      this.startRecordNudge();
+      this.startOmens(c);
       void this.startSpaceNotices(c)
         .catch((err: unknown) => log.error('Space notices could not start', err))
-        .then(() => this.recoverOrphans());
+        .then(() => this.recoverOrphans())
+        .then(() => {
+          this.stopRecoverRetry?.();
+          this.stopRecoverRetry = startRecoverRetry(() => this.recoverOrphans());
+        });
     });
     this.client.on('interactionCreate', i => {
       if (i.isChatInputCommand() && i.commandName === 'record') {
         this.onRecord(i).catch((err: unknown) => log.error('record command failed', err));
+      } else if (i.isChatInputCommand() && LOOKUP_NAMES.has(i.commandName)) {
+        this.onLookup(i).catch((err: unknown) => log.error('lookup command failed', err));
       }
     });
     this.client.on('voiceStateUpdate', (before, after) => {
@@ -255,7 +300,11 @@ export class RecorderBot {
       port,
       () => ({
         recording: this.active !== undefined,
-        problems: this.active?.health.problems(Date.now()) ?? [],
+        problems: [
+          ...(this.active?.health.problems(Date.now()) ?? []),
+          ...this.nudge.problems(Date.now(), this.active !== undefined),
+        ],
+        speaking: this.active?.health.speaking() ?? [],
       }),
       err =>
         log.error(
@@ -312,9 +361,13 @@ export class RecorderBot {
       log: log.info,
     });
     const pullNotifier = new BackupPullNotifier({ send });
+    const unpulledNotifier = new UnpulledNotifier({ send });
     const tick = (withBackupCheck: boolean): void => {
       notifier.check(readStatus()).catch((err: unknown) => log.error('Space check failed', err));
       if (!withBackupCheck) return;
+      unpulledNotifier
+        .check(findUnpulled(this.config.sessionsDir))
+        .catch((err: unknown) => log.error('Unpulled recording check failed', err));
       pullNotifier
         .check(readPulls())
         .catch((err: unknown) => log.error('Backup copy check failed', err));
@@ -330,13 +383,38 @@ export class RecorderBot {
   }
 
   /**
+   * Record-start nudge (rec/record-nudge.ts): a play session open for 5 minutes with no
+   * recording, or a recording still running 30 minutes after the session ended, gives one line
+   * in #gm-bot and a dot on the health line. Independent of the session post channel.
+   */
+  private startRecordNudge(): void {
+    const read = createSessionFlagReader({
+      dashboardUrl: this.dashboardUrl(),
+      token: this.config.playerToken,
+      log: log.info,
+    });
+    const tick = (): void => {
+      void read()
+        .then(flag => {
+          for (const line of this.nudge.check(flag, this.active !== undefined, Date.now())) {
+            void this.alertGm(line);
+          }
+        })
+        .catch((err: unknown) => log.error('Record nudge check failed', err));
+    };
+    tick();
+    this.nudgeTimer = setInterval(tick, SESSION_POST_INTERVAL_MS);
+    this.nudgeTimer.unref();
+  }
+
+  /**
    * I-111: when a play session ends, post a link to the player page in the configured channel
    * (session-post.ts). Off unless DISCORD_SESSION_POST_CHANNEL_ID is set.
    */
   private startSessionPost(c: Client<true>): void {
     const channelId = this.config.sessionPostChannelId;
     if (!channelId) return;
-    const dashboardUrl = this.config.dashboardUrl ?? 'http://127.0.0.1:3100';
+    const dashboardUrl = this.dashboardUrl();
     const pageUrl = this.config.playerPageUrl;
     if (!pageUrl) {
       log.info(
@@ -383,11 +461,41 @@ export class RecorderBot {
     );
   }
 
+  /**
+   * I-181: send the omens the GM approved in the dashboard, each as a private message to its
+   * player (omens-post.ts). Off unless DISCORD_OMENS=1.
+   */
+  private startOmens(c: Client<true>): void {
+    if (!this.config.omensOn) return;
+    const dashboardUrl = this.dashboardUrl();
+    const check = createOmensPoster({
+      dashboardUrl,
+      gmToken: this.config.gmToken ?? '',
+      log: log.info,
+      send: async (discordId, text): Promise<boolean> => {
+        const user = await c.users.fetch(discordId);
+        await user.send(text);
+        return true;
+      },
+    });
+    const tick = (): void => {
+      void check().then(sent => {
+        if (sent > 0) log.info(`Omens: sent ${sent} private message${sent === 1 ? '' : 's'}.`);
+      });
+    };
+    tick();
+    this.omensTimer = setInterval(tick, OMENS_POST_INTERVAL_MS);
+    this.omensTimer.unref();
+    log.info(
+      `Omens: on, checking ${dashboardUrl} every ${OMENS_POST_INTERVAL_MS / 60000} minutes.`
+    );
+  }
+
   /** Convert raw recordings a crashed run left behind and tell the owner (or the log). */
   private async recoverOrphans(): Promise<void> {
     try {
       const outcomes = await recoverOrphans(this.config.sessionsDir, {
-        isActive: dir => this.active?.session.dir === dir,
+        isActive: dir => this.active?.session.dir === dir || this.stoppedDirs.has(dir),
       });
       const text = recoverMessage(outcomes);
       if (!text) return;
@@ -431,6 +539,32 @@ export class RecorderBot {
         displayName: member?.displayName ?? user?.globalName ?? user?.username ?? userId,
       };
     };
+  }
+
+  /** `/recap`, `/npc` and `/handouts`: one read of the player state, answered only to the asker. */
+  /** Where the bot reads the player state: the setting, else the local dashboard. */
+  private dashboardUrl(): string {
+    return this.config.dashboardUrl ?? 'http://127.0.0.1:3000';
+  }
+
+  private async onLookup(i: ChatInputCommandInteraction): Promise<void> {
+    this.readPlayerState ??= createPlayerStateReader({
+      dashboardUrl: this.dashboardUrl(),
+      token: this.config.playerToken,
+      log: log.info,
+    });
+    const text = !lookupAllowed(i.guildId, this.config.guildId)
+      ? LOOKUP_NOT_HERE
+      : lookupReply(
+          i.commandName,
+          i.commandName === 'npc' ? i.options.getString('name', true) : '',
+          await this.readPlayerState()
+        );
+    await i.reply({
+      content: text,
+      flags: MessageFlags.Ephemeral,
+      allowedMentions: { parse: [] },
+    });
   }
 
   private async onRecord(i: ChatInputCommandInteraction): Promise<void> {
@@ -546,6 +680,7 @@ export class RecorderBot {
     const a = this.active;
     if (!a) return NOT_RECORDING;
     this.active = undefined;
+    this.stoppedDirs.add(a.session.dir); // stop() converts it itself; the retry pass leaves it alone
     clearInterval(a.healthTimer);
     a.recorder.stop();
     const tracks = await a.session.stop(reason);
@@ -584,7 +719,10 @@ export class RecorderBot {
 
   async shutdown(): Promise<void> {
     if (this.spaceTimer) clearInterval(this.spaceTimer);
+    this.stopRecoverRetry?.();
     if (this.sessionPostTimer) clearInterval(this.sessionPostTimer);
+    if (this.nudgeTimer) clearInterval(this.nudgeTimer);
+    if (this.omensTimer) clearInterval(this.omensTimer);
     this.statusServer?.close();
     if (this.active) log.info(await this.stop('shutdown'));
     await destroyThenClear(() => this.client.destroy(), markerPath(this.config.sessionsDir));

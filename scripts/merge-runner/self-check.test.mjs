@@ -188,7 +188,6 @@ test('importClosure: the real runner closure holds the runner, its modules and t
     'scripts/merge-runner.mjs',
     'scripts/backlog-items.mjs',
     'scripts/heavy-lock.mjs',
-    'scripts/planner-wake.mjs',
     'scripts/merge-runner/self-check.mjs',
   ]) {
     assert.ok(files.includes(f), `${f} is in the closure`);

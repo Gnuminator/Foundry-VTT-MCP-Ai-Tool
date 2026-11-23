@@ -249,7 +249,7 @@ test(
       tscPid = Number(/Build watch started \(pid (\d+)\)/.exec(out)[1]);
 
       // The first copy is the watch's first build, not the dist/ that was on disk.
-      await until(() => out.includes('Synced module'), 'the first sync', 100000);
+      await until(() => out.includes('Synced module'), 'the first sync', 60000);
       assert.match(fs.readFileSync(mainDest, 'utf8'), /built-1/);
       assert.equal(
         out.split('Synced module').length - 1,
@@ -259,7 +259,7 @@ test(
 
       // A save that does not bundle writes nothing, so nothing is copied.
       fs.writeFileSync(ts, 'export const v: string = ;\n');
-      await until(() => /ERROR/.test(out), 'the build error', 30000);
+      await until(() => /ERROR/.test(out), 'the build error', 20000);
       await sleep(3000);
       assert.match(fs.readFileSync(mainDest, 'utf8'), /built-1/);
 
@@ -273,7 +273,13 @@ test(
       await until(() => !alive(tscPid), 'the build to exit after the watch was killed', 15000);
     } finally {
       release(child);
-      if (tscPid && alive(tscPid)) process.kill(tscPid);
+      if (tscPid && alive(tscPid)) {
+        try {
+          process.kill(tscPid);
+        } catch {
+          // exited between the check and the kill
+        }
+      }
       fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
     }
   }

@@ -49,13 +49,19 @@ systemctl() {
     show)
       case "$*" in
         *InvocationID*) printf '%s\\n' "\${INVOCATION:-}" ;;
+        *MainPID*) printf '%s\\n' "\${MAIN_PID:-}" ;;
         *) printf '%s\\n' "\${SHOW_TS:-}" ;;
       esac ;;
   esac
   return 0
 }
-# JOURNAL is the log of the run with invocation id JOURNAL_ID; asking for any other run gives nothing.
-journalctl() { case "$*" in *"_SYSTEMD_INVOCATION_ID=\${JOURNAL_ID:-none}"*) printf '%s\\n' "\${JOURNAL:-}" ;; esac; }
+# JOURNAL is the log of the run with invocation id JOURNAL_ID (or main PID JOURNAL_PID); asking for any other run gives nothing.
+journalctl() {
+  case "$*" in
+    *"_SYSTEMD_INVOCATION_ID=\${JOURNAL_ID:-none}"*) printf '%s\\n' "\${JOURNAL:-}" ;;
+    "-b "*"_PID=\${JOURNAL_PID:-none} "*) printf '%s\\n' "\${JOURNAL:-}" ;;
+  esac
+}
 curl() { ${readable ? `echo '{"active":true,"users":${users}}'` : 'return 22'}; }
 NODE_DIR="${posix(process.execPath.replace(/[\\/]node(\.exe)?$/, ''))}/.."
 mkdir -p "$NODE_DIR/bin" 2>/dev/null || true
@@ -313,6 +319,29 @@ ${body}`,
     const r = quiet(1, { INVOCATION: 'run-2', JOURNAL_ID: 'run-1', JOURNAL: joinedLine });
     assert.notEqual(r.status, 0, r.out);
     assert.match(r.out, /1 player\(s\) are online/);
+  });
+
+  test('a run whose journal lines carry another invocation id than systemd reports is found by its main PID', () => {
+    // Seen on the Pi 2026-11-17: after a quick restart the unit said one id and its lines carried another.
+    const r = quiet(1, {
+      INVOCATION: 'run-2',
+      JOURNAL_ID: 'other-id',
+      MAIN_PID: '4242',
+      JOURNAL_PID: '4242',
+      JOURNAL: joinedLine,
+    });
+    assert.equal(r.status, 0, r.out);
+  });
+
+  test('a PID match does not count a line from another process', () => {
+    const r = quiet(1, {
+      INVOCATION: 'run-2',
+      JOURNAL_ID: 'other-id',
+      MAIN_PID: '4242',
+      JOURNAL_PID: '9999',
+      JOURNAL: joinedLine,
+    });
+    assert.notEqual(r.status, 0, r.out);
   });
 
   test('when the invocation id cannot be read the Assistant GM is not subtracted (errs towards refusing)', () => {
@@ -632,6 +661,13 @@ describe('the stages', () => {
     assert.ok(text.indexOf('announce.mjs" deploy') < text.indexOf('say "stage 5 done'));
   });
 
+  test('stage 5 ends with the read-only stage 33 check as a warning, never fatal', () => {
+    const text = read('scripts/pi/remote/5-tool.sh');
+    assert.match(text, /CHECK=1 timeout 60 bash -s/);
+    assert.match(text, /warn "stage 33 check: /);
+    assert.ok(text.indexOf('stage 33 check') < text.indexOf('say "stage 5 done'));
+  });
+
   test('stage 5 and 12 warn when the dashboard split is off', () => {
     assert.match(read('scripts/pi/remote/5-tool.sh'), /warn_dashboard_split/);
     assert.match(read('scripts/pi/remote/12-tunnel.sh'), /warn_dashboard_split/);
@@ -711,11 +747,15 @@ ${failMv}
       return { root, prelude };
     };
     const stage2 = read('scripts/pi/remote/2-node.sh');
-    const go = (fail, root, prelude) =>
-      spawnSync('bash', ['-c', `source "${lib}"\n${prelude}\n${stage2}`], {
+    // As a file, like stage 3, not a `bash -c` string (no command text is built from the paths).
+    const go = (fail, root, prelude) => {
+      const scriptFile = join(root, 'stage2.sh');
+      writeFileSync(scriptFile, `source "${lib}"\n${prelude}\n${stage2}`);
+      return spawnSync('bash', [posix(scriptFile)], {
         encoding: 'utf8',
         env: { ...process.env, FAIL_MV: fail ? '1' : '0' },
       });
+    };
     const version = file => readFileSync(file, 'utf8').match(/v24\.\d+\.\d+/)?.[0];
 
     test('control: without a failure the new Node is in place and the old one is kept as .prev', () => {
@@ -979,7 +1019,7 @@ case "$1" in
   start) touch "$LOG.started"; [ "\${RESTART_FAILS:-0}" = 1 ] || rm -f "$LOG.down" ;;
   is-active) [ "\${@: -1}" = foundry.service ] && [ -f "$LOG.down" ] && exit 1
     case " $ACTIVE " in *" \${@: -1} "*) exit 0 ;; esac; exit 1 ;;
-  show) case "$*" in *InvocationID*) echo "\${INVOCATION:-}" ;; *) echo "\${SHOW_TS:-}" ;; esac ;;
+  show) case "$*" in *InvocationID*) echo "\${INVOCATION:-}" ;; *MainPID*) echo "\${MAIN_PID:-}" ;; *) echo "\${SHOW_TS:-}" ;; esac ;;
 esac
 exit 0`
     );
@@ -1076,7 +1116,7 @@ exit 0`
     // JOURNAL is the log of the run with invocation id JOURNAL_ID; any other run has nothing.
     tool(
       'journalctl',
-      'case "$*" in *"_SYSTEMD_INVOCATION_ID=${JOURNAL_ID:-none}"*) printf "%s\\n" "${JOURNAL:-}" ;; esac'
+      'case "$*" in *"_SYSTEMD_INVOCATION_ID=${JOURNAL_ID:-none}"*) printf "%s\\n" "${JOURNAL:-}" ;; "-b "*"_PID=${JOURNAL_PID:-none} "*) printf "%s\\n" "${JOURNAL:-}" ;; esac'
     );
     const script = join(d, 'foundry-backup.sh');
     writeFileSync(script, body, { mode: 0o755 });
@@ -1525,7 +1565,31 @@ exit 0`
         },
       });
       assert.notEqual(earlier.status, 0, earlier.out);
+      // The invocation id the journal carries differs from systemd's (seen 2026-11-17): the main PID finds the join.
+      const byPid = nightly({
+        users: [1],
+        active,
+        env: {
+          INVOCATION: 'run-2',
+          JOURNAL_ID: 'other-id',
+          MAIN_PID: '4242',
+          JOURNAL_PID: '4242',
+          JOURNAL: joinedLine,
+        },
+      });
+      assert.equal(byPid.status, 0, byPid.out);
+      assert.equal(byPid.sleeps, 0, unit);
     }
+  });
+
+  test('browser_joined is the same in lib.sh and the nightly backup script, and the PID lookup is scoped to this boot', () => {
+    const body = rel => /browser_joined\(\) \{\n[\s\S]*?\n\}\n/.exec(read(rel))?.[0];
+    assert.ok(body('scripts/pi/remote/lib.sh'));
+    assert.equal(body('scripts/pi/remote/6-backup.sh'), body('scripts/pi/remote/lib.sh'));
+    assert.match(
+      body('scripts/pi/remote/lib.sh'),
+      /journalctl -b "_PID=\$pid" "_SYSTEMD_UNIT=\$unit"/
+    );
   });
 
   test('the service allows for the waiting, and the stage runs the first backup without it under FORCE=1', () => {

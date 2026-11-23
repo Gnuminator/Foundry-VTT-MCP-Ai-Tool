@@ -14,8 +14,10 @@
  *     the test suite in `shared.test.ts`.
  *   - `.default(…)` on scalar fields means the field is optional at parse
  *     time and the default is filled in on the output. This matches
- *     behaviour callers already rely on (e.g. `scaling: ScalingOptionsSchema
- *     .default({})` inside CampaignPartSchema).
+ *     behaviour callers already rely on.
+ *   - `.prefault({})` on an object field (e.g. `scaling: ScalingOptionsSchema
+ *     .prefault({})` inside CampaignPartSchema) feeds `{}` into the inner
+ *     schema, so the inner defaults fill in when the field is missing.
  */
 
 import { z } from 'zod';
@@ -379,7 +381,7 @@ export const CampaignStructureSchema = z.object({
 
 /**
  * Blueprint for pre-populating a new campaign with a standard part layout.
- * `metadata` is `.partial()` — callers supply only the fields they know.
+ * `metadata` is `.partial()`; callers supply only the fields they know.
  * The inline part schema deliberately omits fields that are filled in at
  * campaign-creation time (id, status, gmNotes, etc.).
  */

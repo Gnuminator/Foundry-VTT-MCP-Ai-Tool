@@ -13,6 +13,7 @@ import {
   kitRun,
   noteRow,
   parseArgs,
+  ranToday,
   resultText,
   staleKitLock,
   updateNote,
@@ -129,6 +130,34 @@ test('--daily is a nightly run that does nothing when a run finished today', asy
     assert.ok(t.fake.calls.length > calls);
   } finally {
     t.cleanup();
+  }
+});
+
+test('ranToday: only a finished full nightly run on the same local day counts', () => {
+  const home = mkdtempSync(path.join(os.tmpdir(), 'ran-today-'));
+  const day = new Date(2026, 10, 18, 15, 0, 0);
+  const write = lastRun =>
+    writeFileSync(path.join(home, 'last-run.json'), JSON.stringify({ lastRun }));
+  try {
+    assert.equal(ranToday(home, day), false, 'no file');
+    writeFileSync(path.join(home, 'last-run.json'), '{bad');
+    assert.equal(ranToday(home, day), false, 'unreadable');
+    const at = new Date(2026, 10, 18, 1, 0, 0).toISOString();
+    const yesterday = new Date(2026, 10, 17, 23, 0, 0).toISOString();
+    const rows = [
+      [{ nightly: true, size: 'full', finishedAt: at }, true],
+      [{ nightly: true, size: 'full', at }, true],
+      [{ nightly: true, size: 'full', finishedAt: yesterday }, false],
+      [{ nightly: false, size: 'full', finishedAt: at }, false],
+      [{ nightly: true, size: 'smoke', finishedAt: at }, false],
+      [{ nightly: true, size: 'full' }, false],
+    ];
+    for (const [run, want] of rows) {
+      write(run);
+      assert.equal(ranToday(home, day), want, JSON.stringify(run));
+    }
+  } finally {
+    rmSync(home, { recursive: true, force: true });
   }
 });
 
@@ -281,6 +310,13 @@ test('lock taken, nightly: queues, waits, leaves the queue, records the skip, ke
     const doc = lastRun(t.home);
     assert.equal(doc.last.state, 'skipped');
     assert.equal(doc.lastRun.state, 'passed');
+    // The skipped nightly is the last nightly; the earlier lane-style run is not one.
+    assert.equal(doc.lastNightly.state, 'skipped');
+    writeLastRun(t.home, { state: 'passed', passed: 2, total: 2, at: 'y' });
+    const after = lastRun(t.home);
+    assert.equal(after.last.state, 'passed');
+    assert.equal(after.lastNightly.state, 'skipped');
+    assert.equal(after.lastNightlyRun, null);
     assert.equal(t.vault[0].state, 'skipped');
   } finally {
     t.cleanup();

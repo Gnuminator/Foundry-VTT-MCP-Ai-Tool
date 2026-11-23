@@ -8,12 +8,15 @@
 import { createServer, type Server } from 'node:http';
 
 import type { RecorderProblem } from './rec/health.js';
+import type { NudgeProblem } from './rec/record-nudge.js';
 
 export interface BotStatus {
   /** A recording is running right now. */
   recording: boolean;
   /** What is wrong, in plain words; empty when all is well or nothing records. */
-  problems: RecorderProblem[];
+  problems: Array<RecorderProblem | NudgeProblem>;
+  /** Estimated speaking time per person since the recording started (ms), longest first. */
+  speaking?: { name: string; ms: number }[];
 }
 
 export function startStatusServer(

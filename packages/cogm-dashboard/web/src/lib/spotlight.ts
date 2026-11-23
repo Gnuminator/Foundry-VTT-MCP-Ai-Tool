@@ -83,8 +83,8 @@ function rosterName(
     const byId = roster.find(r => r.actorId === entry.actorId);
     if (byId) return byId.name;
   }
-  // A roster member whose id is known and differs from the entry's id is another character.
-  const names = roster.filter(r => !(entry.actorId && r.actorId)).map(r => r.name);
+  // No id match (a transformed actor such as a Wild Shape form has its own id): by name.
+  const names = roster.map(r => r.name);
   const full = norm(entry.name);
   const exact = names.find(r => norm(r) === full);
   if (exact) return exact;

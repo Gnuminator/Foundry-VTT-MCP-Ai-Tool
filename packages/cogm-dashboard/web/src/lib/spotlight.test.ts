@@ -63,16 +63,13 @@ describe('buildSpotlight', () => {
     ]);
   });
 
-  it('keeps a character with another id on a row of their own', () => {
+  it('folds a transformed actor with a new id into its character by name', () => {
     const rows = buildSpotlight(
-      { players: [{ name: 'Ebbe', actions: 2, actorId: 'zz' }] },
+      { players: [{ name: 'Ebbe Stonefist (Brown Bear)', actions: 2, actorId: 'zz' }] },
       [{ name: 'Ebbe Stonefist', actorId: 'a1' }],
       []
     );
-    expect(rows.map(r => [r.name, r.actions])).toEqual([
-      ['Ebbe', 2],
-      ['Ebbe Stonefist', 0],
-    ]);
+    expect(rows.map(r => [r.name, r.actions])).toEqual([['Ebbe Stonefist', 2]]);
   });
 
   it('matches speakers by name or first word and leaves the GM out', () => {

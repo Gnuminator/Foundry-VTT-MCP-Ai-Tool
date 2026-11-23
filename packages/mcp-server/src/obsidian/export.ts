@@ -367,22 +367,30 @@ export async function exportWorldToObsidian(options: {
     await store.write(worldId, 'gm', SEEN_INDEX_FILE, seen);
   }
 
+  const failedParts = new Set<string>();
   for (const [month, parts] of changeParts) {
     const all = parts.map(p => p.name);
     for (const part of parts) {
+      const errorsBefore = writer.errors.length;
       await writer.owned(
         `AI Tool/Changes/${part.name}.md`,
         renderChangesNote(worldId, month, part.entries, { name: part.name, all }),
         checkMarkdownOwnership
       );
+      if (writer.errors.length > errorsBefore) failedParts.add(part.name);
     }
   }
   // Which parts exist now, so the dashboard link never opens a -pN note the export has not written
-  // (the change that tips a month past its cap). Written only when it changed.
+  // (the change that tips a month past its cap). A part whose write failed this run counts only if
+  // an earlier run wrote it. Written only when it changed.
   {
-    const names = [...changeParts.values()].flatMap(parts => parts.map(p => p.name)).sort();
     const stored = (await store.read<ChangeNotesWritten>(worldId, 'gm', CHANGE_NOTES_WRITTEN_FILE))
       ?.data;
+    const before = new Set(stored?.names ?? []);
+    const names = [...changeParts.values()]
+      .flatMap(parts => parts.map(p => p.name))
+      .filter(name => !failedParts.has(name) || before.has(name))
+      .sort();
     if (JSON.stringify(stored?.names) !== JSON.stringify(names)) {
       await store.write(worldId, 'gm', CHANGE_NOTES_WRITTEN_FILE, { names });
     }

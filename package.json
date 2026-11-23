@@ -71,6 +71,7 @@
     "live:sweep": "node scripts/live-write-sweep.mjs",
     "demo:obs-setup": "node scripts/demo/demo.mjs obs-setup",
     "demo:take": "node scripts/demo/demo.mjs take",
+    "demo:rehearse": "node scripts/demo/rehearse.mjs",
     "demo:export": "node scripts/demo/export.mjs",
     "demo:compose": "node scripts/demo/compose.mjs",
     "demo:loops": "node scripts/demo/loops.mjs",

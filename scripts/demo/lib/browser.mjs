@@ -120,10 +120,15 @@ export async function openWindow({
 }) {
   const profile = profileDir(title, keepProfile);
   mkdirSync(profile, { recursive: true });
+  // The rehearsal (rehearse.mjs sets DEMO_HEADLESS=1) shows nothing on the user's screen:
+  // headless Edge with a fixed viewport, no window placement.
+  const headless = process.env.DEMO_HEADLESS === '1';
   const context = await chromium.launchPersistentContext(profile, {
     channel: 'msedge',
-    headless: false,
-    ...(fullscreen ? { viewport: css, deviceScaleFactor: scale } : { viewport: null }),
+    headless,
+    ...(fullscreen || headless
+      ? { viewport: css, deviceScaleFactor: fullscreen ? scale : 1 }
+      : { viewport: null }),
     // Keep Edge's sandbox on: with --no-sandbox Edge shows a warning bar over the page.
     chromiumSandbox: true,
     // No "controlled by automated test software" bar; and no default about:blank tab,
@@ -143,7 +148,9 @@ export async function openWindow({
   });
   await context.addInitScript(initScript, { title, cursor });
   const page = context.pages()[0] ?? (await context.newPage());
-  if (fullscreen) await setWindowState(context, page, 'fullscreen');
+  if (headless) {
+    // nothing to place
+  } else if (fullscreen) await setWindowState(context, page, 'fullscreen');
   else await fitWindow(context, page, css, position);
   await page.goto(url);
   return { title, context, page, close: () => context.close() };

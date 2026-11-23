@@ -83,7 +83,8 @@ jobs:
         id: storybook-install
         if: steps.storybook-node.outcome == 'success'
         continue-on-error: true
-        run: npm ci --ignore-scripts --no-audit --no-fund -w @gnuminator/cogm-dashboard
+        # The whole repo, not just the dashboard workspace: building shared needs the root's typescript7.
+        run: npm ci --ignore-scripts --no-audit --no-fund
 
       # The stories import @gnuminator/shared/browser, which resolves to shared/dist: build it first
       # (without it the Storybook build fails with "failed to resolve import").

@@ -2,6 +2,12 @@
 
 The same steps as the connector's `rules-question` prompt, so the answers look alike.
 
+0. Check the table house rules first. The world journal **Table** in the **Campaign** folder holds
+   what this table agreed to do differently from the book (the GM edits it). Call `search-journals`
+   with the key word of the question and read a hit only if it comes from that journal. If the
+   journal does not exist yet or says nothing on the question, say nothing about it and go on. A
+   house rule beats the book: answer with it and put "house rule" in the **Source** line. A line
+   marked as not yet agreed or open is a proposal: call it one, never the rule.
 1. `list-compendium-packs` to see which books are installed, and which look like 2024 and which
    2014 rules. If you cannot tell, say "version unknown".
 2. Pick the search terms: the name of the spell, condition, feature, action or rule. Call

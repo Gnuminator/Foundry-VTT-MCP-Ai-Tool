@@ -171,7 +171,7 @@ function renderFancy(s) {
       <h2>Inventory</h2>${rows(s.inventory.map(i => [`${i.name}${i.equipped ? ' (equipped)' : ''}${i.attuned ? ' (attuned)' : ''}`, `×${i.quantity}`]))}
       ${coins ? `<p class="muted">Coins: ${esc(coins)}</p>` : ''}
     </section>
-    <label class="me-prefs no-print"><input type="checkbox" id="me-pref-turn"${showTurnCard ? ' checked' : ''} /> Show the "On my turn" card</label>
+    <label class="me-prefs no-print"><input type="checkbox" id="me-pref-turn" data-track="me.turn-card.toggle"${showTurnCard ? ' checked' : ''} /> Show the "On my turn" card</label>
   </div>`;
 }
 
@@ -195,7 +195,7 @@ function render() {
   chars.innerHTML = sheets
     .map(
       x =>
-        `<button type="button" data-char="${esc(x.id)}" aria-pressed="${x.id === s.id}">${esc(x.name)}</button>`
+        `<button type="button" data-char="${esc(x.id)}" data-track="me.character.switch" aria-pressed="${x.id === s.id}">${esc(x.name)}</button>`
     )
     .join('');
   $('me-name').textContent = s.name;
@@ -439,8 +439,8 @@ function renderDiary() {
       e => `<li data-id="${esc(e.id)}">
         <div class="md-meta">${esc(e.character || 'My character')}, ${esc(new Date(e.updatedAt).toLocaleDateString())}</div>
         <p class="md-text">${esc(e.text)}</p>
-        <button type="button" data-diary-edit="${esc(e.id)}">Edit</button>
-        <button type="button" data-diary-del="${esc(e.id)}">Delete</button>
+        <button type="button" data-diary-edit="${esc(e.id)}" data-track="me.diary.edit">Edit</button>
+        <button type="button" data-diary-del="${esc(e.id)}" data-track="me.diary.delete">Delete</button>
       </li>`
     )
     .join('');
@@ -546,11 +546,13 @@ document.addEventListener('visibilitychange', () => {
 setInterval(() => {
   if (!document.hidden) void load();
 }, REFRESH_MS);
+window.cogmUsage?.trackView('me.page.open');
 render();
 void load();
 void loadConnector();
 void loadDiary();
 $('me-diary').addEventListener('toggle', () => {
+  if ($('me-diary').open) window.cogmUsage?.track('action', 'me.diary.open');
   if ($('me-diary').open && !diaryLoaded) void loadDiary();
 });
 mountDowntime($('me-downtime'), key);

@@ -31,7 +31,7 @@ export type UsageSurface = (typeof USAGE_SURFACES)[number];
 /** Name prefix each surface must use (tools use `tool.<tool-name>` on the dashboard). */
 export const USAGE_NAME_PREFIX: Record<UsageSurface, readonly string[]> = {
   dashboard: ['dash.', 'tool.'],
-  player: ['player.'],
+  player: ['player.', 'me.'],
   module: ['module.'],
 };
 

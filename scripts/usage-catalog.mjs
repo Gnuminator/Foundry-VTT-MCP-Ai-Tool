@@ -38,6 +38,7 @@ const SURFACE_PREFIX = [
   ['dash.', 'dashboard'],
   ['tool.', 'dashboard'],
   ['player.', 'player'],
+  ['me.', 'player'],
   ['module.', 'module'],
 ];
 const OUTPUT = 'shared/src/usage-catalog.generated.ts';

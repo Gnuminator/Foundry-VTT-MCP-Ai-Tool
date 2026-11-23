@@ -53,6 +53,16 @@ def test_missing_clip_and_unknown_name_say_so(tmp_path: Path) -> None:
         resolve_voice("en", "deep", None, local)
 
 
+def test_bad_file_never_breaks_ref_voices(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("NARRATION_VOICES", str(write(tmp_path, "da.deep.speed = fast\n")))
+    clip = tmp_path / "c.wav"
+    clip.write_bytes(b"x")
+    assert resolve_voice("da", f"ref:{clip}").engine == "roest"
+    assert resolve_voice("da", None).name == "mic"
+    with pytest.raises(ValueError, match="speed must be a number"):
+        resolve_voice("da", "deep")
+
+
 @pytest.mark.parametrize("line", ["deep = x.wav", "fr.deep = x.wav", "da.deep.pitch = 1", "da.deep"])
 def test_bad_lines_are_refused(tmp_path: Path, line: str) -> None:
     with pytest.raises(ValueError, match="voices.local|expected|unknown setting"):

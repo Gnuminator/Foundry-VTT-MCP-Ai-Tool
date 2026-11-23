@@ -53,6 +53,21 @@ export function olderThan(chapters, commit, isAncestor) {
   });
 }
 
-/** `isAncestor` for olderThan, backed by git in `root`. */
-export const gitIsAncestor = root => (a, b) =>
-  git(root, ['merge-base', '--is-ancestor', a, b]).status === 0;
+/** True when `commit` exists in the checkout at `root`. */
+export const hasCommit = (root, commit) =>
+  git(root, ['rev-parse', '--verify', '--quiet', `${commit}^{commit}`]).status === 0;
+
+/**
+ * `isAncestor` for olderThan, backed by git in `root`. A filmed commit this checkout does not
+ * have (a take from another PC) is unknown, not "older": it counts as not older, and `unknown`
+ * collects it so the caller can say so.
+ */
+export const gitIsAncestor =
+  (root, unknown = new Set()) =>
+  (a, b) => {
+    if (!hasCommit(root, b)) {
+      unknown.add(b);
+      return true;
+    }
+    return git(root, ['merge-base', '--is-ancestor', a, b]).status === 0;
+  };

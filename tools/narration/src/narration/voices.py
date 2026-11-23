@@ -106,9 +106,12 @@ def load_local_voices(path: Path | None = None) -> dict[str, dict[str, Voice]]:
         if len(parts) == 3:
             if parts[2] != "speed":
                 raise ValueError(f"{path} line {n}: unknown setting '{parts[2]}' (only speed)")
-            speeds[who] = float(value)
+            try:
+                speeds[who] = float(value)
+            except ValueError:
+                raise ValueError(f"{path} line {n}: speed must be a number, got '{value.strip()}'") from None
         else:
-            clips[who] = value.strip()
+            clips[who] = value.strip().strip('"')
     found: dict[str, dict[str, Voice]] = {}
     for (lang, name), clip in clips.items():
         engine, settings = ("roest", ROEST_SETTINGS) if lang == "da" else ("turbo", TURBO_SETTINGS)
@@ -127,8 +130,10 @@ def resolve_voice(
 
     ``local`` is the ``voices.local`` set (read from the file when not given).
     """
+    # voices.local is read only when a name needs it, so a typo there never breaks ref: or built-in voices.
     if local is None:
-        local = load_local_voices()
+        named = bool(spec) and not spec.lower().startswith("ref:")
+        local = load_local_voices() if named else {}
     if spec and spec.lower().startswith("ref:"):
         path = Path(spec[4:].strip()).expanduser()
         if not path.is_file():

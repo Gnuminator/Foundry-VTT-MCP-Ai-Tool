@@ -85,11 +85,15 @@ jobs:
         continue-on-error: true
         run: npm ci --ignore-scripts --no-audit --no-fund -w @gnuminator/cogm-dashboard
 
+      # The stories import @gnuminator/shared/browser, which resolves to shared/dist: build it first
+      # (without it the Storybook build fails with "failed to resolve import").
       - name: Storybook, build
         id: storybook-build
         if: steps.storybook-install.outcome == 'success'
         continue-on-error: true
-        run: npm run build-storybook -w @gnuminator/cogm-dashboard
+        run: |
+          npm run build:shared
+          npm run build-storybook -w @gnuminator/cogm-dashboard
 
       # Only a build that succeeded is copied: a failed build can leave a partial storybook-static.
       - name: Storybook, add it to the site

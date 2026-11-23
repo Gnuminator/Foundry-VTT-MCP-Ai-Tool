@@ -638,7 +638,7 @@ describe('FoundryDataAccess: requestPlayerRolls: ability cards with a DC', () =>
     const msg = world.messages.contents[world.messages.contents.length - 1];
     expect(msg.content).toContain('WIS Ability Check (Public)');
     expect(msg.content).toContain('Spot the trap');
-    expect(msg.content).not.toContain('Spot the trap — DC 15');
+    expect(msg.content).not.toContain('Spot the trap, DC 15');
     // The click handler reads the DC from the button and rolls against it.
     expect(msg.content).toContain('data-dc="15"');
   });

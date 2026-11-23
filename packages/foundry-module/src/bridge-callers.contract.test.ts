@@ -56,8 +56,15 @@ function literalsOf(fileName: string, text: string): string[] {
   const out: string[] = [];
   const sf = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, true);
   const visit = (node: ts.Node): void => {
-    if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) out.push(node.text);
-    else if (ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node)) {
+    const typeOnly =
+      ts.isLiteralTypeNode(node.parent ?? node) ||
+      (ts.isPropertySignature(node.parent ?? node) &&
+        (node.parent as ts.PropertySignature).name === node);
+    if (typeOnly) {
+      // A quoted type key or a string literal type is not a call.
+    } else if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
+      out.push(node.text);
+    } else if (ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node)) {
       out.push(node.text);
     }
     ts.forEachChild(node, visit);
@@ -144,6 +151,7 @@ describe(
         '/** and `getTokenDetails` here */',
         'interface T { getTokenDetails: string }',
         "const call = query('manageRest');",
+        "interface Q { 'getTokenDetails': string; m: 'getTokenDetails' | 'ping' }",
       ].join('\n');
       const literals = literalsOf('x.ts', source);
       expect(literals).toEqual(['manageRest']);

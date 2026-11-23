@@ -66,10 +66,14 @@ function literalsOf(fileName: string, text: string): string[] {
   return out;
 }
 
+let cachedLiterals: string[] | undefined;
+
+/** Parsed once: the scan reads every backend, dashboard and shared source file. */
 function callerLiterals(): string[] {
-  return CALLER_DIRS.flatMap(dir => sourceFiles(join(repoRoot, dir))).flatMap(file =>
+  cachedLiterals ??= CALLER_DIRS.flatMap(dir => sourceFiles(join(repoRoot, dir))).flatMap(file =>
     literalsOf(file, readFileSync(file, 'utf8'))
   );
+  return cachedLiterals;
 }
 
 /** The method names the callers write as full wire names (a `flags.` or `settings.` path is not a call). */
@@ -112,43 +116,47 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('bridge handlers and the names the backend and dashboard send', () => {
-  it('every registered handler has a caller', () => {
-    new QueryHandlers().registerHandlers();
-    const registered = bridgeHandlers.methods().map(m => m.slice(MODULE_ID.length + 1));
-    const literals = callerLiterals();
-    const full = fullNamesSent(literals);
-    const uncalled = registered
-      .filter(n => !(n in CALLED_ANOTHER_WAY) && !isCalled(n, literals, full))
-      .sort();
-    expect(uncalled).toEqual([]);
-  });
+describe(
+  'bridge handlers and the names the backend and dashboard send',
+  { timeout: 60_000 },
+  () => {
+    it('every registered handler has a caller', () => {
+      new QueryHandlers().registerHandlers();
+      const registered = bridgeHandlers.methods().map(m => m.slice(MODULE_ID.length + 1));
+      const literals = callerLiterals();
+      const full = fullNamesSent(literals);
+      const uncalled = registered
+        .filter(n => !(n in CALLED_ANOTHER_WAY) && !isCalled(n, literals, full))
+        .sort();
+      expect(uncalled).toEqual([]);
+    });
 
-  it('every name the callers send has a handler', () => {
-    new QueryHandlers().registerHandlers();
-    const registered = new Set(bridgeHandlers.methods().map(m => m.slice(MODULE_ID.length + 1)));
-    const unknown = [...fullNamesSent(callerLiterals())].filter(n => !registered.has(n)).sort();
-    expect(unknown).toEqual([]);
-  });
+    it('every name the callers send has a handler', () => {
+      new QueryHandlers().registerHandlers();
+      const registered = new Set(bridgeHandlers.methods().map(m => m.slice(MODULE_ID.length + 1)));
+      const unknown = [...fullNamesSent(callerLiterals())].filter(n => !registered.has(n)).sort();
+      expect(unknown).toEqual([]);
+    });
 
-  it('a comment or a type-only mention does not count as a caller', () => {
-    const source = [
-      '// `getTokenDetails` is mentioned here',
-      '/** and `getTokenDetails` here */',
-      'interface T { getTokenDetails: string }',
-      "const call = query('manageRest');",
-    ].join('\n');
-    const literals = literalsOf('x.ts', source);
-    expect(literals).toEqual(['manageRest']);
-    expect(isCalled('getTokenDetails', literals, new Set())).toBe(false);
-    expect(isCalled('manageRest', literals, new Set())).toBe(true);
-    // A bare kebab-case string is a tool name, not a wire call.
-    expect(isCalled('get-token-details', ['get-token-details'], new Set())).toBe(false);
-  });
+    it('a comment or a type-only mention does not count as a caller', () => {
+      const source = [
+        '// `getTokenDetails` is mentioned here',
+        '/** and `getTokenDetails` here */',
+        'interface T { getTokenDetails: string }',
+        "const call = query('manageRest');",
+      ].join('\n');
+      const literals = literalsOf('x.ts', source);
+      expect(literals).toEqual(['manageRest']);
+      expect(isCalled('getTokenDetails', literals, new Set())).toBe(false);
+      expect(isCalled('manageRest', literals, new Set())).toBe(true);
+      // A bare kebab-case string is a tool name, not a wire call.
+      expect(isCalled('get-token-details', ['get-token-details'], new Set())).toBe(false);
+    });
 
-  it('the exceptions list names only registered handlers', () => {
-    new QueryHandlers().registerHandlers();
-    const registered = new Set(bridgeHandlers.methods().map(m => m.slice(MODULE_ID.length + 1)));
-    expect(Object.keys(CALLED_ANOTHER_WAY).filter(n => !registered.has(n))).toEqual([]);
-  });
-});
+    it('the exceptions list names only registered handlers', () => {
+      new QueryHandlers().registerHandlers();
+      const registered = new Set(bridgeHandlers.methods().map(m => m.slice(MODULE_ID.length + 1)));
+      expect(Object.keys(CALLED_ANOTHER_WAY).filter(n => !registered.has(n))).toEqual([]);
+    });
+  }
+);

@@ -130,7 +130,7 @@ def resolve_voice(
 
     ``local`` is the ``voices.local`` set (read from the file when not given).
     """
-    # voices.local is read only when a name needs it, so a typo there never breaks ref: or built-in voices.
+    # voices.local is read only when a name needs it, so a typo there never breaks the default voice or ref: voices.
     if local is None:
         named = bool(spec) and not spec.lower().startswith("ref:")
         local = load_local_voices() if named else {}

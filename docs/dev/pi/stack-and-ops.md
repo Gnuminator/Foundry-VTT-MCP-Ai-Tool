@@ -101,6 +101,12 @@ side, each only after a `dietpi-backup` snapshot and the user's OK; nothing here
   `deploy/pi/.env` in the deployed checkout (`/opt/foundry-ai-tool/app`: the foundry user's ids, the tailnet name and the player
   vaults folder from stage 21); builds the three images. Starts nothing. `DRY_RUN=1` prints the plan, `SKIP_BUILD=1` skips the
   build. On the systemd units, run it again after every stage 5 build (the checkout, and its `.env`, is replaced); on the cut-over stack stage 5 carries the `.env` over and builds the images itself.
+- **Going back one tool build:** run stage 5 again with `TOOL_REF=<the older tag>` (quiet table, snapshot and the user's OK
+  first, like any stage 5 run), then stage 33 (the Obsidian plugin follows the build). That is the supported way: it takes the
+  same stops, copies the module of that build and runs the same checks. `/opt/foundry-ai-tool/app.prev` (the checkout before
+  the last swap, kept until the next build) is only the fast way back if the older tag cannot be fetched: stop the three units
+  (systemd stack only), `mv app app.bad && mv app.prev app`, start them again, then run `deploy/pi/deployed-state.ps1`; on the
+  containers the images of the old build are gone, so use `TOOL_REF` there.
 - **Stage 24** (`scripts/pi/remote/24-compose.sh`, `MODE=status|up|down|rollback`): `up` and `down` start and stop the stack
   for a rehearsal (`up` is refused next to a running or enabled unit on the live ports or data folders; a rehearsal on other
   ports is its own compose project and never touches the live containers); `rollback` is the one command back (every container

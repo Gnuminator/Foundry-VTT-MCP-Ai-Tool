@@ -125,14 +125,15 @@ containers_prepare_build() {
   # The build took minutes: ask for a quiet Pi again now, before the swap, when the apply below will recreate anything, so a
   # player who joined meanwhile refuses here and not half way (after the swap and the module copy).
   for img in $STACK_SERVICES; do
-    if containers_stale "$img"; then
+    if containers_stale "$img" "$tree"; then
       require_quiet "recreating the changed containers (checked before the swap)"
       break
     fi
   done
 }
 
-# containers_stale SERVICE: 0 when `compose up -d` would recreate the running container of SERVICE (its image is not the one the
+# containers_stale SERVICE [TREE]: TREE is the checkout whose compose config is the wanted one (before the swap that is the new
+# build, not the deployed one); without it the deployed checkout counts. 0 when `compose up -d` would recreate the running container of SERVICE (its image is not the one the
 # tag points to now, or its compose config hash is not the current one), or when that cannot be told (then the quiet check is
 # asked for, which is the safe side). 1 when it is current, and also when the service has no container (stage 24 makes those).
 containers_stale() {
@@ -144,7 +145,7 @@ containers_stale() {
   want="$(docker image inspect -f '{{.Id}}' "$img" 2>/dev/null || true)"
   [ -n "$want" ] && [ "$want" = "$have" ] || return 0
   label="$(docker inspect -f '{{index .Config.Labels "com.docker.compose.config-hash"}}' "$cid" 2>/dev/null || true)"
-  now="$(stack_compose config --hash "$1" 2>/dev/null | awk 'NR == 1 { print $NF }' || true)"
+  now="$(TOOL_CHECKOUT="${2:-${TOOL_CHECKOUT:-}}" stack_compose config --hash "$1" 2>/dev/null | awk 'NR == 1 { print $NF }' || true)"
   [ -n "$label" ] && [ -n "$now" ] && [ "$label" = "$now" ] || return 0
   return 1
 }
@@ -499,12 +500,17 @@ fi
 # stage as one warning line, so a forgotten stage 33 shows up here. Never fatal; it changes nothing.
 stage33="$app/scripts/pi/remote/33-obsidian-plugin.sh"
 if [ -f "$stage33" ] && [ -f "$app/scripts/pi/remote/lib.sh" ]; then
-  if cat "$app/scripts/pi/remote/lib.sh" "$stage33" | CHECK=1 timeout 60 bash -s >/tmp/stage33-check.$$ 2>&1; then
+  # The output stays in a variable (no fixed /tmp file). "not in step" is the check's own verdict; any other failure (a
+  # missing vault or build, a timeout) means the check could not run, which is a different line.
+  rc=0
+  check33="$(cat "$app/scripts/pi/remote/lib.sh" "$stage33" | CHECK=1 timeout 60 bash -s 2>&1)" || rc=$?
+  if [ "$rc" = 0 ]; then
     ok "stage 33 check: the GM vault's Obsidian plugin matches this build"
+  elif printf '%s' "$check33" | grep -q 'stage 33 check: not in step'; then
+    warn "stage 33 check: the GM vault's Obsidian plugin is not in step with this build: run stage 33 next (snapshot and the user's OK first)"
   else
-    warn "stage 33 check: the GM vault's Obsidian plugin is not in step with this build: run stage 33 next (snapshot and the user's OK first); details: $(tail -n 3 /tmp/stage33-check.$$ | tr '\n' ' ')"
+    warn "stage 33 check could not run (exit $rc), so it is not known whether the plugin matches this build: run stage 33 with CHECK=1 by hand; details: $(printf '%s' "$check33" | tail -n 3 | tr '\n' ' ')"
   fi
-  rm -f /tmp/stage33-check.$$
 fi
 
 say "stage 5 done: run 5-check-world.sh for the throwaway check world, or set up the Assistant GM in the real world"

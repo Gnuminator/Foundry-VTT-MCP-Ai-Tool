@@ -1,6 +1,6 @@
 ---
 source: gm/dashboard-panels.md
-sourceHash: e73987f0537d
+sourceHash: 7e5fd11b35a0
 title: 'Dashboardet: panelerne'
 description: "During layouts, Combat Tracker, Tonight's stats, Session notes, Live Feed, Module Diagnostics og Recent Changes."
 ---
@@ -12,6 +12,8 @@ Part of [Dashboardet](dashboard.md).
 ## Panelerne
 
 ### During layouts
+
+![During-skærmen i layoutet Cards: Live Feed med Recent Changes og Handouts ved siden af](../../images/dashboard/dashboard-during-cards.png)
 
 Spillet foregår i Foundry; **During**-skærmen står ved siden af og holder øje med tingene. Den
 findes i tre layouts. Vælg et med **Layout** øverst på skærmen:
@@ -229,6 +231,8 @@ Serveren (Orange Pi) tjekker selv sin ledige diskplads hver time: under 20 % led
 som en Discord-besked til den, der driver serveren.
 
 ### Recent Changes
+
+![Recent Changes med tre rækker, to af dem med en Undo-knap](../../images/dashboard/dashboard-recent-changes.png)
 
 Hver guarded change, der blev anvendt, nyeste først, op til 20. Hver række viser:
 

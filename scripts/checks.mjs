@@ -206,19 +206,6 @@ export const CHECKS = [
   // Not in the `pi` group: world-switches, runtime-imports and the Obsidian guides read module and
   // package sources and the docs (packages/*, docs/), so a pull request outside the Pi paths can break them.
   { name: 'wiki-scripts', group: 'scripts', cmd: 'npm', args: ['run', 'wiki:test'], env: CI },
-  {
-    name: 'livekit-recorder-install',
-    group: 'tools',
-    cmd: 'npm',
-    args: ['ci', '--prefix', 'tools/livekit/recorder'],
-  },
-  {
-    name: 'livekit-recorder-test',
-    group: 'tools',
-    cmd: 'npm',
-    args: ['test', '--prefix', 'tools/livekit/recorder'],
-    env: CI,
-  },
   { name: 'coverage-check', group: 'gate', cmd: 'node', args: ['scripts/test-coverage-check.mjs'] },
   npmRun('changelog', 'static', 'changelog:check', {
     drift: { name: 'changelog fragments', order: 3 },

@@ -1,5 +1,11 @@
 import { z } from 'zod';
-import { CHARACTER_DIARY_FEATURE_ID, toolRef, type GuardedOp } from '@gnuminator/shared';
+import {
+  CHARACTER_DIARY_FEATURE_ID,
+  featureSwitchOff,
+  toolRef,
+  unwrapBridgeReply,
+  type GuardedOp,
+} from '@gnuminator/shared';
 import { FoundryClient } from '../foundry-client.js';
 import type { GuardedWriteService, PlanView } from '../guarded-write/service.js';
 import { Logger } from '../logger.js';
@@ -129,9 +135,21 @@ export class CharacterDiaryTools {
       );
     }
 
-    const actors = (await this.options.foundryClient.query('foundry-mcp-bridge.getActorOwnership', {
-      actorIdentifier: 'all',
-    })) as OwnershipEntry[];
+    // Fail early and plainly while the switch is off (the apply would refuse it anyway).
+    const features = unwrapBridgeReply(
+      await this.options.foundryClient.query('foundry-mcp-bridge.listGuardedFeatures'),
+      'Feature list refused'
+    );
+    if (!features.find(f => f.id === CHARACTER_DIARY_FEATURE_ID)?.enabled) {
+      throw new Error(featureSwitchOff('Character diaries', 'AI Tool: Character diaries (writes)'));
+    }
+
+    const actors = unwrapBridgeReply(
+      await this.options.foundryClient.query('foundry-mcp-bridge.getActorOwnership', {
+        actorIdentifier: 'all',
+      }),
+      'Ownership lookup refused'
+    ) as unknown as OwnershipEntry[];
     const characters = (Array.isArray(actors) ? actors : []).filter(a => a.type === 'character');
 
     const drafts: PlayerCharacterDiaryDraft[] = [];
@@ -139,9 +157,12 @@ export class CharacterDiaryTools {
     const seen = new Set<string>();
     for (const d of p.diaries) {
       const wanted = d.actor.toLowerCase();
-      const actor =
-        characters.find(a => a.id === d.actor) ??
-        characters.find(a => a.name.toLowerCase() === wanted);
+      const byName = characters.filter(a => a.name.toLowerCase() === wanted);
+      if (byName.length > 1 && !characters.some(a => a.id === d.actor)) {
+        problems.push(`"${d.actor}" matches ${byName.length} characters; use the id`);
+        continue;
+      }
+      const actor = characters.find(a => a.id === d.actor) ?? byName[0];
       if (!actor) {
         problems.push(`"${d.actor}" is not a character in this world`);
         continue;
@@ -154,6 +175,12 @@ export class CharacterDiaryTools {
       const owners = actor.ownership.filter(o => o.numericPermission >= OWNER);
       if (owners.length === 0) {
         problems.push(`${actor.name} has no player owner, so nobody could read the diary`);
+        continue;
+      }
+      if (owners.length > 1) {
+        problems.push(
+          `${actor.name} has ${owners.length} owners (${owners.map(o => o.userName).join(', ')}); a diary goes to exactly one player, so give the character one owner first`
+        );
         continue;
       }
       drafts.push({
@@ -193,6 +220,9 @@ export class CharacterDiaryTools {
       feature: CHARACTER_DIARY_FEATURE_ID,
       summary: `Diary drafts${label}: ${drafts.map(d => d.actorName).join(', ')}`,
       ops,
+      notes: drafts.map(
+        d => `${d.actorName}: visible to ${d.ownerNames.join(', ')} and the GM only`
+      ),
     });
     return {
       ...plan,

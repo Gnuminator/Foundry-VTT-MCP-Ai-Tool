@@ -40,11 +40,17 @@ beforeEach(async () => {
   ];
   foundry.handlers['foundry-mcp-bridge.getActorOwnership'] = (): unknown => [
     entry('ebbe1', 'Ebbe', [
-      ['userEbbe', 'Christian', 3],
-      ['userOther', 'Mia', 1],
+      ['userEbbe', 'Player A', 3],
+      ['userOther', 'Player B', 1],
     ]),
-    entry('mira1', 'Mira', [['userMira', 'Mia', 3]]),
-    entry('orphan', 'Orphan', [['userEbbe', 'Christian', 1]]),
+    entry('mira1', 'Mira', [['userMira', 'Player B', 3]]),
+    entry('twin1', 'Twin', [['userEbbe', 'Player A', 3]]),
+    entry('twin2', 'Twin', [['userMira', 'Player B', 3]]),
+    entry('shared', 'Shared', [
+      ['userEbbe', 'Player A', 3],
+      ['userMira', 'Player B', 3],
+    ]),
+    entry('orphan', 'Orphan', [['userEbbe', 'Player A', 1]]),
     { id: 'npc1', name: 'Goblin', type: 'npc', ownership: [] },
   ];
   const store = new VaultStore({ dataDir });
@@ -94,8 +100,8 @@ describe('plan-character-diaries', () => {
       session: 'Session 0',
     });
     expect((plan as any).drafts).toEqual([
-      { actor: 'Ebbe', visibleTo: ['Christian'], words: 6 },
-      { actor: 'Mira', visibleTo: ['Mia'], words: 2 },
+      { actor: 'Ebbe', visibleTo: ['Player A'], words: 6 },
+      { actor: 'Mira', visibleTo: ['Player B'], words: 2 },
     ]);
     const ops = (seenInputs[0]?.ops ?? []) as any[];
     expect(ops).toHaveLength(2);
@@ -140,6 +146,30 @@ describe('plan-character-diaries', () => {
     ).rejects.toThrow(
       /"Goblin" is not a character.*Ebbe appears twice.*Orphan has no player owner/
     );
+  });
+
+  it('refuses an ambiguous name and a character with several owners', async () => {
+    await expect(
+      tools.handleToolCall('plan-character-diaries', {
+        diaries: [
+          { actor: 'Twin', text: 'x' },
+          { actor: 'Shared', text: 'y' },
+        ],
+      })
+    ).rejects.toThrow(/"Twin" matches 2 characters.*Shared has 2 owners/);
+    const ok = await tools.handleToolCall('plan-character-diaries', {
+      diaries: [{ actor: 'twin2', text: 'x' }],
+    });
+    expect((ok as any).drafts[0].visibleTo).toEqual(['Player B']);
+  });
+
+  it('says plainly that the switch is off', async () => {
+    foundry.features = [
+      { id: 'character-diary', name: 'Diaries', hint: '', enabled: false, writesAllowed: true },
+    ];
+    await expect(
+      tools.handleToolCall('plan-character-diaries', { diaries: [{ actor: 'Ebbe', text: 'x' }] })
+    ).rejects.toThrow(/Character diaries/);
   });
 
   it('has a strict schema and rejects unknown keys', async () => {

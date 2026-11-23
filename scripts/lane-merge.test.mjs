@@ -719,6 +719,7 @@ const NOT_CONTRACT = [
   'npc-turn',
   'ownership',
   'paper-sync',
+  'character-diary',
   'party',
   'pc-creation',
   'play-log',
@@ -792,6 +793,7 @@ test('feature switch ids are pinned: they form the module setting keys, so a ren
     .sort();
   assert.deepEqual(found, [
     'ACTOR_IMAGE_FEATURE_ID=actor-image',
+    'CHARACTER_DIARY_FEATURE_ID=character-diary',
     'FOUNDRY_SETUP_FEATURE_ID=foundry-setup',
     'LIVE_PLAY_FEATURE_ID=live-play',
     'MACRO_FORGE_FEATURE_ID=macro-forge',

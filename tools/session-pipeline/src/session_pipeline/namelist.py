@@ -30,6 +30,9 @@ from session_pipeline.filters import parse_vocab
 
 DEFAULT_DASHBOARD = "http://127.0.0.1:3100"
 TOKEN_ENV = "GM_DASHBOARD_TOKEN"
+DASHBOARD_ENV = "FVTT_NAMES_DASHBOARD"  # the Pi dashboard's address, a user variable
+CAMPAIGN_WORLD = "curse-of-strahd"
+CAMPAIGN_WORLD_ENV = "FVTT_CAMPAIGN_WORLD"
 MAX_NAME_WORDS = 5
 _GENERIC = {
     "new scene",
@@ -202,3 +205,42 @@ def build(
 
 def default_token() -> str | None:
     return os.environ.get(TOKEN_ENV) or None
+
+
+def default_dashboard() -> str:
+    return os.environ.get(DASHBOARD_ENV) or DEFAULT_DASHBOARD
+
+
+def campaign_world() -> str:
+    return os.environ.get(CAMPAIGN_WORLD_ENV) or CAMPAIGN_WORLD
+
+
+def parse_world_id(payload: Any) -> str | None:
+    """The world id in a ``/api/tool`` answer for ``get-world-info``, or None."""
+    if not isinstance(payload, dict) or payload.get("ok") is False:
+        return None
+    result = payload.get("result")
+    if isinstance(result, dict) and isinstance(result.get("world"), dict):
+        result = result["world"]
+    wid = result.get("id") if isinstance(result, dict) else None
+    return str(wid).strip() or None if wid else None
+
+
+def fetch_world_id(base_url: str, token: str | None = None, timeout: float = 10.0) -> str | None:
+    """Ask the dashboard which world it serves. Network errors are raised (the dashboard is down)."""
+    body = json.dumps({"name": "get-world-info", "args": {}}).encode("utf-8")
+    headers = {"Content-Type": "application/json"}
+    if token:
+        headers["X-CoGM-Token"] = token
+    req = urllib.request.Request(base_url.rstrip("/") + "/api/tool", body, headers, method="POST")
+    with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310
+        return parse_world_id(json.loads(resp.read().decode("utf-8")))
+
+
+def world_problem(found: str | None, expected: str) -> str | None:
+    """A refusal text when the dashboard's world is not the campaign, else None."""
+    if found is None:
+        return f"the dashboard did not say which world it serves (expected {expected!r})"
+    if found != expected:
+        return f"the dashboard serves the world {found!r}, not the campaign {expected!r}"
+    return None

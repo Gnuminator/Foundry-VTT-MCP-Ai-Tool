@@ -735,6 +735,7 @@ const NOT_CONTRACT = [
   'scene-change',
   'scene-mood',
   'scene-restore',
+  'session-folder',
   'sessions-dir',
   'space-status',
   'switch-off',

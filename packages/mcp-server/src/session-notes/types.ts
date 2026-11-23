@@ -18,6 +18,26 @@ export const PAGE_TITLES: Record<PageKey, string> = {
 /** The journal folder every session's entry goes into. */
 export const NOTES_FOLDER = 'Session notes';
 
+/** How the last notes run ended (the pipeline's `notes/status.json`, sent over `report`). */
+export interface PipelineStatusReport {
+  session: string;
+  state: 'done' | 'paused' | 'incomplete' | 'failed' | 'waiting' | 'published';
+  message: string;
+  at?: string;
+}
+
+/** The approved player recap (`recap.player.<lang>.md`) of one recorded session. */
+export interface ApprovedRecapReport {
+  session: string;
+  text: Partial<Record<'da' | 'en', string>>;
+}
+
+/** What `report` keeps and `pipeline` returns. */
+export interface PipelineReport {
+  status: PipelineStatusReport | null;
+  recap: ApprovedRecapReport | null;
+}
+
 export type NotesStatus = 'staged' | 'in-foundry' | 'approved';
 
 /** What keeps a staged item from going into Foundry by itself right now. */

@@ -25,32 +25,40 @@ afterEach(() => {
 describe('readPipelineStatus', () => {
   it('reads the newest session folder', () => {
     const root = sessions();
-    put(root, '2026-10-03_0913-a', '{"state":"done","message":"old"}');
+    put(root, '2026-10-03_0913-discord', '{"state":"done","message":"old"}');
     put(
       root,
-      '2026-10-10_1900-b',
+      '2026-10-10_1900-discord',
       '{"state":"incomplete","message":"2 scenes raw","at":"2026-10-11T08:00:00+02:00"}'
     );
     return expect(readPipelineStatus(root)).resolves.toEqual({
-      session: '2026-10-10_1900-b',
+      session: '2026-10-10_1900-discord',
       state: 'incomplete',
       message: '2 scenes raw',
       at: '2026-10-11T08:00:00+02:00',
     });
   });
 
+  it('ignores folders that are not dated -discord sessions', async () => {
+    const root = sessions();
+    put(root, '2026-10-03_0913-discord', '{"state":"paused","message":"limit"}');
+    put(root, 'livekit-recordings', '{"state":"done"}');
+    put(root, '.incoming', '{"state":"done"}');
+    expect((await readPipelineStatus(root))?.session).toBe('2026-10-03_0913-discord');
+  });
+
   it('does not fall back to an older session when the newest has no status', async () => {
     const root = sessions();
-    put(root, '2026-10-03_0913-a', '{"state":"published","message":"old"}');
-    mkdirSync(join(root, '2026-10-17_1900-c'));
+    put(root, '2026-10-03_0913-discord', '{"state":"published","message":"old"}');
+    mkdirSync(join(root, '2026-10-17_1900-discord'));
     expect(await readPipelineStatus(root)).toBeNull();
   });
 
   it('is null for an unreadable file or an unknown state', async () => {
     const root = sessions();
-    put(root, '2026-10-10_1900-b', '{not json');
+    put(root, '2026-10-10_1900-discord', '{not json');
     expect(await readPipelineStatus(root)).toBeNull();
-    put(root, '2026-10-17_1900-c', '{"state":"exploded"}');
+    put(root, '2026-10-17_1900-discord', '{"state":"exploded"}');
     expect(await readPipelineStatus(root)).toBeNull();
   });
 

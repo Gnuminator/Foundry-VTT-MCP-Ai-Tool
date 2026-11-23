@@ -39,7 +39,14 @@ interface Harness {
 }
 
 async function start(
-  opts: { enabled?: boolean; gmActions?: boolean; fail?: boolean; failNarrate?: boolean } = {}
+  opts: {
+    enabled?: boolean;
+    gmActions?: boolean;
+    fail?: boolean;
+    failNarrate?: boolean;
+    /** What the bridge answers to the `pipeline` action (the notes run's report). */
+    sent?: unknown;
+  } = {}
 ): Promise<Harness> {
   dir = mkdtempSync(join(tmpdir(), 'prevon-'));
   const posts: Array<Record<string, unknown>> = [];
@@ -47,6 +54,7 @@ async function start(
   const app = express();
   mountPreviouslyOnRoute(app, {
     client: {
+      sessionNotes: () => Promise.resolve(opts.sent ?? { status: null, recap: null }),
       callTool: <T>(_name: string, args?: Record<string, unknown>): Promise<T> => {
         if (opts.fail) return Promise.reject(new Error('down'));
         posts.push(args ?? {});
@@ -85,7 +93,7 @@ describe('recapPlainText', () => {
 describe('/api/previously-on', () => {
   it('is off by default', async () => {
     const { base, post, posts } = await start({ enabled: false });
-    session('2026-11-01_x', true);
+    session('2026-11-01_1800-discord', true);
     expect(await (await fetch(`${base}/api/previously-on`)).json()).toMatchObject({
       enabled: false,
     });
@@ -95,41 +103,79 @@ describe('/api/previously-on', () => {
 
   it('offers the newest approved session and posts the chosen language to chat', async () => {
     const { base, post, posts } = await start();
-    session('2026-10-01_a', true, 'Gammel.');
-    session('2026-11-01_b', true, 'Sidste nat.');
-    session('2026-11-08_c', false, 'Ikke godkendt.');
+    session('2026-10-01_1900-discord', true, 'Gammel.');
+    session('2026-11-01_1900-discord', true, 'Sidste nat.');
+    session('2026-11-08_1900-discord', false, 'Ikke godkendt.');
     // Only approved recaps count, so the newest approved one wins over a newer unapproved one.
     const info = (await (await fetch(`${base}/api/previously-on`)).json()) as {
       session: string;
       languages: string[];
     };
-    expect(info.session).toBe('2026-11-01_b');
+    expect(info.session).toBe('2026-11-01_1900-discord');
     expect(info.languages).toEqual(['da', 'en']);
     expect((await post('/api/previously-on', { lang: 'da' })).status).toBe(200);
     expect(posts).toEqual([{ message: '<p>Sidste nat.</p>', messageType: 'ooc' }]);
     expect((await post('/api/previously-on', { lang: 'sv' })).status).toBe(400);
   });
 
+  it('only counts dated -discord folders', async () => {
+    const { base } = await start();
+    session('2026-11-01_1900-discord', true, 'Sidste nat.');
+    session('livekit-recordings', true, 'Ikke en session.');
+    session('.incoming', true, 'Ikke en session.');
+    session('zz-scratch', true, 'Ikke en session.');
+    const info = (await (await fetch(`${base}/api/previously-on`)).json()) as { session: string };
+    expect(info.session).toBe('2026-11-01_1900-discord');
+  });
+
+  it('uses the approved recap the notes run sent to the bridge, with no sessions folder', async () => {
+    const sent = {
+      status: null,
+      recap: { session: '2026-11-22_1906-discord', text: { en: '# Recap\n\nYou **walked**.\n' } },
+    };
+    const { base, post, posts } = await start({ sent });
+    rmSync(dir, { recursive: true, force: true });
+    const info = (await (await fetch(`${base}/api/previously-on`)).json()) as {
+      session: string;
+      languages: string[];
+    };
+    expect(info.session).toBe('2026-11-22_1906-discord');
+    expect(info.languages).toEqual(['en']);
+    expect((await post('/api/previously-on', { lang: 'en' })).status).toBe(200);
+    expect(posts).toEqual([{ message: '<p>You walked.</p>', messageType: 'ooc' }]);
+  });
+
+  it('prefers an approved recap in the folder on this host over one on the bridge', async () => {
+    const sent = {
+      status: null,
+      recap: { session: '2026-10-01_1900-discord', text: { en: 'Old news.' } },
+    };
+    const { base } = await start({ sent });
+    session('2026-11-01_1900-discord', true);
+    const info = (await (await fetch(`${base}/api/previously-on`)).json()) as { session: string };
+    expect(info.session).toBe('2026-11-01_1900-discord');
+  });
+
   it('needs GM Actions and an approved recap', async () => {
     const off = await start({ gmActions: false });
-    session('2026-11-01_b', true);
+    session('2026-11-01_1900-discord', true);
     expect((await off.post('/api/previously-on', { lang: 'en' })).status).toBe(403);
     await new Promise<void>(r => server!.close(() => r()));
     server = null;
     const none = await start();
-    session('2026-11-01_b', false);
+    session('2026-11-01_1900-discord', false);
     expect((await none.post('/api/previously-on', { lang: 'en' })).status).toBe(404);
   });
 
   it('answers 502 when Foundry is not reachable', async () => {
     const { post } = await start({ fail: true });
-    session('2026-11-01_b', true);
+    session('2026-11-01_1900-discord', true);
     expect((await post('/api/previously-on', { lang: 'en' })).status).toBe(502);
   });
 
   it('starts the voice and has no audio until it exists', async () => {
     const { base, post, narrated } = await start();
-    session('2026-11-01_b', true);
+    session('2026-11-01_1900-discord', true);
     expect((await post('/api/previously-on/audio', { lang: 'en' })).status).toBe(202);
     expect(narrated).toHaveLength(1);
     expect((await fetch(`${base}/api/previously-on/audio/en`)).status).toBe(404);
@@ -143,17 +189,17 @@ describe('/api/previously-on', () => {
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toContain('audio/wav');
     // The recap changes: the old voice no longer matches, so there is none until it is made again.
-    session('2026-11-01_b', true, 'Dansk tekst.', 'New text.');
+    session('2026-11-01_1900-discord', true, 'Dansk tekst.', 'New text.');
     expect((await fetch(`${base}/api/previously-on/audio/en`)).status).toBe(404);
   });
 
   it('removes render folders of an old text when a new voice starts', async () => {
     const { base, post, narrated } = await start();
-    session('2026-11-01_b', true);
+    session('2026-11-01_1900-discord', true);
     await post('/api/previously-on/audio', { lang: 'en' });
     const oldDir = dirname(narrated[0]);
     expect(existsSync(oldDir)).toBe(true);
-    session('2026-11-01_b', true, 'Dansk tekst.', 'New text.');
+    session('2026-11-01_1900-discord', true, 'Dansk tekst.', 'New text.');
     await post('/api/previously-on/audio', { lang: 'en' });
     expect(existsSync(oldDir)).toBe(false);
     expect(narrated).toHaveLength(2);
@@ -162,7 +208,7 @@ describe('/api/previously-on', () => {
 
   it('stops listing a failed voice once that language has its voice', async () => {
     const { base, post, narrated } = await start({ failNarrate: true });
-    session('2026-11-01_b', true);
+    session('2026-11-01_1900-discord', true);
     await post('/api/previously-on/audio', { lang: 'da' });
     for (let i = 0; i < 50; i++) {
       const s = (await (await fetch(`${base}/api/previously-on`)).json()) as { failed: string[] };
@@ -172,7 +218,7 @@ describe('/api/previously-on', () => {
     const before = (await (await fetch(`${base}/api/previously-on`)).json()) as {
       failed: string[];
     };
-    expect(before.failed).toEqual(['2026-11-01_b:da']);
+    expect(before.failed).toEqual(['2026-11-01_1900-discord:da']);
     const wavDir = join(dirname(narrated[0]), 'previously-on.da');
     mkdirSync(wavDir, { recursive: true });
     writeFileSync(join(wavDir, 'previously-on.da.wav'), 'RIFF');
@@ -182,7 +228,7 @@ describe('/api/previously-on', () => {
 
   it('starts only one voice run for two requests at once', async () => {
     const { post, narrated } = await start();
-    session('2026-11-01_b', true);
+    session('2026-11-01_1900-discord', true);
     await Promise.all([
       post('/api/previously-on/audio', { lang: 'da' }),
       post('/api/previously-on/audio', { lang: 'da' }),
@@ -192,7 +238,7 @@ describe('/api/previously-on', () => {
 
   it('refuses a recap too long for one chat post', async () => {
     const { post, posts } = await start();
-    session('2026-11-01_b', true, 'x'.repeat(4001));
+    session('2026-11-01_1900-discord', true, 'x'.repeat(4001));
     expect((await post('/api/previously-on', { lang: 'da' })).status).toBe(413);
     expect(posts).toEqual([]);
   });

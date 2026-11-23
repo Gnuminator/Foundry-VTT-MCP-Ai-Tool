@@ -365,7 +365,7 @@ describe('MCP 2026-07-28 probe against dist/index.js', () => {
     }
   });
 
-  it('answers a tool call for an unknown method with a protocol error and stays up', async () => {
+  it('answers an unknown method with -32601 and stays up', async () => {
     const w = start();
     await w.initialize();
     const res = await w.request('no/such-method', {});

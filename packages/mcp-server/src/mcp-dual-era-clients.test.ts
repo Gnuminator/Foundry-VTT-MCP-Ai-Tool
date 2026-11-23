@@ -14,7 +14,20 @@ import { Client as LegacyClient } from '@modelcontextprotocol/sdk/client/index.j
 import { StdioClientTransport as LegacyStdio } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
-import { FAKE_TOOLS, startFakeBridge } from './test-support/fake-control-bridge.js';
+import {
+  FAKE_TOOLS,
+  recordedClients,
+  startFakeBridge,
+} from './test-support/fake-control-bridge.js';
+
+/** The record_client calls that named this client (the bridge's "which Claude app" view, D-146). */
+async function recordedAs(name: string): Promise<Record<string, unknown>[]> {
+  const deadline = Date.now() + 5_000;
+  while (Date.now() < deadline && !recordedClients.some(p => p.name === name)) {
+    await new Promise<void>(resolve => setTimeout(resolve, 50));
+  }
+  return recordedClients.filter(p => p.name === name);
+}
 
 vi.setConfig({ testTimeout: 30_000 });
 
@@ -74,6 +87,7 @@ describe('old and new MCP clients on the stdio wrapper', () => {
       expect(JSON.stringify(result.content)).toContain('fake result');
       const { prompts } = await client.listPrompts();
       expect(prompts.length).toBeGreaterThan(0);
+      expect(await recordedAs('legacy-client')).toHaveLength(1);
     } finally {
       await client.close();
     }
@@ -93,6 +107,7 @@ describe('old and new MCP clients on the stdio wrapper', () => {
       expect(JSON.stringify(result.content)).toContain('fake result');
       const { prompts } = await client.listPrompts();
       expect(prompts.length).toBeGreaterThan(0);
+      expect(await recordedAs('modern-client')).toHaveLength(1);
     } finally {
       await client.close();
     }

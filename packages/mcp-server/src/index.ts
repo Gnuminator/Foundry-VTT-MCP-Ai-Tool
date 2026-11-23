@@ -590,9 +590,23 @@ async function startWrapper(): Promise<void> {
 
     // Tell the bridge which Claude app this is (its own name and version, D-146); an old bridge
     // answers "Unknown method", which is ignored.
-    mcp.oninitialized = (): void => {
-      const info = mcp.getClientVersion();
+    // A 2025-11-25 client announces itself with notifications/initialized; a 2026-07-28 client never
+    // sends one (its identity rides on each request), so the first list or call records it too.
+    let clientRecorded = false;
+    const recordClient = (ctx?: unknown): void => {
+      if (clientRecorded) return;
+      const envelope = (ctx as { mcpReq?: { envelope?: Record<string, unknown> } } | undefined)
+        ?.mcpReq?.envelope;
+      const fromMeta = envelope?.['io.modelcontextprotocol/clientInfo'] as
+        | { name?: unknown; version?: unknown }
+        | undefined;
+      const info =
+        mcp.getClientVersion() ??
+        (typeof fromMeta?.name === 'string' && typeof fromMeta.version === 'string'
+          ? { name: fromMeta.name, version: fromMeta.version }
+          : undefined);
       if (!info) return;
+      clientRecorded = true;
       void backend
         .send('record_client', {
           piece: 'claude',
@@ -603,6 +617,7 @@ async function startWrapper(): Promise<void> {
         })
         .catch(() => undefined);
     };
+    mcp.oninitialized = (): void => recordClient();
 
     // The ready-made "/" prompts (prompts/list, prompts/get). Static, answered right here.
     registerPromptHandlers(mcp, TOOL_SET_SELECTION.all ? undefined : TOOL_SET_SELECTION.sets);
@@ -610,7 +625,8 @@ async function startWrapper(): Promise<void> {
     registerChangeCardHandlers(mcp);
     liveServer = mcp;
 
-    mcp.setRequestHandler('tools/list', async () => {
+    mcp.setRequestHandler('tools/list', async (_request, ctx) => {
+      recordClient(ctx);
       try {
         const served = await fetchServedTools();
         // The backend's tool definitions are already protocol-shaped; v2 types the schema strictly.
@@ -628,9 +644,10 @@ async function startWrapper(): Promise<void> {
       }
     });
 
-    mcp.setRequestHandler('tools/call', async request => {
+    mcp.setRequestHandler('tools/call', async (request, ctx) => {
       const { name, arguments: args } = request.params as unknown as CallToolParams;
       const toolName = String(name);
+      recordClient(ctx);
 
       // The call log (who, tool, set, ms, size, ok) is written by the backend, where the caller is known (D-146).
       try {

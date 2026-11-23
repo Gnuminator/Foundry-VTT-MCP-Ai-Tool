@@ -20,6 +20,9 @@ export const FAKE_TOOLS = [
 /** Replaces the served list (a backend restarted on another build); null serves FAKE_TOOLS. */
 export const bridgeState = { tools: null as typeof FAKE_TOOLS | null };
 
+/** The params of every `record_client` the wrapper sent, in order. */
+export const recordedClients: Record<string, unknown>[] = [];
+
 /** Every connection the wrapper has open to a fake bridge, so a test can drop them. */
 export const openSockets = new Set<net.Socket>();
 
@@ -53,6 +56,9 @@ export function startFakeBridge(
           if (req.method === 'hello') {
             sock.write(`${JSON.stringify({ id: req.id, error: { message: 'Unknown method' } })}\n`);
             continue;
+          }
+          if (req.method === 'record_client') {
+            recordedClients.push((req as unknown as { params: Record<string, unknown> }).params);
           }
           if (opts.failList && req.method === 'list_tools') {
             sock.write(`${JSON.stringify({ id: req.id, error: { message: 'bridge down' } })}\n`);

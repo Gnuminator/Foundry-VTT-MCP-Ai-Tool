@@ -390,7 +390,7 @@ describe('ObsidianMirrorPump: reconcile and deletes', () => {
   it('times the reconcile and the cycle in the status, the status note and the log line', async () => {
     converter.html.mockImplementation(html => {
       clock.t += 1500; // each page conversion takes 1.5 s
-      return html.replace(/<[^>]+>/g, '');
+      return html;
     });
     const pump = await started();
     const status = pump.status();

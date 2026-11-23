@@ -707,3 +707,61 @@ describe('control method', () => {
     expect(controlError(new Error('boom'))).toEqual({ message: 'boom' });
   });
 });
+
+describe('pipeline report', () => {
+  const session = '2026-11-22_1906-discord';
+  const status = { session, state: 'paused', message: 'Paused by a usage limit', at: 'x' };
+
+  it('keeps the run status and the approved recap, and survives a new service', async () => {
+    expect(await notes.pipelineReport()).toEqual({ status: null, recap: null });
+    await notes.report({ status });
+    await notes.report({ recap: { session, text: { en: 'You walked.', da: '  ', fr: 'non' } } });
+    const expected = {
+      status: { session, state: 'paused', message: 'Paused by a usage limit', at: 'x' },
+      recap: { session, text: { en: 'You walked.' } },
+    };
+    expect(await notes.pipelineReport()).toEqual(expected);
+    // Read back from the world's vault by a service that never saw the report.
+    const fresh = new SessionNotesService({
+      foundryClient: foundry,
+      worldIds: { current: (): Promise<string> => Promise.resolve(WORLD) },
+      store,
+      audit: new AuditLog(store),
+      guardedWrites: guarded,
+      handouts,
+      logger: makeLogger(),
+    });
+    expect(await fresh.pipelineReport()).toEqual(expected);
+  });
+
+  it('is kept in memory while Foundry is closed and no world is named', async () => {
+    foundry.connected = false;
+    await notes.report({ status });
+    expect(await store.listWorlds()).toEqual([]);
+    expect((await notes.pipelineReport()).status?.state).toBe('paused');
+  });
+
+  it('refuses a folder that is not a dated -discord session, and an empty report', async () => {
+    for (const folder of ['livekit-recordings', '.incoming', '2026-11-22_1906-rehearsal']) {
+      expect(await code(notes.report({ status: { ...status, session: folder } }))).toBe(
+        'bad-request'
+      );
+      expect(await code(notes.report({ recap: { session: folder, text: { en: 'x' } } }))).toBe(
+        'bad-request'
+      );
+    }
+    expect(await code(notes.report({ status: { ...status, state: 'exploded' } }))).toBe(
+      'bad-request'
+    );
+    expect(await code(notes.report({}))).toBe('bad-request');
+    expect(await code(notes.report({ recap: { session, text: {} } }))).toBe('bad-request');
+  });
+
+  it('is reachable through the control method', async () => {
+    await handleSessionNotes(notes, { action: 'report', status });
+    const got = (await handleSessionNotes(notes, { action: 'pipeline' })) as {
+      status: { state: string };
+    };
+    expect(got.status.state).toBe('paused');
+  });
+});

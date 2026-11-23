@@ -237,6 +237,10 @@ try {
       }
     }
   }
+
+  # Last: tell the bridge how the newest session ended and what the approved recap says, so a
+  # dashboard on another host (the Pi) needs no sessions folder. Best effort; never fails the pass.
+  if (-not $DryRun) { [void](Invoke-Notes @('report')) }
 } finally {
   if (-not $DryRun) { Remove-Item $lock -ErrorAction SilentlyContinue }
 }

@@ -20,6 +20,7 @@ from .inbox import pending as inbox_pending
 from .inbox import sync as inbox_sync
 from .model import clock, load_timeline
 from .publish import publish
+from .report import send_report
 from .retention import approve, cleanup
 from .run import Options, Writer
 from .scenes import split_scenes
@@ -129,6 +130,12 @@ def main(argv: list[str] | None = None) -> int:
     pub.add_argument("--port", type=int, help="bridge control port (default 31414; test 31514)")
     pub.add_argument("--world", help="Foundry world id, needed while Foundry is closed")
     pub.add_argument("--restage", action="store_true", help="stage again (only while staged)")
+    rep = sub.add_parser(
+        "report",
+        help="send the newest run status and the approved recap to the bridge (best effort)",
+    )
+    rep.add_argument("--port", type=int, help="bridge control port (as for publish)")
+    rep.add_argument("--world", help="Foundry world id, needed while Foundry is closed")
     clean = sub.add_parser(
         "cleanup",
         help="manual: delete audio of sessions approved at least --days ago (audio is kept by "
@@ -179,6 +186,9 @@ def main(argv: list[str] | None = None) -> int:
             print(exc, file=sys.stderr)
             return 1
         print("\n".join(report.lines()))
+        return 0
+    if args.cmd == "report":
+        print(send_report(sessions_root(), port=args.port, world=args.world))
         return 0
     if args.cmd == "cleanup":
         items = cleanup(sessions_root(), days=args.days, apply=args.yes)

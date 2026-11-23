@@ -19,12 +19,12 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { sessionsDirFrom } from '@gnuminator/shared';
+import { isSessionFolderName, newestSessionFirst, sessionsDirFrom } from '@gnuminator/shared';
 import express, { type Express, type Request, type Response } from 'express';
 
 import type { Logger } from './logger.js';
 
-export type SessionNotesAction = 'list' | 'get' | 'put' | 'approve';
+export type SessionNotesAction = 'list' | 'get' | 'put' | 'approve' | 'pipeline';
 
 export interface SessionNotesClient {
   sessionNotes?(action: SessionNotesAction, params?: Record<string, unknown>): Promise<unknown>;
@@ -61,10 +61,9 @@ export async function readPipelineStatus(dir: string): Promise<PipelineStatus | 
   let names: string[];
   try {
     names = (await readdir(dir, { withFileTypes: true }))
-      .filter(e => e.isDirectory())
+      .filter(e => e.isDirectory() && isSessionFolderName(e.name))
       .map(e => e.name)
-      .sort()
-      .reverse();
+      .sort(newestSessionFirst);
   } catch {
     return null;
   }
@@ -87,6 +86,20 @@ export async function readPipelineStatus(dir: string): Promise<PipelineStatus | 
     message: typeof r.message === 'string' ? r.message.slice(0, 300) : '',
     ...(typeof r.at === 'string' ? { at: r.at } : {}),
   };
+}
+
+/** What the bridge keeps of the notes run (`pipeline` action): its last status and approved recap. */
+export interface BridgePipeline {
+  status: PipelineStatus | null;
+  recap: { session: string; text: Partial<Record<'da' | 'en', string>> } | null;
+}
+
+/** The bridge's last report from the notes run; null when it has none or is too old to know. */
+export async function bridgePipeline(client: SessionNotesClient): Promise<BridgePipeline | null> {
+  if (typeof client.sessionNotes !== 'function') return null;
+  const r = (await client.sessionNotes('pipeline')) as Partial<BridgePipeline> | null | undefined;
+  if (!r || typeof r !== 'object') return null;
+  return { status: r.status ?? null, recap: r.recap ?? null };
 }
 
 const SESSION_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/;
@@ -176,9 +189,14 @@ export function mountSessionNotesRoute(app: Express, options: SessionNotesRouteO
 
   app.get('/api/session-notes', requireGm, (_req: Request, res: Response) => run(res, 'list'));
 
+  // The bridge has the status the notes run sent (works with no sessions folder on this host);
+  // an old bridge or one that was sent nothing falls back to the folder on this PC.
   app.get('/api/session-notes/pipeline', requireGm, (_req: Request, res: Response) => {
     const dir = options.sessionsDir ?? sessionsDirFrom(process.env.FVTT_SESSIONS_DIR);
-    readPipelineStatus(dir)
+    void (async (): Promise<PipelineStatus | null> => {
+      const fromBridge = await bridgePipeline(client).catch(() => null);
+      return fromBridge?.status ?? (await readPipelineStatus(dir));
+    })()
       .then(pipeline => res.json({ pipeline }))
       .catch(() => res.json({ pipeline: null }));
   });

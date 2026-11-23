@@ -3,8 +3,9 @@
  * to chat in Danish or English and, when the narration tool is set up on this PC, plays it as a
  * spoken cold open in the GM's browser. Off by default (`FOUNDRY_AI_PREVIOUSLY_ON=1` turns it on).
  *
- * The text comes from the sessions folder next to the bridge (`<session>/notes/recap.player.<lang>.md`,
- * the newest session with an `approved.json`), the same folder the session notes card reads. Nothing
+ * The text is the approved recap the notes run sent to the bridge (`session_notes` `report`), else
+ * the sessions folder on this PC (`<session>/notes/recap.player.<lang>.md`, the newest session
+ * with an `approved.json`). Nothing
  * here reaches /player and no AI is called: the voice is the local narration tool.
  *
  * - `GET  /api/previously-on`              -> `{enabled, session, languages, audio}` (GM)
@@ -20,15 +21,16 @@ import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { sessionsDirFrom } from '@gnuminator/shared';
+import { isSessionFolderName, newestSessionFirst, sessionsDirFrom } from '@gnuminator/shared';
 import express, { type Express, type Request, type Response } from 'express';
 
 import type { Logger } from './logger.js';
+import { bridgePipeline, type SessionNotesClient } from './session-notes-route.js';
 
 const PREVIOUSLY_ON_LANGS = ['da', 'en'] as const;
 type PreviouslyOnLang = (typeof PREVIOUSLY_ON_LANGS)[number];
 
-interface PreviouslyOnClient {
+interface PreviouslyOnClient extends SessionNotesClient {
   callTool<T = unknown>(
     name: string,
     args?: Record<string, unknown>,
@@ -74,10 +76,9 @@ async function readApprovedRecap(dir: string): Promise<ApprovedRecap | null> {
   let names: string[];
   try {
     names = (await readdir(dir, { withFileTypes: true }))
-      .filter(e => e.isDirectory())
+      .filter(e => e.isDirectory() && isSessionFolderName(e.name))
       .map(e => e.name)
-      .sort()
-      .reverse();
+      .sort(newestSessionFirst);
   } catch {
     return null;
   }
@@ -261,6 +262,29 @@ export function mountPreviouslyOnRoute(app: Express, options: PreviouslyOnOption
   const { client, requireGm, gmActionsEnabled, enabled } = options;
   const dirOf = (): string => options.sessionsDir ?? sessionsDirFrom(process.env.FVTT_SESSIONS_DIR);
   const narrate = options.narrate ?? defaultNarrate;
+  /**
+   * The approved recap the notes run sent to the bridge (works with no sessions folder here),
+   * else the newest approved one in the folder on this PC. The voice files go in the folder
+   * either way.
+   */
+  async function currentRecap(): Promise<ApprovedRecap | null> {
+    const sent = await bridgePipeline(client).catch(() => null);
+    if (sent?.recap) {
+      const text: ApprovedRecap['text'] = {};
+      for (const lang of PREVIOUSLY_ON_LANGS) {
+        const plain = recapPlainText(sent.recap.text[lang] ?? '');
+        if (plain) text[lang] = plain;
+      }
+      if (Object.keys(text).length > 0) {
+        return {
+          session: sent.recap.session,
+          dir: join(dirOf(), sent.recap.session, 'notes'),
+          text,
+        };
+      }
+    }
+    return readApprovedRecap(dirOf());
+  }
   const parseBody = express.json({ limit: 1024 });
   const rendering = new Set<string>();
   /** Voices that failed since the dashboard started (cleared when tried again). */
@@ -309,7 +333,7 @@ export function mountPreviouslyOnRoute(app: Express, options: PreviouslyOnOption
       return;
     }
     void (async (): Promise<void> => {
-      const recap = await readApprovedRecap(dirOf());
+      const recap = await currentRecap();
       const audio: Record<string, boolean> = {};
       if (recap) {
         for (const lang of PREVIOUSLY_ON_LANGS) {
@@ -341,7 +365,7 @@ export function mountPreviouslyOnRoute(app: Express, options: PreviouslyOnOption
       return;
     }
     void (async (): Promise<void> => {
-      const recap = await readApprovedRecap(dirOf());
+      const recap = await currentRecap();
       const text = recap?.text[lang];
       if (!recap || !text) {
         res.status(404).json({
@@ -391,7 +415,7 @@ export function mountPreviouslyOnRoute(app: Express, options: PreviouslyOnOption
       return;
     }
     void (async (): Promise<void> => {
-      const recap = await readApprovedRecap(dirOf());
+      const recap = await currentRecap();
       const text = recap?.text[lang];
       if (!recap || !text) {
         res.status(404).json({
@@ -436,7 +460,7 @@ export function mountPreviouslyOnRoute(app: Express, options: PreviouslyOnOption
       return;
     }
     void (async (): Promise<void> => {
-      const recap = await readApprovedRecap(dirOf());
+      const recap = await currentRecap();
       const wav = recap ? await audioFor(recap, lang) : null;
       if (!wav) {
         res.status(404).json({ error: { message: 'No audio yet.' } });

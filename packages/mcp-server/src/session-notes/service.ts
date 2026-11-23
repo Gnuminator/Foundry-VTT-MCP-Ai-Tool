@@ -12,7 +12,13 @@
  */
 import { createHash } from 'node:crypto';
 
-import { type GuardedOp, MODULE_ID, type OpSnapshot, unwrapBridgeReply } from '@gnuminator/shared';
+import {
+  type GuardedOp,
+  isSessionFolderName,
+  MODULE_ID,
+  type OpSnapshot,
+  unwrapBridgeReply,
+} from '@gnuminator/shared';
 
 import type { FoundryClient } from '../foundry-client.js';
 import type { AppliedChange, GuardedWriteService } from '../guarded-write/service.js';
@@ -34,7 +40,10 @@ import {
   SessionNotesError,
   type NotesItem,
   type NotesPage,
+  type ApprovedRecapReport,
   type PageKey,
+  type PipelineReport,
+  type PipelineStatusReport,
   type StoredNotes,
   type WaitingFor,
 } from './types.js';
@@ -104,6 +113,40 @@ function readPages(value: unknown): NotesPage[] {
   return PAGE_KEYS.filter(k => byKey.has(k)).map(k => byKey.get(k)!);
 }
 
+const PIPELINE_FILE = 'session-notes-pipeline.json';
+const PIPELINE_STATES = ['done', 'paused', 'incomplete', 'failed', 'waiting', 'published'] as const;
+const MAX_RECAP_CHARS = 100_000;
+const RECAP_LANGS = ['da', 'en'] as const;
+
+function readPipelineStatus(value: unknown): PipelineStatusReport | null {
+  const r = (value ?? {}) as Record<string, unknown>;
+  const state = PIPELINE_STATES.find(s => s === r.state);
+  if (typeof r.session !== 'string' || !isSessionFolderName(r.session) || !state) {
+    throw bad('status needs a dated *-discord session folder name and a known state');
+  }
+  return {
+    session: r.session,
+    state,
+    message: typeof r.message === 'string' ? r.message.slice(0, 300) : '',
+    ...(typeof r.at === 'string' ? { at: r.at.slice(0, 40) } : {}),
+  };
+}
+
+function readApprovedRecapReport(value: unknown): ApprovedRecapReport | null {
+  const r = (value ?? {}) as Record<string, unknown>;
+  if (typeof r.session !== 'string' || !isSessionFolderName(r.session)) {
+    throw bad('recap needs a dated *-discord session folder name');
+  }
+  const text: ApprovedRecapReport['text'] = {};
+  const given = (r.text ?? {}) as Record<string, unknown>;
+  for (const lang of RECAP_LANGS) {
+    const t = given[lang];
+    if (typeof t === 'string' && t.trim()) text[lang] = t.slice(0, MAX_RECAP_CHARS);
+  }
+  if (Object.keys(text).length === 0) throw bad('recap needs text in at least one language');
+  return { session: r.session, text };
+}
+
 function statusOf(notes: StoredNotes): NotesItem['status'] {
   if (notes.approvedAt) return 'approved';
   return notes.put ? 'in-foundry' : 'staged';
@@ -144,6 +187,7 @@ export class SessionNotesService {
   private readonly tickMs: number;
   private readonly retryMs: number;
   private timer: NodeJS.Timeout | null = null;
+  private pipeline: PipelineReport = { status: null, recap: null };
   private putLock: Promise<unknown> = Promise.resolve();
   private lastSerial = -1;
   private lastAttemptMs = 0;
@@ -314,6 +358,51 @@ export class SessionNotesService {
       if (env) return this.view(env.data, await this.blockers(), await this.revealedSources(w));
     }
     throw new SessionNotesError('not-found', `No session notes ${sessionId} in the bridge vault`);
+  }
+
+  /**
+   * `report` (pipeline): how the last notes run ended and the approved player recap, sent over
+   * the control port so a dashboard on another host (the Pi) needs no sessions folder. Each part
+   * replaces the earlier one; kept in memory and, when the world is known, in its vault.
+   */
+  async report(params: Record<string, unknown>): Promise<PipelineReport> {
+    const next: PipelineReport = { status: null, recap: null };
+    if (params.status !== undefined) next.status = readPipelineStatus(params.status);
+    if (params.recap !== undefined) next.recap = readApprovedRecapReport(params.recap);
+    if (!next.status && !next.recap) throw bad('report needs a valid status or recap');
+    const worldId = await this.optionalWorld(params.world);
+    const stored = worldId ? await this.readPipeline(worldId) : null;
+    const merged: PipelineReport = {
+      status: next.status ?? this.pipeline.status ?? stored?.status ?? null,
+      recap: next.recap ?? this.pipeline.recap ?? stored?.recap ?? null,
+    };
+    this.pipeline = merged;
+    if (worldId) {
+      await this.store.write(worldId, 'gm', PIPELINE_FILE, merged);
+    }
+    return merged;
+  }
+
+  /** `pipeline` (dashboard): the last report, from memory or the current world's vault. */
+  async pipelineReport(): Promise<PipelineReport> {
+    if (this.pipeline.status || this.pipeline.recap) return this.pipeline;
+    const worldId = await this.optionalWorld(undefined);
+    return (worldId ? await this.readPipeline(worldId) : null) ?? { status: null, recap: null };
+  }
+
+  private async readPipeline(worldId: string): Promise<PipelineReport | null> {
+    const env = await this.store.read<PipelineReport>(worldId, 'gm', PIPELINE_FILE);
+    return env?.data ?? null;
+  }
+
+  /** The named world, else the connected one, else null (a report is kept in memory then). */
+  private async optionalWorld(world: unknown): Promise<string | null> {
+    if (world !== undefined && world !== null && world !== '') {
+      if (!isValidWorldId(world)) throw bad('world is not a valid world id');
+      return world;
+    }
+    if (!this.foundry.isConnected()) return null;
+    return this.worldIds.current().catch(() => null);
   }
 
   // -------------------------------------------------------------------------

@@ -20,6 +20,7 @@ import { mountSessionNotesRoute } from './session-notes-route.js';
 const GM_TOKEN = 'gm-token-notes';
 const PLAYER_TOKEN = 'player-token-notes';
 const ID = '2026-10-03_0913-rehearsal';
+const DISCORD_ID = '2026-10-03_0913-discord';
 
 let dashboard: Dashboard | null = null;
 let server: Server | null = null;
@@ -201,8 +202,9 @@ describe('GET /api/session-notes/pipeline', () => {
   it('is GM only and answers before the :id route can take "pipeline" for a session id', async () => {
     vi.stubEnv(
       'FVTT_SESSIONS_DIR',
-      sessionsWith(ID, '{"state":"incomplete","message":"2 scenes raw"}')
+      sessionsWith(DISCORD_ID, '{"state":"incomplete","message":"2 scenes raw"}')
     );
+    // An old bridge answers "pipeline" with something else: the folder on this PC is used.
     const { base, calls } = await start(() => Promise.resolve({ sessionId: 'from-the-bridge' }));
     expect((await req(base, '/api/session-notes/pipeline', { token: PLAYER_TOKEN })).status).toBe(
       403
@@ -211,10 +213,28 @@ describe('GET /api/session-notes/pipeline', () => {
     const res = await req(base, '/api/session-notes/pipeline');
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      pipeline: { session: ID, state: 'incomplete', message: '2 scenes raw' },
+      pipeline: { session: DISCORD_ID, state: 'incomplete', message: '2 scenes raw' },
     });
-    // "pipeline" is a valid session id: had `/:id` come first, the bridge would have been asked.
-    expect(calls).toEqual([]);
+    // "pipeline" is a valid session id: had `/:id` come first, the bridge would have been asked
+    // for a session called "pipeline" (a `get`), not for the report.
+    expect(calls.every(([action]) => action === 'pipeline')).toBe(true);
+  });
+
+  it('shows what the notes run sent to the bridge when this host has no sessions folder', async () => {
+    vi.stubEnv('FVTT_SESSIONS_DIR', join(tmpdir(), 'no-such-sessions-dir-bridge'));
+    const status = { session: DISCORD_ID, state: 'paused', message: 'Paused by a usage limit' };
+    const { base } = await start(() => Promise.resolve({ status, recap: null }));
+    expect(await (await req(base, '/api/session-notes/pipeline')).json()).toEqual({
+      pipeline: status,
+    });
+  });
+
+  it('is {pipeline: null} when the bridge is old or fails and there is no folder', async () => {
+    vi.stubEnv('FVTT_SESSIONS_DIR', join(tmpdir(), 'no-such-sessions-dir-bridge'));
+    const none = await start(() => Promise.reject(new Error('Unknown method')));
+    expect(await (await req(none.base, '/api/session-notes/pipeline')).json()).toEqual({
+      pipeline: null,
+    });
   });
 
   it('is {pipeline: null} when the sessions folder has nothing', async () => {
@@ -226,8 +246,8 @@ describe('GET /api/session-notes/pipeline', () => {
   });
 
   it('reads the sessionsDir option before FVTT_SESSIONS_DIR', async () => {
-    vi.stubEnv('FVTT_SESSIONS_DIR', sessionsWith('2026-01-01_0000-env', '{"state":"done"}'));
-    const fromOption = sessionsWith('2026-02-02_0000-option', '{"state":"published"}');
+    vi.stubEnv('FVTT_SESSIONS_DIR', sessionsWith('2026-01-01_0000-discord', '{"state":"done"}'));
+    const fromOption = sessionsWith('2026-02-02_0000-discord', '{"state":"published"}');
     const app = express();
     mountSessionNotesRoute(app, {
       client: {},
@@ -241,7 +261,7 @@ describe('GET /api/session-notes/pipeline', () => {
       const { port } = listener.address() as AddressInfo;
       const res = await fetch(`http://127.0.0.1:${port}/api/session-notes/pipeline`);
       expect(await res.json()).toEqual({
-        pipeline: { session: '2026-02-02_0000-option', state: 'published', message: '' },
+        pipeline: { session: '2026-02-02_0000-discord', state: 'published', message: '' },
       });
     } finally {
       await new Promise<void>(resolve => listener.close(() => resolve()));

@@ -32,6 +32,8 @@ test('ESLint ignores no tracked plain JS file outside the skip list', async () =
   const ignored = [];
   for (const file of tracked) {
     if (Object.hasOwn(PLAIN_JS_SKIP, file)) continue;
+    // Generated copy of the lane kit; the .claude/hooks sources it is built from are linted.
+    if (file.startsWith('plugin/foundry-lane-kit/')) continue;
     if (await eslint.isPathIgnored(path.join(root, file))) ignored.push(file);
   }
   assert.deepEqual(ignored, [], `ESLint ignores plain JS files not in PLAIN_JS_SKIP: ${ignored.join(', ')}`);

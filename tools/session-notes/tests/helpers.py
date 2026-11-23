@@ -46,16 +46,17 @@ def scene_answer(prompt: str, **overrides: Any) -> dict[str, Any]:
         "lines": lines,
         "title_da": "Titel",
         "title_en": "Title",
-        "summary_da": "Kort.",
-        "summary_en": "Short.",
+        "summary_da": "Kort. Fortalt.",
+        "summary_en": "Short. Told.",
+        "setting": "game",
         "events": [{"da": "Noget skete", "en": "Something happened", "cites": [first, "u999999"]}],
         "decisions": [],
         "npcs": [{"name": "Madam Eva", "da": "Spåkone", "en": "Fortune teller", "cites": [first]}],
-        "loot": [],
         "threads": [],
-        "dice": [],
-        "quotes": [{"id": first, "da": "Hej", "en": "Hi"}],
+        "quotes": [{"id": first, "spoken": "Hej", "spoken_lang": "da", "en": "Hi"}],
         "gm_only": [{"da": "Hemmelig", "en": "Secret", "cites": [first]}],
+        "table": [],
+        "table_note": {"da": "", "en": ""},
     }
     answer.update(overrides)
     return answer
@@ -66,6 +67,8 @@ SESSION_ANSWER = {
     "title_en": "Session",
     "summary_da": "Resumé.",
     "summary_en": "Summary.",
+    "in_short_da": ["Et", "To", "Tre", "Fire", "Fem"],
+    "in_short_en": ["One", "Two", "Three", "Four", "Five"],
     "changed_da": ["A"],
     "changed_en": ["A"],
     "recap_player_da": "Sidst...",
@@ -123,6 +126,8 @@ class FakeClaude:
                         "choices": [],
                         "ties": [point],
                         "hooks": [],
+                        "wishes": [],
+                        "gm_only": [],
                     }
                     for c, p in chars
                 ]

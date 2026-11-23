@@ -71,7 +71,7 @@ staging/<id>/<version>/           downloaded, not yet tested
 rehearsals/<time>-<server>/       the reports
 ```
 
-Licensed and Patreon packages (the PHB module, JB2A premium, the paid ddb-importer parts, our private
+Licensed and Patreon packages (the PHB module, JB2A premium, our private
 content module) go in the archive like the rest, zipped from the tested install, and are marked
 `licensed` in `pinned.json`. They never go in the repo or the vault. A module we must patch is forked
 (Actor Studio is the first candidate, I-116) and the fork's build is what gets pinned; the other

@@ -234,3 +234,8 @@ REHEARSAL_CHANNEL_ID=<the voice channel; Developer Mode, right-click, Copy Chann
 ```
 
 Do not run the normal bot at the same time (the recorder logs in with `DISCORD_TOKEN` here too).
+
+**Before each gate:** `npm run kit:recorder -- <folder of tracks>` runs a 60 second rehearsal with
+one drop at 30 s on the built bot (`npm run build -w @gnuminator/discord-bot` first, on a release
+or later) and adds its PASS or CHECK row to `Test kit runs.md` in the vault. It uses the rehearsal
+channel only, never the campaign channels.

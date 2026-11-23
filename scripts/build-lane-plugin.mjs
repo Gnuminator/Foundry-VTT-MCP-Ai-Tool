@@ -2,6 +2,7 @@
 // .claude/ stays the one place to edit; plugin/foundry-lane-kit/ is generated and never edited by hand.
 //   node scripts/build-lane-plugin.mjs           write the plugin folder and the marketplace file
 //   node scripts/build-lane-plugin.mjs --check   exit 1 when the committed plugin differs (drift)
+import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -45,6 +46,16 @@ export function hooksJson(settings) {
   return { hooks: out };
 }
 
+/**
+ * The plugin version: the tool version plus a short hash of the plugin's files, so a change to a skill
+ * or hook reaches every PC's `plugin update` even between releases (Claude Code compares the string).
+ */
+export function pluginVersion(toolVersion, files) {
+  const h = createHash('sha256');
+  for (const rel of [...files.keys()].sort()) h.update(rel).update('\0').update(files.get(rel)).update('\0');
+  return `${toolVersion}+${h.digest('hex').slice(0, 8)}`;
+}
+
 /** The files the plugin should hold: Map<relative path, string|Buffer>. */
 export function plan(repo = REPO) {
   const files = new Map();
@@ -68,7 +79,7 @@ export function plan(repo = REPO) {
   });
   const settings = JSON.parse(readFileSync(path.join(claude, 'settings.json'), 'utf8'));
   files.set('hooks/hooks.json', `${JSON.stringify(hooksJson(settings), null, 2)}\n`);
-  const version = JSON.parse(readFileSync(path.join(repo, 'package.json'), 'utf8')).version;
+  const version = pluginVersion(JSON.parse(readFileSync(path.join(repo, 'package.json'), 'utf8')).version, files);
   files.set(
     '.claude-plugin/plugin.json',
     `${JSON.stringify(

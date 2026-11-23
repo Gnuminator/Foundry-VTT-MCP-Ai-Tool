@@ -2,8 +2,6 @@
  * Characterization tests for the `player-rolls` domain of `FoundryDataAccess`
  * (delegated to `PlayerRollsDataAccess`):
  *   - requestPlayerRolls        (player/character resolution + roll-button chat message)
- *   - requestAbilityCheck       (thin wrapper → requestPlayerRolls)
- *   - requestAttackRoll         (thin wrapper → requestPlayerRolls)
  *   - rollNpcCheck              (direct Roll + toMessage for a GM-controlled actor)
  *   - saveRollButtonMessageId / getRollButtonMessageId   (button↔message id map in settings)
  *   - getRollState                                       (per-button persisted roll state)
@@ -403,7 +401,7 @@ describe('FoundryDataAccess: requestPlayerRolls', () => {
 });
 
 // ===========================================================================
-// requestAbilityCheck / requestAttackRoll (wrappers)
+// requestPlayerRolls: ability and attack cards
 // ===========================================================================
 
 describe('FoundryDataAccess: an asked initiative roll fills the tracker', () => {
@@ -616,8 +614,8 @@ describe('FoundryDataAccess: roll request event', () => {
   });
 });
 
-describe('FoundryDataAccess: requestAbilityCheck (wrapper)', () => {
-  it('builds an ability roll request and folds reason + DC into the flavor', async () => {
+describe('FoundryDataAccess: requestPlayerRolls: ability cards with a DC', () => {
+  it('builds an ability roll request with the DC in the flavor, as the backend sends it', async () => {
     world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
     addPlayerCharacter({
       id: 'a1',
@@ -626,19 +624,21 @@ describe('FoundryDataAccess: requestAbilityCheck (wrapper)', () => {
       rollData: { abilities: { wis: { mod: 1 } } },
     });
 
-    const result = await da.requestAbilityCheck({
+    const result = await da.requestPlayerRolls({
+      rollType: 'ability',
+      rollTarget: 'wis',
       targetPlayer: 'Alice',
-      ability: 'wis',
-      dc: 15,
       isPublic: true,
-      reason: 'Spot the trap',
+      rollModifier: '',
+      flavor: 'Spot the trap, DC 15',
+      dc: 15,
     });
 
     expect(result.success).toBe(true);
     const msg = world.messages.contents[world.messages.contents.length - 1];
     expect(msg.content).toContain('WIS Ability Check (Public)');
     expect(msg.content).toContain('Spot the trap');
-    expect(msg.content).not.toContain('Spot the trap — DC 15');
+    expect(msg.content).not.toContain('Spot the trap, DC 15');
     // The click handler reads the DC from the button and rolls against it.
     expect(msg.content).toContain('data-dc="15"');
   });
@@ -646,12 +646,14 @@ describe('FoundryDataAccess: requestAbilityCheck (wrapper)', () => {
   it('shows the DC once on the card: the heading has it, the folded flavor does not repeat it', async () => {
     world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
     addPlayerCharacter({ id: 'a1', name: 'Silvera', ownerUserId: 'u1' });
-    await da.requestAbilityCheck({
+    await da.requestPlayerRolls({
+      rollType: 'ability',
+      rollTarget: 'wis',
       targetPlayer: 'Alice',
-      ability: 'wis',
-      dc: 15,
       isPublic: true,
-      reason: 'Spot the trap',
+      rollModifier: '',
+      flavor: 'Spot the trap, DC 15',
+      dc: 15,
     });
     const msg = world.messages.contents[world.messages.contents.length - 1];
     expect(msg.content).toContain('Roll for Silvera: WIS check, DC 15');
@@ -662,21 +664,31 @@ describe('FoundryDataAccess: requestAbilityCheck (wrapper)', () => {
   it('puts no data-dc on a request without a DC', async () => {
     world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
     addPlayerCharacter({ id: 'a1', name: 'Silvera', ownerUserId: 'u1' });
-    await da.requestAbilityCheck({ targetPlayer: 'Alice', ability: 'wis', isPublic: true });
+    await da.requestPlayerRolls({
+      rollType: 'ability',
+      rollTarget: 'wis',
+      targetPlayer: 'Alice',
+      isPublic: true,
+      rollModifier: '',
+      flavor: '',
+    });
     const msg = world.messages.contents[world.messages.contents.length - 1];
     expect(msg.content).not.toContain('data-dc');
   });
 });
 
-describe('FoundryDataAccess: requestAttackRoll (wrapper)', () => {
+describe('FoundryDataAccess: requestPlayerRolls: attack cards', () => {
   it('builds an attack roll request with a "<weapon> attack" flavor and attack label', async () => {
     world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
     addPlayerCharacter({ id: 'a1', name: 'Silvera', ownerUserId: 'u1' });
 
-    const result = await da.requestAttackRoll({
+    const result = await da.requestPlayerRolls({
+      rollType: 'attack',
+      rollTarget: 'Longsword',
       targetPlayer: 'Alice',
-      weaponOrSpellName: 'Longsword',
       isPublic: false,
+      rollModifier: '',
+      flavor: 'Longsword attack',
     });
 
     expect(result.success).toBe(true);
@@ -1400,10 +1412,13 @@ describe('FoundryDataAccess: player page roll buttons', () => {
   it('puts the chosen mode on the request card and in the stored state', async () => {
     world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
     addPlayerCharacter({ id: 'a1', name: 'Silvera', ownerUserId: 'u1' });
-    const result = await da.requestAbilityCheck({
+    const result = await da.requestPlayerRolls({
+      rollType: 'ability',
+      rollTarget: 'dex',
       targetPlayer: 'Alice',
-      ability: 'dex',
       isPublic: true,
+      rollModifier: '',
+      flavor: '',
       advantage: 'advantage',
     });
     expect(result.success).toBe(true);

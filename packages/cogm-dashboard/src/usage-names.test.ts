@@ -29,6 +29,9 @@ function scan(files: string[]): Found[] {
     for (const m of text.matchAll(/data-track="([^"]+)"/g)) {
       found.push({ kind: 'action', name: m[1] ?? '' });
     }
+    for (const m of text.matchAll(/\.setAttribute\(\s*'data-track'\s*,\s*'([^']+)'\s*\)/g)) {
+      found.push({ kind: 'action', name: m[1] ?? '' });
+    }
     for (const m of text.matchAll(/\.track\(\s*'([a-z]+)'\s*,\s*'([^']+)'/g)) {
       found.push({ kind: m[1] ?? '', name: m[2] ?? '' });
     }

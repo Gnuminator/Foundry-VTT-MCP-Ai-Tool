@@ -101,6 +101,12 @@ export function scanText(text, file, isHtml) {
     found.push({ name, kind: kindMatch ? (kindMatch[1] ?? kindMatch[2]) : 'action', at: m.index });
   }
 
+  // el.setAttribute('data-track', 'name') (controls built in script, e.g. /me downtime)
+  const setAttr = /\.setAttribute\(\s*'data-track'\s*,\s*'([^']*)'\s*\)/g;
+  for (let m = setAttr.exec(src); m; m = setAttr.exec(src)) {
+    found.push({ name: m[1], kind: 'action', at: m.index });
+  }
+
   // track('kind', 'name') / trackUsage('kind', 'name') / trackView('name') / ...
   const call = /(^|[^\w$])(?<fn>track|trackUsage|trackView|trackShortcut|trackError)\s*\(/g;
   for (let m = call.exec(src); m; m = call.exec(src)) {
@@ -253,9 +259,13 @@ function main() {
   if (args.includes('--require-all')) {
     // A build that lacks a scanned folder (a Dockerfile without the module sources) would write a
     // catalogue with no controls for that surface and the usage note would report them wrong.
-    const missing = ['dashboard', 'player', 'module'].filter(s => !entries.some(e => e.surface === s));
+    const missing = ['dashboard', 'player', 'module'].filter(
+      s => !entries.some(e => e.surface === s)
+    );
     if (missing.length > 0) {
-      console.error(`usage-catalog: no controls found for: ${missing.join(', ')} (is a source folder missing?)`);
+      console.error(
+        `usage-catalog: no controls found for: ${missing.join(', ')} (is a source folder missing?)`
+      );
       process.exit(1);
     }
   }
@@ -269,7 +279,9 @@ function main() {
       console.error('usage-catalog: the sources produce an empty catalogue (is the scan broken?).');
       process.exit(1);
     }
-    console.log(`usage-catalog: ${entries.length} controls, the sources produce a valid catalogue.`);
+    console.log(
+      `usage-catalog: ${entries.length} controls, the sources produce a valid catalogue.`
+    );
     return;
   }
   if (current === text) {

@@ -165,8 +165,13 @@ test('module entries are skipped with the reason "inside Foundry: the foundry-co
 test('expect and gone selectors point at ids and classes the front end has', () => {
   const dashboardFiles = dashboardSources;
   const playerFiles = read('player.html') + read('player.js');
+  const meFiles = read('me.html') + read('me.js');
   for (const r of CONTROLS) {
-    const files = r.name.startsWith('player.') ? playerFiles : dashboardFiles;
+    const files = r.name.startsWith('me.')
+      ? meFiles
+      : r.name.startsWith('player.')
+        ? playerFiles
+        : dashboardFiles;
     for (const sel of [
       r.expect,
       r.gone,

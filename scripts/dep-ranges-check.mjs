@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * One range per dependency: fails when a package named by several package.json files (the root,
- * every workspace and `tools/livekit/recorder`) uses different ranges for it. This is the in-place
+ * and every workspace) uses different ranges for it. This is the in-place
  * stand-in for pnpm catalogs (decision 25): change the range everywhere or nowhere.
  *
  *   npm run deps:check
@@ -24,7 +24,7 @@ export const ALLOWED_DIVERGENCE = /** @type {Record<string, string>} */ ({});
  */
 export const SAME_RANGE_GROUPS = [['@playwright/test', 'playwright-core']];
 
-/** The package.json files that count: the root, the workspaces and the standalone recorder. */
+/** The package.json files that count: the root, and the workspaces. */
 export function manifestPaths(root = ROOT) {
   const out = [path.join(root, 'package.json'), path.join(root, 'shared', 'package.json')];
   const packagesDir = path.join(root, 'packages');
@@ -34,8 +34,6 @@ export function manifestPaths(root = ROOT) {
       if (entry.isDirectory() && fs.existsSync(file)) out.push(file);
     }
   }
-  const recorder = path.join(root, 'tools', 'livekit', 'recorder', 'package.json');
-  if (fs.existsSync(recorder)) out.push(recorder);
   return out.filter((file) => fs.existsSync(file));
 }
 

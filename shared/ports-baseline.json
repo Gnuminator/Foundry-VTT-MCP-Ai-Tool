@@ -118,7 +118,6 @@
   "shared/src/constants.ts": 2,
   "shared/src/export-index.ts": 2,
   "shared/src/protocol.ts": 3,
-  "tools/livekit/scripts/livekit-poc.ps1": 4,
   "tools/session-notes/src/session_notes/cli.py": 2,
   "tools/session-notes/src/session_notes/publish.py": 3,
   "tools/session-pipeline/scripts/build_wordlists.py": 1,

@@ -4,9 +4,8 @@
   Drive the voice stack (tools/voice-stack, compose project "fvtt-voice") from PowerShell.
 
 .DESCRIPTION
-  init                 Create tools/voice-stack/.env from .env.example with random LiveKit dev keys (once).
-  up <profile>         livekit (server, redis, egress, recorder), tls (livekit plus local TLS on 7443) or
-                       transcribe (build the two job images only; the jobs run with the transcribe command).
+  init                 Create tools/voice-stack/.env from .env.example (once).
+  up transcribe        Build the two job images only; the jobs run with the transcribe command.
   down                 Stop and remove this project's containers (not the Hugging Face model cache).
   status               Project containers, GPU memory, images and the sessions folder.
   logs [service]       Follow the logs.
@@ -88,12 +87,10 @@ function Get-DefaultSessionsDir {
 function Initialize-Env {
   if (Test-Path $EnvFile) { return }
   $text = Get-Content (Join-Path $Root '.env.example') -Raw
-  $text = $text -replace 'LIVEKIT_API_KEY=.*', "LIVEKIT_API_KEY=devkey$(New-RandomString 8)"
-  $text = $text -replace 'LIVEKIT_API_SECRET=.*', "LIVEKIT_API_SECRET=$(New-RandomString 48)"
   $sessions = Get-DefaultSessionsDir
   $text = $text -replace 'FVTT_SESSIONS_DIR=.*', "FVTT_SESSIONS_DIR=$($sessions -replace '\\', '/')"
   Set-Content -Path $EnvFile -Value $text -NoNewline
-  Write-Host "Wrote $EnvFile (random dev keys, gitignored). Check FVTT_SESSIONS_DIR in it."
+  Write-Host "Wrote $EnvFile (gitignored). Check FVTT_SESSIONS_DIR in it."
 }
 
 function Assert-SafePorts($envMap) {
@@ -187,7 +184,7 @@ function Get-HostPython {
 
 $envMap = $null
 if ($Command -ne 'init') {
-  Initialize-Env   # compose needs the LiveKit variables to exist even for the transcribe jobs
+  Initialize-Env
   $envMap = Read-DotEnv
   Assert-SafePorts $envMap
   Assert-Docker
@@ -200,24 +197,15 @@ switch ($Command) {
     if (Test-Path $EnvFile) { Write-Host '.env already exists, leaving it alone.' } else { Initialize-Env }
   }
   'up' {
-    if (-not $Target) { throw 'Usage: voice-stack.ps1 up <livekit|tls|transcribe>' }
+    if (-not $Target) { throw 'Usage: voice-stack.ps1 up <transcribe>' }
     switch ($Target) {
-      'livekit' {
-        foreach ($key in 'LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET') {
-          if (-not $envMap[$key] -or $envMap[$key] -match 'REPLACEME') { throw "$key in $EnvFile is not set." }
-        }
-        Invoke-Compose @('--profile', 'livekit', 'up', '-d', '--build')
-      }
-      'tls' {
-        Invoke-Compose @('--profile', 'livekit', '--profile', 'tls', 'up', '-d', '--build')
-      }
       'transcribe' {
         $null = Set-VoiceSourceHashes
         Invoke-Compose @('--profile', 'transcribe', 'build')
         Write-Host 'Images built. Run a job with: voice-stack.ps1 transcribe <session folder>'
       }
       'media' { throw 'The media profile (ComfyUI) is a placeholder and not built yet.' }
-      default { throw "Unknown profile '$Target'. Use livekit, tls or transcribe." }
+      default { throw "Unknown profile '$Target'. Use transcribe." }
     }
   }
   'down' {

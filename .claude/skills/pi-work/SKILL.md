@@ -51,4 +51,13 @@ Plan B (game night on the PC): `docs/dev/PLAN-B.md`.
 - Updates (D-098, D-110, D-128): newest Foundry, dnd5e and module versions, tested first on the PC test
   server (CI, `live:roundtrip`, `live:sweep`, full kit), then the kit on the Pi's `strahd-kit`
   world, then the real world; never on a game-night day; never a beta on the real world.
+- **Update sitting (OS packages):** the Pi card on the PM board shows the upgradable package count, a pending
+  reboot and whether `/lib/modules` matches the running kernel (stage 16 `os` block). Read-only check by hand:
+  `ssh foundry-pi 'apt list --upgradable 2>/dev/null; ls /var/run/reboot-required; uname -r; ls /lib/modules'`.
+  A sitting is its own item on the sitting list, never on a game-night day or the day before: `dietpi-backup`
+  snapshot, then the upgrade, each with the user's OK (package changes and the reboot are on the OK list above,
+  never bundled). A kernel upgrade needs the reboot before anything else; until it, `modulesMatchKernel` is
+  false and drivers (docker networking) may fail to load, so do not restart containers in between. Afterwards
+  read the card: count 0, no reboot pending, modules match, Foundry up. The count comes from cached lists
+  (updated by DietPi's own apt refresh), so it can lag a day.
 - Stage 12 (tunnel) refuses to run while any Pi world has a GM user with no password.

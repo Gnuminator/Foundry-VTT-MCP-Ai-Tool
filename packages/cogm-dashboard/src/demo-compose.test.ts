@@ -17,6 +17,7 @@ const demo = (f: string): string => pathToFileURL(path.join(repoRoot, 'scripts',
 const plan = await import(demo('lib/compose-plan.mjs'));
 const compose = await import(demo('compose.mjs'));
 const captions = await import(demo('lib/captions.mjs'));
+const buildInfoLib = await import(demo('lib/build-info.mjs'));
 
 const sentence = (
   index: number,
@@ -428,6 +429,56 @@ describe('compose: captions and manifest', () => {
           { name: 'x', ids: [] },
         ])
       ).toThrow(/missing music file/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('carries the take build into the manifest and the builds file, and lists older chapters', () => {
+    const dir = mkdtempSync(path.join(os.tmpdir(), 'compose-build-'));
+    try {
+      const build = { commit: 'b'.repeat(40), dirty: false, dashboardVersion: '0.31.0' };
+      mkdirSync(path.join(dir, 'new'));
+      writeFileSync(path.join(dir, 'new', 'x.mp4'), '');
+      writeFileSync(path.join(dir, 'new', 'steps.json'), '[]');
+      writeFileSync(path.join(dir, 'new', 'take.json'), JSON.stringify({ build }));
+      mkdirSync(path.join(dir, 'old'));
+      writeFileSync(path.join(dir, 'old', 'x.mp4'), '');
+      writeFileSync(path.join(dir, 'old', 'steps.json'), '[]');
+      writeFileSync(path.join(dir, 'old', 'take.json'), '{"name":"before-builds"}');
+      const file = path.join(dir, 'm.json');
+      writeFileSync(
+        file,
+        JSON.stringify({
+          chapters: [
+            { id: 'new', take: 'new' },
+            { id: 'old', take: 'old' },
+          ],
+          cuts: { master: ['new', 'old'] },
+        })
+      );
+      const m = compose.resolveManifest(file);
+      expect(m.chapters[0].build).toEqual(build);
+      expect(m.chapters[1].build).toBeNull();
+      const out = JSON.parse(compose.buildsJson(m.chapters));
+      expect(out.chapters.map((c: { id: string }) => c.id)).toEqual(['new', 'old']);
+      expect(out.chapters[0].build.commit).toBe(build.commit);
+      // Commit "a" is an ancestor of "b" only: a chapter filmed on b is newer than a, one on a is not
+      // newer than b, and one with no build always counts as older.
+      const isAncestor = (a: string, b: string): boolean => a === b || (a === 'a' && b === 'b');
+      const ch = (id: string, commit?: string): unknown => ({
+        id,
+        build: commit ? { commit } : null,
+      });
+      const old = buildInfoLib.olderThan(
+        [ch('on-b', 'b'), ch('on-a', 'a'), ch('none')],
+        'b',
+        isAncestor
+      );
+      expect(old.map((c: { id: string }) => c.id)).toEqual(['on-a', 'none']);
+      const info = buildInfoLib.buildInfo(repoRoot);
+      expect(info.commit).toMatch(/^[0-9a-f]{40}$/);
+      expect(info.dashboardVersion).toMatch(/^\d+\.\d+\.\d+/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

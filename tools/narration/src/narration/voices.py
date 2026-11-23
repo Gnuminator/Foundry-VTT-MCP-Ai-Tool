@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import random
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -65,8 +66,69 @@ VOICES: dict[str, dict[str, Voice]] = {
 DEFAULT_VOICE = {"da": "mic", "en": "turbo"}
 
 
-def resolve_voice(lang: str, spec: str | None, speed: float | None = None) -> Voice:
-    """``spec`` is a voice name, ``ref:<path>``, or None for the language default."""
+def local_voices_file() -> Path:
+    """``NARRATION_VOICES``, else ``%APPDATA%\\foundry-ai-tool\\voices.local`` (outside the repo)."""
+    override = os.environ.get("NARRATION_VOICES")
+    if override:
+        return Path(override)
+    appdata = os.environ.get("APPDATA")
+    base = Path(appdata) if appdata else Path.home() / "AppData" / "Roaming"
+    return base / "foundry-ai-tool" / "voices.local"
+
+
+def load_local_voices(path: Path | None = None) -> dict[str, dict[str, Voice]]:
+    """Named reference voices from ``voices.local``, so a script says ``voice: deep``.
+
+    One setting per line, ``#`` starts a comment::
+
+        da.deep = C:\\path\\da-deep.wav
+        da.deep.speed = 0.76
+        en.deep = C:\\path\\en-deep.wav
+        en.deep.speed = 0.76
+
+    The clip's language picks the engine (Roest for da, Turbo for en); ``speed`` is optional
+    (default as for ``ref:``). A name here beats a built-in voice of the same name.
+    """
+    path = path or local_voices_file()
+    if not path.is_file():
+        return {}
+    clips: dict[tuple[str, str], str] = {}
+    speeds: dict[tuple[str, str], float] = {}
+    for n, raw in enumerate(path.read_text(encoding="utf-8-sig").splitlines(), 1):
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        key, sep, value = line.partition("=")
+        parts = key.strip().lower().split(".")
+        if not sep or len(parts) not in (2, 3) or parts[0] not in ("da", "en") or not parts[1]:
+            raise ValueError(f"{path} line {n}: expected '<da|en>.<name> = <clip.wav>' or '.speed = <number>'")
+        who = (parts[0], parts[1])
+        if len(parts) == 3:
+            if parts[2] != "speed":
+                raise ValueError(f"{path} line {n}: unknown setting '{parts[2]}' (only speed)")
+            speeds[who] = float(value)
+        else:
+            clips[who] = value.strip()
+    found: dict[str, dict[str, Voice]] = {}
+    for (lang, name), clip in clips.items():
+        engine, settings = ("roest", ROEST_SETTINGS) if lang == "da" else ("turbo", TURBO_SETTINGS)
+        speed = speeds.get((lang, name), 1.0 if lang == "da" else 0.92)
+        found.setdefault(lang, {})[name] = Voice(lang, name, engine, str(Path(clip).expanduser()), speed, settings)
+    return found
+
+
+def resolve_voice(
+    lang: str,
+    spec: str | None,
+    speed: float | None = None,
+    local: dict[str, dict[str, Voice]] | None = None,
+) -> Voice:
+    """``spec`` is a voice name, ``ref:<path>``, or None for the language default.
+
+    ``local`` is the ``voices.local`` set (read from the file when not given).
+    """
+    if local is None:
+        local = load_local_voices()
     if spec and spec.lower().startswith("ref:"):
         path = Path(spec[4:].strip()).expanduser()
         if not path.is_file():
@@ -76,10 +138,16 @@ def resolve_voice(lang: str, spec: str | None, speed: float | None = None) -> Vo
         voice = Voice(lang, f"ref:{path.name}", engine, str(path), base_speed, settings)
     else:
         name = (spec or DEFAULT_VOICE[lang]).lower()
-        if name not in VOICES[lang]:
-            known = ", ".join(VOICES[lang])
+        mine = local.get(lang, {})
+        if name in mine:
+            voice = mine[name]
+            if not Path(voice.ref or "").is_file():
+                raise ValueError(f"{lang} voice '{name}' in voices.local: clip not found: {voice.ref}")
+        elif name in VOICES[lang]:
+            voice = VOICES[lang][name]
+        else:
+            known = ", ".join([*VOICES[lang], *mine])
             raise ValueError(f"unknown {lang} voice '{name}' (known: {known}, or ref:<clip.wav>)")
-        voice = VOICES[lang][name]
     if speed is not None:
         voice = Voice(voice.lang, voice.name, voice.engine, voice.ref, speed, voice.settings)
     return voice

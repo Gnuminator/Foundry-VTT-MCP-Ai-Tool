@@ -212,7 +212,7 @@ Parameters:
 
 ## plan-campaign-merge
 
-Plan adding facts to the GM-only Campaign journals (kind: brothers, npcs, creatures, locations, lore, threads, sessions, table). Each entry is one page; give Danish and English. Returns additions (new pages and lines, marked new; apply at once when autoApply is true) and changes (rewrites; need confirm). Names not confirmed yet: nameConfirmed false holds the entry back. setup creates the eight journals; markSeen clears the new marks.
+Plan adding facts to the GM-only Campaign journals (kind: brothers, npcs, creatures, locations, lore, threads, sessions, table). Each entry is one page; give Danish and English. Returns additions (new pages and lines, marked new; apply at once when autoApply is true) and changes (rewrites; need confirm). Names not confirmed yet: nameConfirmed false holds the entry back. A missing journal is made empty first (apply, then plan its entries again); setup creates the eight journals; markSeen clears the new marks.
 
 Kind: read-only. Title: Plan campaign page merge.
 

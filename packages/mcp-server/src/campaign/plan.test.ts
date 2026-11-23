@@ -24,7 +24,7 @@ function readerOf(store: Record<string, Record<string, string>>): CampaignReader
 const opts = { setup: false, folderId: async (): Promise<string> => 'FOLDER' };
 const timeline = {
   session: 'Session 00',
-  ref: 'transcript.en#^u000556',
+  ref: 'transcript.en#^u000001',
   time: '00:42',
   da: 'Han sagde noget',
   en: 'He said something',
@@ -40,7 +40,7 @@ describe('campaign model', () => {
     expect(html).toContain('class="campaign-new">ny<');
     expect(html).toContain('class="campaign-new">new<');
     expect(readSummary(html, 'da')).toBe('Kort');
-    expect(html).toContain('data-ref="transcript.en#^u000556"');
+    expect(html).toContain('data-ref="transcript.en#^u000001"');
   });
 
   it('escapes text', () => {
@@ -60,7 +60,7 @@ describe('campaign model', () => {
     expect(addTimelineLine(once, 'en', timeline)).toBeNull();
     const second = addTimelineLine(once, 'en', { ...timeline, ref: 'x', en: 'More' })!;
     expect(second.match(/data-session="Session 00"/g)).toHaveLength(1);
-    expect(addRelation(second, 'da', { to: 'Ebbe', da: 'bror' })).toContain('data-to="ebbe"');
+    expect(addRelation(second, 'da', { to: 'Bram', da: 'bror' })).toContain('data-to="bram"');
   });
 
   it('clears new marks', () => {
@@ -70,9 +70,9 @@ describe('campaign model', () => {
 });
 
 describe('planCampaignMerge', () => {
-  it('creates the journal with its page when both are missing', async () => {
+  it('creates the empty journal and holds the entry when the journal is missing', async () => {
     const parts = await planCampaignMerge(
-      [{ kind: 'npcs', name: 'Barnon', summary: { da: 'a', en: 'b' }, timeline: [timeline] }],
+      [{ kind: 'npcs', name: 'Aldo', summary: { da: 'a', en: 'b' }, timeline: [timeline] }],
       readerOf({}),
       opts
     );
@@ -84,12 +84,15 @@ describe('planCampaignMerge', () => {
     expect(data._id).toBe(journalId('npcs'));
     expect(data.ownership).toEqual({ default: 0 });
     expect(data.folder).toBe('FOLDER');
-    expect((data.pages as Array<{ _id: string }>)[0]._id).toBe(pageId('npcs', 'Barnon'));
+    // The journal is made empty; the entry waits for the next plan (a plan cannot create into a
+    // journal that does not exist yet).
+    expect(data.pages).toEqual([]);
+    expect(parts.held).toEqual([expect.objectContaining({ kind: 'npcs', name: 'Aldo' })]);
   });
 
   it('embeds a new page in an existing journal', async () => {
     const parts = await planCampaignMerge(
-      [{ kind: 'npcs', name: 'Barnon', summary: { da: 'a', en: 'b' } }],
+      [{ kind: 'npcs', name: 'Aldo', summary: { da: 'a', en: 'b' } }],
       readerOf({ npcs: {} }),
       opts
     );
@@ -101,14 +104,14 @@ describe('planCampaignMerge', () => {
   });
 
   it('puts additions to an existing page in additions and summary rewrites in changes', async () => {
-    const id = pageId('npcs', 'Barnon');
+    const id = pageId('npcs', 'Aldo');
     const html = renderNewPage('npcs', { summary: { da: 'gammel', en: 'old' } });
     const store = { npcs: { [id]: html } };
     const add = await planCampaignMerge(
       [
         {
           kind: 'npcs',
-          name: 'Barnon',
+          name: 'Aldo',
           timeline: [timeline],
           summary: { da: 'ny tekst', en: 'new text' },
         },
@@ -124,7 +127,7 @@ describe('planCampaignMerge', () => {
       [
         {
           kind: 'npcs',
-          name: 'Barnon',
+          name: 'Aldo',
           timeline: [timeline],
           summary: { da: 'ny tekst', en: 'new text' },
           replaceSummary: true,
@@ -142,11 +145,11 @@ describe('planCampaignMerge', () => {
   });
 
   it('holds unconfirmed names and is idempotent for known lines', async () => {
-    const id = pageId('npcs', 'Barnon');
+    const id = pageId('npcs', 'Aldo');
     const html = addTimelineLine(renderNewPage('npcs', {}), 'en', timeline)!;
     const parts = await planCampaignMerge(
       [
-        { kind: 'npcs', name: 'Barnon', timeline: [{ ...timeline, da: undefined }] },
+        { kind: 'npcs', name: 'Aldo', timeline: [{ ...timeline, da: undefined }] },
         { kind: 'npcs', name: 'Barnoon', nameConfirmed: false },
       ],
       readerOf({ npcs: { [id]: html } }),
@@ -157,9 +160,9 @@ describe('planCampaignMerge', () => {
   });
 
   it('holds a page whose structure was edited away', async () => {
-    const id = pageId('npcs', 'Barnon');
+    const id = pageId('npcs', 'Aldo');
     const parts = await planCampaignMerge(
-      [{ kind: 'npcs', name: 'Barnon', timeline: [timeline] }],
+      [{ kind: 'npcs', name: 'Aldo', timeline: [timeline] }],
       readerOf({ npcs: { [id]: '<p>free text</p>' } }),
       opts
     );
@@ -173,7 +176,7 @@ describe('planCampaignMerge', () => {
   });
 
   it('markSeen clears marks in a change plan', async () => {
-    const id = pageId('npcs', 'Barnon');
+    const id = pageId('npcs', 'Aldo');
     const html = renderNewPage('npcs', { summary: { da: 'a', en: 'b' } });
     const seen = await planMarkSeen(readerOf({ npcs: { [id]: html } }));
     expect(seen.ops).toHaveLength(1);

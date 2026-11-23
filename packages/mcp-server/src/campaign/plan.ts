@@ -32,6 +32,7 @@ import {
 /** Foundry's JournalEntryPage text format for HTML. */
 const HTML_FORMAT = 1;
 const NONE = 0;
+const MAX_SEEN_OPS = 200;
 
 export interface CampaignEntry extends NewPageContent {
   kind: CampaignKind;
@@ -222,8 +223,12 @@ export async function planCampaignMerge(
   for (const kind of CAMPAIGN_KINDS) {
     const pages = await load(kind);
     const created = [...working.values()].filter(w => w.kind === kind && w.original === null);
-    if (pages === null && needJournal.has(kind)) {
+    if (pages === null && !needJournal.has(kind)) continue;
+    if (pages === null) {
       folder ??= await options.folderId();
+      // The journal is made empty, and the entries for it wait for the next plan (a plan cannot
+      // create into a journal that does not exist yet). That keeps the undo of this change simple:
+      // it deletes the journal only while it is still empty (the undo guard in tools/campaign-merge.ts).
       out.additions.push({
         kind: 'create',
         documentName: 'JournalEntry',
@@ -234,24 +239,30 @@ export async function planCampaignMerge(
           folder,
           ownership: { default: NONE },
           flags: { [MODULE_ID]: { campaign: { kind } } },
-          pages: created.map((w, i) => pageData(w, (i + 1) * 100_000)),
+          pages: [],
         },
       });
       out.additionLines.push(`journal "${CAMPAIGN_JOURNALS[kind].name}" (GM-only)`);
-      for (const w of created)
-        out.additionLines.push(`${CAMPAIGN_JOURNALS[kind].en} / ${w.name}: new page`);
-    } else if (pages !== null) {
-      created.forEach((w, i) => {
-        out.additions.push({
-          kind: 'create',
-          documentName: 'JournalEntryPage',
-          parentUuid: `JournalEntry.${journalId(kind)}`,
-          keepId: true,
-          data: pageData(w, (pages.length + i + 1) * 100_000),
+      for (const w of created) {
+        out.held.push({
+          kind,
+          name: w.name,
+          reason: `The journal "${CAMPAIGN_JOURNALS[kind].name}" is made by this plan; apply it, then plan this entry again`,
         });
-        out.additionLines.push(`${CAMPAIGN_JOURNALS[kind].en} / ${w.name}: new page`);
-      });
+      }
+      continue;
     }
+    const existing = pages?.length ?? 0;
+    created.forEach((w, i) => {
+      out.additions.push({
+        kind: 'create',
+        documentName: 'JournalEntryPage',
+        parentUuid: `JournalEntry.${journalId(kind)}`,
+        keepId: true,
+        data: pageData(w, (existing + i + 1) * 100_000),
+      });
+      out.additionLines.push(`${CAMPAIGN_JOURNALS[kind].en} / ${w.name}: new page`);
+    });
   }
 
   // Existing pages that changed.
@@ -285,6 +296,8 @@ export async function planMarkSeen(
     for (const p of pages ?? []) {
       const html = await reader.content(kind, p.id);
       if (!hasNewMarks(html)) continue;
+      // A plan holds at most 200 ops; the rest waits for the next markSeen.
+      if (ops.length >= MAX_SEEN_OPS) return { ops, lines };
       ops.push({
         kind: 'update',
         uuid: pageUuid(kind, p.id),

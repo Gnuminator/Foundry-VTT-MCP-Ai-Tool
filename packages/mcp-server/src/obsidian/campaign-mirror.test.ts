@@ -9,7 +9,7 @@ const link: LinkContext = {
   pageUuid: 'JournalEntry.AAAAAAAAAAAAAAAA.JournalEntryPage.BBBBBBBBBBBBBBBB',
   openBase: '',
   resolve: () => null,
-  fromPath: 'AI Tool/Foundry/Journals/Campaign/NPCs/Barnon.md',
+  fromPath: 'AI Tool/Foundry/Journals/Campaign/NPCs/Aldo.md',
 };
 
 describe('campaign pages in the mirror', () => {
@@ -20,17 +20,17 @@ describe('campaign pages in the mirror', () => {
 
   it('turns relations, transcript refs and session headings into wikilinks', () => {
     let html = renderNewPage('npcs', { summary: { da: 'Kort', en: 'Short' } });
-    html = addRelation(html, 'en', { to: 'Ebbe', en: 'brother' })!;
+    html = addRelation(html, 'en', { to: 'Bram', en: 'friend' })!;
     html = addTimelineLine(html, 'en', {
       session: 'Session 00',
-      ref: 'transcript.en#^u000556',
-      time: '01:42',
-      en: 'Cast Spare the Dying',
+      ref: 'transcript.en#^u000001',
+      time: '00:10',
+      en: 'Said hello',
     })!;
     const prepared = prepareCampaignHtml(html);
     const md = prepared.restore(htmlToMarkdown(prepared.html, link));
-    expect(md).toContain('[[Ebbe]]: brother');
-    expect(md).toContain('[[transcript.en#^u000556|01:42]] Cast Spare the Dying');
+    expect(md).toContain('[[Bram]]: friend');
+    expect(md).toContain('[[transcript.en#^u000001|00:10]] Said hello');
     expect(md).toContain('[[Session 00]]');
     expect(md).toContain('*new*');
     expect(md).not.toContain('CAMPAIGNLINK');

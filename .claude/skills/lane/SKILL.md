@@ -91,17 +91,17 @@ scripts/heavy-lock.mjs status`). `SKIP_PREPUSH=1 git push ...` skips the em-dash
   Opus review, not both. Everything else gets a Sonnet review plus CI. The reviewer is a read-only
   subagent; give it the PR number, the full head sha, the area, a `git diff aitool/main...HEAD`
   file and the PR description, in a checkout at that sha. A narrow agent cannot write files: save
-  its answer as the note. Only lows says **Merge.**
+  its answer as the note. A note with only lows says **Merge.**
 - **Review note:** save the reviewer's text (findings as H1, M1, L1 with file:line and a fix) to a file, then
   `node scripts/review-note.mjs <PR> --verdict merge|fixes|no --model opus|sonnet --body <file> [--round N]`.
   It names the file, writes the head and verdict lines, checks them with the gate's parser and pushes the vault
   note; it refuses Sonnet on a risky PR. Every note for the head must say Merge. Changed story
   shots in CI's `dashboard-visual-diff` artifact (`index.html`) need `visual: accepted <n> <hash>`
-  in the note (the refusal prints it) once they look intended; repeat it per new head.
-- **Findings:** fix highs and mediums in one batch, push, wait for CI green on the new head, and
-  give the same reviewer one delta check. A low is a flaw a user would notice or that can give a wrong result, else unfiled. Fix lows in a fix round; otherwise each becomes
+  in the note once they look intended; repeat per new head.
+- **Findings:** fix highs and mediums together, push, wait for CI green on the new head, and
+  give the same reviewer one delta check. A low is a flaw a user would notice or that can give a wrong result. Fix lows in a fix round; else each becomes
   `backlog.mjs low <area> "PR <n> L<k>: <what>, <file>"` (file named); a lane touching that file fixes it in passing. Sweep at 20 lines or a month-old line. A lows PR
-  files no new lows. A docs-only, test-only or changelog-only commit after a Merge gets a delta note on
+  files no new lows but still gets mediums and highs. A docs-only, test-only or changelog-only commit after a Merge gets a delta note on
   that sha instead of a round 3; a third round for anything else needs the planner. A clean merge
   of main or rebase with the same `git patch-id` needs no new note (the gate carries the verdict).
 - **Push:** `git push -u aitool claude/<topic>:claude/<topic>` (explicit refspec, never a bare

@@ -142,13 +142,16 @@ test('ledgerLines names ledgers at 20 lines or with a month-old line', () => {
   ledger('Aged', 2, '2026-09-01');
   ledger('Edge', 19, '2026-11-10');
   ledger('Month', 3, '2026-10-14');
+  ledger('Day31', 1, '2026-10-13');
   const s = ledgerLines(dir, '2026-11-13');
-  assert.match(s, /to sweep \(20 lines or a month-old line\) \(2\)/);
+  assert.match(s, /to sweep \(20 lines or a month-old line\) \(3\)/);
+  assert.match(s, /- Day31: 1 lines, 1 older than a month/);
   assert.match(s, /- Full: 20 lines, 0 older than a month/);
   assert.match(s, /- Aged: 2 lines, 2 older than a month/);
   assert.doesNotMatch(s, /Edge|Month/);
   fs.rmSync(path.join(dir, 'Full.md'));
   fs.rmSync(path.join(dir, 'Aged.md'));
+  fs.rmSync(path.join(dir, 'Day31.md'));
   assert.equal(
     ledgerLines(dir, '2026-11-13'),
     'Lows ledgers to sweep (20 lines or a month-old line): none'
@@ -161,6 +164,7 @@ test('the lane and planner skills state the sweep threshold ledgerLines uses', (
   for (const s of ['lane', 'planner']) {
     const text = fs.readFileSync(path.join(root, '.claude', 'skills', s, 'SKILL.md'), 'utf8');
     assert.ok(text.includes(`${LEDGER_LIMIT} lines or a month-old line`), `${s} skill`);
+    assert.doesNotMatch(text, /\b10 lines\b/, `${s} skill has a stale limit`);
   }
 });
 

@@ -311,7 +311,9 @@ test('the wiki workflow pins a Node that Astro accepts (docs/wiki engines)', () 
   const min = /^>=(\d+)\.(\d+)\.(\d+)$/.exec(engines);
   assert.ok(min, `docs/wiki engines.node is ${engines}, expected >=x.y.z`);
   const pins = [...read('.github/workflows/wiki.yml').matchAll(/node-version:\s*'([^']*)'/g)];
-  assert.equal(pins.length, 1, 'wiki.yml has one setup-node');
+  // The first setup-node builds the wiki; a second one ('24') is only for the Storybook steps.
+  assert.equal(pins.length, 2, 'wiki.yml has two setup-node steps (wiki, then Storybook)');
+  assert.equal(pins[1][1], '24', 'the Storybook setup-node is Node 24 (root lockfile is npm 11)');
   // An exact version: a bare '22' let some runners take 22.23.3, below Astro's floor.
   const pin = /^(\d+)\.(\d+)\.(\d+)$/.exec(pins[0][1]);
   assert.ok(pin, `wiki.yml node-version '${pins[0][1]}' is not an exact x.y.z`);

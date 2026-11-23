@@ -95,6 +95,26 @@ folder, run `pwsh tools/session-notes/auto.ps1 -DryRun` and move test recordings
 folder whose speakers all have a yes is processed. A blocked session shows as "waiting" with the reason in `notes/status.json`, so the After view says
 why nothing happened.
 
+## The roster (who plays whom, who is GM)
+
+One hand-kept file, `<sessions>\roster.json` (on the PC, never in the repo), applies to every
+recording; the key is the Discord user id, the same one `consent.json` uses:
+
+```json
+{
+  "gm": "<discord user id>",
+  "players": {
+    "<discord user id>": { "name": "Anna", "character": "Ilvara", "pronouns": "she/her" }
+  }
+}
+```
+
+`raw/session.json` lists each track with its user id, so the notes run gives Claude the GM line and the
+character names without a `speakers.json` edit. A `character` in a session's own `speakers.json`
+still wins for that session. `python -m session_notes roster check <session>` lists the speakers
+the roster does not know (and says if no GM is named); exit 1 when something is missing.
+Changing the roster rewrites the scenes on the next run.
+
 ## What it writes
 
 In `<session>/notes/`, for `da` and `en` each:

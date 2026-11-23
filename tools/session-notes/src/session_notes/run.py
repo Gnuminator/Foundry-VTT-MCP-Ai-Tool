@@ -30,6 +30,7 @@ from .layers import (
 )
 from .model import Line, Roster, Scene, apply_speakers, load_roster, load_timeline
 from .prompts import SCENE_RULES, SCENE_SCHEMA, SESSION_RULES, SESSION_SCHEMA, roster_block, scene_prompt, session_prompt
+from .roster import for_speakers as roster_for_speakers
 from .scenes import split_scenes
 from .validate import check_lines, combine, raw_fallback, repair
 
@@ -156,6 +157,8 @@ class Writer:
         lines, changed = check.apply_answers(self.session, lines)
         roster = load_roster(self.session, lines)
         self.pron_key = json.dumps(roster.pronouns, ensure_ascii=False, sort_keys=True)
+        if roster_for_speakers(self.session):  # a roster change rewrites the scenes that used the old names
+            self.pron_key += json.dumps(roster.players, ensure_ascii=False, sort_keys=True)
         self.rules_key = hashlib.sha256(
             (SCENE_RULES + json.dumps(SCENE_SCHEMA, sort_keys=True) + self.pron_key).encode("utf-8")
         ).hexdigest()

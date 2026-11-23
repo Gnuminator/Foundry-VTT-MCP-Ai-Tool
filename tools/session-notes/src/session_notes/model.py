@@ -10,6 +10,8 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .roster import for_speakers as roster_for_speakers
+
 # Words the recogniser was unsure about are passed to Claude as hints.
 UNCERTAIN_BELOW = 0.5
 
@@ -106,14 +108,16 @@ def apply_speakers(lines: list[Line], session: Path) -> list[Line]:
     transcription (``"character": "GM"``) still reaches the notes without a new merge.
     """
     path = session / "speakers.json"
-    if not path.exists():
+    if not path.exists() and not roster_for_speakers(session):
         return lines
-    table = json.loads(path.read_text(encoding="utf-8-sig"))
+    table = json.loads(path.read_text(encoding="utf-8-sig")) if path.exists() else {}
+    known = roster_for_speakers(session)
     out = []
     for line in lines:
         entry = table.get(line.speaker) or {}
-        player = str(entry.get("player") or line.player)
-        character = str(entry.get("character") or entry.get("player") or line.character)
+        mine = known.get(line.speaker) or {}
+        player = str(mine.get("name") or entry.get("player") or line.player)
+        character = str(entry.get("character") or mine.get("character") or entry.get("player") or line.character)
         out.append(
             Line(line.id, line.start, line.end, line.speaker, player, character, line.text,
                  line.uncertain)
@@ -138,6 +142,9 @@ def load_roster(session: Path, lines: list[Line]) -> Roster:
             player = str(entry.get("player") or "")
             if player in roster.players:
                 roster.pronouns[player] = str(entry["pronouns"]).strip()
+    for entry in roster_for_speakers(session).values():
+        if entry.get("pronouns") and entry.get("name") in roster.players:
+            roster.pronouns.setdefault(entry["name"], entry["pronouns"])
     names_file = session / "names.txt"
     if names_file.exists():
         for raw in names_file.read_text(encoding="utf-8-sig").splitlines():

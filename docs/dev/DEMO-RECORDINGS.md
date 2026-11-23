@@ -59,6 +59,23 @@ Options for `demo:take`:
 | `--keep-open`                                   | Leave the browser windows open afterwards.                                                                                                                                                                                                              |
 | `--world <id>`                                  | Another demo world (see [Private videos](#private-videos)).                                                                                                                                                                                             |
 
+## Rehearse every take
+
+Before a gate (and after any change to a take or the dashboard), run all takes without
+recording:
+
+```powershell
+npm run demo:rehearse
+```
+
+It takes the test server lock (server A by default; `--server B`, `--wait <minutes>` to queue),
+runs each take in `scripts/demo/takes` with `--no-record` in a hidden (headless) browser, so
+nothing appears on screen, and prints `PASS` or `FAIL` per take. A `FAIL` names the step that
+was running and the take's folder. Exit code 0 means every take passed. `--only a,b` runs some
+takes, `--list` lists them. It needs no OBS, ffmpeg or GPU and writes only to
+`C:\FoundryTest\demo\takes`. It is part of the full kit before G1: run it with the kit
+(`npm run kit:run -- --size full --demo-rehearsal`).
+
 Every take writes a folder `C:\FoundryTest\demo\takes\<take>-<date>-<time>\`:
 
 | File          | What it is                                                                                                           |

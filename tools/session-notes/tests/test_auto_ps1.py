@@ -521,3 +521,16 @@ def test_pull_only_takes_that_session_and_never_prunes(tmp_path: Path, sessions:
     assert "mindepth" not in log.read_text("utf-8")
     log.unlink()
     assert "old-session: would delete" in run()  # without -Only the prune step still runs
+
+
+def test_a_failed_summary_tells_the_gm_once_even_on_another_day(
+    tmp_path: Path, sessions: Path, folder_with_timeline: Path
+) -> None:
+    bin_dir, calls = make_bin(tmp_path, run=78)
+    assert run_pass(sessions, bin_dir)[0] == 0
+    assert run_pass(sessions, bin_dir)[0] == 0
+    sent = tells(calls)
+    assert len(sent) == 1 and "gm-bot" in sent[0] and "summary" in sent[0]
+    assert "2026-10-01-test" in sent[0]
+    keys = json.loads((sessions / ".notes-tells.json").read_text(encoding="utf-8"))
+    assert list(keys) == ["summary-failed|2026-10-01-test"]

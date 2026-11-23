@@ -201,8 +201,8 @@ draft with the player's name:
 - **Approve** or **Reject** each one. A text that names a secret term (a Tarokka card name, say)
   shows a warning and asks you to confirm before it counts as approved. **Back to draft** takes an
   approved or rejected one back.
-- **Discord ids for omens:** a player with no Discord user id yet shows "no Discord id yet, it cannot be sent". Open
-  that fold-out, type their Discord user id (digits only) and link it.
+- **Discord ids for omens:** a player with no Discord user id yet shows "no Discord id yet, it
+  cannot be sent". Open that fold-out, type their Discord user id (digits only) and link it.
 - **Switch it on:** whoever runs the Discord bot sets `DISCORD_OMENS=1` in the bot's `.env`. It is
   off by default, and with it off an approved text stays where it is. If the dashboard splits GM
   and player tokens, the bot also needs `FOUNDRY_AI_GM_TOKEN`.

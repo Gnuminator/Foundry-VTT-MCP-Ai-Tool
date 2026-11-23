@@ -1,6 +1,6 @@
 ---
 source: gm/after-session-notes.md
-sourceHash: a2c098b9edf6
+sourceHash: 2aba74674979
 title: 'Efter en session: noterne'
 description: Hvad der sker med Discord-optagelsen efter en session, hvor noterne lander i Foundry, hvad du tjekker og godkender, og hvordan spillernes recap når frem til spillerne.
 ---
@@ -93,8 +93,9 @@ Handouts-køen.
 1. I Foundry, i værktøjslinjens gruppe **AI Tool** (kortets kontroller), klik **Handouts**.
    (Dashboardets handout-skuffe viser den samme kø.) Recap-siden står i **Queue**, ældste først, så
    afslør eller **Remove** de ældre indlæg før den.
-2. Klik **Reveal next**. Et vindue viser præcis, hvad der ændres. Læs det, og bekræft. Det kræver,
-   at kontakten **AI Tool: Handouts (writes)** er slået til; vinduet siger det, hvis den ikke er.
+2. Klik **Reveal next**. Den tager det ældste indlæg til den scene, du har åben (eller til ingen
+   bestemt scene), så indlæg til andre scener venter. Et vindue viser præcis, hvad der ændres. Læs
+   det, og bekræft. Det kræver, at kontakten **AI Tool: Handouts (writes)** er slået til; vinduet siger det, hvis den ikke er.
 3. Sæt kryds ved **Show it now** ved siden af **Reveal next**, hvis recap'en straks skal poppe op på
    spillernes skærme. Lad den være uden kryds, så finder de den selv.
 

@@ -35,5 +35,6 @@ own words, once.
   read the two pages in this skill's folder: `references/game-night-runbook.md` (what to do for
   each game-night problem) and `references/troubleshooting.md`. Answer from them and say "from the
   offline pages". Anything else is only general knowledge: say "not from the reference pages", never
-  invent a button or menu, and tell the GM to ask again once the server is back. Foundry's
+  invent a button or menu, and tell the GM to ask again once the server is back. Relative links
+  inside the offline pages (to other guide pages) do not work from here: do not send the GM to them. Foundry's
   knowledge base at <https://foundryvtt.com/kb/> is the last fallback; never search the web yourself.

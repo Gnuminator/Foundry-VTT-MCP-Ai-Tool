@@ -1,5 +1,5 @@
 ### Fixes
 
-- The planner status "Nightly kit" line now counts only runs by the scheduled task. A kit run a
-  lane started is named as a lane's run, and a missing nightly shows as `NO NIGHTLY RUN RECORDED`.
-  `last-run.json` keeps a `lastNightly` entry next to `last` and `lastRun`.
+- The planner status "Kit" line shows the latest finished kit run, whoever started it, with its age,
+  failing scenario ids and a later skip; it has no missing-nightly or stale warning. `last-run.json`
+  keeps a `lastNightlyRun` entry next to `last` and `lastRun`.

@@ -1,6 +1,6 @@
 ---
 source: gm/dashboard-drawers.md
-sourceHash: c7a818453cc5
+sourceHash: 8c77af99f60c
 title: 'Dashboardet: confirm-vindue, Tool Runner og skuffer'
 description: 'Confirm-vinduet, Tool Runner og skufferne Tarokka, Handouts, Prep og Party.'
 ---
@@ -207,8 +207,8 @@ post** viser hver kladde med spillerens navn:
 - **Approve** eller **Reject** hver enkelt. En tekst, der nævner et hemmeligt begreb (et
   Tarokka-kortnavn, for eksempel), viser en advarsel og beder dig bekræfte, før den tæller som
   godkendt. **Back to draft** tager en godkendt eller afvist tilbage.
-- **Discord ids for omens:** en spiller uden Discord-bruger-id endnu viser "no Discord id yet, it cannot be sent". Åbn
-  det fold-ud, skriv spillerens Discord-bruger-id (kun cifre) og link det.
+- **Discord ids for omens:** en spiller uden Discord-bruger-id endnu viser "no Discord id yet, it
+  cannot be sent". Åbn det fold-ud, skriv spillerens Discord-bruger-id (kun cifre) og link det.
 - **Slå det til:** den, der kører Discord-botten, sætter `DISCORD_OMENS=1` i botens `.env`. Det er
   slået fra som standard, og med det slået fra bliver en godkendt tekst liggende. Hvis dashboardet
   deler GM- og spiller-token, skal botten også have `FOUNDRY_AI_GM_TOKEN`.

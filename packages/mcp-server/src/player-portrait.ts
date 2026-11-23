@@ -108,6 +108,15 @@ export async function handlePlayerPortrait(
           .filter((t): t is string => typeof t === 'string' && /^Scene\.\w+\.Token\.\w+$/.test(t))
           .slice(0, MAX_PLACED_TOKENS)
       : [];
+  // The module caps the list; its total says when tokens were left out.
+  const placedTotal =
+    typeof stored.placedTotal === 'number' && Number.isFinite(stored.placedTotal)
+      ? Math.max(stored.placedTotal, placed.length)
+      : placed.length;
+  const placedLabel =
+    placedTotal > placed.length
+      ? `${placed.length} of ${placedTotal} placed tokens`
+      : `${placed.length} placed token${placed.length === 1 ? '' : 's'}`;
   const who = typeof stored.userName === 'string' && stored.userName ? stored.userName : 'A player';
   const name = stored.actorName || 'a character';
   const plan = await guardedWrites.createPlan({
@@ -125,7 +134,7 @@ export async function handlePlayerPortrait(
     try {
       const tokenPlan = await guardedWrites.createPlan({
         feature: PLAYER_PORTRAIT_FEATURE_ID,
-        summary: `${who} set the new picture on ${placed.length} placed token${placed.length === 1 ? '' : 's'} of ${name} (${stored.path})`,
+        summary: `${who} set the new picture on ${placedLabel} of ${name} (${stored.path})`,
         ops: placed.map(
           (tokenUuid): GuardedOp => ({
             kind: 'update',

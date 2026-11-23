@@ -39,7 +39,12 @@ import type { AuditEntry, AuditLog } from '../vault/audit.js';
 import type { VaultStore } from '../vault/store.js';
 
 import { mergeChangeHistory } from './audit-merge.js';
-import { changeNoteNames, changeNoteParts } from './change-note-parts.js';
+import {
+  CHANGE_NOTES_WRITTEN_FILE,
+  changeNoteNames,
+  changeNoteParts,
+  type ChangeNotesWritten,
+} from './change-note-parts.js';
 import { isUntouchedLegacyHome } from './campaign-home-legacy.js';
 import { groupWithPlayRecords, type SessionEvent } from './grouping.js';
 import { campaignDir, errorMessage, NoteWriter } from './note-writer.js';
@@ -370,6 +375,16 @@ export async function exportWorldToObsidian(options: {
         renderChangesNote(worldId, month, part.entries, { name: part.name, all }),
         checkMarkdownOwnership
       );
+    }
+  }
+  // Which parts exist now, so the dashboard link never opens a -pN note the export has not written
+  // (the change that tips a month past its cap). Written only when it changed.
+  {
+    const names = [...changeParts.values()].flatMap(parts => parts.map(p => p.name)).sort();
+    const stored = (await store.read<ChangeNotesWritten>(worldId, 'gm', CHANGE_NOTES_WRITTEN_FILE))
+      ?.data;
+    if (JSON.stringify(stored?.names) !== JSON.stringify(names)) {
+      await store.write(worldId, 'gm', CHANGE_NOTES_WRITTEN_FILE, { names });
     }
   }
 

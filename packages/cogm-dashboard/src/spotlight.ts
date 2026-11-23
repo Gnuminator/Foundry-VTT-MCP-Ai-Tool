@@ -18,6 +18,8 @@ const ACTION_TYPES: ReadonlySet<string> = new Set(['roll', 'gm-roll', 'damage-ro
 interface SpotlightPlayer {
   name: string;
   actions: number;
+  /** The actor's id when the log names one; the page matches the party roster on it (PR 1166 L2). */
+  actorId?: string;
 }
 
 interface SpotlightSnapshot {
@@ -28,6 +30,7 @@ interface SpotlightSnapshot {
 
 interface Counted {
   name: string;
+  actorId: string | null;
   at: number;
 }
 
@@ -47,7 +50,7 @@ export class SpotlightTally {
       this.seen.add(e.id);
       if (!ACTION_TYPES.has(e.eventType)) continue;
       if (e.visibility?.subject !== 'pc' || !e.actorName) continue;
-      this.counted.push({ name: e.actorName, at: e.timestampMs });
+      this.counted.push({ name: e.actorName, actorId: e.actorId || null, at: e.timestampMs });
       if (this.since === null || e.timestampMs >= this.since) changed = true;
     }
     return changed;
@@ -68,15 +71,20 @@ export class SpotlightTally {
   }
 
   snapshot(): SpotlightSnapshot {
-    const counts = new Map<string, number>();
+    // One entry per actor id (or per name when the log has no id), under the name first seen.
+    const counts = new Map<string, SpotlightPlayer>();
     for (const c of this.counted) {
       if (this.since !== null && c.at < this.since) continue;
-      counts.set(c.name, (counts.get(c.name) ?? 0) + 1);
+      const key = c.actorId ? `id:${c.actorId}` : `name:${c.name}`;
+      const entry = counts.get(key);
+      if (entry) entry.actions += 1;
+      else
+        counts.set(key, { name: c.name, actions: 1, ...(c.actorId ? { actorId: c.actorId } : {}) });
     }
     return {
-      players: [...counts.entries()]
-        .map(([name, actions]) => ({ name, actions }))
-        .sort((a, b) => b.actions - a.actions || a.name.localeCompare(b.name)),
+      players: [...counts.values()].sort(
+        (a, b) => b.actions - a.actions || a.name.localeCompare(b.name)
+      ),
       session: this.since !== null,
     };
   }

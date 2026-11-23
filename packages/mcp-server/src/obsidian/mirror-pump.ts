@@ -2078,7 +2078,7 @@ export class ObsidianMirrorPump {
     const cycleMs = Math.max(0, endedAt - cycle.startedAt);
     if (!error) this.current.lastCycleAt = new Date(endedAt).toISOString();
     if (cycle.reconcileMs !== null) {
-      // Lasting facts: they change only at a reconcile, which renders `_status.md` anyway.
+      // They change only at a reconcile, so `_status.md` gets one small rewrite per full check.
       this.current.lastReconcileMs = cycle.reconcileMs;
       this.current.lastReconcileCycleMs = cycleMs;
     }

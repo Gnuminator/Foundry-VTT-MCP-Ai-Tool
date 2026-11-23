@@ -1430,7 +1430,7 @@ function licensedStatusLines(status: MirrorStatus): string[] {
 /**
  * `AI Tool/Foundry/_status.md`: how many notes the mirror keeps, and what it left alone or could
  * not do. Only lasting facts (no per-cycle counts of work; the full check's duration changes only
- * at a full check), so it is not rewritten on every cycle.
+ * at a full check), so it is not rewritten on every cycle, only once per full check.
  */
 export function renderMirrorStatusNote(worldId: string, status: MirrorStatus): RenderedNote {
   assertWorldId(worldId);

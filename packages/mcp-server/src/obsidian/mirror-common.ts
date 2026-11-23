@@ -349,7 +349,8 @@ export function propertyWikilink(worldId: string, notePath: string, label: strin
 // ---------------------------------------------------------------------------
 
 function seconds(ms: number): string {
-  return `${(ms / 1000).toFixed(ms < 10_000 ? 1 : 0)} s`;
+  const tenths = Math.round(ms / 100) / 10;
+  return `${tenths < 10 ? tenths.toFixed(1) : Math.round(tenths)} s`;
 }
 
 /** How long the last full check took; empty before the first one. */

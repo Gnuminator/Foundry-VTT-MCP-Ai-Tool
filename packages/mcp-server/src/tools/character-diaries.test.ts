@@ -19,6 +19,7 @@ let foundry: FakeFoundry;
 let service: GuardedWriteService;
 let tools: CharacterDiaryTools;
 let secretMatches: Array<{ term: string; category: string }>;
+let checkedText: string[];
 let seenInputs: Array<{ ops?: unknown[] }>;
 
 const entry = (id: string, name: string, owners: Array<[string, string, number]>): unknown => ({
@@ -66,6 +67,7 @@ beforeEach(async () => {
     logger: makeLogger(),
   });
   secretMatches = [];
+  checkedText = [];
   seenInputs = [];
   tools = new CharacterDiaryTools({
     foundryClient: foundry,
@@ -78,8 +80,13 @@ beforeEach(async () => {
       },
     },
     secretTerms: {
-      findSecretTerms: (): Promise<{ matches: Array<{ term: string; category: string }> }> =>
-        Promise.resolve({ matches: secretMatches }),
+      findSecretTerms: (
+        _worldId: string,
+        text: string
+      ): Promise<{ matches: Array<{ term: string; category: string }> }> => {
+        checkedText.push(text);
+        return Promise.resolve({ matches: secretMatches });
+      },
     },
     worldIds,
     logger: makeLogger(),
@@ -131,6 +138,14 @@ describe('plan-character-diaries', () => {
         diaries: [{ actor: 'Ebbe', text: 'Strahd waits.' }],
       })
     ).rejects.toThrow(/Strahd/);
+  });
+
+  it('checks the session label against the secret terms too', async () => {
+    await tools.handleToolCall('plan-character-diaries', {
+      diaries: [{ actor: 'Ebbe', text: 'Hello.' }],
+      session: 'Session Zeta',
+    });
+    expect(checkedText[0]).toContain('Session Zeta');
   });
 
   it('refuses unknown characters, NPCs, duplicates and characters with no player owner', async () => {

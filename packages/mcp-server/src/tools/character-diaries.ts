@@ -21,7 +21,7 @@ interface PlayerCharacterDiaryDraft {
   text: string;
 }
 
-export interface CharacterDiaryToolsOptions {
+interface CharacterDiaryToolsOptions {
   foundryClient: Pick<FoundryClient, 'query'>;
   guardedWrites: Pick<GuardedWriteService, 'createPlan'>;
   secretTerms: Pick<SecretTermsService, 'findSecretTerms'>;
@@ -127,7 +127,7 @@ export class CharacterDiaryTools {
     const worldId = await this.options.worldIds.current();
     const { matches } = await this.options.secretTerms.findSecretTerms(
       worldId,
-      p.diaries.map(d => d.text).join('\n')
+      [...p.diaries.map(d => d.text), p.session ?? ''].join('\n')
     );
     if (matches.length > 0) {
       throw new Error(

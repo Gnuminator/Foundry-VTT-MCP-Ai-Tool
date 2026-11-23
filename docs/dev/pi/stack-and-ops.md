@@ -18,7 +18,7 @@ the time of the newest `dietpi-backup` snapshot (`backup.snapshotAt`, from the m
 file), whether `foundry.service` itself is active (`foundry.serviceActive`), the clock (`clock.ntpSynced`
 and the last measured NTP `clock.offsetMs`, null when systemd-timesyncd does not run), and
 Foundry up or down with the Foundry and dnd5e versions from `localhost:30000/api/status`, and
-an `os` object (`upgradable`: packages with an update in apt's cached lists, no `apt update` is run; `rebootPending`: `/var/run/reboot-required` exists; `modulesMatchKernel`: `/lib/modules/<uname -r>` exists, false after a kernel upgrade before the reboot; counts and flags only, no package names), and
+an `os` object (`upgradable`: packages with an update in apt's cached lists, no `apt update` is run; `rebootPending`: `/var/run/reboot-required` exists; `modulesMatchKernel`: `/lib/modules/<uname -r>` exists, false when the running kernel's folder is gone, for example after a version change or a removed kernel; a same-version rebuild is not detected, so reboot after any kernel upgrade; `upgradable` is null when apt fails; counts and flags only, no package names), and
 a `deployed` object (the ref from `.tool-ref`, the missing environment variables as `file:NAME`, whether
 libicu is present, the compose container state, its health and restart count, `containers` null
 while docker.service is stopped; names and states only; `stageFilesDiffer` and `differingStageFiles`: how many files a stage copied from the repo, listed in `deploy/pi/stage-files.txt`, differ from the same file in the deployed build, and their file names; null when the deployed build predates the list). No log lines, no world or user names, no host name but `foundry-pi`. The board stores it and shows it on

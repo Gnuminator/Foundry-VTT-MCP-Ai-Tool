@@ -200,6 +200,11 @@ describe('status script', () => {
     const bad = await run(fakePi({ upgradable: 0, rebootRequired: true, modulesDirs: ['6.1.99-old'] }), { args: ['--dry-run'] });
     assert.deepEqual(JSON.parse(bad.stdout).os, { upgradable: 0, rebootPending: true, modulesMatchKernel: false });
     assert.ok(!bad.stdout.includes('pkg'), 'no package names');
+    // apt that fails is unknown (null), never the all-clear 0.
+    const pi = fakePi();
+    writeFileSync(path.join(pi.bin, 'apt'), '#!/usr/bin/env bash\nexit 100\n');
+    const broken = await run(pi, { args: ['--dry-run'] });
+    assert.equal(JSON.parse(broken.stdout).os.upgradable, null);
   });
 
   test('dry run: the deployed state carries names and states only', async () => {

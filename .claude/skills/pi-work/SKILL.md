@@ -55,9 +55,12 @@ Plan B (game night on the PC): `docs/dev/PLAN-B.md`.
   reboot and whether `/lib/modules` matches the running kernel (stage 16 `os` block). Read-only check by hand:
   `ssh foundry-pi 'apt list --upgradable 2>/dev/null; ls /var/run/reboot-required; uname -r; ls /lib/modules'`.
   A sitting is its own item on the sitting list, never on a game-night day or the day before: `dietpi-backup`
-  snapshot, then the upgrade, each with the user's OK (package changes and the reboot are on the OK list above,
-  never bundled). A kernel upgrade needs the reboot before anything else; until it, `modulesMatchKernel` is
-  false and drivers (docker networking) may fail to load, so do not restart containers in between. Afterwards
-  read the card: count 0, no reboot pending, modules match, Foundry up. The count comes from cached lists
+  snapshot, then the upgrade, like any change through a reviewed stage script or shown to the user first and run
+  after an OK (an upgrade that removes packages and the reboot each need their own OK, never bundled). Reboot
+  after any kernel package upgrade: `modulesMatchKernel` only turns false when the running kernel's folder
+  in `/lib/modules` is gone (a version change or a removed kernel); a same-version rebuild is not detected, and
+  `rebootPending` depends on the package writing `/var/run/reboot-required`. Until the reboot, drivers (docker
+  networking) may fail to load, so do not restart containers in between. Afterwards read the card: count 0
+  (an apt failure shows no count, not 0), no reboot pending, modules match, Foundry up. The count comes from cached lists
   (updated by DietPi's own apt refresh), so it can lag a day.
 - Stage 12 (tunnel) refuses to run while any Pi world has a GM user with no password.

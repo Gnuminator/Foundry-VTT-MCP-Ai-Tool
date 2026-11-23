@@ -581,6 +581,10 @@ class Writer:
                 self._log("session_error", error=str(exc))
         if out is None:
             return None
+        if check_session(out):
+            # Good enough to render, but not kept: the next run asks Claude again.
+            self._log("session_not_cached", problems=check_session(out))
+            return out
         cached.write_text(
             json.dumps({"scenes": key, "digest": digest, "notes": out}, ensure_ascii=False),
             encoding="utf-8",

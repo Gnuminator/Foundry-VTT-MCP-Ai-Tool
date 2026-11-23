@@ -18,6 +18,7 @@ import json
 import re
 from typing import Any
 
+from .fmt import stamp
 from .model import Line, clock
 from .prompts import _IDS, _STR, _list, _obj
 
@@ -204,8 +205,7 @@ def render_raw(lines: list[Line], scenes: list[dict[str, Any]], lang: str = "da"
 
 
 def _cite(ids: list[str], starts: dict[str, float]) -> str:
-    links = [f"[[transcript.da#^{i}|{clock(starts[i])}]]" for i in ids if i in starts]
-    return f" ({', '.join(links)})" if links else ""
+    return stamp(ids, "da", starts)  # one timestamp link per line
 
 
 def render_depth(

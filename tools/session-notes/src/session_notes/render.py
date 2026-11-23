@@ -177,7 +177,12 @@ def render_scenes(
         ]
         if scene.get("fallback"):
             out += [f"> {h['fallback']}", ""]
-            continue
+            # half of a split scene may have worked: its notes are still shown
+            has_notes = scene[f"summary_{lang}"] or any(
+                scene.get(k) for k in ("events", "decisions", "npcs", "threads", "quotes", "gm_only", "table")
+            )
+            if not has_notes:
+                continue
         if scene[f"summary_{lang}"]:
             out += [scene[f"summary_{lang}"], ""]
         if setting == "table":

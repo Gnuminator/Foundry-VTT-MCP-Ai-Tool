@@ -276,3 +276,40 @@ def test_session_with_wrong_number_of_lines_is_asked_again(session: Path) -> Non
     assert (notes / "index.en.md").exists()
     assert "rejected" in fake.calls[-1][1]
     assert SESSION_ANSWER["in_short_da"][0] in read(notes, "index.da.md")
+    # a bad answer is shown but not cached: the next run asks again
+    assert not (notes / ".work" / "session.json").exists()
+    again = FormatClaude()
+    run(session, again)
+    assert [k for k, _ in again.calls].count("session") == 1
+
+
+def test_scene_repairs(session: Path) -> None:
+    from session_notes.validate import repair
+    from session_notes.model import Scene, load_timeline
+
+    lines = load_timeline(session / "timeline" / "timeline.jsonl")
+    scene = Scene(1, lines[:2])
+    result = {
+        "lines": [{"id": ln.id, "da": ln.text, "en": ln.text} for ln in scene.lines],
+        "title_da": "Titel",
+        "summary_da": "GM only: noget",
+        "setting": "table",
+        "events": [{"da": "Noget (GM only)", "en": "x", "cites": []}],
+        "decisions": [], "npcs": [], "threads": [], "gm_only": [], "quotes": [], "table": [],
+    }
+    log = repair(result, scene)
+    assert result["summary_da"] == "Kun for GM: noget"
+    assert result["events"][0]["da"] == "Noget (Kun for GM)"
+    assert result["setting"] == "mixed" and any("mixed" in x for x in log)
+
+
+def test_split_scene_with_a_raw_half_keeps_the_good_half(session: Path) -> None:
+    from session_notes.render import render_scenes
+
+    scene = {
+        "index": 1, "start": 0.0, "end": 5.0, "fallback": True, "setting": "game",
+        "title_en": "T", "summary_en": "Good half.", "events": [{"en": "It happened", "cites": []}],
+        "decisions": [], "npcs": [], "threads": [], "quotes": [], "gm_only": [], "table": [],
+    }
+    text = render_scenes("en", [], [scene])
+    assert "could not be processed" in text and "It happened" in text and "Good half." in text

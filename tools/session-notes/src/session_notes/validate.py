@@ -73,7 +73,8 @@ def check_session(result: dict[str, Any]) -> list[str]:
             problems.append(f"in_short_{lang} must be exactly 5 non-empty lines (got {len(short)})")
         if not str(result.get(f"title_{lang}", "")).strip():
             problems.append(f"title_{lang} is empty")
-        if str(result.get(f"summary_{lang}", "")).strip(" .").lower() in _EMPTY_SUMMARY:
+        summary = str(result.get(f"summary_{lang}", "")).strip(" .").lower()
+        if not summary or summary in _EMPTY_SUMMARY or summary.split(" ")[0] in ("placeholder", "todo", "tbd", "n/a"):
             problems.append(f"summary_{lang} is empty or a placeholder")
     return problems
 
@@ -110,6 +111,23 @@ def repair(result: dict[str, Any], scene: Scene) -> list[str]:
             closer_da = similarity(original, line["da"]) >= similarity(original, line["en"])
             line["da" if closer_da else "en"] = original
             line["raw_kept"] = True
+    for key in ("title_da", "summary_da"):
+        text = str(result.get(key, ""))
+        if _ENGLISH_LABEL.search(text):
+            result[key] = _ENGLISH_LABEL.sub("Kun for GM", text)
+            log.append(f"{key}: English GM label replaced")
+    for key in _LISTS:
+        for entry in result.get(key, []):
+            text = str(entry.get("da", ""))
+            if _ENGLISH_LABEL.search(text):
+                entry["da"] = _ENGLISH_LABEL.sub("Kun for GM", text)
+                log.append(f"{key}: English GM label replaced")
+    # a scene marked "table" that still has in-game notes is mixed, so nothing is dropped
+    if result.get("setting") == "table" and any(
+        result.get(k) for k in ("events", "decisions", "npcs", "threads", "quotes", "gm_only")
+    ):
+        result["setting"] = "mixed"
+        log.append("setting: table scene has in-game notes, set to mixed")
     known = set(raw)
     for key in _LISTS:
         for entry in result.get(key, []):

@@ -207,6 +207,11 @@ try {
             Say "$($dir.Name): paused (usage limit, or Claude not logged in: see notes\status.json); the next pass continues"
             Tell "paused|$($dir.Name)|$(Get-Date -Format 'yyyy-MM-dd')" "Session notes for $($dir.Name) are paused: the usage limit is reached or Claude is logged out. The next pass continues."
           }
+          78 {
+            Say "$($dir.Name): the scene notes are done but the session summary failed (see notes\status.json); the next pass tries again"
+            # No date in the key: told once for the session, not once a day.
+            Tell "summary-failed|$($dir.Name)" "The scene notes for $($dir.Name) are written, but the session summary could not be. The next pass tries again."
+          }
           76 { Say "$($dir.Name): some scenes are still raw; the next pass tries them again" }
           default {
             Say "$($dir.Name): notes failed (exit $code), see notes\audit.jsonl"

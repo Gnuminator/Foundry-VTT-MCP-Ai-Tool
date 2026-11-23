@@ -22,12 +22,13 @@ from .model import clock, load_timeline
 from .publish import publish
 from .report import send_report
 from .retention import approve, cleanup
-from .run import Options, Writer
+from .run import MAX_FALLBACK_RUNS, Options, Writer
 from .scenes import split_scenes
 from .status import write_status
 
 EXIT_PAUSED = 75
 EXIT_INCOMPLETE = 76
+EXIT_SUMMARY_FAILED = 78  # the scenes are written, the session summary is not (77 is no consent)
 
 
 def data_folder(name: str) -> Path:
@@ -297,6 +298,20 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{why}{result.paused}\nRun the same command again later.")
         write_status(session, "paused", f"{why}{result.paused}", **counts)
         return EXIT_PAUSED
+    if result.summary_failed:
+        if result.summary_given_up:
+            msg = (
+                f"The session summary could not be written after {result.summary_tries} runs; "
+                "the scene notes are done. It is tried again only when the notes change."
+            )
+        else:
+            msg = (
+                f"The session summary could not be written (run {result.summary_tries} of "
+                f"{MAX_FALLBACK_RUNS}); the scene notes are done. The next pass tries again."
+            )
+        print(msg)
+        write_status(session, "failed", msg, reason="summary", **counts)
+        return EXIT_SUMMARY_FAILED
     if result.pending or result.depth_missing or result.extras_missing:
         parts = []
         if result.pending:

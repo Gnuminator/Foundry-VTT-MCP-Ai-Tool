@@ -25,8 +25,9 @@ def test_layers_are_off_by_default(session: Path) -> None:
     fake = FakeClaude()
     Writer(session, fake, Options(workers=1)).run()
     assert [k for k, _ in fake.calls].count("depth") == 0
-    assert not (session / "notes" / "raw.da.md").exists()
-    assert not (session / "notes" / "index.da.md").exists()
+    notes = session / "notes"
+    assert (notes / "raw.da.md").exists() and (notes / "index.da.md").exists()  # no Claude call
+    assert not (notes / "depth.da.md").exists() and not (notes / "characters.da.md").exists()
 
 
 def test_layers_write_raw_depth_and_index(session: Path) -> None:
@@ -46,6 +47,7 @@ def test_layers_write_raw_depth_and_index(session: Path) -> None:
         "summary.da",
         "depth.da",
         "scenes.da",
+        "table.da",
         "transcript.da",
         "raw.da",
         "characters.da",

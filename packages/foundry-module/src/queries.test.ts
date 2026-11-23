@@ -77,15 +77,14 @@ describe('QueryHandlers: registration', () => {
     }
   });
 
-  it('registers token reads under BOTH camelCase and kebab-case, routed to one handler', async () => {
+  it('registers the token read under its kebab-case name only', async () => {
     qh.registerHandlers();
-    expect(typeof queries()[`${MODULE_ID}.getTokenDetails`]).toBe('function');
+    expect(queries()[`${MODULE_ID}.getTokenDetails`]).toBeUndefined();
     expect(typeof queries()[`${MODULE_ID}.get-token-details`]).toBe('function');
 
     const da = stubDataAccess({ getTokenDetails: vi.fn().mockResolvedValue({ ok: true }) });
-    await queries()[`${MODULE_ID}.getTokenDetails`]({ tokenId: 't' });
     await queries()[`${MODULE_ID}.get-token-details`]({ tokenId: 't' });
-    expect(da.getTokenDetails).toHaveBeenCalledTimes(2);
+    expect(da.getTokenDetails).toHaveBeenCalledTimes(1);
   });
 
   it('no longer registers the direct token write handlers (F5 L2)', () => {
@@ -431,47 +430,5 @@ describe('QueryHandlers: handler convention', () => {
     stubDataAccess({ listCreaturesByCriteria: vi.fn().mockResolvedValue([{ name: 'Goblin' }]) });
     const res = await call('listCreaturesByCriteria', { challengeRating: 1 });
     expect(res).toEqual({ response: [{ name: 'Goblin' }] });
-  });
-});
-
-// ---------------------------------------------------------------------------
-// updateCampaignProgress (P-040: it reported success without writing)
-// ---------------------------------------------------------------------------
-
-describe('QueryHandlers: updateCampaignProgress', () => {
-  const toggle = (campaignId: string, partId: string): string =>
-    `<span class="campaign-status-toggle not-started"\n  data-campaign-id="${campaignId}"\n  data-part-id="${partId}">Not Started</span>`;
-
-  beforeEach(() => {
-    world.enableWrites();
-    world.addJournal({
-      id: 'dash',
-      name: 'Campaign Dashboard',
-      flags: {},
-      pages: [
-        { type: 'text', text: { content: toggle('camp1', 'part-1') + toggle('camp1', 'part-2') } },
-      ],
-    });
-  });
-
-  it('saves the status in the flag the GM click uses', async () => {
-    const result = await call('updateCampaignProgress', {
-      campaignId: 'camp1',
-      partId: 'part-2',
-      newStatus: 'completed',
-    });
-    expect(result).toMatchObject({ success: true, journalId: 'dash', newStatus: 'completed' });
-    const journal = (globalThis as any).game.journal.get('dash');
-    expect(journal.getFlag('world', 'campaignStatus')).toEqual({ 'camp1-part-2': 'completed' });
-  });
-
-  it('refuses an unknown status, campaign or part without writing', async () => {
-    const run = (campaignId: string, partId: string, newStatus: string): Promise<unknown> =>
-      call('updateCampaignProgress', { campaignId, partId, newStatus });
-    await expect(run('camp1', 'part-1', 'done')).rejects.toThrow(/newStatus must be one of/);
-    await expect(run('other', 'part-1', 'completed')).rejects.toThrow(/No campaign dashboard/);
-    await expect(run('camp1', 'part-9', 'completed')).rejects.toThrow(/has no part part-9/);
-    const journal = (globalThis as any).game.journal.get('dash');
-    expect(journal.getFlag('world', 'campaignStatus')).toBeUndefined();
   });
 });

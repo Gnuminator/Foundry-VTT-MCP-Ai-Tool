@@ -60,6 +60,7 @@ import {
   MIRROR_STATUS_PATH,
   openUrl,
   propertyWikilink,
+  timingLines,
   relativeLinkTarget,
   type LinkContext,
   type LinkTarget,
@@ -1435,8 +1436,8 @@ function licensedStatusLines(status: MirrorStatus): string[] {
 
 /**
  * `AI Tool/Foundry/_status.md`: how many notes the mirror keeps, and what it left alone or could
- * not do. Only lasting facts (no times, no per-cycle counts of work), so it is not rewritten on
- * every cycle.
+ * not do. Only lasting facts (no per-cycle counts of work; the full check's duration changes only
+ * at a full check), so it is not rewritten on every cycle, only once per full check.
  */
 export function renderMirrorStatusNote(worldId: string, status: MirrorStatus): RenderedNote {
   assertWorldId(worldId);
@@ -1475,6 +1476,7 @@ export function renderMirrorStatusNote(worldId: string, status: MirrorStatus): R
       '| --- | --- |',
       ...MIRROR_NOTE_TYPES.map(type => `| ${TYPE_LABELS[type]} | ${count(status.counts[type])} |`),
       '',
+      ...timingLines(status),
       ...licensedStatusLines(status),
       '## Skipped (edited in Obsidian, or foreign)',
       '',

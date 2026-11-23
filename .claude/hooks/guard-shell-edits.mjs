@@ -299,7 +299,7 @@ const target = (expr, vars) => ({
  */
 function loopLiterals(text, name) {
   const lits = [];
-  const id = name.replace(/\$/g, '\\$');
+  const id = name.replace(/[\\$]/g, '\\$&');
   // An assignment whose right side names the same variable (`p = Path(p)`, `f = f.strip()`) only
   // rewrites the loop value, so it is not a reuse.
   const mention = new RegExp(`(?<![\\w$.])${id}(?![\\w$])`);

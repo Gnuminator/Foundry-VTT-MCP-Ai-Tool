@@ -443,16 +443,6 @@ export function installIsFresh(dir) {
  * @returns {number} exit status (1 when the process could not start or was killed)
  */
 function spawnStep(step, fd, cwd) {
-  if (step.name === 'livekit-recorder-install' && !process.env.CI) {
-    const dir = path.join(cwd, 'tools', 'livekit', 'recorder');
-    if (installIsFresh(dir)) {
-      fs.writeSync(
-        fd,
-        'node_modules/.package-lock.json is newer than package-lock.json: npm ci skipped\n'
-      );
-      return 0;
-    }
-  }
   const run = () => {
     // One command string with shell: true (a command plus an args array under a shell is DEP0190).
     const r = spawnSync(commandLine(step), {

@@ -81,6 +81,28 @@ function resetWorld() {
   if (r.status !== 0) throw new Error(`reset-demo-world.ps1 failed (exit ${r.status}).`);
 }
 
+/**
+ * After a reset the dashboard needs a moment to link to the bridge; a take's first tool call
+ * ("The dashboard lost its link to the bridge") would otherwise race it.
+ */
+async function waitForBridgeLink(dashboardUrl, timeoutMs = 90000) {
+  const end = Date.now() + timeoutMs;
+  let last = 'no answer';
+  while (Date.now() < end) {
+    try {
+      const res = await fetch(`${dashboardUrl}/api/health`);
+      const h = await res.json();
+      last = `controlChannel ${h.controlChannel}, foundry ${h.foundry}`;
+      // Foundry itself only links once a browser joins, which the take does next.
+      if (h.controlChannel === 'connected') return;
+    } catch (err) {
+      last = String(err.message || err);
+    }
+    await new Promise(r => setTimeout(r, 2000));
+  }
+  throw new Error(`The dashboard did not link to the bridge after the reset (${last}).`);
+}
+
 /** Resolution and frame rate of a video, if ffprobe is on PATH. */
 function probe(file) {
   const r = spawnSync(
@@ -116,7 +138,10 @@ async function cmdTake(opts) {
   const outDir = join(env.takesDir, `${name}-${stamp()}`);
   mkdirSync(outDir, { recursive: true });
 
-  if (opts.reset) resetWorld();
+  if (opts.reset) {
+    resetWorld();
+    await waitForBridgeLink(env.dashboardUrl);
+  }
   const obs = !opts.record
     ? undefined
     : opts.recorder === 'obs'

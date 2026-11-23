@@ -23,44 +23,6 @@ function campaignStatusFlags(entry: CampaignJournalLike): Record<string, unknown
   return flags !== null && typeof flags === 'object' ? (flags as Record<string, unknown>) : {};
 }
 
-/**
- * Set one campaign part's status the way a GM click on its toggle does: the `world.campaignStatus`
- * flag on the dashboard journal, keyed `<campaignId>-<partId>`. Refuses an unknown status, campaign
- * or part, and checks the flag reads back (P-040: this used to report success without writing).
- */
-export async function setCampaignPartStatus(
-  campaignId: string,
-  partId: string,
-  status: string
-): Promise<{ journalId: string; journalName: string }> {
-  if (!(CAMPAIGN_STATUSES as readonly string[]).includes(status)) {
-    throw new Error(`newStatus must be one of: ${CAMPAIGN_STATUSES.join(', ')}`);
-  }
-  const campaignAttr = `data-campaign-id="${campaignId}"`;
-  const partAttr = `data-part-id="${partId}"`;
-  const pageHtml = (page: CampaignPageLike): string =>
-    typeof page.text?.content === 'string' ? page.text.content : '';
-  const journals = game.journal as unknown as
-    | { find(fn: (journal: CampaignJournalLike) => boolean): CampaignJournalLike | undefined }
-    | undefined;
-  const entry = journals?.find(journal =>
-    Boolean(journal.pages.find(page => pageHtml(page).includes(campaignAttr)))
-  );
-  if (!entry) throw new Error(`No campaign dashboard journal for campaign ${campaignId}`);
-  const hasPart = entry.pages.find(page => {
-    const html = pageHtml(page);
-    return html.includes(campaignAttr) && html.includes(partAttr);
-  });
-  if (!hasPart) throw new Error(`Campaign ${campaignId} has no part ${partId}`);
-
-  const key = `${campaignId}-${partId}`;
-  await entry.setFlag('world', 'campaignStatus', { ...campaignStatusFlags(entry), [key]: status });
-  if (campaignStatusFlags(entry)[key] !== status) {
-    throw new Error(`The status of part ${partId} did not save`);
-  }
-  return { journalId: entry.id, journalName: entry.name };
-}
-
 /** The slice of a rendered journal application this module reads (Foundry app v1 internals). */
 interface RenderedAppLike {
   _state?: number;

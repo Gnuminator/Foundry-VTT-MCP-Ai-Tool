@@ -165,11 +165,11 @@ before each gate and the G1 list, run after every refresh of the campaign copy o
 
 1. Pull a fresh copy: `pwsh scripts/test-env/campaign-copy.ps1 refresh` (or `-Root <folder> -Port <free port>` for a
    private copy when the shared one is running).
-2. On a test server on the Pi's dnd5e version (6.0.6 until the Pi switches; B runs 6.1.1), with its lock: replace
+2. On a test server on the Pi's dnd5e version (6.0.6 until the Pi moves to 6.1.1 after 2026-11-29; on 2026-11-23 servers A and C had 6.0.6 and B had 6.1.1 for the goal pilot; check `systems\dnd5e\system.json` under the server's data folder), with its lock: replace
    `worlds\strahd-kit` with the copy of `curse-of-strahd` (world.json: id `strahd-kit`, the kit title,
    `flags.foundry-ai-tool.kitOf` = `curse-of-strahd`, pack package names and the join background path), copy the
    copy's `modules` over the server's (keep its `foundry-mcp-bridge`), then `sync-module.ps1`.
-3. `start.ps1 -World strahd-kit`, then `kit.mjs init --profile strahd` and `kit.mjs build --profile strahd --size full`
+3. `start.ps1 -Server <X> -World strahd-kit`, then `kit.mjs init --profile strahd` and `kit.mjs build --profile strahd --size full`
    (the boss scenario needs the kit arena scene), with `FOUNDRY_TEST_SERVER` set to that server.
 4. `kit.mjs run --profile strahd --size full --scenarios <kit home>\licensed\scenarios --only strahd-barovia,strahd-boss,strahd-handouts,strahd-tarokka`.
    Close every other browser joined to the server first: a second GM tab holds a second bridge link and the

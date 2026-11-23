@@ -434,6 +434,7 @@ export const PI_CONTAINER_MATRIX = [
   { name: 'kit session', env: 'PI_KIT_SESSION_CONTAINER', test: 'kit-session.test.mjs' },
   { name: 'stage 11', env: 'PI_STAGE11_CONTAINER', test: 'stage11-world.test.mjs' },
   { name: 'stage 15', env: 'PI_SSH_KEYS_ONLY_CONTAINER', test: 'ssh-keys-only.test.mjs' },
+  { name: 'stage 6', env: 'PI_STAGE6_CONTAINER', test: 'backup-nightly-container.test.mjs' },
   { name: 'stage 7', env: 'PI_STAGE7_CONTAINER', test: 'stage7-foundry-url.test.mjs' },
   { name: 'stage 20', env: 'PI_STAGE20_CONTAINER', test: 'vault-sync.test.mjs' },
   { name: 'stage 21', env: 'PI_STAGE21_CONTAINER', test: 'player-vault.test.mjs' },

@@ -17,12 +17,6 @@
     { "id": "autoanimations", "verdict": "optional" },
     { "id": "calendaria", "verdict": "keep" },
     { "id": "combat-tracker-dock", "verdict": "keep" },
-    {
-      "id": "ddb-importer",
-      "licensed": true,
-      "verdict": "optional",
-      "note": "Patreon parts (legacy monsters, 2014 to 2024 swap) are paid"
-    },
     { "id": "dnd5e-item-resources", "verdict": "optional" },
     {
       "id": "foundryvtt-actor-studio",

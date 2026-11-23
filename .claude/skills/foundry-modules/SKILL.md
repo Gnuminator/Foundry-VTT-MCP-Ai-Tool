@@ -12,7 +12,7 @@ server. Foundry's own UI is `foundry-core-ui`; the test servers are `foundry-tes
 
 ## Index
 
-The Strahd list is `scripts/modules/strahd-modules.json` (37 entries with our two own; `tarokka-reading` left it on 2026-10-29, D-130; the final list of 2026-11-04 is Danni's 35 picks plus our four decisions: Monk's Player Settings dropped, Item Piles added with its companion `itempilesdnd5e`, FXMaster and Monk's TokenBar kept, Health Estimate and Racooze Map Library dropped; it carries the same verdict
+The Strahd list is `scripts/modules/strahd-modules.json` (36 entries with our two own since ddb-importer left on 2026-11-20; `tarokka-reading` left it on 2026-10-29, D-130; the final list of 2026-11-04 is Danni's 35 picks plus our four decisions: Monk's Player Settings dropped, Item Piles added with its companion `itempilesdnd5e`, FXMaster and Monk's TokenBar kept, Health Estimate and Racooze Map Library dropped; it carries the same verdict
 word as this table, and a test keeps the all-modules kit profile in step with its ids). Version =
 the version on test server A (the pinned set) when the page was written or refreshed on 2026-10-28. Six rows moved on 2026-11-18 (`3ds-atlas` 1.6.2, `autoanimations` 8.0.7, `calendaria` 1.4.10, `combat-tracker-dock` 5.0.5, `dice-calculator` 4.0.7, `travel-pace` 5.4.1). On server A `live:roundtrip` and `live:sweep` passed and the modules-all kit smoke passed once (25 of 25). The other four kit runs that day failed on a Tarokka window page error and dropped bridge links, not on these modules, and the user accepted that. The six are pinned in the PC archive. Their pages still describe the version named in their own first line. The table is not the Pi's
 version: the Pi gets the pinned set from stage 25 (`scripts/pi/remote/25-modules.sh`), so read what the Pi runs with
@@ -21,7 +21,7 @@ version: the Pi gets the pinned set from stage 25 (`scripts/pi/remote/25-modules
 | Module id                  | Version          | Page                                     | Verdict  |
 | -------------------------- | ---------------- | ---------------------------------------- | -------- |
 | `foundryvtt-actor-studio`  | 2.10.5-aitool.13 | `references/foundryvtt-actor-studio.md`  | keep     |
-| `ddb-importer`             | 7.5.9            | `references/ddb-importer.md`             | optional |
+| `ddb-importer`             | 7.5.9            | `references/ddb-importer.md`             | drop     |
 | `dnd-players-handbook`     | 2.2.0            | `references/dnd-players-handbook.md`     | keep     |
 | `token-action-hud-core`    | 2.1.2            | `references/token-action-hud-core.md`    | keep     |
 | `token-action-hud-dnd5e`   | 2.2.0            | `references/token-action-hud-dnd5e.md`   | keep     |
@@ -72,7 +72,7 @@ Two verdicts changed on 2026-10-28 after a live check on Foundry 14.369: `calend
 keep (the Barovian calendar and Travel Pace build on it; clean load) and `monks-player-settings`
 optional to keep (its player drop-down is there, the first check opened the wrong window).
 `autoanimations` stays optional (the null `id` error did not reproduce on 8.0.1) and `ddb-importer`
-stays optional, with its kit-profile line corrected (it is in `modules-all`).
+was optional then; it was dropped on 2026-11-20 (see its page).
 
 ### Batch E: new candidates (tried 2026-10-28 on test server B, Foundry 14.369 / dnd5e 6.0.6)
 

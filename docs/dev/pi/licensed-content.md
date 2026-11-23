@@ -33,8 +33,7 @@ scripts move the result to the Pi, in two steps so that you can look in between:
    (`scripts/pi/world-refs.mjs`, which reads copies of the databases and never touches a running
    Foundry), and stops when anything is wrong: a missing file or one whose letter case differs from
    the real name (Windows ignores case, the Pi does not), a module that is not in the bundle, a module
-   that is switched on in the world but not shipped (turn it off in the world first, as ddb-importer
-   must be), a setting that looks like a secret, or a GM user that has a password (the hash Foundry 14
+   that is switched on in the world but not shipped (turn it off in the world first), a setting that looks like a secret, or a GM user that has a password (the hash Foundry 14
    stores for a user with no password does not count). Then it checks the
    free space on this PC and on the Pi (below 20 % free it warns, below 5 % it stops), builds one
    `.tar` with a checksum for every file, and uploads it to `/var/lib/foundry-import/` on the Pi. It
@@ -385,3 +384,21 @@ licensed material and stay on the PC: `node scripts/pi/map-upscale/prepare.mjs -
 - Tests: `scripts/pi/map-upscale-stage.test.mjs` (the stage as text, the GM script against a fake world, `prepare.mjs`; with
   `PI_STAGE34_CONTAINER=1` the scenarios in a Debian 13 ARM64 container). The GM script was also run for real on test server B's
   `strahd-kit`: scale, switch, repeat, revert, a 2x texture loads.
+
+## DDB Importer switched off (stage 36)
+
+DDB Importer is dropped (the user, 2026-11-20: everything is imported, no more imports are planned, and its proxy fails on
+dnd5e 6.1.1). It left the Strahd module list and the `modules-all` kit profile. A read-only look at the Pi on 2026-11-23 found its
+files in `Data/modules/ddb-importer` and the module switched on in `curse-of-strahd`; nothing listens on port 31517, because the
+proxy only ever ran on the PC. Stage 36 (`scripts/pi/remote/36-drop-ddb-importer.sh`) switches the module off in the live world
+and nothing else: its files stay, nothing is deleted, no unit is touched, and it only reports a listener on port 31517 if one
+turns up (it never kills a process).
+
+- **Run it** (never on a game night; after G0): `scp scripts/pi/remote/module-switch.mjs foundry-pi:/root/`, then
+  `cat lib.sh 36-drop-ddb-importer.sh | ssh foundry-pi 'bash -s'` (a dry run: checks only), `CHECK=1` (joins as the GM and prints the
+  module's state), then, after a `dietpi-backup 1` snapshot and the user's OK, the same with `APPLY=1`. `UNDO=1` switches it on
+  again. It needs the world running with nobody online and no recording (`FORCE=1` skips only that check).
+- The stage joins as the GM with the login in `/etc/foundry-ai-tool/world-<world>.env`, sets `core.moduleConfiguration` for the one
+  module, reloads and reads the value back from the server. The Assistant GM browser keeps the module in memory until its next
+  reload; a new login no longer loads it. It is best run before the dnd5e 6.1.1 update.
+- Tests: `scripts/pi/drop-ddb-importer.test.mjs` (the in-browser part against a fake `game`, the stage as text).

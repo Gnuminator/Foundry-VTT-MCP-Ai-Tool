@@ -30,24 +30,20 @@ export type CampaignKind = (typeof CAMPAIGN_KINDS)[number];
 export const CAMPAIGN_LANGS = ['da', 'en'] as const;
 export type CampaignLang = (typeof CAMPAIGN_LANGS)[number];
 
-/** The journal names (English first, then Danish) and the vault folder each kind mirrors to. */
-export const CAMPAIGN_JOURNALS: Record<
-  CampaignKind,
-  { name: string; da: string; en: string; folder: string }
-> = {
-  brothers: {
-    name: 'The Brothers / Brødrene',
-    en: 'The Brothers',
-    da: 'Brødrene',
-    folder: 'The Brothers',
-  },
-  npcs: { name: 'NPCs / NPC’er', en: 'NPCs', da: 'NPC’er', folder: 'NPCs' },
-  creatures: { name: 'Creatures / Væsner', en: 'Creatures', da: 'Væsner', folder: 'Creatures' },
-  locations: { name: 'Locations / Steder', en: 'Locations', da: 'Steder', folder: 'Locations' },
-  lore: { name: 'Lore / Overlevering', en: 'Lore', da: 'Overlevering', folder: 'Lore' },
-  threads: { name: 'Threads / Tråde', en: 'Threads', da: 'Tråde', folder: 'Threads' },
-  sessions: { name: 'Sessions / Sessioner', en: 'Sessions', da: 'Sessioner', folder: 'Sessions' },
-  table: { name: 'Table / Bordet', en: 'Table', da: 'Bordet', folder: 'Table' },
+/**
+ * The journal of each kind. `name` is the Foundry journal name and, through the mirror, the vault
+ * folder (`AI Tool/Foundry/Journals/Campaign/<name>/`); it is English so the folders match the
+ * design. `da` is the Danish title, shown in the pages' Danish section.
+ */
+export const CAMPAIGN_JOURNALS: Record<CampaignKind, { name: string; en: string; da: string }> = {
+  brothers: { name: 'The Brothers', en: 'The Brothers', da: 'Brødrene' },
+  npcs: { name: 'NPCs', en: 'NPCs', da: 'NPC’er' },
+  creatures: { name: 'Creatures', en: 'Creatures', da: 'Væsner' },
+  locations: { name: 'Locations', en: 'Locations', da: 'Steder' },
+  lore: { name: 'Lore', en: 'Lore', da: 'Overlevering' },
+  threads: { name: 'Threads', en: 'Threads', da: 'Tråde' },
+  sessions: { name: 'Sessions', en: 'Sessions', da: 'Sessioner' },
+  table: { name: 'Table', en: 'Table', da: 'Bordet' },
 };
 
 const HEADINGS: Record<

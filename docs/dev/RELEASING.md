@@ -10,7 +10,8 @@ Start from a clean, up-to-date checkout of `main` (the main checkout, or a workt
 0. **Refresh the lane kit plugin** (own small PR, merged before the release PR, which may change only the
    version places): `npm run plugin:build`, commit `plugin/` and `.claude-plugin/`. Its version carries a hash of
    the kit, so the next `plugin update` on every PC picks it up ([LANE-PLUGIN.md](LANE-PLUGIN.md)). Skip it
-   when `npm run plugin:check` says it is in sync.
+   when `npm run plugin:check` says it is in sync. The tool-version prefix of the plugin version lags one release
+   until the next `plugin:build`; the hash after the `+` is what makes an update reach the PCs.
 1. **Fold the changelog.** `npm run changelog:fold -- --dry-run` shows the result, then `npm run changelog:fold`
    moves every fragment in `changelog.d/` into CHANGELOG "Unreleased" and deletes the files (D-089). Rename the
    `## Unreleased` heading to `## vX.Y.Z (released YYYY-MM-DD): <short summary>` and add a fresh empty

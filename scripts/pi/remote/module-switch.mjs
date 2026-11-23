@@ -27,7 +27,7 @@ const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,80}$/;
 // Runs in the browser: what Foundry knows about the module right now.
 export function readState({ id }) {
   const mod = game.modules.get(id);
-  let configured = null;
+  let configured;
   try {
     const cfg = game.settings.get('core', 'moduleConfiguration') ?? {};
     configured = id in cfg ? cfg[id] === true : null;

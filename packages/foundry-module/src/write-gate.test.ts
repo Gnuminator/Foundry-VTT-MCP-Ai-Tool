@@ -70,8 +70,6 @@ const PINNED_RECORDLESS_WRITES = [
   'playerRoll',
   'postHandoutNotice',
   'request-player-rolls',
-  'requestAbilityCheck',
-  'requestAttackRoll',
   'rollNpcCheck',
   'rollSavingThrows',
   'sendChatMessage',
@@ -82,7 +80,6 @@ const PINNED_RECORDLESS_WRITES = [
 ];
 const PINNED_WRITES = [
   'addActorItems',
-  'addActorsToScene',
   'addAttackToActor',
   'addAttackWithSaveToActor',
   'addAuraToActor',
@@ -101,7 +98,6 @@ const PINNED_WRITES = [
   'setActorSpellcasting',
   'setInitiative',
   'switch-scene',
-  'updateCampaignProgress',
   'updateJournalContent',
   'updateWorldItems',
   'useItem',
@@ -125,7 +121,6 @@ const PINNED_READS = [
   'getActiveEffects',
   'getActiveScene',
   'getActorOwnership',
-  'getAvailableConditions',
   'getAvailablePacks',
   'getChangeJournal',
   'getCharacterEntity',
@@ -136,7 +131,6 @@ const PINNED_READS = [
   'getCombatState',
   'getCompendiumDocumentFull',
   'getConnectedPlayers',
-  'getEnhancedCreatureIndex',
   'getExportIndex',
   'getFriendlyNPCs',
   'getJournalContent',
@@ -163,7 +157,6 @@ const PINNED_READS = [
   'getSetupInfo',
   'getSpentActions',
   'getTargets',
-  'getTokenDetails',
   'getTokenPositions',
   'getUsageRecords',
   'getWorldInfo',
@@ -370,7 +363,9 @@ describe('direct write paths below the bridge', () => {
       da.addActorItems({ actorIdentifier: 'a', items: [{ name: 'x', type: 'loot' }] })
     ).rejects.toThrow(WRITES_DISABLED_MESSAGE);
     await expect(
-      da.addActorsToScene({ actorIds: ['a'], placement: 'grid', hidden: false })
+      (
+        da as unknown as { actorCreation: { addActorsToScene(p: unknown): Promise<unknown> } }
+      ).actorCreation.addActorsToScene({ actorIds: ['a'], placement: 'grid', hidden: false })
     ).rejects.toThrow(WRITES_DISABLED_MESSAGE);
   });
 });

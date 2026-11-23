@@ -50,8 +50,6 @@ import type {
   WorldInfo,
   ActorCreationResult,
   CompendiumEntryFull,
-  SceneTokenPlacement,
-  TokenPlacementResult,
   CharacterEntityResult,
 } from './data-access/types.js';
 
@@ -351,10 +349,6 @@ export class FoundryDataAccess {
     return this.compendium.getCompendiumDocumentFull(packId, documentId);
   }
 
-  async addActorsToScene(placement: SceneTokenPlacement): Promise<TokenPlacementResult> {
-    return this.actorCreation.addActorsToScene(placement);
-  }
-
   async requestPlayerRolls(data: {
     rollType: string;
     rollTarget: string;
@@ -388,18 +382,6 @@ export class FoundryDataAccess {
 
   public attachRollButtonHandlers(html: JQuery): void {
     this.playerRolls.attachRollButtonHandlers(html);
-  }
-
-  /**
-   * Get enhanced creature index for campaign analysis
-   */
-  async getEnhancedCreatureIndex(): Promise<unknown[]> {
-    this.validateFoundryState();
-
-    // Get the enhanced creature index (builds if needed)
-    const enhancedCreatures = await this.persistentIndex.getEnhancedIndex();
-
-    return enhancedCreatures || [];
   }
 
   async saveRollState(buttonId: string, userId: string): Promise<void> {
@@ -667,26 +649,6 @@ export class FoundryDataAccess {
   // ===========================================================================
   // 3G: Extended roll requests / NPC rolls
   // ===========================================================================
-
-  async requestAbilityCheck(data: {
-    targetPlayer: string;
-    ability: string;
-    dc?: number;
-    isPublic: boolean;
-    reason?: string;
-    advantage?: 'advantage' | 'disadvantage';
-  }): Promise<unknown> {
-    return this.playerRolls.requestAbilityCheck(data);
-  }
-
-  async requestAttackRoll(data: {
-    targetPlayer: string;
-    weaponOrSpellName: string;
-    isPublic: boolean;
-    advantage?: 'advantage' | 'disadvantage';
-  }): Promise<unknown> {
-    return this.playerRolls.requestAttackRoll(data);
-  }
 
   async rollNpcCheck(data: {
     actorName: string;

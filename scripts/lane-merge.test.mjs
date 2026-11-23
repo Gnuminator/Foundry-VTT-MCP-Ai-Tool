@@ -621,6 +621,8 @@ test('risky categories: every category has patterns and the real paths match', (
   assert.deepEqual(category('packages/mcp-server/src/handouts/strip-secrets.ts'), ['security']);
   assert.deepEqual(category('packages/mcp-server/src/obsidian/licensed-guard.ts'), ['security']);
   assert.deepEqual(category('.claude/hooks/guard-remote-commands.mjs'), ['security']);
+  assert.deepEqual(category('plugin/foundry-lane-kit/hooks/guard-remote-commands.mjs'), ['security']);
+  assert.deepEqual(category('.claude-plugin/marketplace.json'), ['security']);
   assert.deepEqual(category('scripts/pi/remote/5-tool.sh'), ['Pi scripts']);
   assert.deepEqual(category('scripts/plan-b/start.ps1'), ['Pi scripts']);
   assert.deepEqual(category('deploy/Dockerfile'), ['Pi scripts']);

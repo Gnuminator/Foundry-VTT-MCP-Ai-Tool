@@ -63,6 +63,9 @@ export const RISKY_CATEGORIES = [
       'packages/mcp-server/src/handouts/strip-secrets*',
       'packages/mcp-server/src/obsidian/licensed-guard*',
       '.claude/hooks/guard-*',
+      // The committed lane kit plugin is what every PC installs: its hooks are the shipped guards.
+      'plugin/foundry-lane-kit/hooks/**',
+      '.claude-plugin/**',
     ],
   },
   {

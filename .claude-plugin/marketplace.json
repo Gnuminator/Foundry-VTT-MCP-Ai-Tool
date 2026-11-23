@@ -1,0 +1,13 @@
+{
+  "name": "foundry-ai-tool",
+  "owner": {
+    "name": "Gnuminator"
+  },
+  "plugins": [
+    {
+      "name": "foundry-lane-kit",
+      "source": "./plugin/foundry-lane-kit",
+      "description": "The lane kit for the Foundry AI Tool repo."
+    }
+  ]
+}

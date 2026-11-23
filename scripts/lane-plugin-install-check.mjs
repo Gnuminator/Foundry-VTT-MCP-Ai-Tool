@@ -105,7 +105,8 @@ export function main() {
     // A version bump in the marketplace must reach the profile.
     const manifest = path.join(mp, 'plugin', NAME, '.claude-plugin', 'plugin.json');
     const meta = JSON.parse(readFileSync(manifest, 'utf8'));
-    const bumped = `${meta.version}-check.1`;
+    // Only the content hash after the "+" changes, as when a skill or hook changes between releases.
+    const bumped = `${meta.version.split('+')[0]}+check0001`;
     writeFileSync(manifest, `${JSON.stringify({ ...meta, version: bumped }, null, 2)}\n`);
     claude(profile, ['plugin', 'marketplace', 'update', MARKETPLACE]);
     claude(profile, ['plugin', 'update', ID]);

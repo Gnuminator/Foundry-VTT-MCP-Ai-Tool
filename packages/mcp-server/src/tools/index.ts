@@ -17,6 +17,7 @@ import { combatChangeModule } from './modules/combat-change.js';
 import { combatResolutionModule } from './modules/combat-resolution.js';
 import { combatModule } from './modules/combat.js';
 import { compendiumModule } from './modules/compendium.js';
+import { campaignMergeModule } from './modules/campaign-merge.js';
 import { diagnosticsModule } from './modules/diagnostics.js';
 import { diceRollModule } from './modules/dice-roll.js';
 import { dnd5eAddFeatureModule } from './modules/dnd5e-add-feature.js';
@@ -113,6 +114,7 @@ export const TOOL_MODULES: readonly AnyToolModule[] = [
   omensModule,
   playStatsModule,
   obsidianMirrorModule,
+  campaignMergeModule,
   playerViewModule,
   preflightModule,
   prepDigestModule,

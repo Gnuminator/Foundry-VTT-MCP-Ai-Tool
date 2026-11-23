@@ -188,6 +188,16 @@ class FoundryMCPBridge {
         },
       });
       registerGuardedFeature({
+        id: 'campaign-merge',
+        name: 'AI Tool: Campaign pages (writes)',
+        hint: 'Lets the AI Tool add to the GM-only Campaign journals (The Brothers, NPCs, Creatures, Locations, Lore, Threads, Sessions, Table), each change with an Undo.',
+        defaultEnabled: true,
+        autoApply: {
+          name: 'AI Tool: Campaign pages, apply additions without confirming',
+          hint: 'New pages and new timeline lines, relations and links that Claude plans apply at once, marked new, each with an Undo in Changes. Changes to existing text still ask.',
+        },
+      });
+      registerGuardedFeature({
         id: 'session-notes',
         name: 'AI Tool: Session notes (writes)',
         hint: 'Puts the notes of a recorded session into a GM-only journal automatically, without asking; each one shows in Changes with an Undo.',

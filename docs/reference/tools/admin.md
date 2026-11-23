@@ -135,3 +135,35 @@ Parameters:
 - `excludeFolderIds` (array of string): Folders (any document type) whose contents are never mirrored, subfolders included. The full list replaces the current one.
 - `storyItemTypes` (array of string): Item types that get a story-item note when the item is in the mirrored set (for example weapon, equipment, consumable, tool, loot, container). The full list replaces the current one.
 - `libraryPacks` (array of string): Compendium packs (e.g. world.ddb-monsters) whose monsters, items, spells, classes, species, backgrounds and feats get Library notes in the GM vault (licensed, kept out of git). Replaces the list.
+
+## plan-campaign-merge
+
+Plan adding facts to the GM-only Campaign journals (kind: brothers, npcs, creatures, locations, lore, threads, sessions, table). Each entry is one page; give Danish and English. Returns additions (new pages and lines, marked new; apply at once when autoApply is true) and changes (rewrites; need confirm). Names not confirmed yet: nameConfirmed false holds the entry back. setup creates the eight journals; markSeen clears the new marks.
+
+Kind: read-only. Title: Plan campaign page merge.
+
+Parameters:
+
+- `entries` (array of object)
+  - `kind` (string, required): One of: `brothers`, `npcs`, `creatures`, `locations`, `lore`, `threads`, `sessions`, `table`.
+  - `name` (string, required): The page: an NPC, place, session.
+  - `nameConfirmed` (boolean)
+  - `summary` (object)
+    - `da` (string): Danish (da) and English (en) text.
+    - `en` (string): Danish (da) and English (en) text.
+  - `replaceSummary` (boolean): Replace an existing summary.
+  - `statBlock` (object)
+    - `uuid` (string)
+    - `name` (string)
+  - `relations` (array of object)
+    - `to` (string)
+    - `da` (string): Danish (da) and English (en) text.
+    - `en` (string): Danish (da) and English (en) text.
+  - `timeline` (array of object)
+    - `session` (string, required): e.g. "Session 00".
+    - `ref` (string): e.g. transcript.en#^u000556.
+    - `time` (string)
+    - `da` (string): Danish (da) and English (en) text.
+    - `en` (string): Danish (da) and English (en) text.
+- `setup` (boolean)
+- `markSeen` (boolean)

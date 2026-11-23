@@ -55,9 +55,10 @@ export default {
 
     const vaultDir = path.resolve(process.env.FOUNDRY_AI_OBSIDIAN_DIR || DEFAULT_TEST_VAULT);
     await t.step('the vault folder is the test vault, not the GM vault', async () => {
-      const lower = vaultDir.toLowerCase();
+      // Only a vault inside a test server's root (C:\FoundryTest, ...B, ...C). The bridge's own
+      // folder is not readable, so the run also fails (writing nothing more) if no note shows up here.
       t.check(
-        lower.includes('foundrytest') || lower.includes('\\test'),
+        /^[a-z]:\\foundrytest[abc]?\\/i.test(`${vaultDir}\\`),
         `the mirror vault ${vaultDir} is not a test-environment folder; set FOUNDRY_AI_OBSIDIAN_DIR to the test vault`
       );
       t.check(existsSync(vaultDir), `the test vault folder exists: ${vaultDir}`);
@@ -128,10 +129,19 @@ export default {
     const startedAt = new Date().toISOString();
     const wasOn = first.settings?.enabled === true;
     await t.step('the mirror is switched on through the guarded plan', async () => {
-      await t.http('/api/control', {
-        method: 'POST',
-        body: { action: 'set-gm-actions', value: true },
-      });
+      const tools = await t.http('/api/tools');
+      if (!(tools.status === 200 && tools.data?.gmActionsEnabled === true)) {
+        t.cleanup(async () => {
+          await t.http('/api/control', {
+            method: 'POST',
+            body: { action: 'set-gm-actions', value: false },
+          });
+        });
+        await t.http('/api/control', {
+          method: 'POST',
+          body: { action: 'set-gm-actions', value: true },
+        });
+      }
       const { before } = await t.gm('setFeatureSwitches', {
         switches: { 'obsidian-mirror': true },
       });

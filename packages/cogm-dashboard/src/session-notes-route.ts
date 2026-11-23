@@ -189,13 +189,14 @@ export function mountSessionNotesRoute(app: Express, options: SessionNotesRouteO
 
   app.get('/api/session-notes', requireGm, (_req: Request, res: Response) => run(res, 'list'));
 
-  // The bridge has the status the notes run sent (works with no sessions folder on this host);
-  // an old bridge or one that was sent nothing falls back to the folder on this PC.
+  // A sessions folder on this host is always current (a manual run changes it at once); a host
+  // without one (the Pi) shows the status the notes run sent to the bridge.
   app.get('/api/session-notes/pipeline', requireGm, (_req: Request, res: Response) => {
     const dir = options.sessionsDir ?? sessionsDirFrom(process.env.FVTT_SESSIONS_DIR);
     void (async (): Promise<PipelineStatus | null> => {
-      const fromBridge = await bridgePipeline(client).catch(() => null);
-      return fromBridge?.status ?? (await readPipelineStatus(dir));
+      const fromFolder = await readPipelineStatus(dir);
+      if (fromFolder) return fromFolder;
+      return (await bridgePipeline(client).catch(() => null))?.status ?? null;
     })()
       .then(pipeline => res.json({ pipeline }))
       .catch(() => res.json({ pipeline: null }));

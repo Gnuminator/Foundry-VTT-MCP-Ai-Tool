@@ -263,11 +263,13 @@ export function mountPreviouslyOnRoute(app: Express, options: PreviouslyOnOption
   const dirOf = (): string => options.sessionsDir ?? sessionsDirFrom(process.env.FVTT_SESSIONS_DIR);
   const narrate = options.narrate ?? defaultNarrate;
   /**
-   * The approved recap the notes run sent to the bridge (works with no sessions folder here),
-   * else the newest approved one in the folder on this PC. The voice files go in the folder
-   * either way.
+   * The newest approved recap in the sessions folder on this host (always current), else the
+   * one the notes run sent to the bridge (a host without the folder, the Pi). The voice files go
+   * in the folder either way.
    */
   async function currentRecap(): Promise<ApprovedRecap | null> {
+    const fromFolder = await readApprovedRecap(dirOf());
+    if (fromFolder) return fromFolder;
     const sent = await bridgePipeline(client).catch(() => null);
     if (sent?.recap) {
       const text: ApprovedRecap['text'] = {};
@@ -283,7 +285,7 @@ export function mountPreviouslyOnRoute(app: Express, options: PreviouslyOnOption
         };
       }
     }
-    return readApprovedRecap(dirOf());
+    return null;
   }
   const parseBody = express.json({ limit: 1024 });
   const rendering = new Set<string>();

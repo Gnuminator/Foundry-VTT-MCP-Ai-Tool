@@ -145,6 +145,17 @@ describe('/api/previously-on', () => {
     expect(posts).toEqual([{ message: '<p>You walked.</p>', messageType: 'ooc' }]);
   });
 
+  it('prefers an approved recap in the folder on this host over one on the bridge', async () => {
+    const sent = {
+      status: null,
+      recap: { session: '2026-10-01_1900-discord', text: { en: 'Old news.' } },
+    };
+    const { base } = await start({ sent });
+    session('2026-11-01_1900-discord', true);
+    const info = (await (await fetch(`${base}/api/previously-on`)).json()) as { session: string };
+    expect(info.session).toBe('2026-11-01_1900-discord');
+  });
+
   it('needs GM Actions and an approved recap', async () => {
     const off = await start({ gmActions: false });
     session('2026-11-01_1900-discord', true);

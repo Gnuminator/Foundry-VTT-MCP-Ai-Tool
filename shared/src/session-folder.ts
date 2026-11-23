@@ -3,7 +3,7 @@
  * `2026-10-04_1930-discord` (a restart in the same minute adds `-2`, `-3`, ...). Anything else
  * there (`livekit-recordings`, `.incoming`, a scratch folder) is not a session and never counts.
  */
-export const SESSION_FOLDER_NAME = /^\d{4}-\d{2}-\d{2}.*-discord(?:-\d+)?$/;
+export const SESSION_FOLDER_NAME = /^\d{4}-\d{2}-\d{2}[A-Za-z0-9_-]*-discord(?:-\d+)?$/;
 
 export function isSessionFolderName(name: string): boolean {
   return SESSION_FOLDER_NAME.test(name);

@@ -30,11 +30,14 @@ def test_only_dated_discord_folders_count(tmp_path: Path) -> None:
     write(tmp_path, "2026-11-01_1900-discord-2", "paused")
     write(tmp_path, "livekit-recordings", "failed")
     write(tmp_path, ".incoming", "failed")
+    write(tmp_path, "2026-11-02x..-discord-evil", "failed")
     assert [p.name for p in session_folders(tmp_path)] == [
         "2026-11-01_1900-discord-2",
         "2026-11-01_1900-discord",
     ]
-    assert build_report(tmp_path)["status"]["state"] == "paused"
+    report = build_report(tmp_path)
+    assert report["status"]["state"] == "paused"
+    assert report["recap"] is None  # a full snapshot: None clears an old recap on the bridge
 
 
 def test_recap_is_the_newest_approved_sessions_only(tmp_path: Path) -> None:

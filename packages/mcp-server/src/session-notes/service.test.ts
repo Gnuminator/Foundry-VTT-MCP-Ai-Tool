@@ -734,6 +734,19 @@ describe('pipeline report', () => {
     expect(await fresh.pipelineReport()).toEqual(expected);
   });
 
+  it('clears a part sent as null, keeps a part left out, and keeps worlds apart', async () => {
+    await notes.report({ status, recap: { session, text: { en: 'x' } } });
+    await notes.report({ status: null });
+    expect(await notes.pipelineReport()).toEqual({
+      status: null,
+      recap: { session, text: { en: 'x' } },
+    });
+    await notes.report({ recap: null });
+    expect(await notes.pipelineReport()).toEqual({ status: null, recap: null });
+    await notes.report({ status, world: 'other-world' });
+    expect((await notes.pipelineReport()).status).toBeNull();
+  });
+
   it('is kept in memory while Foundry is closed and no world is named', async () => {
     foundry.connected = false;
     await notes.report({ status });

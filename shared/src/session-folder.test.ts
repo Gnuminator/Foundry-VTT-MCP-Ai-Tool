@@ -10,6 +10,8 @@ describe('session folder names', () => {
     expect(isSessionFolderName('.incoming')).toBe(false);
     expect(isSessionFolderName('discord')).toBe(false);
     expect(isSessionFolderName('2026-10-04_1930-discord-notes')).toBe(false);
+    expect(isSessionFolderName('2026-01-01/../../x-discord')).toBe(false);
+    expect(isSessionFolderName('2026-01-01_a\\b-discord')).toBe(false);
   });
 
   it('sorts newest first, restarts as numbers', () => {

@@ -23,7 +23,8 @@ from .publish import BridgeError, call, control_port
 from .retention import APPROVED
 from .status import STATUS_FILE
 
-SESSION_FOLDER = re.compile(r"^\d{4}-\d{2}-\d{2}.*-discord(?:-\d+)?$")
+SESSION_FOLDER = re.compile(r"^\d{4}-\d{2}-\d{2}[A-Za-z0-9_-]*-discord(?:-\d+)?$")
+STATES = ("done", "paused", "incomplete", "failed", "waiting", "published")
 _RESTART = re.compile(r"^(.*-discord)(?:-(\d+))?$")
 LANGS = ("da", "en")
 
@@ -47,7 +48,7 @@ def read_status(session: Path) -> dict[str, Any] | None:
         raw = json.loads((session / "notes" / STATUS_FILE).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
-    if not isinstance(raw, dict) or not isinstance(raw.get("state"), str):
+    if not isinstance(raw, dict) or raw.get("state") not in STATES:
         return None
     status: dict[str, Any] = {
         "session": session.name,
@@ -76,17 +77,17 @@ def read_recap(session: Path) -> dict[str, Any] | None:
 
 
 def build_report(root: Path) -> dict[str, Any]:
-    """What to send: the newest session's status, the newest approved session's recap."""
+    """What to send, a full snapshot (None clears a part on the bridge): the newest session's
+    status and the newest approved session's recap. Empty when there is no session folder."""
     folders = session_folders(root)
-    params: dict[str, Any] = {}
-    if folders and (status := read_status(folders[0])):
-        params["status"] = status
+    if not folders:
+        return {}
+    params: dict[str, Any] = {"status": read_status(folders[0]), "recap": None}
     for folder in folders:
         if not (folder / "notes" / APPROVED).is_file():
             continue
         # Only the newest approved session counts: last night's, not an older one.
-        if recap := read_recap(folder):
-            params["recap"] = recap
+        params["recap"] = read_recap(folder)
         break
     return params
 
@@ -103,4 +104,4 @@ def send_report(root: Path, port: int | None = None, world: str | None = None) -
         call(port or control_port(), params, timeout=10.0)
     except (BridgeError, ValueError) as exc:
         return f"Not reported to the bridge: {exc}"
-    return "Reported to the bridge: " + " and ".join(k for k in ("status", "recap") if k in params)
+    return "Reported to the bridge: " + " and ".join(k for k in ("status", "recap") if params.get(k))

@@ -187,7 +187,8 @@ export class SessionNotesService {
   private readonly tickMs: number;
   private readonly retryMs: number;
   private timer: NodeJS.Timeout | null = null;
-  private pipeline: PipelineReport = { status: null, recap: null };
+  /** The last `report` per world id ('' while no world is known). */
+  private readonly pipeline = new Map<string, PipelineReport>();
   private putLock: Promise<unknown> = Promise.resolve();
   private lastSerial = -1;
   private lastAttemptMs = 0;
@@ -363,31 +364,47 @@ export class SessionNotesService {
   /**
    * `report` (pipeline): how the last notes run ended and the approved player recap, sent over
    * the control port so a dashboard on another host (the Pi) needs no sessions folder. Each part
-   * replaces the earlier one; kept in memory and, when the world is known, in its vault.
+   * replaces the earlier one, a part sent as null is cleared, a part left out is kept; kept in
+   * memory (per world) and, when the world is known, in its vault.
    */
   async report(params: Record<string, unknown>): Promise<PipelineReport> {
-    const next: PipelineReport = { status: null, recap: null };
-    if (params.status !== undefined) next.status = readPipelineStatus(params.status);
-    if (params.recap !== undefined) next.recap = readApprovedRecapReport(params.recap);
-    if (!next.status && !next.recap) throw bad('report needs a valid status or recap');
+    if (params.status === undefined && params.recap === undefined) {
+      throw bad('report needs a status or recap (null clears one)');
+    }
+    const next: Partial<PipelineReport> = {};
+    if (params.status !== undefined) {
+      next.status = params.status === null ? null : readPipelineStatus(params.status);
+    }
+    if (params.recap !== undefined) {
+      next.recap = params.recap === null ? null : readApprovedRecapReport(params.recap);
+    }
     const worldId = await this.optionalWorld(params.world);
-    const stored = worldId ? await this.readPipeline(worldId) : null;
+    const old = (await this.currentReport(worldId)) ?? { status: null, recap: null };
     const merged: PipelineReport = {
-      status: next.status ?? this.pipeline.status ?? stored?.status ?? null,
-      recap: next.recap ?? this.pipeline.recap ?? stored?.recap ?? null,
+      status: next.status === undefined ? old.status : next.status,
+      recap: next.recap === undefined ? old.recap : next.recap,
     };
-    this.pipeline = merged;
+    this.pipeline.set(worldId ?? '', merged);
     if (worldId) {
       await this.store.write(worldId, 'gm', PIPELINE_FILE, merged);
     }
     return merged;
   }
 
-  /** `pipeline` (dashboard): the last report, from memory or the current world's vault. */
+  /** `pipeline` (dashboard): the last report for the current world (memory, else its vault). */
   async pipelineReport(): Promise<PipelineReport> {
-    if (this.pipeline.status || this.pipeline.recap) return this.pipeline;
     const worldId = await this.optionalWorld(undefined);
-    return (worldId ? await this.readPipeline(worldId) : null) ?? { status: null, recap: null };
+    return (await this.currentReport(worldId)) ?? { status: null, recap: null };
+  }
+
+  private async currentReport(worldId: string | null): Promise<PipelineReport | null> {
+    return (
+      this.pipeline.get(worldId ?? '') ??
+      (worldId ? await this.readPipeline(worldId) : null) ??
+      // Sent while no world was known (Foundry closed): the one report of this bridge run.
+      this.pipeline.get('') ??
+      null
+    );
   }
 
   private async readPipeline(worldId: string): Promise<PipelineReport | null> {

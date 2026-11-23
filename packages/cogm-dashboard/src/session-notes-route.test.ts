@@ -229,6 +229,15 @@ describe('GET /api/session-notes/pipeline', () => {
     });
   });
 
+  it('prefers the sessions folder on this host over an older report on the bridge', async () => {
+    vi.stubEnv('FVTT_SESSIONS_DIR', sessionsWith(DISCORD_ID, '{"state":"done","message":"new"}'));
+    const stale = { session: DISCORD_ID, state: 'failed', message: 'old' };
+    const { base } = await start(() => Promise.resolve({ status: stale, recap: null }));
+    expect(await (await req(base, '/api/session-notes/pipeline')).json()).toEqual({
+      pipeline: { session: DISCORD_ID, state: 'done', message: 'new' },
+    });
+  });
+
   it('is {pipeline: null} when the bridge is old or fails and there is no folder', async () => {
     vi.stubEnv('FVTT_SESSIONS_DIR', join(tmpdir(), 'no-such-sessions-dir-bridge'));
     const none = await start(() => Promise.reject(new Error('Unknown method')));

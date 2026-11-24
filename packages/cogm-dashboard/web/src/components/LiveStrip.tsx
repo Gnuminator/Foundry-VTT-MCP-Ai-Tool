@@ -235,14 +235,18 @@ export function LiveStrip(): JSX.Element {
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
   const [lastAsked, setLastAsked] = useState<string[]>([]);
   const [keysOpen, setKeysOpen] = useState(false);
-  // Live keys: a letter presses the strip's own button, so the confirm it opens is the same one.
+  // Live keys: a letter presses the strip's own button, so the guards and confirms are the button's own.
   useEffect(() => {
     const onKey = (event: globalThis.KeyboardEvent): void => {
       if (event.key === 'Escape') {
         setKeysOpen(false);
         return;
       }
-      const dialogOpen = document.querySelector('[role="dialog"], [aria-modal="true"]') !== null;
+      if (event.defaultPrevented) return;
+      const dialogOpen =
+        document.querySelector(
+          '[role="dialog"], [role="alertdialog"], [aria-modal="true"], [role="menu"], [role="listbox"]'
+        ) !== null;
       const action = liveKeyAction(event, event.target, dialogOpen);
       if (!action) return;
       event.preventDefault();
@@ -535,7 +539,10 @@ export function LiveStrip(): JSX.Element {
           size="sm"
           id="live-keys-btn"
           className={styles['keysBtn']}
-          aria-label="Keyboard keys"
+          aria-label="? Keys"
+          aria-keyshortcuts="?"
+          aria-expanded={keysOpen}
+          aria-controls="live-keys-sheet"
           title="Keyboard keys (press ?)"
           onClick={() => setKeysOpen(open => !open)}
         >
@@ -554,9 +561,17 @@ export function LiveStrip(): JSX.Element {
             ))}
           </dl>
           <p className={styles['hint']}>
-            Keys press the buttons, so each write asks first. They are off while you type.
+            Keys press the buttons, so the same rules apply: Undo and handouts ask first, Next turn
+            and Ask the party go straight away. Keys are off while you type.
           </p>
-          <Button type="button" size="sm" onClick={() => setKeysOpen(false)}>
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => {
+              setKeysOpen(false);
+              document.getElementById('live-keys-btn')?.focus();
+            }}
+          >
             Close
           </Button>
         </div>

@@ -54,7 +54,10 @@ export function selectProfile(only, profile = PROFILE) {
   if (!names.length) return profile;
   const unknown = names.filter(n => !profile.some(p => `${p.ns}.${p.key}` === n));
   if (unknown.length) throw new Error(`SWITCH_ONLY names no known switch: ${unknown.join(', ')}`);
-  return profile.filter(p => names.includes(`${p.ns}.${p.key}`));
+  // A named entry is wanted: it is no longer optional, so a world that cannot take it fails instead of skipping it.
+  return profile
+    .filter(p => names.includes(`${p.ns}.${p.key}`))
+    .map(p => ({ ...p, optional: false }));
 }
 
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -183,6 +186,7 @@ async function main() {
   const user = env('GM_USER');
   const password = env('GM_PASSWORD');
   const world = env('WORLD');
+  const only = selectProfile(process.env.SWITCH_ONLY); // before the browser starts: a wrong name fails at once
 
   // A throwaway profile, so the GM's session never lands in the Assistant GM's profile.
   const profile = mkdtempSync(join(tmpdir(), 'world-switches-'));
@@ -215,7 +219,6 @@ async function main() {
       page.waitForFunction(() => globalThis.game?.ready === true, null, { timeout: 120_000 });
     await ready();
 
-    const only = selectProfile(process.env.SWITCH_ONLY);
     const args = { profile: only };
     const before = await page.evaluate(readState, args);
     log(`world ${before.world}, joined as ${before.user} (GM: ${before.isGM})`);

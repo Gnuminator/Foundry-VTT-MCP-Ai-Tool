@@ -836,6 +836,7 @@ provision_world() { # $1 world id
       export WORLD="$id"
       runuser -u "$FOUNDRY_USER" -- env HOME="$TOOL_DATA" TOOL_APP="$TOOL_DIR/app" \
         FOUNDRY_URL=http://127.0.0.1:30000 CHROMIUM=/usr/bin/chromium \
+        SWITCH_ONLY= SWITCH_READ_ONLY=0 \
         node "$TOOL_DIR/gm-browser/world-switches.mjs"
     ) || {
       # $id may be only partly set; the marker world-<id>.switches-pending stays, so a plain rerun does it again.

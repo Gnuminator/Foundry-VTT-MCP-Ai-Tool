@@ -11,7 +11,7 @@ import path from 'node:path';
 import { describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { PROFILE, selectProfile } from './remote/world-switches.mjs';
+import { blockers, PROFILE, selectProfile } from './remote/world-switches.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const file = path.join(repo, 'scripts/pi/remote/37-world-switches.sh');
@@ -35,6 +35,24 @@ describe('selectProfile', () => {
       ['item-piles.enableTrading']
     );
     assert.equal(selectProfile('dnd5e.autoApplyDowned, item-piles.enableTrading').length, 2);
+  });
+
+  test('a named optional entry is required, so a world without it fails', () => {
+    const [entry] = selectProfile('item-piles.enableTrading');
+    assert.equal(entry.optional, false);
+    const state = {
+      world: 'w',
+      user: 'GM',
+      isGM: true,
+      rows: [{ ns: 'item-piles', key: 'enableTrading', registered: false, moduleActive: false }],
+    };
+    assert.match(blockers(state, 'w', [entry]).join(), /not registered/);
+    assert.deepEqual(blockers(state, 'w'), []);
+  });
+
+  test('stage 11 pins the narrowing and read-only switches off', () => {
+    const s11 = readFileSync(path.join(repo, 'scripts/pi/remote/11-world.sh'), 'utf8');
+    assert.match(s11, /SWITCH_ONLY= SWITCH_READ_ONLY=0 \\\n\s+node "\$TOOL_DIR\/gm-browser\/world-switches\.mjs"/);
   });
 
   test('an unknown name is refused', () => {

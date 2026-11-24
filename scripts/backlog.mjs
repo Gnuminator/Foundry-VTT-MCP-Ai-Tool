@@ -727,7 +727,8 @@ const today = () => new Date().toLocaleDateString('sv-SE');
  * Run one command. Returns the exit code; prints to `out` and `err`.
  * @param {string[]} argv
  * @param {{ vault?: string, git?: Git, gh?: (a: string[]) => any, beforePush?: (attempt: number) => void,
- *   out?: (s: string) => void, err?: (s: string) => void, lockWaitMs?: number }} [env]
+ *   out?: (s: string) => void, err?: (s: string) => void, lockWaitMs?: number,
+ *   scout?: (id: string, vault: string) => string }} [env]
  */
 export function run(argv, env = {}) {
   const out = env.out ?? (s => console.log(s));

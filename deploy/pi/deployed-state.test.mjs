@@ -180,7 +180,17 @@ describe('deployed-state.sh', { skip: noBash }, () => {
     assert.match(once.out, /WARNING: foundry\.service is active but restarted 1 time/);
   });
 
-  test('a stopped required unit fails, a stopped Assistant GM only warns', () => {
+  test('the Assistant GM restarting nightly after the backup is ok, a long run of restarts still fails', () => {
+    const few = run({ units: { 'foundry-ai-tool-gm-browser.service': { active: 'active', sub: 'running', restarts: 7 } } });
+    assert.equal(few.code, 0);
+    assert.match(few.out, /ok: foundry-ai-tool-gm-browser\.service is active, 7 restart/);
+    assert.doesNotMatch(few.out, /WARNING: foundry-ai-tool-gm-browser/);
+    const many = run({ units: { 'foundry-ai-tool-gm-browser.service': { active: 'active', sub: 'running', restarts: 30 } } });
+    assert.equal(many.code, 1);
+    assert.match(many.out, /FAIL: foundry-ai-tool-gm-browser\.service is in a crash loop/);
+  });
+
+  test('a stopped required unit fails,a stopped Assistant GM only warns', () => {
     const r = run({
       units: {
         'foundry-ai-tool-dashboard.service': { active: 'inactive', sub: 'dead', restarts: 0 },

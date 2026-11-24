@@ -33,6 +33,10 @@ LDCONFIG="${LDCONFIG:-ldconfig}"
 COMPOSE_PROJECT="${COMPOSE_PROJECT:-foundry-ai-tool-pi}"
 # A restart count at or above this on a unit or container is a crash loop (decision 41).
 LOOP_RESTARTS="${LOOP_RESTARTS:-5}"
+# The Assistant GM leaves the game when the nightly backup (04:30) stops Foundry, exits 1 and systemd starts it again
+# 15 s later, so its count grows by one a night (audit 2026-11-24). A count below this is that routine, not a loop;
+# a real loop is still caught by auto-restart here and by the crash guard (stage 32: 10 starts in 600 s).
+GM_BROWSER_LOOP_RESTARTS="${GM_BROWSER_LOOP_RESTARTS:-30}"
 
 n_ok=0
 n_warn=0
@@ -119,6 +123,8 @@ check_unit() { # $1 unit name, $2 compose service it becomes, $3 "required" or "
   sub="$(printf '%s\n' "$props" | sed -n 's/^SubState=//p')"
   restarts="$(printf '%s\n' "$props" | sed -n 's/^NRestarts=//p')"
   [[ "$restarts" =~ ^[0-9]+$ ]] || restarts=0
+  local loop_at="$LOOP_RESTARTS"
+  [ "$service" = gm-browser ] && loop_at="$GM_BROWSER_LOOP_RESTARTS"
   if [ "$mode" = containers ]; then
     case "$running_services" in
       *" $service "*)
@@ -132,11 +138,13 @@ check_unit() { # $1 unit name, $2 compose service it becomes, $3 "required" or "
     esac
     # No running container for it: judge the unit as on systemd (a rollback under way, or a stopped container).
   fi
-  if [ "$sub" = auto-restart ] || [ "$restarts" -ge "$LOOP_RESTARTS" ]; then
+  if [ "$sub" = auto-restart ] || [ "$restarts" -ge "$loop_at" ]; then
     fail "$unit is in a crash loop ($active/$sub, $restarts restarts)"
   elif [ "$active" != active ]; then
     # A unit that is installed but stopped is expected for the Assistant GM during a kit session.
     if [ "$need" = required ] && [ "$mode" = systemd ]; then fail "$unit is $active ($sub)"; else warn "$unit is $active ($sub)"; fi
+  elif [ "$restarts" -gt 0 ] && [ "$service" = gm-browser ]; then
+    ok "$unit is active, $restarts restart(s) since it was last started by hand (the nightly backup stops Foundry and it rejoins by itself)"
   elif [ "$restarts" -gt 0 ]; then
     warn "$unit is active but restarted $restarts time(s) since it started"
   else

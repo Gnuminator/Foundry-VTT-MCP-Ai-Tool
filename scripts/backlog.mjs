@@ -20,6 +20,9 @@
  *   node scripts/backlog.mjs set <id> "<field>" "<value>"  replaces one planning field (title, link, board, gate, area,
  *                                         "blocked by", "depends on", touches, source, "done when"); "" removes it
  *   node scripts/backlog.mjs done <id> <PR> [--sha <sha>] [--summary <text>] [--by <who>] [--pi-run <text>]
+ *   node scripts/backlog.mjs done <id> --no-pr --summary <text> [--by <who>]
+ *                                         an item finished by a check or a live action: the line
+ *                                         says "done without a PR", never a merged PR
  *   node scripts/backlog.mjs add --id <slug> --size S|M|L --title <t> --board <area>
  *        --done-when <t> [--area --gate --blocked-by --touches --depends-on --source <t>]
  *        [--pi] [--private] [--after <id> | --chapter <heading text>]   or   add --file <block.md>
@@ -43,7 +46,7 @@
  * first dated line of `Backlog done.md`; `--pi-run` adds `- <date> <id>: <text>` to
  * `Pi sitting list.md` (made when missing). `add` with no `--after` or `--chapter` goes to the end of
  * `## Captured on the board (triage)` with a `- captured:` line. `low` needs an existing
- * `Lows/<area>.md`. `claim` refuses a claimed item, one whose progress says merged or fixed, and one
+ * `Lows/<area>.md`. `claim` refuses a claimed item, one whose newest progress line says a PR merged, and one
  * whose `blocked by` names an item still in the Backlog.
  *
  * Exit codes: 0 done, 1 refused or failed, 2 usage.
@@ -108,9 +111,9 @@ export function claimEdit(text, o) {
   const item = findItem(p, o.id);
   const claimed = field(item, 'claimed');
   if (claimed) throw new Error(`${o.id} is already claimed: ${claimed}`);
-  if (isMerged(item) || /\bfixed\b/i.test(newestProgress(item)))
+  if (isMerged(item))
     throw new Error(
-      `${o.id} says it is merged or fixed (progress: ${newestProgress(item)}); ask the planner`
+      `${o.id} says it is merged (progress: ${newestProgress(item)}); ask the planner`
     );
   const open = new Set(p.items.map(i => i.id));
   const blockers = (item.fields.get('blocked by') ?? []).flatMap(itemRefs).filter(r => open.has(r));
@@ -246,18 +249,25 @@ export function setFieldEdit(text, o) {
 /**
  * Remove the item from Backlog.md and add its line at the top of the Backlog done list.
  * @param {string} text @param {string} doneText
- * @param {{ id: string, pr: string, date: string, sha?: string, summary?: string, by?: string }} o
+ * @param {{ id: string, pr?: string, noPr?: boolean, date: string, sha?: string, summary?: string, by?: string }} o
  */
 export function doneEdit(text, doneText, o) {
   const p = parseBacklog(text);
   const item = findItem(p, o.id);
-  const pr = /^#?(\d+)$/.exec(o.pr.trim())?.[1];
-  if (!pr) throw new Usage(`the PR must be a number, got "${o.pr}"`);
   // the board line only: `area:` is free text and can name an area Board.md does not know
   const board = field(item, 'board') || 'Unsorted';
-  let line = `- ${o.date} ${o.id}: PR #${pr} merged`;
-  if (o.sha) line += ` at ${oneLine(o.sha).slice(0, 7)}`;
-  if (o.summary) line += `; ${oneLine(o.summary)}`;
+  let line;
+  if (o.noPr) {
+    // finished by a check or a live action: the line must not claim a merged PR
+    if (!o.summary?.trim()) throw new Usage('--no-pr needs --summary (what finished the item)');
+    line = `- ${o.date} ${o.id}: done without a PR; ${oneLine(o.summary)}`;
+  } else {
+    const pr = /^#?(\d+)$/.exec((o.pr ?? '').trim())?.[1];
+    if (!pr) throw new Usage(`the PR must be a number, got "${o.pr}"`);
+    line = `- ${o.date} ${o.id}: PR #${pr} merged`;
+    if (o.sha) line += ` at ${oneLine(o.sha).slice(0, 7)}`;
+    if (o.summary) line += `; ${oneLine(o.summary)}`;
+  }
   line += ` (${oneLine(o.by || 'planner')}) | ${board}`;
   if (/^yes\b/i.test(field(item, 'private'))) line += ' | private';
   const out = splice(p, item.start, item.end, []);
@@ -440,7 +450,7 @@ export function statusText(text, o = {}) {
   }
   const free = p.items.filter(i => {
     if (!i.id || field(i, 'claimed')) return false;
-    if (isMerged(i) || /\bfixed\b/i.test(newestProgress(i))) return false;
+    if (isMerged(i)) return false;
     return !(i.fields.get('blocked by') ?? []).flatMap(itemRefs).some(r => open.has(r));
   });
   const n = o.free ?? 6;
@@ -695,7 +705,7 @@ function writeLocked(o, must, marker) {
 
 // ---- CLI -------------------------------------------------------------------------------------------
 
-const BOOLEAN = new Set(['dry-run', 'pi', 'planner', 'private']);
+const BOOLEAN = new Set(['dry-run', 'pi', 'planner', 'private', 'no-pr']);
 
 /** @param {string[]} argv */
 export function parseArgs(argv) {
@@ -857,12 +867,15 @@ export function run(argv, env = {}) {
       }
       case 'done': {
         needId();
-        if (!pos[1]) throw new Usage('done <id> <PR>');
+        const noPr = flags['no-pr'] === true;
+        if (!noPr && !pos[1])
+          throw new Usage('done <id> <PR>  (or done <id> --no-pr --summary <text>)');
+        if (noPr && pos[1]) throw new Usage('--no-pr takes no PR number');
         const piRun = typeof flags['pi-run'] === 'string' ? oneLine(flags['pi-run']) : '';
         const paths = [BACKLOG, DONE, ...(piRun ? [PI_LIST] : [])];
         // The merge commit comes from GitHub (a PR head is not on main after a squash merge);
         // --sha overrides, and a PR gh cannot answer for gets a line without a sha.
-        const prNo = pos[1].replace(/^#/, '');
+        const prNo = noPr ? '' : pos[1].replace(/^#/, '');
         let sha = typeof flags.sha === 'string' ? flags.sha : undefined;
         if (!sha && /^\d+$/.test(prNo)) {
           const view = (env.gh ?? ghJson)([
@@ -881,11 +894,14 @@ export function run(argv, env = {}) {
         const baseNotes = notes; // the edit reruns on a push retry: it must not append twice
         job = {
           paths,
-          message: `Backlog: done ${id} (PR #${pos[1].replace(/^#/, '')})`,
+          message: noPr
+            ? `Backlog: done ${id} (no PR)`
+            : `Backlog: done ${id} (PR #${pos[1].replace(/^#/, '')})`,
           edit: read => {
             const r = doneEdit(read(BACKLOG), read(DONE), {
               id,
-              pr: pos[1],
+              pr: noPr ? undefined : pos[1],
+              noPr,
               date,
               sha,
               summary: typeof flags.summary === 'string' ? flags.summary : undefined,
@@ -937,7 +953,13 @@ export function run(argv, env = {}) {
           paths: [WAITING],
           message: `Waiting: ${key}`,
           edit: read => {
-            const r = waitingEdit(read(WAITING), { key, title, due, text: String(flags.text), date });
+            const r = waitingEdit(read(WAITING), {
+              key,
+              title,
+              due,
+              text: String(flags.text),
+              date,
+            });
             notes = [r.added ? `waiting: added W${r.n}` : `waiting: ${key} is already there`];
             return { [WAITING]: r.text };
           },

@@ -214,7 +214,16 @@ export async function renderPress(
       noSandboxNeeded = true;
       await run(true);
     }
-    return new Uint8Array(await readFile(out));
+    // A loaded machine can make the browser exit cleanly before it has written the screenshot;
+    // one more run settles it, and a second miss is a real failure.
+    let png: Buffer;
+    try {
+      png = await readFile(out);
+    } catch {
+      await run(first || noSandboxNeeded);
+      png = await readFile(out);
+    }
+    return new Uint8Array(png);
   } finally {
     await rm(dir, { recursive: true, force: true }).catch(() => undefined);
   }

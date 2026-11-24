@@ -108,7 +108,7 @@ def run_outbox(args: argparse.Namespace) -> int:
         elif args.outbox_cmd == "approve":
             print("Approved: " + ", ".join(outbox.approve(session, args.ids, by=args.by)))
         elif args.outbox_cmd == "obsidian":
-            for path in outbox.write_obsidian(session, args.folder):
+            for path in outbox.write_obsidian(session, args.folder, args.gm_folder):
                 print(f"wrote {path}")
         elif args.outbox_cmd == "foundry":
             print(json.dumps(outbox.foundry_payload(session, args.lang), ensure_ascii=False, indent=2))
@@ -238,6 +238,8 @@ def main(argv: list[str] | None = None) -> int:
     out_ob = out_sub.add_parser("obsidian", help="write approved notes as vault pages into a folder")
     out_ob.add_argument("session")
     out_ob.add_argument("folder", type=Path)
+    out_ob.add_argument("--gm-folder", type=Path, default=None,
+                        help="where the GM's own decisions note goes (never the players' folder); skipped without it")
     out_fd = out_sub.add_parser("foundry", help="print the approved notes as the Foundry step takes them (JSON)")
     out_fd.add_argument("session")
     out_fd.add_argument("lang", choices=["da", "en"])

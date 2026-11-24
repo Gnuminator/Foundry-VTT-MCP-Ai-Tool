@@ -173,20 +173,71 @@ def test_review_answers_apply_and_a_too_long_note_cannot_be_approved(tmp_path: P
         outbox.approve(session, ["pc-ebbe-en"])
 
 
-def test_ai_todos_come_from_the_runner_and_are_cached(tmp_path: Path) -> None:
-    session = make_session(tmp_path)
-    calls: list[str] = []
-
+def fake_runner(calls: list[str]):
     def runner(prompt: str, schema: dict, model: str, effort: str = "low") -> dict:
         calls.append(prompt)
-        return {"da": ["Bekræft datoen med Danni."], "en": ["Confirm the date with Danni."]}
+        props = schema["properties"]
+        da = prompt.startswith("Translate")
+        if "session_when" in props:
+            return {
+                "session_when": "19 December at 12, at Christian's place",
+                "confirmed": False,
+                "changed": ["Level 3 from session 1."],
+                "agreed": ["Potion: bonus action rolls the heal."],
+                "call": [],
+                "open": ["Fumble rule (Danni)."],
+                "logistics": ["Max 6 hours."],
+            }
+        todo = {"text": "Bekræft datoen." if da else "Confirm the date.", "source": "Christian and Danni will confirm the date"}
+        junk = {"text": "Foundry will not be used.", "source": ""}  # no source: dropped
+        return {"so_far": "Du er klar." if da else "You are ready.", "threads": [junk], "known": [todo], "todos": [todo, junk]}
 
-    data = outbox.build(session, runner=runner)
-    assert "Confirm the date with Danni." in outbox.find(data, "pc-ebbe-en")["text"]
-    assert "Foundry will not be used" not in outbox.find(data, "pc-ebbe-en")["text"]
+    return runner
+
+
+def test_structured_notes_follow_the_design_and_are_cached(tmp_path: Path) -> None:
+    session = make_session(tmp_path)
+    calls: list[str] = []
+    data = outbox.build(session, runner=fake_runner(calls))
+    note = outbox.find(data, "pc-ebbe-en")
+    text = note["text"]
+    assert text.index("Session 1:") < text.index("You so far") < text.index("Before session 1")
+    assert "19 December at 12" in text and "not confirmed" in text
+    assert "Confirm the date." in text and "Foundry will not be used" not in text  # unsourced item dropped
+    assert "What the table knows" not in text and "Your threads" not in text  # known is always empty
+    assert "Bekræft datoen." in outbox.find(data, "pc-ebbe-da")["text"]
+    assert "ikke bekræftet" in outbox.find(data, "pc-ebbe-da")["text"]
+    table = outbox.find(data, "table-en")["text"]
+    assert table.index("19 December") < table.index("Agreed") < table.index("Open (decide by session 1)")
     n = len(calls)
-    outbox.build(session, runner=runner)
+    outbox.build(session, runner=fake_runner(calls))
     assert len(calls) == n  # cached by input
+
+
+def test_discord_version_is_short_and_edit_drops_it(tmp_path: Path) -> None:
+    session = make_session(tmp_path)
+    data = outbox.build(session, runner=fake_runner([]))
+    note = outbox.find(data, "pc-ebbe-en")
+    assert len("".join(note["discord"])) <= 900
+    outbox.edit(session, "pc-ebbe-en", "My own text")
+    again = outbox.find(outbox.load(session), "pc-ebbe-en")
+    assert again["discord"] == ["My own text"] and "short" not in again
+
+
+def test_an_invented_source_quote_is_dropped_when_the_texts_are_known() -> None:
+    rows = [{"text": "Real.", "source": "Danni wants to RUN the introduction"},
+            {"text": "Invented.", "source": "Danni promised a dragon"}]
+    corpus = "- Danni wants to run the introduction. (00:48:27)"
+    kept = outbox._clean_quoted(rows, corpus)
+    assert [r["text"] for r in kept] == ["Real."]
+
+
+def test_render_pc_drops_whole_bullets_over_the_cap_but_keeps_date_and_so_far() -> None:
+    row = {"text": "x" * 300, "source": "s"}
+    data = {"so_far": "Ready.", "threads": [row, row], "known": [], "todos": [row, row, row]}
+    text = outbox.render_pc("en", "Ebbe", data, "**Session 1:** soon (not confirmed)", "discord")
+    assert len(outbox.plain(text)) <= 900
+    assert "Session 1:" in text and "Ready." in text and "Before session 1" in text
 
 
 def test_obsidian_page_has_tags_and_links(tmp_path: Path) -> None:
@@ -208,6 +259,57 @@ def test_obsidian_pages_are_written_once_for_approved_notes(tmp_path: Path) -> N
     written = outbox.write_obsidian(session, vault)
     assert len(written) == 1 and written[0].read_text(encoding="utf-8").startswith("---")
     assert outbox.write_obsidian(session, vault) == []
+
+
+def test_danni_gets_his_own_decisions_note_and_it_never_goes_to_foundry(tmp_path: Path) -> None:
+    session = make_session(tmp_path)
+    tracks = {"tracks": [{"file": "1.rec", "userId": "111", "displayName": "Ebbe (Christian)"},
+                         {"file": "2.rec", "userId": "999", "displayName": "GM (Danni)"}]}
+    (session / "raw" / "session.json").write_text(json.dumps(tracks), encoding="utf-8")
+
+    def runner(prompt: str, schema: dict, model: str, effort: str = "low") -> dict:
+        if "session_when" in schema["properties"]:
+            return {"session_when": "", "confirmed": False, "changed": [], "agreed": ["A rule."], "call": ["Fumble rule?"],
+                    "open": [], "logistics": [], "gm_only": ["Correct Jorr's story."]}
+        return {"so_far": "x", "threads": [], "known": [], "todos": []}
+
+    data = outbox.build(session, runner=runner)
+    note = outbox.find(data, "gm-decisions-en")
+    assert note["channels"] == ["discord-dm", "obsidian"] and note["to"]["discordId"] == "999"
+    assert "Correct Jorr's story." in note["text"] and "Fumble rule?" in note["text"]
+    assert "Correct Jorr" not in outbox.find(data, "table-en")["text"]
+    outbox.approve(session, ["gm-decisions-en"])
+    assert all(p["id"] != "gm-decisions-en" for p in outbox.foundry_payload(session, "en")["pages"])
+
+
+def test_diary_text_has_no_markdown_marks_and_gm_note_stays_out_of_the_player_folder(tmp_path: Path) -> None:
+    session = make_session(tmp_path)
+    tracks = {"tracks": [{"file": "1.rec", "userId": "111", "displayName": "Ebbe (Christian)"},
+                         {"file": "2.rec", "userId": "999", "displayName": "GM (Danni)"}]}
+    (session / "raw" / "session.json").write_text(json.dumps(tracks), encoding="utf-8")
+
+    def runner(prompt: str, schema: dict, model: str, effort: str = "low") -> dict:
+        if "session_when" in schema["properties"]:
+            return {"session_when": "soon", "confirmed": False, "changed": [], "agreed": [], "call": ["Q?"],
+                    "open": [], "logistics": [], "gm_only": []}
+        return {"so_far": "x", "threads": [], "known": [], "todos": []}
+
+    data = outbox.build(session, runner=runner)
+    outbox.approve(session, [i["id"] for i in data["items"]])
+    diary = outbox.foundry_payload(session, "en")["diaries"][0]["text"]
+    assert "*" not in diary and "Session 1: soon" in diary
+    folder = tmp_path / "players"
+    written = outbox.write_obsidian(session, folder)
+    assert all("gm-decisions" not in p.name for p in written)
+    gm = outbox.write_obsidian(session, folder, gm_folder=tmp_path / "gm")
+    assert any("gm-decisions" in p.name and p.parent.name == "gm" for p in gm)
+
+
+def test_player_notes_have_no_draft_footer_but_the_table_keeps_it(tmp_path: Path) -> None:
+    session = make_session(tmp_path)
+    data = outbox.build(session, runner=fake_runner([]))
+    assert "Danni decides" not in outbox.find(data, "pc-ebbe-en")["text"]
+    assert "Danni decides" in outbox.find(data, "table-en")["text"]
 
 
 def test_rebuild_keeps_the_sent_record_even_when_the_source_changed(tmp_path: Path) -> None:

@@ -2,6 +2,13 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { parseSample, stats } from '../pi-measure.mjs';
 
+test('parseSample: zero interval and missing lines give zeros, not NaN CPU', () => {
+  const s = parseSample('DT 0\nA\n1 5 5 10 none\nB\n1 9 9 10 none\nLOAD 0 0 0');
+  assert.equal(s.units.none.cpu, 0);
+  assert.equal(s.tempC, null);
+  assert.equal(s.memUsedMb, 0);
+});
+
 test('stats: min, median and max', () => {
   assert.deepEqual(stats([5, 1, 3]), { n: 3, min: 1, median: 3, max: 5 });
   assert.equal(stats([1, 2, 3, 4]).median, 2.5);

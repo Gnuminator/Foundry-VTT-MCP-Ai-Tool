@@ -3,7 +3,7 @@
  * I-098 Pi measurements (read-only): times what a GM waits for on the Orange Pi, through the Pi's
  * co-GM dashboard, while a kit session is up (kit-session.sh MODE=up, docs/dev/PI-SETUP.md).
  *
- *   node scripts/test-kit/pi-measure.mjs --not-game-night [--runs 5] [--sample-seconds 30] [--label "systemd stack, v0.33.0"] [--out <file.json>]
+ *   node scripts/test-kit/pi-measure.mjs --not-game-night [--runs 5] [--sample-seconds 30] --label "systemd stack, v0.33.0" [--out <file.json>]
  *
  * What it does (nothing is written on the Pi, no plan is applied, no tool outside the read class
  * runs; every tool call goes through the Pi guard like `kit run --target pi`):
@@ -29,7 +29,7 @@ const execFileP = promisify(execFile);
 
 /** Read-only: ticks, rss and cgroup per process, twice, then load, memory, temperature. No file is written. */
 export const REMOTE_SAMPLE = `
-snap() { for d in /proc/[0-9]*; do p=\${d#/proc/}; s=$(cat "$d/stat" 2>/dev/null) || continue; cg=$(sed -n 's#^0::/##p' "$d/cgroup" 2>/dev/null | head -n1); s=\${s#*) }; set -- $s; echo "$p $\{12} $\{13} $\{22} \${cg:-none}"; done; }
+snap() { for d in /proc/[0-9]*; do p=\${d#/proc/}; s=$(cat "$d/stat" 2>/dev/null) || continue; cg=$(sed -n 's#^0::/##p' "$d/cgroup" 2>/dev/null | head -n1); s=\${s##*) }; set -- $s; echo "$p $\{12} $\{13} $\{22} \${cg:-none}"; done; }
 A=$(snap); T0=$(date +%s.%N); sleep "$1"; B=$(snap); T1=$(date +%s.%N)
 echo "DT $(echo "$T0 $T1" | awk '{print $2-$1}')"
 echo "A"; echo "$A"; echo "B"; echo "$B"
@@ -112,7 +112,11 @@ async function coldLoad(/** @type {string} */ base, /** @type {Record<string, st
   const res = await fetch(base + '/', { headers });
   const html = await res.text();
   const urls = new Set();
-  for (const m of html.matchAll(/(?:src|href)="([^"#]+\.(?:js|css|mjs)[^"]*)"/g)) urls.add(m[1]);
+  const origin = new URL(base).origin;
+  // Same origin only: the token must never go to another host named in the page.
+  for (const m of html.matchAll(/(?:src|href)="([^"#]+\.(?:js|css|mjs)[^"]*)"/g)) {
+    if (new URL(m[1], base + '/').origin === origin) urls.add(m[1]);
+  }
   let bytes = Buffer.byteLength(html);
   const queue = [...urls];
   const errors = [];
@@ -159,7 +163,15 @@ async function browserLoad(
   }
   if (!browser) return { skipped: 'no browser could be launched' };
   try {
-    const ctx = await browser.newContext({ extraHTTPHeaders: headers });
+    const ctx = await browser.newContext();
+    const origin = new URL(base).origin;
+    // The token header goes to the Pi's origin only, never to a third-party host.
+    await ctx.route('**/*', route => {
+      const req = route.request();
+      return new URL(req.url()).origin === origin
+        ? route.continue({ headers: { ...req.headers(), ...headers } })
+        : route.continue();
+    });
     const page = await ctx.newPage();
     let requests = 0;
     page.on('request', () => requests++);
@@ -180,9 +192,16 @@ async function main() {
     const i = argv.indexOf(k);
     return i >= 0 ? (argv[i + 1] ?? d) : d;
   };
-  const runs = Math.max(1, Number(opt('--runs', '5')));
-  const sampleSeconds = Math.max(5, Number(opt('--sample-seconds', '30')));
-  const label = opt('--label', 'systemd stack, v0.33.0');
+  const runs = Number(opt('--runs', '5'));
+  const sampleSeconds = Number(opt('--sample-seconds', '30'));
+  if (!Number.isInteger(runs) || runs < 1)
+    throw new EnvError('--runs must be a whole number from 1');
+  if (!Number.isInteger(sampleSeconds) || sampleSeconds < 5 || sampleSeconds > 600) {
+    throw new EnvError('--sample-seconds must be a whole number from 5 to 600');
+  }
+  const label = opt('--label', '');
+  if (!label)
+    throw new EnvError('--label is required, for example --label "systemd stack, v0.33.0"');
   const out = opt('--out', '');
   const target = resolvePiTarget({ notGameNight: argv.includes('--not-game-night') });
   await piPreflight(target);
@@ -205,14 +224,32 @@ async function main() {
   };
 
   // Idle process sample first, so the load below does not hide the idle number.
+  // The ssh alias must name the same Pi as pi.host in the targets file (it is printed below).
   const alias = process.env.PI_SSH_ALIAS || 'foundry-pi';
-  const sampleP = execFileP('ssh', [alias, 'bash', '-s', '--', String(sampleSeconds)], {
-    maxBuffer: 4 << 20,
-    input: undefined,
-  });
-  sampleP.child.stdin?.end(REMOTE_SAMPLE);
-  const idle = parseSample((await sampleP).stdout);
+  console.log(`ssh alias ${alias}; dashboard host ${target.host}`);
+  const sample = async () => {
+    const p = execFileP(
+      'ssh',
+      [
+        '-o',
+        'BatchMode=yes',
+        '-o',
+        'ConnectTimeout=10',
+        alias,
+        'bash',
+        '-s',
+        '--',
+        String(sampleSeconds),
+      ],
+      { maxBuffer: 4 << 20 }
+    );
+    p.child.stdin?.on('error', () => {});
+    p.child.stdin?.end(REMOTE_SAMPLE);
+    return parseSample((await p).stdout);
+  };
+  const idle = await sample();
   result.idleSample = idle;
+  await guarded.tool('get-world-info', {}); // still the kit world?
 
   const series = /** @type {Record<string, number[]>} */ ({});
   const add = (/** @type {string} */ k, /** @type {number} */ ms) => (series[k] ??= []).push(ms);
@@ -220,34 +257,35 @@ async function main() {
   const group =
     (party?.groups ?? []).find((/** @type {any} */ g) => g.primary) ?? party?.groups?.[0];
   for (let i = 0; i < runs; i++) {
-    add('GET /api/health', await timed(() => dash.http('/api/health')));
-    add('GET /api/state', await timed(() => dash.http('/api/state', { text: true })));
-    add('GET /api/preflight', await timed(() => dash.http('/api/preflight')));
-    add('GET /api/tools', await timed(() => dash.http('/api/tools')));
+    add('GET /api/health', await timed(() => guarded.http('/api/health')));
+    add('GET /api/state', await timed(() => guarded.http('/api/state', { text: true })));
+    add('GET /api/preflight', await timed(() => guarded.http('/api/preflight')));
+    add('GET /api/tools', await timed(() => guarded.http('/api/tools')));
     add('get-world-info', await timed(() => guarded.tool('get-world-info', {})));
     add('get-prep-digest', await timed(() => guarded.tool('get-prep-digest', {})));
     add('get-preflight', await timed(() => guarded.tool('get-preflight', {})));
     if (group) {
-      add(
-        'plan-party-change (plan only)',
-        await timed(() =>
-          guarded
-            .tool('plan-party-change', { action: 'place', groupId: group.actorId })
-            .catch(() => {})
-        )
-      );
+      try {
+        add(
+          'plan-party-change (plan only)',
+          await timed(() =>
+            guarded.tool('plan-party-change', { action: 'place', groupId: group.actorId })
+          )
+        );
+      } catch (e) {
+        if (e instanceof EnvError) throw e; // a guard refusal ends the run
+        result.planFailures = (result.planFailures ?? 0) + 1; // e.g. nobody to place; not timed
+      }
     }
   }
   result.calls = Object.fromEntries(Object.entries(series).map(([k, v]) => [k, stats(v)]));
+  await guarded.tool('get-world-info', {}); // the page loads below must still be the kit world
   result.coldLoad = await coldLoad(target.dashboard, headers);
   result.browserLoad = await browserLoad(target.dashboard, headers);
 
   // Second process sample, now that the dashboard has been used and a browser has loaded it.
-  const sampleQ = execFileP('ssh', [alias, 'bash', '-s', '--', String(sampleSeconds)], {
-    maxBuffer: 4 << 20,
-  });
-  sampleQ.child.stdin?.end(REMOTE_SAMPLE);
-  result.afterSample = parseSample((await sampleQ).stdout);
+  await guarded.tool('get-world-info', {});
+  result.afterSample = await sample();
 
   const fmt = (/** @type {any} */ s) => `${s.min} / ${s.median} / ${s.max}`;
   console.log(`# Pi measurements (${label}) ${result.at}\n`);

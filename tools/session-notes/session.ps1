@@ -20,12 +20,16 @@
 .PARAMETER Real
   Publish to the real bridge (live control port in shared/ports.json, or MCP_CONTROL_HOST's) instead of the test bridge.
 
+.PARAMETER Server
+  Which test server's bridge gets the publish (A, B or C; default A). Take that server's lock first.
+
 .PARAMETER DryRun
   Only print what would be done.
 #>
 param(
   [Parameter(Mandatory, Position = 0)][string]$Session,
   [switch]$Real,
+  [ValidateSet('A', 'B', 'C')][string]$Server = 'A',
   [switch]$DryRun
 )
 
@@ -34,7 +38,7 @@ if ($Session -notmatch '^[A-Za-z0-9][A-Za-z0-9_.-]*$') { Write-Host "Not a sessi
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 # The ports live in shared/ports.json (generated from shared/src/ports.ts).
 $portTable = (Get-Content (Join-Path (Split-Path -Parent (Split-Path -Parent $here)) 'shared/ports.json') -Raw | ConvertFrom-Json).ports
-$port = if ($Real) { $portTable.live.control } else { $portTable.testA.control }
+$port = if ($Real) { $portTable.live.control } else { $portTable."test$Server".control }
 Write-Host "Session $Session; publish goes to the $(if ($Real) { 'REAL' } else { 'test' }) bridge on port $port."
 
 $autoArgs = @('-Session', $Session, '-Port', $port)

@@ -64,6 +64,9 @@ def test_check_characters_flags_hard_problems() -> None:
     assert extras.check_characters(ok, ROSTER, KNOWN) == []
     assert extras.check_characters({"characters": []}, ROSTER, KNOWN)
     assert extras.check_characters({"characters": [character("Nobody")]}, ROSTER, KNOWN)
+    tagged = extras.Roster(players={"Barnon (David)": "Barnon (David)"})
+    assert extras.check_characters({"characters": [character("Barnon")]}, tagged, KNOWN) == []
+    assert extras.check_characters({"characters": [character("David")]}, tagged, KNOWN) == []
     assert extras.check_characters({"characters": [character(revealed=[point(["u9"])])]}, ROSTER, KNOWN)
     blank = {"da": "", "en": "x", "cites": ["u000001"]}
     assert extras.check_characters({"characters": [character(revealed=[blank])]}, ROSTER, KNOWN)

@@ -168,6 +168,11 @@ export const CONTROL_COVERAGE = {
   'dash.omens.reopen': 'none',
   'dash.omens.link': 'none',
   'dash.omens.unlink': 'none',
+  'dash.drafts.publish': 'none',
+  'dash.drafts.edit': 'none',
+  'dash.drafts.save': 'none',
+  'dash.drafts.discard': 'none',
+  'dash.drafts.reopen': 'none',
 };
 
 /**

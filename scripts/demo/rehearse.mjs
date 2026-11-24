@@ -257,7 +257,8 @@ async function main() {
     let queued = false;
     for (;;) {
       const r = await pwsh('lock.ps1', lockArgs);
-      if (r.code === 127) throw new Error('pwsh is not on PATH; the test environment scripts need it.');
+      if (r.code === 127)
+        throw new Error('pwsh is not on PATH; the test environment scripts need it.');
       if (r.code === 0) {
         took = !/already hold/i.test(r.stdout);
         break;
@@ -283,6 +284,10 @@ async function main() {
         queued = true;
       }
       await sleepInterruptibly(60000);
+      if (interrupted) {
+        await pwsh('lock.ps1', ['leave', '-Session', session, ...onServer]);
+        return 1;
+      }
     }
     console.log(`Lock on server ${o.server} taken (${session}).`);
   }

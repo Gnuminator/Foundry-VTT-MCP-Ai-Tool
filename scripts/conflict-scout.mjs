@@ -14,8 +14,9 @@
  *
  * `--replay` reads the merge runner's "has merge conflicts" refusals, and for each such PR asks what
  * the scout would have said when work began (the first commit), with the files the PR ended up
- * changing; it counts the PR as flagged when a PR that really collided (merged between that start
- * and the refusal, same files) was named.
+ * changing (hindsight: a lane knows its files only roughly at claim time); it counts the PR as
+ * flagged when a PR that really collided (merged between that start and the refusal, sharing any
+ * file, hot files included) was named.
  */
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -75,7 +76,14 @@ export function scout({ files, at, prs, hours = 24, self }) {
     if (!kind) continue;
     const shared = [...new Set(pr.files.filter(f => files.some(c => fileMatches(f, c))))];
     if (!shared.length) continue;
-    out.push({ number: pr.number, title: pr.title ?? '', kind, shared, hot: shared.filter(isHot), plain: shared.filter(f => !isHot(f)) });
+    out.push({
+      number: pr.number,
+      title: pr.title ?? '',
+      kind,
+      shared,
+      hot: shared.filter(isHot),
+      plain: shared.filter(f => !isHot(f)),
+    });
   }
   const open = out.filter(o => o.kind === 'open');
   const waitFor = open.filter(o => o.plain.length);
@@ -91,18 +99,24 @@ export function scout({ files, at, prs, hours = 24, self }) {
 export function formatScout(r) {
   const lines = [];
   if (!r.colliding.length) {
-    lines.push('conflict-scout: go. No open PR and no merge in the last 24 hours touches those files.');
+    lines.push(
+      'conflict-scout: go. No open PR and no merge in the last 24 hours touches those files.'
+    );
   } else {
     const head =
       r.verdict === 'go'
-        ? 'go, expect a merge of main (only hot files overlap)'
+        ? r.colliding.some(c => c.plain.length)
+          ? 'go, but PRs or merges touched these files: merge main first'
+          : 'go, expect a merge of main (only hot files overlap)'
         : r.verdict === 'wait'
           ? `wait for ${r.waitFor.map(n => `#${n}`).join(', ')}, or work on files they do not touch`
           : `split: ${r.waitFor.map(n => `#${n}`).join(', ')} all touch the same files; cut the item so the parts avoid them`;
     lines.push(`conflict-scout: ${head}.`);
     for (const c of r.colliding) {
       const show = (c.plain.length ? c.plain : c.hot).slice(0, 4).join(', ');
-      lines.push(`  #${c.number} ${c.kind === 'open' ? 'open' : 'merged recently'}: ${show}${c.shared.length > 4 ? ' ...' : ''} (${c.title.slice(0, 60)})`);
+      lines.push(
+        `  #${c.number} ${c.kind === 'open' ? 'open' : 'merged recently'}: ${show}${c.shared.length > 4 ? ' ...' : ''} (${c.title.slice(0, 60)})`
+      );
     }
   }
   if (r.hotFiles.length) lines.push(`  hot files in play: ${r.hotFiles.slice(0, 6).join(', ')}`);
@@ -111,7 +125,11 @@ export function formatScout(r) {
 
 /** @param {string[]} args */
 function gh(args) {
-  const r = spawnSync('gh', args, { encoding: 'utf8', timeout: 120000, maxBuffer: 64 * 1024 * 1024 });
+  const r = spawnSync('gh', args, {
+    encoding: 'utf8',
+    timeout: 15000,
+    maxBuffer: 64 * 1024 * 1024,
+  });
   if (r.status !== 0) return null;
   try {
     return JSON.parse(r.stdout);
@@ -138,7 +156,20 @@ const FIELDS = 'number,title,createdAt,mergedAt,closedAt,files';
 export function livePrs(hours = 24) {
   const since = new Date(Date.now() - hours * HOUR).toISOString().slice(0, 10);
   const open = gh(['pr', 'list', '--repo', REPO, '--state', 'open', '-L', '100', '--json', FIELDS]);
-  const merged = gh(['pr', 'list', '--repo', REPO, '--state', 'merged', '--search', `merged:>=${since}`, '-L', '200', '--json', FIELDS]);
+  const merged = gh([
+    'pr',
+    'list',
+    '--repo',
+    REPO,
+    '--state',
+    'merged',
+    '--search',
+    `merged:>=${since}`,
+    '-L',
+    '200',
+    '--json',
+    FIELDS,
+  ]);
   if (open === null) return null;
   return toPrs([...open, ...(merged ?? [])]);
 }
@@ -171,16 +202,33 @@ export function conflictRefusals(logText, since, until) {
 /** @param {{since: string, until: string, log: string}} o */
 function replay({ since, until, log }) {
   const refusals = conflictRefusals(fs.readFileSync(log, 'utf8'), since, until);
-  const pad = d => new Date(Date.parse(d) - 3 * 86400000).toISOString().slice(0, 10);
+  const pad = (/** @type {string} */ d) =>
+    new Date(Date.parse(d) - 3 * 86400000).toISOString().slice(0, 10);
   const all = toPrs(
-    gh(['pr', 'list', '--repo', REPO, '--state', 'all', '--search', `created:${pad(since)}..${until}`, '-L', '500', '--json', FIELDS])
+    gh([
+      'pr',
+      'list',
+      '--repo',
+      REPO,
+      '--state',
+      'all',
+      '--search',
+      `created:${pad(since)}..${until}`,
+      '-L',
+      '500',
+      '--json',
+      FIELDS,
+    ])
   );
   let flagged = 0;
   let either = 0;
   for (const [n, refusedAt] of refusals) {
     const pr = all.find(p => p.number === n);
     const v = gh(['pr', 'view', String(n), '--repo', REPO, '--json', 'commits']);
-    const dates = (v?.commits ?? []).map((/** @type {{committedDate?: string}} */ c) => c.committedDate).filter(Boolean).sort();
+    const dates = (v?.commits ?? [])
+      .map((/** @type {{committedDate?: string}} */ c) => c.committedDate)
+      .filter(Boolean)
+      .sort();
     const start = dates[0] ?? pr?.createdAt;
     if (!pr || !start) {
       console.log(`#${n}: no data`);
@@ -188,19 +236,31 @@ function replay({ since, until, log }) {
     }
     const r = scout({ files: pr.files, at: new Date(start), prs: all, self: n });
     const real = all.filter(
-      p => p.number !== n && p.mergedAt && Date.parse(p.mergedAt) > Date.parse(start) && Date.parse(p.mergedAt) <= Date.parse(refusedAt) && p.files.some(f => pr.files.includes(f))
+      p =>
+        p.number !== n &&
+        p.mergedAt &&
+        Date.parse(p.mergedAt) > Date.parse(start) &&
+        Date.parse(p.mergedAt) <= Date.parse(refusedAt) &&
+        p.files.some(f => pr.files.includes(f))
     );
     const named = r.colliding.filter(c => real.some(p => p.number === c.number));
     const ok = named.length > 0;
     if (ok) flagged++;
     // The same question again when the PR was opened: catches PRs that began after the claim.
-    const again = scout({ files: pr.files, at: new Date(pr.createdAt), prs: all, self: n }).colliding.filter(c => real.some(p => p.number === c.number));
+    const again = scout({
+      files: pr.files,
+      at: new Date(pr.createdAt),
+      prs: all,
+      self: n,
+    }).colliding.filter(c => real.some(p => p.number === c.number));
     if (ok || again.length) either++;
     console.log(
-      `#${n} ${pr.title.slice(0, 40)}: started ${start.slice(0, 16)}, refused ${refusedAt.slice(0, 16)}; real colliders ${real.map(p => '#' + p.number).join(' ') || 'none found'}; scout ${r.verdict} naming ${r.colliding.map(c => '#' + c.number).join(' ') || 'nobody'} -> ${ok ? 'FLAGGED' : 'missed'}${!ok && again.length ? ` (a second run at PR open names ${again.map(c => '#' + c.number).join(' ')})` : ''}`
+      `#${n} ${(pr.title ?? '').slice(0, 40)}: started ${start.slice(0, 16)}, refused ${refusedAt.slice(0, 16)}; real colliders ${real.map(p => '#' + p.number).join(' ') || 'none found'}; scout ${r.verdict} naming ${r.colliding.map(c => '#' + c.number).join(' ') || 'nobody'} -> ${ok ? 'FLAGGED' : 'missed'}${!ok && again.length ? ` (a second run at PR open names ${again.map(c => '#' + c.number).join(' ')})` : ''}`
     );
   }
-  console.log(`replay: flagged ${flagged} of ${refusals.size} at claim time; ${either} of ${refusals.size} counting a second run when the PR opens`);
+  console.log(
+    `replay: flagged ${flagged} of ${refusals.size} at claim time; ${either} of ${refusals.size} counting a second run when the PR opens`
+  );
 }
 
 /**
@@ -208,12 +268,16 @@ function replay({ since, until, log }) {
  * Never throws; no advice is not an error. @param {string} id @param {string} vault
  */
 export function claimAdvice(id, vault) {
-  const s = spawnSync(process.execPath, [fileURLToPath(import.meta.url), id], {
-    encoding: 'utf8',
-    timeout: 120000,
-    env: { ...process.env, FOUNDRY_AI_OBSIDIAN_DIR: vault },
-  });
-  return (s.stdout || 'conflict-scout: no advice.').trimEnd();
+  try {
+    const s = spawnSync(process.execPath, [fileURLToPath(import.meta.url), id], {
+      encoding: 'utf8',
+      timeout: 45000,
+      env: { ...process.env, FOUNDRY_AI_OBSIDIAN_DIR: vault },
+    });
+    return (s.stdout || 'conflict-scout: no advice.').trimEnd();
+  } catch {
+    return 'conflict-scout: no advice.';
+  }
 }
 
 /** @param {string[]} argv */
@@ -225,7 +289,8 @@ export function main(argv) {
     if (argv[i].startsWith('--')) {
       const k = argv[i].slice(2);
       const next = argv[i + 1];
-      if (next !== undefined && !next.startsWith('--') && k !== 'replay' && k !== 'json') flags[k] = argv[++i];
+      if (next !== undefined && !next.startsWith('--') && k !== 'replay' && k !== 'json')
+        flags[k] = argv[++i];
       else flags[k] = true;
     } else pos.push(argv[i]);
   }
@@ -237,18 +302,31 @@ export function main(argv) {
     });
     return 0;
   }
-  let files = typeof flags.files === 'string' ? flags.files.split(',').map(s => s.trim()).filter(Boolean) : [];
+  let files =
+    typeof flags.files === 'string'
+      ? flags.files
+          .split(',')
+          .map(s => s.trim())
+          .filter(Boolean)
+      : [];
   const id = pos[0];
   if (id && !files.length) {
-    const vault = process.env.FOUNDRY_AI_OBSIDIAN_DIR || path.join(os.homedir(), 'Documents', 'Obsidian', 'vault');
+    const vault =
+      process.env.FOUNDRY_AI_OBSIDIAN_DIR ||
+      path.join(os.homedir(), 'Documents', 'Obsidian', 'vault');
     try {
-      files = touchesOf(fs.readFileSync(path.join(vault, 'Dev', 'Foundry AI Tool', 'Backlog.md'), 'utf8'), id);
+      files = touchesOf(
+        fs.readFileSync(path.join(vault, 'Dev', 'Foundry AI Tool', 'Backlog.md'), 'utf8'),
+        id
+      );
     } catch {
       /* no vault: fall through to the message below */
     }
   }
   if (!files.length) {
-    console.log('conflict-scout: no files to check (the item has no `- touches:` line); pass --files a,b to check.');
+    console.log(
+      'conflict-scout: no files to check (the item has no `- touches:` line); pass --files a,b to check.'
+    );
     return 0;
   }
   const prs = livePrs(Number(flags.hours ?? 24));

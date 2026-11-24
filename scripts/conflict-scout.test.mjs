@@ -1,10 +1,23 @@
 // @ts-check
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { scout, formatScout, isHot, fileMatches, touchesOf, conflictRefusals } from './conflict-scout.mjs';
+import {
+  scout,
+  formatScout,
+  isHot,
+  fileMatches,
+  touchesOf,
+  conflictRefusals,
+} from './conflict-scout.mjs';
 
 const at = new Date('2026-11-20T12:00:00Z');
-const pr = (number, files, extra = {}) => ({ number, title: `t${number}`, createdAt: '2026-11-20T08:00:00Z', files, ...extra });
+const pr = (number, files, extra = {}) => ({
+  number,
+  title: `t${number}`,
+  createdAt: '2026-11-20T08:00:00Z',
+  files,
+  ...extra,
+});
 
 test('an open PR on a plain file means wait', () => {
   const r = scout({ files: ['scripts/a.mjs'], at, prs: [pr(1, ['scripts/a.mjs'])] });
@@ -32,13 +45,27 @@ test('recent merges inside the window count, older ones and unrelated ones do no
     pr(4, ['a.ts'], { createdAt: '2026-11-21T00:00:00Z' }),
   ];
   const r = scout({ files: ['a.ts'], at, prs });
-  assert.deepEqual(r.colliding.map(c => c.number), [1]);
+  assert.deepEqual(
+    r.colliding.map(c => c.number),
+    [1]
+  );
   assert.equal(r.verdict, 'go');
 });
 
 test('a PR that was already closed at that time is skipped; self is skipped', () => {
   const prs = [pr(1, ['a.ts'], { closedAt: '2026-11-20T09:00:00Z' }), pr(2, ['a.ts'])];
   assert.deepEqual(scout({ files: ['a.ts'], at, prs, self: 2 }).colliding, []);
+});
+
+test('a recent merge on a plain file is not described as hot-only', () => {
+  const r = scout({
+    files: ['a.ts'],
+    at,
+    prs: [pr(1, ['a.ts'], { mergedAt: '2026-11-20T10:00:00Z' })],
+  });
+  assert.match(formatScout(r), /merge main first/);
+  const split = scout({ files: ['x'], at, prs: [1, 2, 3].map(n => pr(n, ['x'])) });
+  assert.match(formatScout(split), /split/);
 });
 
 test('hot patterns and folder claims', () => {
@@ -50,7 +77,8 @@ test('hot patterns and folder claims', () => {
 });
 
 test('touchesOf reads paths and drops prose', () => {
-  const text = '## S X\n\n- id: it\n- touches: `scripts/backlog.mjs`, scripts/a/ and the docs\n- board: B\n';
+  const text =
+    '## S X\n\n- id: it\n- touches: `scripts/backlog.mjs`, scripts/a/ and the docs\n- board: B\n';
   assert.deepEqual(touchesOf(text, 'it'), ['scripts/backlog.mjs', 'scripts/a/']);
   assert.deepEqual(touchesOf(text, 'nope'), []);
 });

@@ -41,9 +41,17 @@ const STATUS_TEXT: Record<DraftStatus, string> = {
   discarded: 'discarded',
 };
 
-async function load(): Promise<Draft[]> {
-  const list = await api<{ drafts?: Draft[] }>('/api/drafts');
-  return list.drafts ?? [];
+interface PlayerName {
+  userId: string;
+  name: string;
+}
+
+async function load(): Promise<{ drafts: Draft[]; names: PlayerName[] }> {
+  const [list, names] = await Promise.all([
+    api<{ drafts?: Draft[] }>('/api/drafts'),
+    api<PlayerName[]>('/api/player/names').catch((): PlayerName[] => []),
+  ]);
+  return { drafts: list.drafts ?? [], names };
 }
 
 export function DraftsSection({ open }: { open: boolean }): JSX.Element {
@@ -58,6 +66,7 @@ export function DraftsSection({ open }: { open: boolean }): JSX.Element {
   });
   const [busy, setBusy] = useState<string | null>(null);
   const [editing, setEditing] = useState<Record<string, string>>({});
+  const [whisper, setWhisper] = useState<Record<string, string>>({});
 
   async function run(key: string, path: string, body: Record<string, unknown>): Promise<boolean> {
     setBusy(key);
@@ -109,7 +118,11 @@ export function DraftsSection({ open }: { open: boolean }): JSX.Element {
   async function saveEdit(draft: Draft): Promise<void> {
     const text = editing[draft.id];
     if (text === undefined) return;
-    const ok = await run(draft.id, '/api/drafts/edit', { id: draft.id, text });
+    const ok = await run(draft.id, '/api/drafts/edit', {
+      id: draft.id,
+      text,
+      whisperTo: whisper[draft.id] ?? draft.whisperTo ?? '',
+    });
     if (ok) {
       setEditing(e => {
         const { [draft.id]: _gone, ...rest } = e;
@@ -122,10 +135,10 @@ export function DraftsSection({ open }: { open: boolean }): JSX.Element {
     <QueryState
       query={query}
       errorLabel="Couldn't load the draft tray"
-      isEmpty={d => d.length === 0}
+      isEmpty={d => d.drafts.length === 0}
       empty="The tray is empty. Ask Claude to draft a read-aloud, NPC line, letter or recap."
     >
-      {drafts => (
+      {({ drafts, names }) => (
         <ul className="pf-list" id="drafts-list">
           {drafts.map(draft => {
             const isOpen = draft.status === 'draft';
@@ -141,12 +154,35 @@ export function DraftsSection({ open }: { open: boolean }): JSX.Element {
                   </span>
                   <br />
                   {text !== undefined ? (
-                    <textarea
-                      aria-label="Draft text"
-                      rows={5}
-                      value={text}
-                      onChange={e => setEditing(s => ({ ...s, [draft.id]: e.target.value }))}
-                    />
+                    <>
+                      <textarea
+                        aria-label="Draft text"
+                        rows={5}
+                        value={text}
+                        onChange={e => setEditing(s => ({ ...s, [draft.id]: e.target.value }))}
+                      />
+                      <br />
+                      <label className="pf-detail">
+                        Send to{' '}
+                        <select
+                          aria-label="Send to"
+                          value={whisper[draft.id] ?? draft.whisperTo ?? ''}
+                          onChange={e => setWhisper(s => ({ ...s, [draft.id]: e.target.value }))}
+                        >
+                          <option value="">Everyone</option>
+                          {draft.whisperTo && !names.some(n => n.name === draft.whisperTo) && (
+                            <option value={draft.whisperTo}>
+                              {draft.whisperTo} (not a player)
+                            </option>
+                          )}
+                          {names.map(n => (
+                            <option key={n.userId} value={n.name}>
+                              Whisper to {n.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </>
                   ) : (
                     draft.text
                   )}

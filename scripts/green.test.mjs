@@ -708,7 +708,13 @@ test('ciUnsupported: working-directory is flagged, and the real ci.yml has none 
     '        working-directory: ignored',
   ].join('\n');
   assert.deepEqual(ciUnsupported(yaml), ['working-directory: sub']);
-  assert.deepEqual(ciUnsupported(ciYml), [], 'ciRunCommands would run those from the wrong folder');
+  for (const job of GROUP_JOBS) {
+    assert.deepEqual(
+      ciUnsupported(ciYml, job),
+      [],
+      `${job}: ciRunCommands would run those from the wrong folder`
+    );
+  }
 });
 
 test('ciUnsupported: defaults.run.working-directory on the workflow or the job is flagged', () => {

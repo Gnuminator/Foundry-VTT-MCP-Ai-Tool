@@ -251,3 +251,24 @@ def test_obsidian_pages_are_written_once_for_approved_notes(tmp_path: Path) -> N
     written = outbox.write_obsidian(session, vault)
     assert len(written) == 1 and written[0].read_text(encoding="utf-8").startswith("---")
     assert outbox.write_obsidian(session, vault) == []
+
+
+def test_danni_gets_his_own_decisions_note_and_it_never_goes_to_foundry(tmp_path: Path) -> None:
+    session = make_session(tmp_path)
+    tracks = {"tracks": [{"file": "1.rec", "userId": "111", "displayName": "Ebbe (Christian)"},
+                         {"file": "2.rec", "userId": "999", "displayName": "GM (Danni)"}]}
+    (session / "raw" / "session.json").write_text(json.dumps(tracks), encoding="utf-8")
+
+    def runner(prompt: str, schema: dict, model: str, effort: str = "low") -> dict:
+        if "session_when" in schema["properties"]:
+            return {"session_when": "", "confirmed": False, "changed": [], "agreed": ["A rule."], "call": ["Fumble rule?"],
+                    "open": [], "logistics": [], "gm_only": ["Correct Jorr's story."]}
+        return {"so_far": "x", "threads": [], "known": [], "todos": []}
+
+    data = outbox.build(session, runner=runner)
+    note = outbox.find(data, "gm-decisions-en")
+    assert note["channels"] == ["discord-dm", "obsidian"] and note["to"]["discordId"] == "999"
+    assert "Correct Jorr's story." in note["text"] and "Fumble rule?" in note["text"]
+    assert "Correct Jorr" not in outbox.find(data, "table-en")["text"]
+    outbox.approve(session, ["gm-decisions-en"])
+    assert all(p["id"] != "gm-decisions-en" for p in outbox.foundry_payload(session, "en")["pages"])

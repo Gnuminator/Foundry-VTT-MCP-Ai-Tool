@@ -373,7 +373,7 @@ def refresh(item: dict[str, Any]) -> None:
 # from the notes, Danish is a translation of that same data, and the renderer owns headings, order,
 # counts and lengths. Claude only fills fields; an item with no quoted source is dropped.
 PC_CAPS = {"discord": 900, "foundry": 1500}
-TABLE_CAPS = {"changed": 3, "agreed": 10, "call": 5, "open": 6, "logistics": 5}
+TABLE_CAPS = {"changed": 3, "agreed": 10, "call": 5, "open": 6, "logistics": 5, "gm_only": 3}
 STRUCT_LABELS = {
     "en": {
         "session": "Session 1",
@@ -389,6 +389,9 @@ STRUCT_LABELS = {
         "call": "Danni's call",
         "open": "Open (decide by session 1)",
         "logistics": "Logistics",
+        "gm_title": "Decisions for you, Danni",
+        "gm_only": "For you only",
+        "gm_intro": "What the players are waiting for you to settle after session 0. Not shared with the group.",
     },
     "da": {
         "session": "Session 1",
@@ -404,6 +407,9 @@ STRUCT_LABELS = {
         "call": "Dannis afgørelse",
         "open": "Åbent (afgøres inden session 1)",
         "logistics": "Praktisk",
+        "gm_title": "Beslutninger til dig, Danni",
+        "gm_only": "Kun til dig",
+        "gm_intro": "Det spillerne venter på, at du afgør efter session 0. Deles ikke med gruppen.",
     },
 }
 _STR = {"type": "string"}
@@ -427,7 +433,7 @@ PC_SCHEMA = {
 TABLE_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
-    "required": ["session_when", "confirmed", "changed", "agreed", "call", "open", "logistics"],
+    "required": ["session_when", "confirmed", "changed", "agreed", "call", "open", "logistics", "gm_only"],
     "properties": {
         "session_when": _STR,
         "confirmed": {"type": "boolean"},
@@ -436,6 +442,7 @@ TABLE_SCHEMA = {
         "call": {"type": "array", "items": _STR},
         "open": {"type": "array", "items": _STR},
         "logistics": {"type": "array", "items": _STR},
+        "gm_only": {"type": "array", "items": _STR},
     },
 }
 
@@ -483,6 +490,9 @@ Fields:
   line each ("Potion: bonus action rolls the heal, action gives the maximum.").
 - call: things only Danni (the GM) can decide, one line each, including a proposal he was open to.
 - open: proposals and questions still not settled, one line each with who proposed it.
+- gm_only: at most 3 things only Danni should act on that must NOT be on the group page, such as
+  one player's private story that was told to the whole table by mistake and needs correcting.
+  Name the player and the fix. Empty if none.
 - logistics: session length, scheduling, sickness and absence policy, who writes the notes.
 Every fact goes in ONE field only (no rule in both agreed and logistics, nothing from changed
 repeated verbatim). Counts: changed 3, agreed 10, call 5, open 6, logistics 5, so choose the
@@ -593,6 +603,20 @@ def render_pc(lang: str, name: str, data: dict[str, Any], when: str, medium: str
     return build_text()
 
 
+def render_gm(lang: str, data: dict[str, Any]) -> str:
+    """Danni's own page: what is waiting for his decision (from the Table data). Not for the group."""
+    lab = STRUCT_LABELS[lang]
+    out = [f"# {lab['gm_title']}", "", lab["gm_intro"], ""]
+    line = date_line(lang, data)
+    if line:
+        out += [line, ""]
+    for key in ("gm_only", "call", "open"):
+        rows = [str(r).strip() for r in data.get(key, []) if str(r).strip()][: TABLE_CAPS[key]]
+        if rows:
+            out += [f"## {lab[key]}", *[f"- {r}" for r in rows], ""]
+    return "\n".join(out).strip()
+
+
 def render_table(lang: str, title: str, data: dict[str, Any]) -> str:
     lab = STRUCT_LABELS[lang]
     out = [f"# {title}", ""]
@@ -670,6 +694,11 @@ def build(session: Path, runner: Any = None, model: str = "sonnet") -> dict[str,
             body = render_table(lang, title, table_data[lang]) if structured else table
             items.append(_item(session.name, "table", lang, "table", title,
                                body, {"type": "group"}, ["discord-group", "foundry-page", "obsidian"]))
+        if structured and ids.get("danni"):
+            items.append(_item(session.name, "gm-decisions", lang, "gm-decisions", STRUCT_LABELS[lang]["gm_title"],
+                               render_gm(lang, table_data[lang]),
+                               {"type": "player", "player": "Danni", "character": "GM", "discordId": ids["danni"]},
+                               ["discord-dm", "obsidian"]))
     for item in items:
         item["linkNames"] = link_list
         refresh(item)
@@ -795,13 +824,13 @@ def preview(session: Path) -> str:
         did = items[0]["to"].get("discordId") or "NO DISCORD ID"
         lines.append(f"{player} as {items[0]['to']['character']} (Discord {did}):")
         for i in items:
-            show(i, "Discord DM from Søren, a Foundry journal page owned by this player, and an Obsidian page")
+            show(i, "Discord DM from Søren, " + ("a Foundry journal page owned by this player, " if "foundry-page" in i["channels"] else "") + "and an Obsidian page")
         lines.append("")
     lines.append("The group (Discord session notes channel; the live world):")
     for i in group:
         where = "Discord group channel, " + ("revealed in the live world (/recap, Previously on)" if "foundry-recap" in i["channels"] else "a Foundry journal page everyone can read") + ", and an Obsidian page"
         show(i, where)
-    lines += ["", "Danni (GM): nothing to approve for session 0 (the approver is the user); he reads the group posts like everyone."]
+    lines += ["", "Danni (GM): nothing to approve for session 0 (the approver is the user); he reads the group posts like everyone" + (", and gets his own decisions note as a DM." if "Danni" in by_player else ".")]
     return "\n".join(lines)
 
 
@@ -836,6 +865,8 @@ def foundry_payload(session: Path, lang: str) -> dict[str, Any]:
     for item in data["items"]:
         if item["status"] != "approved" or item["lang"] != lang:
             continue
+        if "foundry-page" not in item["channels"] and "foundry-recap" not in item["channels"] and item["kind"] != "pc-note":
+            continue  # for example Danni's own page: Discord and Obsidian only
         if item["kind"] == "pc-note":
             diaries.append({"actor": item["to"]["character"], "text": plain(item["text"]), "id": item["id"]})
         else:

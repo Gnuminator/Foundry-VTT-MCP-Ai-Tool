@@ -177,8 +177,8 @@ before each gate and the G1 list, run after every refresh of the campaign copy o
 
 Last run: 2026-11-23 on server C at `8d9f31959`, 4 of 4 green. What the live world looks like to the scenarios:
 the castle floors are not in the world yet (their checks say so and skip until the castle import); the book pin
-counts are a minimum because the world carries GM prep pins; 14 pins name five journals that no longer exist (a
-known finding listed in the scenario, any other count fails); handout reveals are an ordinary write with Undo since
+counts are a minimum because the world carries GM prep pins; the 14 pins that named journals that no longer exist were repointed on 2026-11-24 (the scenario now
+allows none); handout reveals are an ordinary write with Undo since
 2026-10-30. The Tarokka scenario also checks the flip ceremony: the overlay turns the card on the GM screen, shows
 that card and no other name, Escape closes it, and an undo plays nothing.
 

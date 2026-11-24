@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { classify, clean, diagnose, failedCommands, signal, tail } from './ci-evidence.mjs';
+import { classify, clean, diagnose, failedCommands, prNumber, signal, tail } from './ci-evidence.mjs';
 
 test('classify names the known kinds', () => {
   assert.equal(classify('lint ratchet: baseline grew by 2').kind, 'ratchet');
@@ -23,6 +23,16 @@ test('diagnose goes by the failed command, not by passing test names', () => {
 test('a node --test command is a test failure whatever its file names say', () => {
   const d = diagnose('', '##[error]scripts failed (exit 1): node --test scripts/typecheck-tests-ratchet.test.mjs');
   assert.equal(d.kind, 'test');
+});
+
+test('prNumber skips option values', () => {
+  assert.equal(prNumber(['--tail', '200', '1358']), '1358');
+  assert.equal(prNumber(['1358', '--head', '123456']), '1358');
+});
+
+test('a timed-out test command is a hang', () => {
+  const d = diagnose('', 'the operation was canceled\n##[error]x failed (exit 1): npm test -w a');
+  assert.equal(d.kind, 'hang');
 });
 
 test('signal ignores lines far from an error and passing lines', () => {

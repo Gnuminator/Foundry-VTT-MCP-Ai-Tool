@@ -82,6 +82,8 @@ export function signal(log) {
 export function diagnose(annotations, log) {
   const cmds = failedCommands(annotations + '\n' + log);
   for (const c of cmds) {
+    if (/^(npm test|node --test|npx vitest)/.test(c) && /timed out|timeout of \d+|operation was canceled/i.test(signal(log)))
+      return { ...classify('timed out'), via: c.length > 160 ? c.slice(0, 160) + ' ...' : c };
     if (/^(npm test|node --test|npx vitest)/.test(c)) return { ...classify('AssertionError'), via: c.length > 160 ? c.slice(0, 160) + ' ...' : c };
     if (/ratchet|em-dash|baseline/.test(c) && !/typecheck/.test(c)) return { ...classify('ratchet'), via: c };
     if (/typecheck/.test(c)) return { ...classify('error TS1'), via: c };
@@ -145,13 +147,17 @@ export async function collect(pr, tailLines, headOverride) {
     'run', 'list', '--repo', REPO, '-w', 'ci.yml', '--commit', head, '-L', '5',
     '--json', 'databaseId,conclusion,status,event,createdAt',
   ]);
-  const run = runs.find(r => r.conclusion === 'failure' || r.conclusion === 'timed_out') || runs[0];
+  const run = runs.find(r => ['failure', 'timed_out', 'startup_failure', 'cancelled'].includes(r.conclusion)) || runs[0];
+  if (run && runs[0] && runs[0].conclusion === 'success' && run !== runs[0])
+    body.push('## Note', `The newest run ${runs[0].databaseId} succeeded; the failure below is from an older run (${run.databaseId}) and may be stale.`, '');
   if (!run) {
     body.push('## Runs', 'No ci.yml run found for this head.');
   } else {
     const detail = await ghJson(['run', 'view', String(run.databaseId), '--repo', REPO, '--json', 'jobs,conclusion,url']);
     body.push(`## Run ${run.databaseId} (${detail.conclusion}) ${detail.url}`);
-    for (const job of detail.jobs.filter(j => j.conclusion && !['success', 'skipped'].includes(j.conclusion))) {
+    const cancelled = detail.jobs.filter(j => j.conclusion === 'cancelled').map(j => j.name);
+    if (cancelled.length) body.push(`cancelled jobs (no cause of their own): ${cancelled.join(', ')}`, '');
+    for (const job of detail.jobs.filter(j => j.conclusion && !['success', 'skipped', 'cancelled'].includes(j.conclusion))) {
       failedJobs.push(job.name);
       const steps = (job.steps || []).filter(s => s.conclusion === 'failure').map(s => s.name);
       body.push(`### Job ${job.name}: ${job.conclusion}`, `failed steps: ${steps.join(', ') || '(none named)'}`);
@@ -186,8 +192,18 @@ export async function collect(pr, tailLines, headOverride) {
   return { text: [...head1, ...body].join('\n'), kind, head };
 }
 
+/** The PR number: the first bare number once each option and its value are dropped. */
+export function prNumber(argv) {
+  const rest = [];
+  for (let i = 0; i < argv.length; i++) {
+    if (['--head', '--out', '--tail'].includes(argv[i])) i++;
+    else rest.push(argv[i]);
+  }
+  return rest.find(a => /^\d+$/.test(a));
+}
+
 async function main(argv) {
-  const pr = argv.find(a => /^\d+$/.test(a));
+  const pr = prNumber(argv);
   const opt = n => {
     const i = argv.indexOf(n);
     return i >= 0 ? argv[i + 1] : undefined;

@@ -20,7 +20,14 @@ import { AuditLog } from '../vault/audit.js';
 import { VaultStore } from '../vault/store.js';
 import type { SecretTermMatch } from '../secret-terms.js';
 import { HandoutsService } from './service.js';
-import { findBrowser, PRESS_LIMITS, PRESS_SIZES, pressHtml, renderPress } from './press.js';
+import {
+  findBrowser,
+  findBrowsers,
+  PRESS_LIMITS,
+  PRESS_SIZES,
+  pressHtml,
+  renderPress,
+} from './press.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -55,6 +62,34 @@ describe('renderPress', () => {
   it('says so in a sentence when no browser is found', async () => {
     await expect(renderPress('letter', { title: 't', body: 'b' }, null)).rejects.toThrow(
       /Edge, Google Chrome or Chromium/
+    );
+  });
+
+  it('tries the next browser when one exits without writing the picture', async () => {
+    const calls: string[] = [];
+    const runner = async (browser: string, args: string[]): Promise<void> => {
+      calls.push(browser);
+      if (browser === 'edge') return; // exits cleanly, writes nothing
+      const shot = args.find(a => a.startsWith('--screenshot='))!.slice('--screenshot='.length);
+      await fsp.writeFile(shot, Buffer.from(PNG));
+    };
+    const png = await renderPress('letter', { title: 't', body: 'b' }, ['edge', 'chrome'], runner);
+    expect(Array.from(png)).toEqual(Array.from(PNG));
+    // Edge gets its one retry, then Chrome renders.
+    expect(calls).toEqual(['edge', 'edge', 'chrome']);
+  });
+
+  it('fails when every browser misses the picture', async () => {
+    await expect(
+      renderPress('letter', { title: 't', body: 'b' }, ['a', 'b'], async () => undefined)
+    ).rejects.toThrow();
+  });
+
+  it('lists the wanted browser first and only browsers that exist', () => {
+    const wanted = process.execPath;
+    expect(findBrowsers({ FOUNDRY_AI_TOOL_PRESS_BROWSER: wanted })[0]).toBe(wanted);
+    expect(findBrowsers({ FOUNDRY_AI_TOOL_PRESS_BROWSER: 'C:\\nope\\x.exe' })).toEqual(
+      findBrowsers({})
     );
   });
 

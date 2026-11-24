@@ -35,7 +35,7 @@ const hasPwsh = spawnSync('pwsh', ['-NoProfile', '-Command', '$PSVersionTable.PS
   encoding: 'utf8',
 }).stdout?.trim();
 
-// voice-stack, livekit, the Pi drill and Plan B read their lists from shared/ports.json; that
+// voice-stack, the Pi drill and Plan B read their lists from shared/ports.json; that
 // file has to cover the test servers in servers.json field by field and the live bridge ports.
 const portsJson = JSON.parse(read('shared/ports.json'));
 

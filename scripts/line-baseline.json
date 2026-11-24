@@ -132,12 +132,6 @@
     },
     {
       "file": "scripts/live-write-sweep.mjs",
-      "lines": 1850,
-      "reason": "the sweep keeps every step and its helpers in one file; the new plan-tool steps share them (write-sweep-new-plans); a split is its own item",
-      "pr": ""
-    },
-    {
-      "file": "scripts/live-write-sweep.mjs",
       "lines": 1856,
       "reason": "the sweep keeps every step and its helpers in one file; the new plan-tool steps share them (write-sweep-new-plans); a split is its own item",
       "pr": ""

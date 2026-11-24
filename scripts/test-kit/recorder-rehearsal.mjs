@@ -63,7 +63,7 @@ export function rehearsalRow(report, meta) {
   return `| ${[
     localTime(meta.at),
     meta.pc,
-    `recorder rehearse ${meta.seconds} s, drop at ${meta.dropAt} s (discord-bot ${meta.version})`,
+    `recorder rehearse ${report.playedSeconds ?? meta.seconds} s, drop at ${meta.dropAt} s (discord-bot ${meta.version})`,
     meta.git,
     result,
     pass ? '' : report.reasons.join('; '),
@@ -116,7 +116,9 @@ async function main() {
   }
   if (!existsSync(CLI))
     throw new Error('the bot is not built: npm run build -w @gnuminator/discord-bot');
-  const version = JSON.parse(readFileSync(path.join(REPO_ROOT, 'package.json'), 'utf8')).version;
+  const version = JSON.parse(
+    readFileSync(path.join(REPO_ROOT, 'packages', 'discord-bot', 'package.json'), 'utf8')
+  ).version;
   const { code, out } = await runCli(o);
   const m = /Rehearsal: (?:PASS|CHECK) \((.+)\)/.exec(out);
   if (!m) throw new Error(`the rehearsal gave no result (exit ${code})`);
@@ -146,6 +148,10 @@ async function main() {
       },
     });
     console.log(`vault note: ${res.state} ${res.detail ?? ''}`);
+    if (res.state === 'error') {
+      console.error('kit:recorder the vault note was not pushed');
+      return 1;
+    }
   }
   return report.verdict === 'pass' ? 0 : 2;
 }

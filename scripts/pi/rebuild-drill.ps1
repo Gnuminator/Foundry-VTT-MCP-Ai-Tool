@@ -9,8 +9,8 @@
      scratch folder, proving this PC can read its own backups.
   2. Starts an ARM64 Debian 13 container named like the Pi (host name foundry-pi: the Foundry
      licence is bound to it), limited to -Cpus CPUs.
-  3. Runs stages 1 to 3, restores the snapshot (restore.sh), then stages 5 to 8 and checks the
-     result (check.sh). Stage 4 (Tailscale login) and stage 9 (a second SSH connection) need a
+  3. Runs stages 1 to 3, restores the snapshot (restore.sh), then stages 5 to 8, the container-capable
+     later stages (10, 16, 20, 21, 27, 29 to 33, 35) and checks the result (check.sh). Stage 4 (Tailscale login) and stage 9 (a second SSH connection) need a
      person and a real Pi, so they are skipped. Wall time per stage goes to the report.
   4. Leaves the container stopped, not removed.
 
@@ -139,8 +139,8 @@ if ($HostPort -gt 0) {
 $run += @($Image, 'sleep', 'infinity')
 Invoke-Timed 'container start' { Invoke-Native docker $run | Out-Null }
 
-function Invoke-Stage([string]$File) {
-  Invoke-Timed "stage $File" { Invoke-InContainer "$(if ($ToolRef) { "TOOL_REF=$ToolRef " })bash /drill-scripts/stage.sh $File" }
+function Invoke-Stage([string]$File, [string]$Extra = '') {
+  Invoke-Timed "stage $File" { Invoke-InContainer "$(if ($ToolRef) { "TOOL_REF=$ToolRef " })$Extra bash /drill-scripts/stage.sh $File" }
 }
 
 $checkOk = $true
@@ -161,13 +161,14 @@ try {
   foreach ($s in '5-tool.sh', '6-backup.sh', '7-vault.sh', '8-recorder.sh') { Write-Step $s; Invoke-Stage $s }
 
   # Later stages a real rebuild runs after stage 8 and that work in a container (each ran in the 2026-11-24 drill).
-  # Syncthing must answer for 20, 21 and 31, so it is started from its unit file first. Not here: 11, 13, 14, 22, 25,
-  # 28, 34, 36, 37 (need a running world with the Assistant GM browser, or the module archive), 12, 17, 26 (tokens),
-  # 15 and 18 (sshd and systemd), 23 and 24 (Docker); see docs/dev/pi/backups-and-storage.md, "Rebuild drill".
+  # Syncthing must answer for 20, 21 and 31, so it is started from its unit file first. 20 and 31 are read-only
+  # reports; 21 runs with SETUP=1 (it writes the dashboard drop-in; the backup does not hold it). Not here: see
+  # docs/dev/pi/backups-and-storage.md, "Rebuild drill", for each stage left out and why.
   Write-Step 'Syncthing for the later stages'
   Invoke-InContainer 'bash /drill-scripts/run-unit.sh foundry-ai-tool-syncthing; sleep 15'
-  foreach ($s in '16-board-status.sh', '20-vault-sync.sh', '21-player-vault.sh', '27-bot-status.sh', '29-gamenight-watch.sh', '30-player-connector.sh',
+  foreach ($s in '10-space-check.sh', '16-board-status.sh', '20-vault-sync.sh', '27-bot-status.sh', '29-gamenight-watch.sh', '30-player-connector.sh',
     '31-gm-vault-peers.sh', '32-crash-guard.sh', '33-obsidian-plugin.sh', '35-who-uses-what.sh') { Write-Step $s; Invoke-Stage $s }
+  Write-Step '21-player-vault.sh (SETUP=1)'; Invoke-Stage '21-player-vault.sh' 'SETUP=1'
 
   # --- 4. start and check ----------------------------------------------------------------------
   Write-Step 'start the services and check'

@@ -100,7 +100,7 @@ export function loadTimeline(session) {
   const p = path.join(session, 'timeline', 'timeline.jsonl');
   const rows = [];
   let n = 0;
-  for (const raw of fs.readFileSync(p, 'utf8').replace(/^﻿/, '').split(/\r?\n/)) {
+  for (const raw of fs.readFileSync(p, 'utf8').replace(/^\uFEFF/, '').split(/\r?\n/)) {
     if (!raw.trim()) continue;
     n += 1;
     rows.push({ ...JSON.parse(raw), n, id: lineId(n) });
@@ -313,7 +313,7 @@ export function sweep(session, cards, cleaned, ordinary = new Set()) {
   if (fs.existsSync(lc))
     for (const l of fs.readFileSync(lc, 'utf8').split(/\r?\n/)) {
       if (!l.trim()) continue;
-      let word = '';
+      let word;
       try {
         word = String(JSON.parse(l).word || '');
       } catch {

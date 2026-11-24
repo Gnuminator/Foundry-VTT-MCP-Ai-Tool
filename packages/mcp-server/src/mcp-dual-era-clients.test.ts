@@ -41,8 +41,14 @@ const distIndex = path.resolve(
 let bridge: { server: net.Server; port: number } | undefined;
 let tmpDir = '';
 
+// Without a build the suite is skipped (the drift check's merged worktree never builds); CI
+// always builds, so a missing dist there is an error, not a skip.
+const built = fs.existsSync(distIndex);
+const skipUnbuilt = !built && !process.env['CI'];
+
 beforeAll(async () => {
-  if (!fs.existsSync(distIndex)) {
+  if (skipUnbuilt) return;
+  if (!built) {
     throw new Error(`${distIndex} not found. Run "npm run build" first (npm run green does).`);
   }
   bridge = await startFakeBridge();
@@ -74,7 +80,7 @@ function serverParams(): { command: string; args: string[]; env: Record<string, 
   };
 }
 
-describe('old and new MCP clients on the stdio wrapper', () => {
+describe.skipIf(skipUnbuilt)('old and new MCP clients on the stdio wrapper', () => {
   it('a 2025-11-25 client (SDK v1) lists and calls tools', async () => {
     const client = new LegacyClient({ name: 'legacy-client', version: '0.0.0' });
     await client.connect(new LegacyStdio(serverParams()));

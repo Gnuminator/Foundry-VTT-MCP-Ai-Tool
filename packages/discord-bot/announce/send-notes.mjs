@@ -12,7 +12,8 @@
  *   repeats a part that was delivered.
  * - `--dry-run` sends nothing and writes nothing; it prints per recipient what would go out.
  * - No message mentions anyone (allowed_mentions parse is empty).
- * - The group channel is DISCORD_SESSION_NOTES_CHANNEL_ID (real environment, then discord-bot.env).
+ * - The group channel is DISCORD_SESSION_NOTES_CHANNEL_ID, else DISCORD_SESSION_POST_CHANNEL_ID
+ *   (real environment, then discord-bot.env).
  *   Without it the group items are reported as "no channel set" and nothing is posted.
  * - DISCORD_API_BASE points the calls at a fake Discord for tests (default the real API).
  * The token is never printed.
@@ -26,13 +27,15 @@ const TIMEOUT_MS = 10000;
 
 /** @param {Record<string, string | undefined>} env @param {string} [envFile] */
 export function groupChannel(env = process.env, envFile = defaultEnvFile(env)) {
-  const direct = (env.DISCORD_SESSION_NOTES_CHANNEL_ID || '').trim();
-  if (direct) return direct;
+  const keys = ['DISCORD_SESSION_NOTES_CHANNEL_ID', 'DISCORD_SESSION_POST_CHANNEL_ID'];
+  for (const k of keys) if ((env[k] || '').trim()) return (env[k] || '').trim();
   try {
-    return (parseEnv(readFileSync(envFile, 'utf8')).DISCORD_SESSION_NOTES_CHANNEL_ID || '').trim();
+    const file = parseEnv(readFileSync(envFile, 'utf8'));
+    for (const k of keys) if ((file[k] || '').trim()) return (file[k] || '').trim();
   } catch {
-    return '';
+    // no settings file
   }
+  return '';
 }
 
 /** One authorised JSON call to Discord; returns the parsed body or throws without the token. */

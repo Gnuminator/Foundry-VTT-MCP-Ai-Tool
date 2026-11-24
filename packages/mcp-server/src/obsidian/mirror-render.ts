@@ -81,7 +81,7 @@ type PropValue = string | number | boolean | null | readonly string[];
 type Props = Record<string, PropValue | undefined>;
 
 /** Banner on every mirror note: where it comes from and what an edit does (section 3.5). */
-export const MIRROR_BANNER =
+const MIRROR_BANNER =
   '> [!info] Mirrored from Foundry by the AI Tool\n' +
   '> The AI Tool rewrites this note when the document changes in Foundry. If you edit it here, ' +
   'the tool stops updating it and lists it in `AI Tool/Foundry/_status.md`. Write your own ' +
@@ -1033,7 +1033,7 @@ export function sameMirrorContent(existingText: string, nextText: string): boole
 // ---------------------------------------------------------------------------
 
 /** Banner on an adventure hub: what it is and what an edit does. */
-export const ADVENTURE_HUB_BANNER =
+const ADVENTURE_HUB_BANNER =
   '> [!info] Adventure hub from the AI Tool\n' +
   "> Links every mirror note in this adventure's Foundry folders, so the graph shows the " +
   'adventure as one cluster. The AI Tool rewrites this note; if you edit it here, the tool ' +

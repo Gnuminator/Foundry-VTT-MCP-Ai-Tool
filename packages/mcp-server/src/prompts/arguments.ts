@@ -10,7 +10,7 @@ import {
  * control characters (a tab or a newline is fine), no backticks (backticks in
  * a prompt message always mean a tool or parameter name), no outer spaces.
  */
-export function cleanArgument(value: string): string {
+function cleanArgument(value: string): string {
   const unified = value.replace(/\r\n?/g, '\n').replace(/`/g, "'");
   let out = '';
   for (const ch of unified) {

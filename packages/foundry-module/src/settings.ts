@@ -24,7 +24,7 @@ export function defaultServerPort(): number {
 }
 
 /** The "no bridge user chosen" value of the `bridgeUserId` setting. */
-export const ANY_GM_CHOICE = '';
+const ANY_GM_CHOICE = '';
 
 /**
  * Whether the signed-in user should run the link, given the `bridgeUserId`
@@ -122,7 +122,7 @@ interface EnhancedIndexFormData {
 }
 
 /** The values the Enhanced Index template shows. */
-export function enhancedIndexContext(): Record<string, unknown> {
+function enhancedIndexContext(): Record<string, unknown> {
   return {
     enableEnhancedCreatureIndex: game.settings.get(MODULE_ID, 'enableEnhancedCreatureIndex'),
     autoRebuildIndex: game.settings.get(MODULE_ID, 'autoRebuildIndex'),
@@ -130,7 +130,7 @@ export function enhancedIndexContext(): Record<string, unknown> {
 }
 
 /** "Save Settings" in the Enhanced Index window: both switches, window stays open. */
-export async function saveEnhancedIndexSettings(
+async function saveEnhancedIndexSettings(
   _event: unknown,
   _form: unknown,
   formData: EnhancedIndexFormData
@@ -146,7 +146,7 @@ export async function saveEnhancedIndexSettings(
 }
 
 /** "Rebuild Creature Index" in the Enhanced Index window (`data-action="rebuild"`). */
-export function rebuildEnhancedIndex(): void {
+function rebuildEnhancedIndex(): void {
   trackUsage('action', 'module.settings.enhanced-index-rebuild');
   const bridge = (
     globalThis as {

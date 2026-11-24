@@ -1,6 +1,12 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
   "include": ["files", "exports", "types"],
+  "ignoreIssues": {
+    "packages/foundry-module/src/live-window.ts": ["exports"],
+    "packages/foundry-module/src/test-support/foundry-mock/index.ts": ["exports"],
+    "packages/foundry-module/src/test-support/foundry-mock/world.ts": ["exports"],
+    "packages/foundry-module/src/test-support/play-log-fixtures.ts": ["exports"]
+  },
   "workspaces": {
     ".": { "entry": [], "project": [] },
     "shared": { "entry": ["src/index.ts", "src/browser.ts"], "project": ["src/**/*.ts"] },

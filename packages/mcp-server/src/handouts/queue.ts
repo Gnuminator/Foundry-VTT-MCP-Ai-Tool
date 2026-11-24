@@ -16,9 +16,9 @@ import type { VaultStore } from '../vault/store.js';
 import type { WorldIdResolver } from '../vault/world-id.js';
 
 export const QUEUE_FILE = 'handout-queue.json';
-export const SEEN_FILE = 'handouts-seen.json';
+const SEEN_FILE = 'handouts-seen.json';
 /** A Foundry document id (users, scenes, pages). */
-export const DOCUMENT_ID = /^[A-Za-z0-9]{16}$/;
+const DOCUMENT_ID = /^[A-Za-z0-9]{16}$/;
 const MAX_QUEUE = 100;
 const MAX_NAME = 80;
 

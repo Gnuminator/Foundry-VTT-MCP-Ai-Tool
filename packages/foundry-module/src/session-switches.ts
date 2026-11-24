@@ -30,7 +30,7 @@ export const SESSION_READY_SETTING = 'sessionReady';
 const WRITES_SETTING = 'allowWriteOperations';
 
 /** The switches Ready turns on, in the order it turns them on (End goes backwards). */
-export const SESSION_SWITCHES: ReadonlyArray<{ id: string; setting: string }> = [
+const SESSION_SWITCHES: ReadonlyArray<{ id: string; setting: string }> = [
   { id: 'writes', setting: WRITES_SETTING },
   { id: 'handouts', setting: featureSettingKey('handouts') },
   { id: LIVE_PLAY_FEATURE_ID, setting: featureSettingKey(LIVE_PLAY_FEATURE_ID) },

@@ -18,10 +18,16 @@ import {
   type TestWorld,
 } from './test-support/foundry-mock/index.js';
 import { FoundryDataAccess } from './data-access.js';
+import type { CombatStateResult } from './data-access/combat.js';
 
 let world: TestWorld;
 let restore: () => void;
 let da: FoundryDataAccess;
+
+/** The state of a running encounter (the union's second member). */
+async function fullState(): Promise<Extract<CombatStateResult, { round: number }>> {
+  return (await da.getCombatState()) as Extract<CombatStateResult, { round: number }>;
+}
 
 beforeEach(() => {
   vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -70,7 +76,7 @@ function hpDowned(
 describe('FoundryDataAccess: getCombatState: no combat', () => {
   it('returns active:false with a descriptive message when no combat exists', async () => {
     // Neither game.combat nor game.combats holds anything.
-    const result = await da.getCombatState();
+    const result = await fullState();
 
     expect(result).toEqual({
       success: true,
@@ -96,7 +102,7 @@ describe('FoundryDataAccess: getCombatState: top-level shape', () => {
       started: true,
     });
 
-    const result = await da.getCombatState();
+    const result = await fullState();
 
     expect(result.success).toBe(true);
     expect(result.active).toBe(true);
@@ -125,7 +131,7 @@ describe('FoundryDataAccess: getCombatState: top-level shape', () => {
       started: false,
     });
 
-    const result = await da.getCombatState();
+    const result = await fullState();
 
     expect(result.active).toBe(false);
     expect(result.round).toBe(0);
@@ -149,7 +155,7 @@ describe('FoundryDataAccess: getCombatState: top-level shape', () => {
       started: true,
     });
 
-    const result = await da.getCombatState();
+    const result = await fullState();
 
     expect(result.current).toBeNull();
   });
@@ -185,7 +191,7 @@ describe('FoundryDataAccess: getCombatState: turn tracking', () => {
       started: true,
     });
 
-    const result = await da.getCombatState();
+    const result = await fullState();
 
     expect(result.combatants[0].isCurrentTurn).toBe(false);
     expect(result.combatants[1].isCurrentTurn).toBe(true);
@@ -224,7 +230,7 @@ describe('FoundryDataAccess: getCombatState: turn tracking', () => {
       started: true,
     });
 
-    const result = await da.getCombatState();
+    const result = await fullState();
 
     expect(result.combatants[0].actedThisRound).toBe(true); // idx 0 < 2
     expect(result.combatants[1].actedThisRound).toBe(true); // idx 1 < 2
@@ -256,7 +262,7 @@ describe('FoundryDataAccess: getCombatState: turn tracking', () => {
       started: false,
     });
 
-    const result = await da.getCombatState();
+    const result = await fullState();
 
     expect(result.combatants[0].actedThisRound).toBe(false);
     expect(result.combatants[1].actedThisRound).toBe(false);
@@ -279,7 +285,7 @@ describe('FoundryDataAccess: getCombatState: category', () => {
       started: true,
     });
 
-    const result = await da.getCombatState();
+    const result = await fullState();
     expect(result.combatants[0].category).toBe('pc');
     expect(result.combatants[0].isPC).toBe(true);
   });
@@ -301,7 +307,7 @@ describe('FoundryDataAccess: getCombatState: category', () => {
       started: true,
     });
 
-    const result = await da.getCombatState();
+    const result = await fullState();
     expect(result.combatants[0].category).toBe('enemy');
     expect(result.combatants[0].isPC).toBe(false);
   });
@@ -323,7 +329,7 @@ describe('FoundryDataAccess: getCombatState: category', () => {
       started: true,
     });
 
-    const result = await da.getCombatState();
+    const result = await fullState();
     expect(result.combatants[0].category).toBe('npc');
     expect(result.combatants[0].isPC).toBe(false);
   });
@@ -340,7 +346,7 @@ describe('FoundryDataAccess: getCombatState: category', () => {
       started: true,
     });
 
-    const result = await da.getCombatState();
+    const result = await fullState();
     expect(result.combatants[0].isPC).toBe(false);
     expect(result.combatants[0].category).toBe('npc'); // disposition 1, not -1
   });
@@ -366,7 +372,7 @@ describe('FoundryDataAccess: getCombatState: HP field', () => {
       started: true,
     });
 
-    const result = await da.getCombatState();
+    const result = await fullState();
     expect(result.combatants[0].hp).toEqual({ value: 7, max: 20, temp: 3 });
   });
 
@@ -387,7 +393,7 @@ describe('FoundryDataAccess: getCombatState: HP field', () => {
       started: true,
     });
 
-    const result = await da.getCombatState();
+    const result = await fullState();
     expect(result.combatants[0].hp).toBeNull();
   });
 });
@@ -415,7 +421,7 @@ describe('FoundryDataAccess: getCombatState: defeated + downed', () => {
       started: true,
     });
 
-    const result = await da.getCombatState();
+    const result = await fullState();
     expect(result.combatants[0].defeated).toBe(true);
     expect(result.downed).toHaveLength(1);
   });
@@ -437,7 +443,7 @@ describe('FoundryDataAccess: getCombatState: defeated + downed', () => {
       started: true,
     });
 
-    const result = await da.getCombatState();
+    const result = await fullState();
     expect(result.combatants[0].defeated).toBe(true);
     expect(result.downed).toHaveLength(1);
     expect(result.downed[0].name).toBe('Downed Hero');
@@ -466,7 +472,7 @@ describe('FoundryDataAccess: getCombatState: defeated + downed', () => {
       started: true,
     });
 
-    const result = await da.getCombatState();
+    const result = await fullState();
     expect(result.combatants[0].deathSaves).toEqual({ successes: 2, failures: 1 });
   });
 
@@ -481,7 +487,7 @@ describe('FoundryDataAccess: getCombatState: defeated + downed', () => {
       started: true,
     });
 
-    const result = await da.getCombatState();
+    const result = await fullState();
     expect(result.combatants[0].deathSaves).toBeNull();
   });
 
@@ -507,7 +513,7 @@ describe('FoundryDataAccess: getCombatState: defeated + downed', () => {
       started: true,
     });
 
-    const result = await da.getCombatState();
+    const result = await fullState();
     expect(result.combatants[0].deathSaves).toEqual({ successes: 0, failures: 0 });
   });
 });
@@ -535,7 +541,7 @@ describe('FoundryDataAccess: getCombatState: hidden', () => {
       started: true,
     });
 
-    const result = await da.getCombatState();
+    const result = await fullState();
     expect(result.combatants[0].hidden).toBe(true);
   });
 
@@ -553,7 +559,7 @@ describe('FoundryDataAccess: getCombatState: hidden', () => {
     delete combatant.hidden;
     world.setCombat({ turns: [combatant], turn: 0, round: 1, started: true });
 
-    const result = await da.getCombatState();
+    const result = await fullState();
     expect(result.combatants[0].hidden).toBe(true);
   });
 
@@ -574,7 +580,7 @@ describe('FoundryDataAccess: getCombatState: hidden', () => {
       started: true,
     });
 
-    const result = await da.getCombatState();
+    const result = await fullState();
     expect(result.combatants[0].hidden).toBe(false);
   });
 });
@@ -600,7 +606,7 @@ describe('FoundryDataAccess: getCombatState: conditions', () => {
       started: true,
     });
 
-    const result = await da.getCombatState();
+    const result = await fullState();
     expect(result.combatants[0].conditions).toEqual([]);
   });
 
@@ -622,7 +628,7 @@ describe('FoundryDataAccess: getCombatState: conditions', () => {
       started: true,
     });
 
-    const result = await da.getCombatState();
+    const result = await fullState();
     expect(result.combatants[0].conditions).toEqual(['Poisoned', 'Blinded']);
   });
 
@@ -664,7 +670,7 @@ describe('FoundryDataAccess: getCombatState: conditions', () => {
       started: true,
     });
 
-    const result = await da.getCombatState();
+    const result = await fullState();
     expect(result.combatants[0].conditions).toEqual([
       'Prone',
       'Poisoned',
@@ -740,7 +746,7 @@ describe('FoundryDataAccess: getCombatState: conditions', () => {
       started: true,
     });
 
-    const result = await da.getCombatState();
+    const result = await fullState();
     expect(result.combatants[0].timed).toEqual({ Frightened: 0 });
     expect(result.combatants[1].timed).toEqual({
       Prone: 1,
@@ -806,7 +812,7 @@ describe('FoundryDataAccess: getCombatState: conditions', () => {
       round: 4,
       started: true,
     });
-    const result = await da.getCombatState();
+    const result = await fullState();
     // Round 4, turn 0: c1's turn has started, so the effect stamped on c1 is over, although
     // its holder (index 2) has not had its turn yet. The deleted fight's stamp is not used.
     expect(result.combatants[2].timed).toEqual({ Restrained: 0, Poisoned: 7, Blinded: 0 });
@@ -830,7 +836,7 @@ describe('FoundryDataAccess: getCombatState: conditions', () => {
       started: true,
     });
 
-    const result = await da.getCombatState();
+    const result = await fullState();
     expect(result.combatants[0].conditions).toEqual(['Poisoned']);
   });
 
@@ -852,7 +858,7 @@ describe('FoundryDataAccess: getCombatState: conditions', () => {
       started: true,
     });
 
-    const result = await da.getCombatState();
+    const result = await fullState();
     expect(result.combatants[0].conditions).toEqual([]);
   });
 
@@ -867,7 +873,7 @@ describe('FoundryDataAccess: getCombatState: conditions', () => {
     // actor is intentionally omitted
     world.setCombat({ turns: [combatant], turn: 0, round: 1, started: true });
 
-    const result = await da.getCombatState();
+    const result = await fullState();
     expect(result.combatants[0].conditions).toEqual([]);
   });
 });
@@ -890,7 +896,7 @@ describe('FoundryDataAccess: getCombatState: tokenId/actorId/sceneId/statuses', 
       started: true,
     });
 
-    const result = await da.getCombatState();
+    const result = await fullState();
     expect(result.combatants[0].tokenId).toBe('tok-a');
     expect(result.combatants[1].tokenId).toBe('tok-b');
     expect(result.combatants[2].tokenId).toBeNull();
@@ -922,7 +928,7 @@ describe('FoundryDataAccess: getCombatState: tokenId/actorId/sceneId/statuses', 
       started: true,
     });
 
-    const result = await da.getCombatState();
+    const result = await fullState();
     expect(result.combatants[0].tokenUuid).toBe('Scene.s.Token.t1');
     expect(result.combatants[0].img).toBe('tokens/ogre.webp');
     expect(result.combatants[1].img).toBeNull();
@@ -941,7 +947,7 @@ describe('FoundryDataAccess: getCombatState: tokenId/actorId/sceneId/statuses', 
       started: true,
     });
 
-    const result = await da.getCombatState();
+    const result = await fullState();
     expect(result.combatants[0].actorId).toBe('actor-x');
     expect(result.combatants[1].actorId).toBeNull();
   });
@@ -958,7 +964,7 @@ describe('FoundryDataAccess: getCombatState: tokenId/actorId/sceneId/statuses', 
       started: true,
     });
 
-    const result = await da.getCombatState();
+    const result = await fullState();
     expect(result.combatants[0].sceneId).toBe('scene-1');
     expect(result.combatants[1].sceneId).toBeNull();
   });
@@ -980,7 +986,7 @@ describe('FoundryDataAccess: getCombatState: tokenId/actorId/sceneId/statuses', 
       started: true,
     });
 
-    const result = await da.getCombatState();
+    const result = await fullState();
     expect(result.combatants[0].statuses).toEqual(['prone', 'poisoned']);
     expect(result.combatants[1].statuses).toEqual([]);
   });

@@ -14,7 +14,7 @@ import * as path from 'path';
 
 import { PREP_TEMPLATES_DIR } from './prep-templates.js';
 
-export const QUEST_NOTE_MAX_BYTES = 65_536;
+const QUEST_NOTE_MAX_BYTES = 65_536;
 
 export interface QuestImportNote {
   /** Vault-relative path with forward slashes, as given. */
@@ -24,7 +24,7 @@ export interface QuestImportNote {
   html: string;
 }
 
-export class QuestImportError extends Error {}
+class QuestImportError extends Error {}
 
 const escapeHtml = (text: string): string =>
   text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -84,7 +84,7 @@ function withoutComments(text: string): string {
 }
 
 /** Properties as plain scalars (lists and nested values are skipped) and the body after them. */
-export function splitNote(text: string): { props: Record<string, string>; body: string } {
+function splitNote(text: string): { props: Record<string, string>; body: string } {
   const unmarked = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
   const lines = unmarked.replace(/\r\n?/g, '\n').split('\n');
   const props: Record<string, string> = {};

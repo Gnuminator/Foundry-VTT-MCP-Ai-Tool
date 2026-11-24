@@ -84,7 +84,7 @@ export function clearSystemCache(): void {
 /**
  * D&D 5e data paths for creature/actor stats
  */
-export const SystemPaths = {
+const SystemPaths = {
   dnd5e: {
     challengeRating: 'system.details.cr',
     creatureType: 'system.details.type.value',
@@ -105,7 +105,7 @@ export const SystemPaths = {
  * Extract a value from system data using a path string
  * Handles both simple and nested paths (e.g., "system.details.cr")
  */
-export function extractSystemValue(data: unknown, path: string | null): unknown {
+function extractSystemValue(data: unknown, path: string | null): unknown {
   if (!path || !data) {
     return undefined;
   }

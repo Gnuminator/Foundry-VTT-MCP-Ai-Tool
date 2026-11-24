@@ -19,11 +19,11 @@ function indentContinuation(step: string): string {
 }
 
 /** `1. first`, `2. second`; extra lines of one step are indented under it. */
-export function numbered(steps: readonly string[]): string {
+function numbered(steps: readonly string[]): string {
   return steps.map((step, i) => `${i + 1}. ${indentContinuation(step)}`).join('\n');
 }
 
-export function bulleted(items: readonly string[]): string {
+function bulleted(items: readonly string[]): string {
   return items.map(item => `- ${indentContinuation(item)}`).join('\n');
 }
 

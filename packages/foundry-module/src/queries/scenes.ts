@@ -2,6 +2,7 @@
  * Bridge handlers about scenes: the active scene, switching scene, tokens on the map, music
  * and the scene plans (mood, dressing, token rings, restore, rooms, party placement).
  */
+import type { BridgeAnswer, BridgeMethod, BridgeRequest } from '@gnuminator/shared';
 import type { BridgeHandlerTable } from '../bridge-handlers.js';
 import { MODULE_ID } from '../constants.js';
 import { getPartyState, PARTY_STATE_QUERY } from '../party-scan.js';
@@ -17,7 +18,7 @@ import {
 import { planTokenRings, TOKEN_RINGS_PLAN_QUERY } from '../token-rings.js';
 import { getSceneState, SCENE_STATE_QUERY } from '../scene-state.js';
 import { planRoomSetup, ROOM_SETUP_QUERY } from '../room-setup.js';
-import { withCtx, type DataArg, type QueryContext } from './context.js';
+import type { QueryContext } from './context.js';
 
 /**
  * Registration table: wire method name (after `${MODULE_ID}.`) and its kind. The kind decides
@@ -25,39 +26,39 @@ import { withCtx, type DataArg, type QueryContext } from './context.js';
  * Operations" is off; `read` is never gated.
  */
 export function registerSceneHandlers(ctx: QueryContext, table: BridgeHandlerTable): void {
-  table.set(`${MODULE_ID}.getActiveScene`, 'read', () => getActiveScene(ctx));
-  table.set(`${MODULE_ID}.list-scenes`, 'read', withCtx(ctx, listScenes));
-  table.set(`${MODULE_ID}.switch-scene`, 'write', withCtx(ctx, switchScene));
+  table.on(`${MODULE_ID}.getActiveScene`, 'read', () => getActiveScene(ctx));
+  table.on(`${MODULE_ID}.list-scenes`, 'read', data => listScenes(ctx, data));
+  table.on(`${MODULE_ID}.switch-scene`, 'write', data => switchScene(ctx, data));
 
   // Movement and positioning
-  table.set(`${MODULE_ID}.getTokenPositions`, 'read', withCtx(ctx, getTokenPositions));
-  table.set(`${MODULE_ID}.measureDistance`, 'read', withCtx(ctx, measureDistance));
-  table.set(`${MODULE_ID}.getTargets`, 'read', () => getTargets(ctx));
+  table.on(`${MODULE_ID}.getTokenPositions`, 'read', data => getTokenPositions(ctx, data));
+  table.on(`${MODULE_ID}.measureDistance`, 'read', data => measureDistance(ctx, data));
+  table.on(`${MODULE_ID}.getTargets`, 'read', () => getTargets(ctx));
 
   // Music: the playlist plays at once, with no change-journal record
-  table.set(`${MODULE_ID}.playPlaylist`, 'recordless-write', withCtx(ctx, playPlaylist));
+  table.on(`${MODULE_ID}.playPlaylist`, 'recordless-write', data => playPlaylist(ctx, data));
 
   // Party panel (I-079, read-only): dnd5e group actors, members, pace, rest
   // request cards. GM client only.
-  table.set(`${MODULE_ID}.${PARTY_STATE_QUERY}`, 'read', () =>
+  table.on(`${MODULE_ID}.${PARTY_STATE_QUERY}`, 'read', () =>
     ctx.withGmGate('Failed to read the party', () => Promise.resolve(getPartyState()))
   );
 
   // Factions and renown (dnd5e 6.1, read-only): faction actors and every actor's renown items.
   // GM client only.
-  table.set(`${MODULE_ID}.${RENOWN_STATE_QUERY}`, 'read', () =>
+  table.on(`${MODULE_ID}.${RENOWN_STATE_QUERY}`, 'read', () =>
     ctx.withGmGate('Failed to read renown', () => Promise.resolve(getRenownState()))
   );
 
   // Place the party (I-097): where the members' tokens would go on the viewed scene. Read only;
   // plan-party-change's `place` turns it into a guarded plan of token creates. GM client only.
-  table.set(`${MODULE_ID}.${PARTY_PLACE_QUERY}`, 'read', (data: unknown) =>
+  table.on(`${MODULE_ID}.${PARTY_PLACE_QUERY}`, 'read', (data: unknown) =>
     ctx.withGmGate('Failed to place the party', () => planPartyPlacement(data))
   );
 
   // Scene dressing plans (I-112, read-only): templates, darkness and light, map notes and loot
   // as guarded ops. GM client only.
-  table.set(`${MODULE_ID}.${SCENE_PLAN_QUERY}`, 'read', (data: unknown) =>
+  table.on(`${MODULE_ID}.${SCENE_PLAN_QUERY}`, 'read', (data: unknown) =>
     ctx.withGmGate('Failed to plan the scene change', () => planSceneChange(data))
   );
 
@@ -90,7 +91,10 @@ export function registerSceneHandlers(ctx: QueryContext, table: BridgeHandlerTab
 /**
  * Handle get active scene request
  */
-async function getActiveScene(ctx: QueryContext): Promise<unknown> {
+type Answer<M extends BridgeMethod> = Promise<BridgeAnswer<M>>;
+type Req<M extends BridgeMethod> = BridgeRequest<M>;
+
+async function getActiveScene(ctx: QueryContext): Answer<`${typeof MODULE_ID}.getActiveScene`> {
   return ctx.withGmGate('Failed to get active scene', async () => {
     return await ctx.dataAccess.getActiveScene();
   });
@@ -99,7 +103,10 @@ async function getActiveScene(ctx: QueryContext): Promise<unknown> {
 /**
  * Handle list scenes request
  */
-async function listScenes(ctx: QueryContext, data: DataArg<'listScenes'>): Promise<unknown> {
+async function listScenes(
+  ctx: QueryContext,
+  data: Req<`${typeof MODULE_ID}.list-scenes`>
+): Answer<`${typeof MODULE_ID}.list-scenes`> {
   return ctx.withGmGate('Failed to list scenes', async () => {
     return await ctx.dataAccess.listScenes(data);
   });
@@ -108,7 +115,10 @@ async function listScenes(ctx: QueryContext, data: DataArg<'listScenes'>): Promi
 /**
  * Handle switch scene request
  */
-async function switchScene(ctx: QueryContext, data: DataArg<'switchScene'>): Promise<unknown> {
+async function switchScene(
+  ctx: QueryContext,
+  data: Req<`${typeof MODULE_ID}.switch-scene`>
+): Answer<`${typeof MODULE_ID}.switch-scene`> {
   return ctx.withGmGate('Failed to switch scene', async () => {
     if (!data.scene_identifier) {
       throw new Error('scene_identifier is required');
@@ -118,7 +128,10 @@ async function switchScene(ctx: QueryContext, data: DataArg<'switchScene'>): Pro
   });
 }
 
-async function getTokenPositions(ctx: QueryContext, data: { sceneId?: string }): Promise<unknown> {
+async function getTokenPositions(
+  ctx: QueryContext,
+  data: Req<`${typeof MODULE_ID}.getTokenPositions`>
+): Answer<`${typeof MODULE_ID}.getTokenPositions`> {
   return ctx.withGmGate('Failed to get token positions', async () => {
     return await ctx.dataAccess.getTokenPositions(data || {});
   });
@@ -126,11 +139,8 @@ async function getTokenPositions(ctx: QueryContext, data: { sceneId?: string }):
 
 async function measureDistance(
   ctx: QueryContext,
-  data: {
-    fromTokenName: string;
-    toTokenName: string;
-  }
-): Promise<unknown> {
+  data: Req<`${typeof MODULE_ID}.measureDistance`>
+): Answer<`${typeof MODULE_ID}.measureDistance`> {
   return ctx.withGmGate('Failed to measure distance', async () => {
     if (!data?.fromTokenName) throw new Error('fromTokenName is required');
     if (!data?.toTokenName) throw new Error('toTokenName is required');
@@ -138,13 +148,16 @@ async function measureDistance(
   });
 }
 
-async function getTargets(ctx: QueryContext): Promise<unknown> {
+async function getTargets(ctx: QueryContext): Answer<`${typeof MODULE_ID}.getTargets`> {
   return ctx.withGmGate('Failed to get targets', async () => {
     return await ctx.dataAccess.getTargets();
   });
 }
 
-async function playPlaylist(ctx: QueryContext, data: DataArg<'playPlaylist'>): Promise<unknown> {
+async function playPlaylist(
+  ctx: QueryContext,
+  data: Req<`${typeof MODULE_ID}.playPlaylist`>
+): Answer<`${typeof MODULE_ID}.playPlaylist`> {
   return ctx.withGmGate('Failed to play playlist', async () => {
     return await ctx.dataAccess.playPlaylist(data || {});
   });

@@ -47,7 +47,7 @@ const IMAGE_EXTENSIONS: ReadonlySet<string> = new Set([
   '.svg',
 ]);
 /** The largest image copied (a big battle map is 5 to 20 MB). */
-export const MAX_ATTACHMENT_BYTES = 50 * 1024 * 1024;
+const MAX_ATTACHMENT_BYTES = 50 * 1024 * 1024;
 const RETRY_AFTER_MS = 10 * 60_000;
 const FETCH_TIMEOUT_MS = 30_000;
 /** A fetch needs at least this much of the cycle left to start. */

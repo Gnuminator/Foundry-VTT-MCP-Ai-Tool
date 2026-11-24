@@ -9,8 +9,8 @@ import { randomBytes } from 'crypto';
 
 import type { VaultStore } from '../vault/store.js';
 
-export const DOWNTIME_FILE = 'downtime.json';
-export const DOWNTIME_MAX_TEXT = 1000;
+const DOWNTIME_FILE = 'downtime.json';
+const DOWNTIME_MAX_TEXT = 1000;
 export const DOWNTIME_MAX_PER_PLAYER = 10;
 
 interface DowntimeEntry {

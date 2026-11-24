@@ -71,7 +71,7 @@ interface PumpMemState {
 }
 
 /** An outage shorter than this is a blip, not a gap worth a marker. */
-export const LINK_GAP_MIN_MS = 15_000;
+const LINK_GAP_MIN_MS = 15_000;
 
 /** The module's per-load event counter from an id like `evt-lx2k9a-17`, or null. */
 export function eventSeq(id: string): number | null {

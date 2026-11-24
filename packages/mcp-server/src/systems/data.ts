@@ -5,7 +5,7 @@
 
 export type Rec = Record<string, unknown>;
 
-export function isRec(value: unknown): value is Rec {
+function isRec(value: unknown): value is Rec {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
@@ -27,23 +27,4 @@ export function at(value: unknown, ...path: string[]): unknown {
     current = (current as Rec)[key];
   }
   return current;
-}
-
-/** `value` when it is a string, else undefined. */
-export function str(value: unknown): string | undefined {
-  return typeof value === 'string' ? value : undefined;
-}
-
-/** `value` when it is a finite number, else undefined. */
-export function num(value: unknown): number | undefined {
-  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
-}
-
-/** Text for a message: primitives as a template would print them, anything else through JSON. */
-export function text(value: unknown): string {
-  if (typeof value === 'string') return value;
-  if (value === null || typeof value !== 'object') {
-    return String(value);
-  }
-  return JSON.stringify(value) ?? '';
 }

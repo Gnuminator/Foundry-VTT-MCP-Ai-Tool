@@ -14,4 +14,4 @@ export type {
 } from './types.js';
 
 // System registry (MCP server context)
-export { SystemRegistry, getSystemRegistry, resetSystemRegistry } from './system-registry.js';
+export { getSystemRegistry } from './system-registry.js';

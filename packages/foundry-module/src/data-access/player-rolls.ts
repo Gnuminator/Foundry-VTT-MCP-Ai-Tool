@@ -1,3 +1,4 @@
+import type { RequestPlayerRollsRequest, RollNpcCheckRequest } from '@gnuminator/shared';
 import { MODULE_ID, ERROR_MESSAGES } from '../constants.js';
 import { resolveCombat } from '../combat-resolve.js';
 import * as shared from './shared.js';
@@ -94,18 +95,9 @@ export class PlayerRollsDataAccess {
    * target player and all active GMs). Returns a structured `{ success, message,
    * error? }` (never throws) so the MCP layer can surface a clear reason.
    */
-  async requestPlayerRolls(data: {
-    rollType: string;
-    rollTarget: string;
-    targetPlayer: string;
-    isPublic: boolean;
-    rollModifier: string;
-    flavor: string;
-    /** A difficulty class the roll is judged against: the card shows it and the roll carries it. */
-    dc?: number;
-    /** The GM's choice; it combines with the character's own sources (poisoned cancels advantage). */
-    advantage?: RollAdvantage;
-  }): Promise<{ success: boolean; message: string; error?: string }> {
+  async requestPlayerRolls(
+    data: RequestPlayerRollsRequest
+  ): Promise<{ success: boolean; message: string; error?: string }> {
     shared.validateFoundryState();
     const advantage = parseAdvantage(data.advantage);
     if (advantage && (data.rollType === 'custom' || data.rollType === 'initiative')) {
@@ -253,13 +245,7 @@ export class PlayerRollsDataAccess {
    * the result. Attacks read the matched item's `labels.toHit`; everything else
    * uses {@link buildRollFormula} against the actor's roll data.
    */
-  async rollNpcCheck(data: {
-    actorName: string;
-    rollType: string;
-    rollTarget: string;
-    isPublic: boolean;
-    advantage?: RollAdvantage;
-  }): Promise<{
+  async rollNpcCheck(data: RollNpcCheckRequest): Promise<{
     success: boolean;
     actorName: string;
     rollType: string;

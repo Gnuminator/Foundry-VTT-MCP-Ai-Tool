@@ -1031,7 +1031,7 @@ export class CharacterTools {
  * result: `entityType` next to the entity's own fields. A GM-gate refusal (`{success: false,
  * error}`) becomes an error.
  */
-export function flattenEntityResult(result: unknown): Record<string, unknown> {
+function flattenEntityResult(result: unknown): Record<string, unknown> {
   const envelope =
     result !== null && typeof result === 'object' ? (result as Record<string, unknown>) : {};
   if (envelope.success !== true) {

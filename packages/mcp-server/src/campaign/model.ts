@@ -83,6 +83,10 @@ function escapeHtml(text: string): string {
     .replace(/"/g, '&quot;');
 }
 
+function unescapeQuotes(html: string): string {
+  return html.replace(/&quot;/g, '"').replace(/&gt;/g, '>');
+}
+
 export interface StatBlockLink {
   uuid: string;
   name: string;
@@ -262,7 +266,10 @@ export function addTimelineLine(
   const { range, text: section } = within(html, lang);
   const li = timelineLi(lang, line, true);
   const plain = timelineLi(lang, line, false);
-  if (section.includes(plain) || section.includes(li)) return null;
+  // Foundry stores a page's text with `"` and `>` where we wrote `&quot;` and `&gt;`, so compare
+  // both sides after the same normalisation or a line with a quote is added again on every run.
+  const stored = unescapeQuotes(section);
+  if (stored.includes(unescapeQuotes(plain)) || stored.includes(unescapeQuotes(li))) return null;
   const marker = `<div class="campaign-session" data-session="${escapeHtml(line.session)}">`;
   const at = section.indexOf(marker);
   let next: string;

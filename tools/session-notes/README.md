@@ -194,6 +194,31 @@ fixes them too), rewrites the transcript lines before Claude sees them and write
 a line changed. The filled entries stay on the page with a `Status:` line. The character name in a speaker
 label is not rewritten, only the text.
 
+## Campaign merge plan (D-151)
+
+`python -m session_notes campaign <session>` runs after a notes run with `--layers` (`auto.ps1` does it
+once the notes are done; a failure never holds back the publish). One Claude call on the subscription reads
+the worth-remembering layer, the cleaned transcript lines it cites and, when `chat-log.json` is in the
+session folder (the Foundry chat log, a list of `{time, who, text}`; `--chat-log` names another file), the
+chat log. It proposes pages per NPC, creature, place, thread, the session and the table. The code then
+applies the ownership table of the design, so the rules do not depend on the model:
+
+| Kind of fact                   | What the plan does                                                                                                                                                                                                                                              |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Spelling of a name             | A page for a name that is not on the confirmed list (`names.txt`, the answers on the check page, the roster's characters) is **held**: it goes to the check page as a name with its transcript links, and the next `campaign` run adds it once someone answers. |
+| Stats, items, level, ownership | Never written. With `foundry-facts.json` (`{"Ilvara": {"level": "4"}}`, `--foundry-facts`) a claim from the talk is compared; a difference goes to the check page and the page keeps Foundry's version. Without it the claim stays a hint in the plan.          |
+| What happened                  | Timeline lines link to the transcript line (`transcript.en#^u000556`) or carry a chat time. A line citing nothing real is dropped.                                                                                                                              |
+| Rulings and house rules        | Every `Table` line is written as _Proposed (Danni confirms)_.                                                                                                                                                                                                   |
+| Plans and secrets              | Not an input; never a timeline line.                                                                                                                                                                                                                            |
+
+Output: `notes/campaign-merge.json` (`entries` go straight into `plan-campaign-merge`; `held`, `checks`,
+`hints` and `next` explain the rest), `notes/Campaign merge plan.en.md` for a person, and
+`campaign-checks.json`, which `check` adds to the check page. Only additions are planned: nothing rewrites or
+removes text, merges or renames a page. `plan-campaign-merge` applies additions at once only when the GM's
+"apply additions without confirming" switch is on in Foundry (`--switch on` records that in the plan);
+otherwise the whole merge is a plan to confirm. The Claude call is cached in `notes/.work/campaign.json`, so
+answering a name costs no new call. Exit 75 means a usage limit or a logged-out Claude; run it again.
+
 ## Into Foundry (D-087)
 
 ```bash

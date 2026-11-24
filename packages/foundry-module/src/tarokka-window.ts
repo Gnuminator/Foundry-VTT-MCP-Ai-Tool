@@ -230,7 +230,7 @@ interface DialogV2Like {
 }
 
 /** The deps that talk to the real Foundry. */
-export function foundryTarokkaDeps(): TarokkaDeps {
+function foundryTarokkaDeps(): TarokkaDeps {
   return {
     request: (tool, args) => aiToolRequest(tool, args),
     confirmReveal: async (plan): Promise<boolean> => {

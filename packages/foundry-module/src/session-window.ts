@@ -139,7 +139,7 @@ export class SessionController {
 }
 
 /** How often an open Session window reads the state again. */
-export const SESSION_POLL_MS = 15_000;
+const SESSION_POLL_MS = 15_000;
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 
 const controller = new SessionController(aiToolRequest, () => panel.redraw());
@@ -177,12 +177,3 @@ const panel = createPanelWindow({
 
 /** Open the "Session" window (one per browser). */
 export const openSessionWindow = (): Promise<boolean> => panel.open();
-
-/** Forget the window and its state (tests). */
-export const resetSessionWindowForTests = (): void => {
-  panel.reset();
-  controller.view.busy = false;
-  controller.clear();
-  if (pollTimer !== null) clearInterval(pollTimer);
-  pollTimer = null;
-};

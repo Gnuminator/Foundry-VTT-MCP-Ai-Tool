@@ -62,9 +62,9 @@ import { prepareCopyHtml } from './strip-secrets.js';
 
 export const HANDOUTS_FEATURE = 'handouts';
 /** The player journal reveal copies go into. */
-export const HANDOUTS_JOURNAL_NAME = 'Handouts';
+const HANDOUTS_JOURNAL_NAME = 'Handouts';
 /** The flag on a copy naming its source page: `flags.foundry-mcp-bridge.copiedFrom`. */
-export const COPIED_FROM_FLAG = 'copiedFrom';
+const COPIED_FROM_FLAG = 'copiedFrom';
 /** Foundry's OBSERVER ownership level: players can read the page. */
 const OBSERVER = 2;
 /** Foundry's NONE ownership level. */

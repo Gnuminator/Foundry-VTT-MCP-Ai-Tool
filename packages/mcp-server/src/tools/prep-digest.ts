@@ -80,7 +80,7 @@ const LATEST_CHANGES = 5;
 const BEAT_KINDS: ReadonlySet<string> = new Set(PREP_BEAT_KINDS);
 const CLOSED_PART_STATUSES: ReadonlySet<string> = new Set(['completed', 'skipped']);
 /** A slow or hung vault (a sync, a network drive) must not hold up the digest. */
-export const PREP_NOTES_TIMEOUT_MS = 5_000;
+const PREP_NOTES_TIMEOUT_MS = 5_000;
 
 /** The current scene as far as the prep notes need it; null when no scene is active. */
 type SceneForPrep = Pick<SceneInfo, 'id' | 'name' | 'tokens'> | null;
@@ -409,7 +409,7 @@ export class PrepDigestTools {
   private async currentScene(): Promise<SceneForPrep | Error> {
     try {
       const raw = unwrap<Partial<SceneInfo> | null>(
-        await this.options.foundryClient.query('foundry-mcp-bridge.getActiveScene', {}),
+        await this.options.foundryClient.query('foundry-mcp-bridge.getActiveScene'),
         'The scene query was refused'
       );
       if (!raw || typeof raw.id !== 'string') throw new Error('Foundry sent no scene');

@@ -43,9 +43,9 @@ import {
 import { bindFields, replaceKeepingFocus } from './window-fields.js';
 
 /** World setting: the public table every client reads. Hidden from the settings menu. */
-export const TABLE_SETTING = 'tarokkaTable';
+const TABLE_SETTING = 'tarokkaTable';
 /** World setting: the GM's pictures, `{cardId: path}`. */
-export const IMAGES_SETTING = 'tarokkaCardImages';
+const IMAGES_SETTING = 'tarokkaCardImages';
 
 /** Register the two hidden world settings. Call from the module `init` hook, every client. */
 export function registerTarokkaTableSettings(): void {
@@ -405,7 +405,7 @@ function readImagesSetting(): Record<string, string> {
 }
 
 /** The deps that talk to the real Foundry. */
-export function foundryTableDeps(): TableDeps {
+function foundryTableDeps(): TableDeps {
   return {
     request: (tool, args) => aiToolRequest(tool, args),
     readTable: readTableSetting,
@@ -608,7 +608,7 @@ export async function openTarokkaTableWindow(): Promise<void> {
 }
 
 /** Open or close the player table to match the world setting. Players only. */
-export function syncPlayerTable(): void {
+function syncPlayerTable(): void {
   if (game.user?.isGM) return;
   const table = readTableSetting();
   if (table.shown) {
@@ -648,13 +648,4 @@ export function onTableSettingChanged(): void {
   } catch (error) {
     console.warn(`[${MODULE_ID}] Could not play the Tarokka ceremony:`, error);
   }
-}
-
-/** Forget the windows (tests). */
-export function resetTarokkaTableWindowsForTests(): void {
-  gmClass = null;
-  gmInstance = null;
-  playerClass = null;
-  playerInstance = null;
-  lastSeenTable = null;
 }

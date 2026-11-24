@@ -125,7 +125,7 @@ function isNextSession(journal: unknown): boolean {
 const QUEST_STATUS = /<strong>\s*Status:\s*<\/strong>\s*([^<]*)/i;
 
 /** The Status text of the first page that has one, or null (not a quest journal). */
-export function questStatusOf(journal: unknown): string | null {
+function questStatusOf(journal: unknown): string | null {
   for (const page of textPages(journal)) {
     const hit = QUEST_STATUS.exec(page.html);
     const status = hit?.[1] ? collapse(decodeEntities(hit[1])) : '';

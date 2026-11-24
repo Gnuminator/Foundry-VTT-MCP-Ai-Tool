@@ -1,3 +1,0 @@
-### Tests
-
-- **Lows sweep, Tests:** the kit flaky list drops marks older than 30 days, keeps every PC's rows, merges `backfill` into the history, locks the history file against two runs at once and ignores untracked files when judging a dirty tree. The runs note and the report name the Foundry build and dnd5e version of the server. The player-connector scenario now checks the final "no longer answers" step with a real request and fails when a tool ignores `name`. `playwright-core` follows `@playwright/test` at `~1.64.0`, and `deps:check` keeps that pair on one range. The outcome-polling tests use a 5 s deadline, and the vault-archive collision test checks the prefixed copy.

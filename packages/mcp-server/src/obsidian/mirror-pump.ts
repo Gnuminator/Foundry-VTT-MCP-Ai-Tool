@@ -153,15 +153,15 @@ import { baseOwnershipCheck, checkMarkdownOwnership, type OwnershipResult } from
 import { EMPTY_SEEN_INDEX, parseSeenIndex, SEEN_INDEX_FILE, type SeenIndex } from './seen-in.js';
 
 /** Wire name of the module query (`foundry-mcp-bridge.getExportIndex`). */
-export const EXPORT_INDEX_METHOD = `${MODULE_ID}.${EXPORT_INDEX_QUERY}`;
+const EXPORT_INDEX_METHOD = `${MODULE_ID}.${EXPORT_INDEX_QUERY}`;
 /** A cycle that runs longer is abandoned (checked between pages and between note writes). */
-export const MIRROR_CYCLE_LIMIT_MS = 60_000;
+const MIRROR_CYCLE_LIMIT_MS = 60_000;
 /** Reconciles run at most this often, except right after a settings change. */
 export const RECONCILE_MIN_INTERVAL_MS = 60_000;
 /** A reconcile runs at least this often. */
 export const RECONCILE_EVERY_MS = 10 * 60_000;
 /** Incremental overlap below the watermark (equal timestamps; renders are idempotent). */
-export const WATERMARK_OVERLAP_MS = 2_000;
+const WATERMARK_OVERLAP_MS = 2_000;
 
 const BASES_FOLDER = 'AI Tool/Bases';
 const FENCE_PREFIX = `${MIRROR_ROOT}/`;

@@ -244,6 +244,22 @@ try {
         elseif ($code -eq 3) { Say "$($dir.Name): publish: bridge not reachable, will retry"; Write-Status $folder 'waiting' 'The notes are written but Foundry cannot take them yet (bridge not reachable); the next pass tries again.' }
       }
     }
+
+    # The campaign merge plan (D-151): one more Claude call after the notes and after the publish, so it
+    # never holds the publish back. Best effort. The plan is rebuilt when the notes are newer than it; an
+    # approved session without a plan is left to the backfill.
+    if (-not $DryRun -and (Test-NotesDone $folder)) {
+      try {
+        $notesJson = Join-Path $folder 'notes\notes.json'
+        $planJson = Join-Path $folder 'notes\campaign-merge.json'
+        $hasPlan = Test-Path $planJson
+        $approved = Test-Path (Join-Path $folder 'notes\approved.json')
+        if ((-not $hasPlan -and -not $approved) -or ($hasPlan -and (Get-Item $planJson).LastWriteTime -lt (Get-Item $notesJson).LastWriteTime)) {
+          $code = Invoke-Notes @('campaign', $folder)
+          if ($code -ne 0) { Say "$($dir.Name): campaign merge plan not built (exit $code); the next pass tries again" }
+        }
+      } catch { Say "$($dir.Name): campaign merge plan failed: $_" }
+    }
   }
 
   # Last: tell the bridge how the newest session ended and what the approved recap says, so a

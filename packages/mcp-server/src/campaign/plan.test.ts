@@ -50,6 +50,15 @@ describe('campaign model', () => {
     expect(readSummary(html, 'en')).toBe('a & b');
   });
 
+  it('does not add a line with a quote again after Foundry unescaped it', () => {
+    const quoted = { ...timeline, en: 'He said "no" > yes' };
+    const once = addTimelineLine(renderNewPage('npcs', {}), 'en', quoted)!;
+    expect(once).toContain('&quot;no&quot; &gt; yes');
+    // Foundry stores the page text with the characters unescaped.
+    const stored = once.replace(/&quot;/g, '"').replace(/&gt;/g, '>');
+    expect(addTimelineLine(stored, 'en', quoted)).toBeNull();
+  });
+
   it('adds a line once and keeps hand edits', () => {
     const base = renderNewPage('npcs', {}).replace(
       '</div></section><section',

@@ -121,6 +121,23 @@ def main(argv: list[str] | None = None) -> int:
         help="write the 'Names and facts to check' pages and read the answers on them (no Claude call)",
     )
     chk.add_argument("session")
+    camp = sub.add_parser(
+        "campaign",
+        help="build the campaign merge plan from the notes (calls claude -p); writes "
+        "notes/campaign-merge.json for plan-campaign-merge",
+    )
+    camp.add_argument("session")
+    camp.add_argument("--model", default="sonnet")
+    camp.add_argument("--effort", default="medium", help="low, medium, high, xhigh or max")
+    camp.add_argument("--label", help='the session block name on the pages (default "Session NN" from the folder)')
+    camp.add_argument("--chat-log", type=Path, help="Foundry chat log (default <session>/chat-log.json)")
+    camp.add_argument("--foundry-facts", type=Path, help="Foundry stats, items, level, ownership (default <session>/foundry-facts.json)")
+    camp.add_argument(
+        "--switch",
+        choices=["on", "off"],
+        default="off",
+        help="the GM's 'apply additions without confirming' switch in Foundry (recorded in the plan)",
+    )
     ok = sub.add_parser("approve", help="mark the notes approved (audio is kept, D-097)")
     ok.add_argument("session")
     ok.add_argument("--by", default="GM")
@@ -249,6 +266,33 @@ def main(argv: list[str] | None = None) -> int:
         for line in rep.conflicts:
             print(f"Conflict (English page used): {line}")
         print(f"Pages: {check.page_path(session, 'en')} and {check.page_path(session, 'da')}")
+        return 0
+    if args.cmd == "campaign":
+        from . import campaign
+
+        try:
+            done = campaign.run(
+                session,
+                ClaudeCli(),
+                model=args.model,
+                effort=args.effort,
+                label=args.label,
+                chat=args.chat_log,
+                facts=args.foundry_facts,
+                switch=args.switch == "on",
+            )
+        except (FileNotFoundError, ClaudeError, ValueError) as exc:
+            print(exc, file=sys.stderr)
+            return 1
+        if done.paused:
+            print(f"Paused: {done.paused}\nRun the same command again later.")
+            return EXIT_PAUSED
+        plan = done.plan
+        print(
+            f"Campaign merge plan for {plan['label']}: {len(plan['entries'])} entr(ies) to merge, "
+            f"{len(plan['held'])} held for a confirmed name, {len(plan['checks']['facts'])} fact(s) "
+            f"to check, {len(plan['hints'])} hint(s). Plan: {session / 'notes' / campaign.PLAN_FILE}"
+        )
         return 0
     if args.cmd == "scenes":
         lines = load_timeline(session / "timeline" / "timeline.jsonl")

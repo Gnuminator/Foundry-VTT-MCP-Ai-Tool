@@ -22,6 +22,7 @@ import { existsSync, mkdirSync, renameSync, writeFileSync } from 'node:fs';
 import { basename, extname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { DEMO_DIR, REPO_ROOT, RESOLUTIONS, demoWorld, testEnv } from './lib/env.mjs';
+import { buildInfo } from './lib/build-info.mjs';
 import { FfmpegRecorder } from './lib/ffmpeg-recorder.mjs';
 import { ensureObs } from './lib/obs-setup.mjs';
 import { Take } from './lib/take.mjs';
@@ -154,6 +155,7 @@ async function cmdTake(opts) {
     title: mod.meta?.title ?? name,
     res: opts.res,
     fps: 60,
+    build: buildInfo(REPO_ROOT),
     outDir,
     video: null,
     error: null,

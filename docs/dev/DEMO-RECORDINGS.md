@@ -79,12 +79,12 @@ Obsidian vault; a take that hangs for 10 minutes fails and gives the lock back. 
 
 Every take writes a folder `C:\FoundryTest\demo\takes\<take>-<date>-<time>\`:
 
-| File          | What it is                                                                                                           |
-| ------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `<take>.mp4`  | The recording (H.264, NVENC, Hybrid MP4).                                                                            |
-| `steps.json`  | Each step with its start and end in seconds from the recording start.                                                |
-| `take.json`   | Settings, the video's size and frame rate, screenshots, console errors per window, and the error if the take failed. |
-| `shots/*.png` | Screenshots at 1920x1080 for docs.                                                                                   |
+| File          | What it is                                                                                                                                                                                                     |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `<take>.mp4`  | The recording (H.264, NVENC, Hybrid MP4).                                                                                                                                                                      |
+| `steps.json`  | Each step with its start and end in seconds from the recording start.                                                                                                                                          |
+| `take.json`   | Settings, the build filmed (`build`: repo commit, whether the tree had changes, dashboard version), the video's size and frame rate, screenshots, console errors per window, and the error if the take failed. |
+| `shots/*.png` | Screenshots at 1920x1080 for docs.                                                                                                                                                                             |
 
 A screenshot of the window on air is not taken from the page while OBS records (Playwright's
 `scale: 'css'` makes Chromium draw the page at 1x for a few frames, so the recording shows the
@@ -219,7 +219,10 @@ What it does, in order:
 
 Output in `compose-out\`: `draft\<cut>.draft.mp4`, `stills\<chapter>-<step>.png`, `<cut>.mp4`,
 `<cut>.burned.mp4`, `<cut>.srt`, `<cut>.vtt`, `<cut>.chapters.txt` (YouTube chapters; the MP4 also
-carries them as chapter marks). `work\` holds the per-chapter intermediates, reused on the next run
+carries them as chapter marks), `<cut>.builds.json` (the `build` of each chapter's take.json, null
+for a take made before builds were recorded). `node scripts/demo/older-builds.mjs compose-out
+--since <commit>` lists the chapters filmed before a commit (a UI change) or with no build
+recorded. `work\` holds the per-chapter intermediates, reused on the next run
 when the take and settings did not change. Frames the recorder glitched (the page drawn in the
 top-left quarter while a screenshot is taken) are replaced by the frame before. The pure timing and
 filter-graph code is `scripts/demo/lib/compose-plan.mjs` (tests in

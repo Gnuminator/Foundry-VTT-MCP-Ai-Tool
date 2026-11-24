@@ -1,6 +1,6 @@
 ---
 source: gm/dashboard-player-pages.md
-sourceHash: 0028c9c64129
+sourceHash: caffe7c7deb4
 title: 'Dashboardet: spillersider og Obsidian'
 description: 'Spillersiden, afsløring af et handout, spillerlinks, My character og Open in Obsidian.'
 ---
@@ -10,6 +10,8 @@ description: 'Spillersiden, afsløring af et handout, spillerlinks, My character
 Part of [Dashboardet](dashboard.md).
 
 ## Spillersiden (/player)
+
+![Spillersiden for en spiller, der har valgt sit navn: Mine med karakteren og en åben roll-anmodning](../../images/dashboard/player-page.png)
 
 Den side, spillerne kigger på: dashboardets adresse med `/player` til sidst. Åbn den selv før en
 session for at tjekke, hvad de ser. Den følger aftenen. Mens en session er åben (eller en combat
@@ -81,6 +83,10 @@ listen Handouts kun viser det, du afslørede.
 > **Usikker? Spørg Claude.** Spørg GM coach: "Hvad ser mine spillere på spillersiden, og hvordan afslører jeg et handout uden at spoile det for tidligt?" ([sådan tilføjer du GM coach](gm-coach.md))
 
 ## Spillerlinks og My character (/me)
+
+![Player links-vinduet med hver spillers personlige link](../../images/dashboard/dashboard-player-links.png)
+
+![My character: en spillers egen karakterark på siden My character](../../images/dashboard/my-character.png)
 
 Hver spiller kan have sin egen karakterside: deres sheet på en telefon eller laptop, skrivebeskyttet,
 og opdateret under spillet (HP, spell slots, conditions, resources). Den åbner fra et privat link,

@@ -148,13 +148,20 @@ check_player_folder() {
 }
 
 # ---- The dashboard switch -------------------------------------------------------------------------------------------
+# dash_not_stopped: the dashboard container runs, or the Docker daemon is silent (svc_active returns 2): unknown counts as running,
+# so the quiet check and the "recreate" paths are not skipped on a guess. Only a clear "no container running" (1) is stopped.
+dash_not_stopped() {
+  local rc=0
+  svc_active dashboard || rc=$?
+  [ "$rc" != 1 ]
+}
 # dashboard_live: prints "yes" or "no" for whether the RUNNING dashboard process has FOUNDRY_AI_PLAYER_VAULTS_DIR (not the
 # unit file: a refused or interrupted restart leaves the two apart), and "stopped" when it does not run.
 dashboard_live() {
   local pid
   if [ "$STACK" = containers ]; then
     # The container's own environment (what it was created with), not .env: compose reads .env only when it creates it.
-    svc_active dashboard || {
+    dash_not_stopped || {
       echo stopped
       return 0
     }
@@ -182,7 +189,7 @@ dashboard_container_value() {
 # stack_dashboard_on: .env gets the value, and the dashboard container is recreated (alone) only when it does not have it.
 stack_dashboard_on() {
   local running=0 need=0 why="" live="" rc=0
-  if svc_active dashboard; then
+  if dash_not_stopped; then
     running=1
     live="$(dashboard_container_value)"
   fi
@@ -223,7 +230,7 @@ stack_dashboard_off() {
     ok "no dashboard container"
   elif [ -z "$(dashboard_container_value)" ]; then
     ok "the dashboard container does not have the setting"
-  elif svc_active dashboard; then
+  elif dash_not_stopped; then
     stack_compose up -d --no-deps dashboard || die "the dashboard container did not come up; see: $(svc_logs_hint dashboard)"
     svc_active dashboard || die "the dashboard container is not running after the recreate; see: $(svc_logs_hint dashboard)"
     [ -z "$(dashboard_container_value)" ] || die "the new dashboard container still has FOUNDRY_AI_PLAYER_VAULTS_DIR"
@@ -417,7 +424,7 @@ report_switch_containers() {
   fi
   if [ -z "$(svc_cid dashboard -a)" ]; then
     echo "    no dashboard container in the stack"
-  elif ! svc_active dashboard; then
+  elif ! dash_not_stopped; then
     echo "    the dashboard container: stopped"
   else
     live="$(dashboard_container_value)"

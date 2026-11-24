@@ -1,6 +1,6 @@
 ---
 source: gm/dashboard-drawers.md
-sourceHash: c7a818453cc5
+sourceHash: faf95215288f
 title: 'Dashboardet: confirm-vindue, Tool Runner og skuffer'
 description: 'Confirm-vinduet, Tool Runner og skufferne Tarokka, Handouts, Prep og Party.'
 ---
@@ -42,6 +42,8 @@ I confirm-vinduet:
 > **Usikker? Spørg Claude.** Spørg GM coach: "Hvornår beder dashboardet mig om at bekræfte en ændring, og hvornår bliver den bare udført?" ([sådan tilføjer du GM coach](gm-coach.md))
 
 ## Tool Runner (🛠 Tool Runner)
+
+![Tool Runner-skuffen åben på plan-actor-change med sine formularfelter](../../images/dashboard/dashboard-tool-runner.png)
 
 En skuffe i siden med hvert værktøj, bridgen har, de samme værktøjer som Claude bruger. Brug den, når
 du selv vil gøre én helt bestemt ting, eller for at anvende en plan, Claude lavede.

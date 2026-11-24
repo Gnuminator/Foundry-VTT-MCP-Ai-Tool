@@ -23,12 +23,6 @@ export function registerChatRollHandlers(ctx: QueryContext, table: BridgeHandler
     'recordless-write',
     withCtx(ctx, requestPlayerRolls)
   );
-  table.set(
-    `${MODULE_ID}.requestAbilityCheck`,
-    'recordless-write',
-    withCtx(ctx, requestAbilityCheck)
-  );
-  table.set(`${MODULE_ID}.requestAttackRoll`, 'recordless-write', withCtx(ctx, requestAttackRoll));
   table.set(`${MODULE_ID}.rollNpcCheck`, 'recordless-write', withCtx(ctx, rollNpcCheck));
 }
 
@@ -92,40 +86,6 @@ async function requestPlayerRolls(
     }
 
     return await ctx.dataAccess.requestPlayerRolls(data);
-  });
-}
-
-async function requestAbilityCheck(
-  ctx: QueryContext,
-  data: {
-    targetPlayer: string;
-    ability: string;
-    dc?: number;
-    isPublic: boolean;
-    reason?: string;
-    advantage?: 'advantage' | 'disadvantage';
-  }
-): Promise<unknown> {
-  return ctx.withGmGate('Failed to request ability check', async () => {
-    if (!data?.targetPlayer) throw new Error('targetPlayer is required');
-    if (!data?.ability) throw new Error('ability is required');
-    return await ctx.dataAccess.requestAbilityCheck(data);
-  });
-}
-
-async function requestAttackRoll(
-  ctx: QueryContext,
-  data: {
-    targetPlayer: string;
-    weaponOrSpellName: string;
-    isPublic: boolean;
-    advantage?: 'advantage' | 'disadvantage';
-  }
-): Promise<unknown> {
-  return ctx.withGmGate('Failed to request attack roll', async () => {
-    if (!data?.targetPlayer) throw new Error('targetPlayer is required');
-    if (!data?.weaponOrSpellName) throw new Error('weaponOrSpellName is required');
-    return await ctx.dataAccess.requestAttackRoll(data);
   });
 }
 

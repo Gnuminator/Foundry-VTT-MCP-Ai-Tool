@@ -24,7 +24,7 @@ const repoRoot =
     ? path.resolve(process.argv[rootArg + 1])
     : path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-const EXCLUDED_PREFIXES = ['docs/history/', '.claude/'];
+const EXCLUDED_PREFIXES = ['docs/history/', '.claude/', 'plugin/'];
 
 /** GitHub's heading anchor: lower case, punctuation dropped, spaces to hyphens. */
 export function slugify(heading) {

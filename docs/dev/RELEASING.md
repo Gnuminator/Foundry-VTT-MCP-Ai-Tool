@@ -7,6 +7,11 @@ The Orange Pi builds a release tag, never `main` (D-126), so game nights run a k
 
 Start from a clean, up-to-date checkout of `main` (the main checkout, or a worktree on `aitool/main`).
 
+0. **Refresh the lane kit plugin** (own small PR, merged before the release PR, which may change only the
+   version places): `npm run plugin:build`, commit `plugin/` and `.claude-plugin/`. Its version carries a hash of
+   the kit, so the next `plugin update` on every PC picks it up ([LANE-PLUGIN.md](LANE-PLUGIN.md)). Skip it
+   when `npm run plugin:check` says it is in sync. The tool-version prefix of the plugin version lags one release
+   until the next `plugin:build`; the hash after the `+` is what makes an update reach the PCs.
 1. **Fold the changelog.** `npm run changelog:fold -- --dry-run` shows the result, then `npm run changelog:fold`
    moves every fragment in `changelog.d/` into CHANGELOG "Unreleased" and deletes the files (D-089). Rename the
    `## Unreleased` heading to `## vX.Y.Z (released YYYY-MM-DD): <short summary>` and add a fresh empty
@@ -42,6 +47,10 @@ Start from a clean, up-to-date checkout of `main` (the main checkout, or a workt
    The tag must equal the root `package.json` version. Pushing it starts `.github/workflows/release.yml`, which
    builds the release files, then waits for approval before it publishes (assets and checks:
    [DEPLOYMENT](DEPLOYMENT.md#cutting-a-new-release-maintainers)).
+
+   The release files include the skill zips `foundry-dnd-helper-player.zip`, `foundry-dnd-helper.zip`,
+   `foundry-gm-coach.zip`, `foundry-prep-ritual.zip` and `foundry-backstory-buddy.zip`; each is built in the
+   `player-files` job and listed in `SHA256SUMS.txt`.
 
    **Approve the release in the Actions run:** open the run, press "Review deployments", tick `release` and
    Approve (also works on the phone in the GitHub app). The publish job is in the GitHub environment `release`,
@@ -92,6 +101,18 @@ Start from a clean, up-to-date checkout of `main` (the main checkout, or a workt
    has `DISCORD_CHANGELOG_CHANNEL_ID`. Posting is optional and never blocks a release; it prints one warning
    if Discord cannot be reached. The two channel ids and the GM role id belong in the PC's
    `%APPDATA%\foundry-ai-tool\discord-bot.env` (template: `packages/discord-bot/deploy/discord-bot.env.example`).
+
+## Obsidian plugin smoke list
+
+Run before a tag that changes the plugin or the mirror, on the test vault (`npm run build -w
+packages/obsidian-plugin`, then `node scripts/test-env/small-obsidian-vault.mjs`, open that folder in
+Obsidian). The mirror itself is covered by the kit scenario `obsidian-mirror-live` (full size, server A).
+
+1. Obsidian lists "AI Tool" under Community plugins as enabled, with no error on start (Ctrl+Shift+I, Console).
+2. The status bar shows the plugin and no "Restart Obsidian" line after a restart.
+3. An NPC note opens and its "Open in Foundry" link is present.
+4. The command "Hide / Show the Library in the graph" changes the graph view and "Apply AI Tool graph colours" colours it.
+5. A note edited by hand stays as typed after the mirror's next cycle (the `_status` note lists it as edited).
 
 ## The Pi
 

@@ -13,6 +13,30 @@ Both were the winners of the blind listening test on 2026-09-30. Both models add
 inaudible Perth watermark. `voice: ref:C:\path\clip.wav` clones any 5 to 15 second clip instead
 (for a later clone of your own voice, read the model's terms first).
 
+## The narrator the GM videos use
+
+The table above is the tool's built-in defaults, not the narrator of the GM videos. Mic sounded
+like an audiobook or children's reader in later listening rounds and is out for narration; it stays
+only as the fallback, so a script with no `voice:` still voices without any setup. The GM videos use
+the settled narrator from the October 2026 listening rounds: a deeper, calmer reference clip per
+language (Danish on Roest 500M, English on Turbo), at speed 0.76, about 150 spoken words a minute.
+The clips are private recordings and stay outside the repo. A clip voiced with only the defaults
+sounds different from the GM videos.
+
+To use the settled narrator, name the two clips once in `%APPDATA%\foundry-ai-tool\voices.local`
+(or the file `NARRATION_VOICES` points at):
+
+```ini
+da.deep = C:\path\to\da-deep.wav
+da.deep.speed = 0.76
+en.deep = C:\path\to\en-deep.wav
+en.deep.speed = 0.76
+```
+
+A script then says `voice: deep` (no speed line needed) and gets the clip of its own language.
+`narrate.ps1 voices` lists the names, and a name in this file wins over a built-in one. Without
+the clip on the PC, `voice: deep` stops with "clip not found" rather than falling back to Mic.
+
 ## Use
 
 ```powershell

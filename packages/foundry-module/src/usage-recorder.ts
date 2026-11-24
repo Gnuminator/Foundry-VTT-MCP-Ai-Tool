@@ -45,7 +45,7 @@ export type UsageSurface = (typeof USAGE_SURFACES)[number];
 
 export const USAGE_NAME_PREFIX: Record<UsageSurface, readonly string[]> = {
   dashboard: ['dash.', 'tool.'],
-  player: ['player.'],
+  player: ['player.', 'me.'],
   module: ['module.'],
 };
 

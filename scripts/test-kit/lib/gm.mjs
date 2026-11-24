@@ -159,6 +159,30 @@ export async function joinGame(
   await page.locator('button[name="join"]').click();
   await page.waitForURL(/\/game$/, { timeout: joinTimeoutMs });
   await waitForGame(page, gameTimeoutMs);
+  await unlockAudio(page);
+}
+
+/**
+ * Give the page one real user gesture so the browser lets Foundry unlock audio. A headless page
+ * nobody clicks keeps `game.audio.locked` true, and the product refuses to plan music then (on
+ * purpose). The click is a real input event at a corner of the window; Foundry's unlock listener
+ * runs on it. Best effort: when audio stays locked the caller's music step reports that.
+ * @param {import('playwright-core').Page} page
+ * @returns {Promise<boolean>} whether audio is unlocked afterwards
+ */
+export async function unlockAudio(page) {
+  const locked = () => page.evaluate(() => globalThis.game?.audio?.locked === true);
+  try {
+    if (!(await locked())) return true;
+    for (let i = 0; i < 3; i++) {
+      await page.mouse.click(2, 2);
+      await page.waitForTimeout(500);
+      if (!(await locked())) return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
 }
 
 /** Wait until `game.ready`. */

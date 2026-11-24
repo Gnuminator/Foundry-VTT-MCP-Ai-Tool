@@ -470,11 +470,10 @@ def test_session_ps1_port_and_host(tmp_path: Path, sessions: Path, folder_with_n
     want = PORTS["live" if real else "testA"]["control"]
     assert f"on port {want}" in out
     assert log.exists(), out
-    if True:
-        line = log.read_text("utf-8").split()
-        assert line[0] == str(want)
-        # Without -Real the host is pinned to this PC; with it, MCP_CONTROL_HOST stays in charge.
-        assert line[1:] == ([] if real else ["127.0.0.1"])
+    line = log.read_text("utf-8").split()
+    assert line[0] == str(want)
+    # Without -Real the host is pinned to this PC; with it, MCP_CONTROL_HOST stays in charge.
+    assert line[1:] == ([] if real else ["127.0.0.1"])
 
 
 def test_session_ps1_stale_status_is_not_a_run(tmp_path: Path, sessions: Path, folder_with_timeline: Path) -> None:
@@ -521,3 +520,16 @@ def test_pull_only_takes_that_session_and_never_prunes(tmp_path: Path, sessions:
     assert "mindepth" not in log.read_text("utf-8")
     log.unlink()
     assert "old-session: would delete" in run()  # without -Only the prune step still runs
+
+
+def test_a_failed_summary_tells_the_gm_once_even_on_another_day(
+    tmp_path: Path, sessions: Path, folder_with_timeline: Path
+) -> None:
+    bin_dir, calls = make_bin(tmp_path, run=78)
+    assert run_pass(sessions, bin_dir)[0] == 0
+    assert run_pass(sessions, bin_dir)[0] == 0
+    sent = tells(calls)
+    assert len(sent) == 1 and "gm-bot" in sent[0] and "summary" in sent[0]
+    assert "2026-10-01-test" in sent[0]
+    keys = json.loads((sessions / ".notes-tells.json").read_text(encoding="utf-8"))
+    assert list(keys) == ["summary-failed|2026-10-01-test"]

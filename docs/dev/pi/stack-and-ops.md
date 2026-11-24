@@ -18,6 +18,7 @@ the time of the newest `dietpi-backup` snapshot (`backup.snapshotAt`, from the m
 file), whether `foundry.service` itself is active (`foundry.serviceActive`), the clock (`clock.ntpSynced`
 and the last measured NTP `clock.offsetMs`, null when systemd-timesyncd does not run), and
 Foundry up or down with the Foundry and dnd5e versions from `localhost:30000/api/status`, and
+an `os` object (`upgradable`: packages with an update in apt's cached lists, no `apt update` is run; `rebootPending`: `/var/run/reboot-required` exists; `modulesMatchKernel`: `/lib/modules/<uname -r>` exists, false when the running kernel's folder is gone, for example after a version change or a removed kernel; a same-version rebuild is not detected, so reboot after any kernel upgrade; `upgradable` is null when apt fails; counts and flags only, no package names), and
 a `deployed` object (the ref from `.tool-ref`, the missing environment variables as `file:NAME`, whether
 libicu is present, the compose container state, its health and restart count, `containers` null
 while docker.service is stopped; names and states only; `stageFilesDiffer` and `differingStageFiles`: how many files a stage copied from the repo, listed in `deploy/pi/stage-files.txt`, differ from the same file in the deployed build, and their file names; null when the deployed build predates the list). No log lines, no world or user names, no host name but `foundry-pi`. The board stores it and shows it on
@@ -101,6 +102,12 @@ side, each only after a `dietpi-backup` snapshot and the user's OK; nothing here
   `deploy/pi/.env` in the deployed checkout (`/opt/foundry-ai-tool/app`: the foundry user's ids, the tailnet name and the player
   vaults folder from stage 21); builds the three images. Starts nothing. `DRY_RUN=1` prints the plan, `SKIP_BUILD=1` skips the
   build. On the systemd units, run it again after every stage 5 build (the checkout, and its `.env`, is replaced); on the cut-over stack stage 5 carries the `.env` over and builds the images itself.
+- **Going back one tool build:** run stage 5 again with `TOOL_REF=<the older tag>` (quiet table, snapshot and the user's OK
+  first, like any stage 5 run), then stage 33 (the Obsidian plugin follows the build). That is the supported way: it takes the
+  same stops, copies the module of that build and runs the same checks. `/opt/foundry-ai-tool/app.prev` (the checkout before
+  the last swap, kept until the next build) is only the fast way back if the older tag cannot be fetched: stop the three units
+  (systemd stack only), `mv app app.bad && mv app.prev app`, start them again, then run `deploy/pi/deployed-state.ps1`; on the
+  containers the images of the old build are gone, so use `TOOL_REF` there.
 - **Stage 24** (`scripts/pi/remote/24-compose.sh`, `MODE=status|up|down|rollback`): `up` and `down` start and stop the stack
   for a rehearsal (`up` is refused next to a running or enabled unit on the live ports or data folders; a rehearsal on other
   ports is its own compose project and never touches the live containers); `rollback` is the one command back (every container

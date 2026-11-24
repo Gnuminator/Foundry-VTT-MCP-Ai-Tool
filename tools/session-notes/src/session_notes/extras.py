@@ -15,9 +15,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from typing import Any
 
-from .model import Line, Roster, clock, is_gm
+from .fmt import NONE, stamp
+from .model import Line, Roster, is_gm
 from .prompts import PRONOUN_RULE, _IDS, _STR, _list, _obj, roster_block
 
 POINT = _obj(da=_STR, en=_STR, cites=_IDS)
@@ -28,6 +30,8 @@ CHARACTER = _obj(
     choices=_list(POINT),
     ties=_list(POINT),
     hooks=_list(POINT),
+    wishes=_list(POINT),
+    gm_only=_list(POINT),
 )
 CHARACTERS_SCHEMA = _obj(characters=_list(CHARACTER))
 
@@ -67,8 +71,15 @@ described by the schema.
   including ties agreed at the table.
 - hooks: open personal hooks the GM can use later: unresolved backstory, promised things,
   questions the character wants answered.
-- Keep out-of-character table talk out, except where it settles something about the character
-  (a background detail agreed, a tie agreed between two players).
+- wishes: what the player (not the character) said at the table about their own character, for
+  example that they want or do not want something to happen to it. Nothing the character did in
+  the story goes here; the `table` entries of the notes are the source.
+- gm_only: what only the GM should know about this character (a secret the GM said aloud to the
+  player, a hidden plan). Empty when none.
+- Keep the story lists (revealed, choices, ties, hooks) to what happened in the game; table talk
+  goes to wishes, except a background detail or a tie agreed between two players.
+- Never add an entry for the GM.
+- Write `name` as the plain character name (no player in brackets) and `player` as the player.
 """
     + GAME_TERMS
 )
@@ -98,7 +109,7 @@ def player_characters(roster: Roster) -> list[tuple[str, str]]:
 
 
 def _slim(scene: dict[str, Any]) -> dict[str, Any]:
-    keep = ("events", "decisions", "npcs", "loot", "threads", "dice", "gm_only")
+    keep = ("events", "decisions", "npcs", "threads", "gm_only", "table")
     out: dict[str, Any] = {
         "scene": scene["index"],
         "title": scene.get("title_en"),
@@ -153,8 +164,11 @@ def known_ids(lines: list[Line]) -> set[str]:
     return {ln.id for ln in lines}
 
 
+POINT_KEYS = ("revealed", "choices", "ties", "hooks", "wishes", "gm_only")
+
+
 def _points(entry: dict[str, Any]) -> list[dict[str, Any]]:
-    return [p for key in ("revealed", "choices", "ties", "hooks") for p in entry.get(key) or []]
+    return [p for key in POINT_KEYS for p in entry.get(key) or []]
 
 
 def check_characters(result: dict[str, Any], roster: Roster, known: set[str]) -> list[str]:
@@ -209,9 +223,9 @@ def merge_characters(parts: list[dict[str, Any]]) -> dict[str, Any]:
         for c in part.get("characters", []):
             key = str(c.get("name", "")).strip().lower()
             cur = merged.setdefault(
-                key, {**c, "revealed": [], "choices": [], "ties": [], "hooks": []}
+                key, {**c, **{k: [] for k in POINT_KEYS}}
             )
-            for field in ("revealed", "choices", "ties", "hooks"):
+            for field in POINT_KEYS:
                 cur[field] = cur[field] + list(c.get(field) or [])
     return {"characters": list(merged.values())}
 
@@ -256,12 +270,15 @@ HEAD = {
         "missing": "Ikke skrevet endnu (kør session-notes igen).",
         "gave_up": "Kunne ikke skrives efter flere forsøg. Slet notes/.work/extra-*.json og kør igen.",
         "none": "Intet noteret.",
-        "played_by": "spilles af",
+        "played_by": "spillet af",
+        "story": "I historien",
+        "wishes": "Spillerønsker",
+        "gm_only": "Kun for GM",
         "sections": {
-            "revealed": "Det har de afsløret om sig selv",
+            "revealed": "Afsløret",
             "choices": "Valg",
-            "ties": "Bånd til andre",
-            "hooks": "Åbne personlige hooks",
+            "ties": "Bånd",
+            "hooks": "Hooks",
         },
         "kinds": {
             "fact": "Fakta",
@@ -281,11 +298,14 @@ HEAD = {
         "gave_up": "Could not be written after several tries. Delete notes/.work/extra-*.json and run again.",
         "none": "Nothing noted.",
         "played_by": "played by",
+        "story": "In the story",
+        "wishes": "Player wishes",
+        "gm_only": "GM only",
         "sections": {
-            "revealed": "What they revealed about themselves",
+            "revealed": "Revealed",
             "choices": "Choices",
-            "ties": "Ties to others",
-            "hooks": "Open personal hooks",
+            "ties": "Ties",
+            "hooks": "Hooks",
         },
         "kinds": {
             "fact": "Facts",
@@ -299,15 +319,34 @@ HEAD = {
     },
 }
 
-
-def _cite(ids: list[str], lang: str, starts: dict[str, float]) -> str:
-    links = [f"[[transcript.{lang}#^{i}|{clock(starts[i])}]]" for i in ids if i in starts]
-    return f" ({', '.join(links)})" if links else ""
+_BRACKETS = re.compile(r"\s*\([^)]*\)\s*$")
 
 
 def _order(chars: list[dict[str, Any]], roster: Roster) -> list[dict[str, Any]]:
     rank = {c.strip().lower(): n for n, (c, _) in enumerate(player_characters(roster))}
     return sorted(chars, key=lambda c: rank.get(str(c.get("name", "")).strip().lower(), 999))
+
+
+def clean_character(c: dict[str, Any], roster: Roster) -> tuple[str, str] | None:
+    """(character, player) for one entry of the characters layer, or None for the GM.
+
+    The model sometimes writes "Name (Player)" in the name field (session 0: the header came out
+    doubled), so the player is taken from the roster when the name matches, and a trailing
+    bracket is cut off the name."""
+    name = _BRACKETS.sub("", str(c.get("name", "")).strip()) or str(c.get("name", "")).strip()
+    player = str(c.get("player", "")).strip()
+    for pc, pl in player_characters(roster):
+        if pc.strip().lower() == name.lower():
+            return pc, pl
+    if is_gm(name) or is_gm(roster.players.get(player, "")) or is_gm(player):
+        return None
+    return name, _BRACKETS.sub("", player) or player
+
+
+def _points_md(points: list[dict[str, Any]], lang: str, starts: dict[str, float]) -> list[str]:
+    if not points:
+        return [NONE[lang], ""]
+    return [f"- {p[lang]}{stamp(p.get('cites', []), lang, starts)}" for p in points] + [""]
 
 
 def render_characters(
@@ -325,15 +364,16 @@ def render_characters(
     starts = {ln.id: ln.start for ln in lines}
     out += [f"> {h['note']}", ""]
     for c in _order(result.get("characters", []), roster):
-        who = f" ({h['played_by']} {c['player']})" if c.get("player") else ""
-        out += [f"## {c['name']}{who}", ""]
+        who = clean_character(c, roster)
+        if who is None:
+            continue
+        name, player = who
+        out += [f"## {name}, {h['played_by']} {player}" if player else f"## {name}", ""]
+        out += [f"### {h['story']}", ""]
         for key, title in h["sections"].items():
-            pts = c.get(key) or []
-            if not pts:
-                continue
-            out += [f"### {title}", ""]
-            out += [f"- {p[lang]}{_cite(p.get('cites', []), lang, starts)}" for p in pts]
-            out.append("")
+            out += [f"#### {title}", ""] + _points_md(c.get(key) or [], lang, starts)
+        out += [f"### {h['wishes']}", ""] + _points_md(c.get("wishes") or [], lang, starts)
+        out += [f"### {h['gm_only']}", ""] + _points_md(c.get("gm_only") or [], lang, starts)
     return "\n".join(out)
 
 
@@ -354,6 +394,6 @@ def render_remember(lang: str, lines: list[Line], result: dict[str, Any] | None)
         if not group:
             continue
         out += [f"## {h['kinds'][kind]}", ""]
-        out += [f"- {i[lang]}{_cite(i.get('cites', []), lang, starts)}" for i in group]
+        out += [f"- {i[lang]}{stamp(i.get('cites', []), lang, starts)}" for i in group]
         out.append("")
     return "\n".join(out)

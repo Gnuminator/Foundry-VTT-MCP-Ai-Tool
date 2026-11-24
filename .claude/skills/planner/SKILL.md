@@ -34,7 +34,7 @@ lines together. The board's Lanes zone warns on two lanes on one path or a claim
 ## Starting lanes
 
 - Turn Remote Control on for this session (`set_remote_control` "self" true).
-- Lows: one sweep lane per area when `Lows/<area>.md` passes about 10 lines; drop lines older than a month.
+- Lows: one sweep lane per area `status --planner` lists (20 lines or a month-old line); drop lines older than a month.
 - Each lane owns its files and test server. Respect CLAUDE.md holds.
 - Brief: the Backlog item, state, open PRs, links, done-when, "load the `lane`
   skill, follow CLAUDE.md", claim and report "ready to merge" through `backlog.mjs`, message nobody, ask the user through `AskUserQuestion`, never through the planner. Pi work carries `pi-work`.

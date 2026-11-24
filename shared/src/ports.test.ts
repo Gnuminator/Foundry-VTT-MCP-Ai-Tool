@@ -25,6 +25,8 @@ function isGuarded(file: string): boolean {
     return false;
   }
   if (/(^|\/)(node_modules|dist|docs|\.claude)\//.test(file)) return false;
+  // The generated copy of .claude/ (scripts/build-lane-plugin.mjs), skipped like its source.
+  if (file.startsWith('plugin/foundry-lane-kit/')) return false;
   if (/\.(test|spec)\.[a-z]+$/.test(file) || /\.d\.ts$/.test(file)) return false;
   if (/(^|\/)(e2e|__tests__|fixtures)\//.test(file)) return false;
   if (file === 'shared/src/ports.ts') return false;

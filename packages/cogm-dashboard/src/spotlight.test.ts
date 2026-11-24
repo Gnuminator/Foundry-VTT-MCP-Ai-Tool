@@ -36,8 +36,21 @@ describe('SpotlightTally', () => {
     state.addEvents([ev('1', 'roll', 'Ebbe', 'pc')]);
     // The window kept only 2 events, the tally kept counting.
     expect(state.spotlight.snapshot().players).toEqual([
-      { name: 'Ebbe', actions: 2 },
-      { name: 'Mira', actions: 1 },
+      { name: 'Ebbe', actions: 2, actorId: 'Ebbe' },
+      { name: 'Mira', actions: 1, actorId: 'Mira' },
+    ]);
+  });
+
+  it('counts two characters with the same name apart by actor id', () => {
+    const state = new GameState();
+    state.addEvents([
+      { ...ev('1', 'roll', 'Ebbe', 'pc'), actorId: 'a1' },
+      { ...ev('2', 'roll', 'Ebbe', 'pc'), actorId: 'a2' },
+      { ...ev('3', 'roll', 'Ebbe', 'pc'), actorId: 'a2' },
+    ]);
+    expect(state.spotlight.snapshot().players).toEqual([
+      { name: 'Ebbe', actions: 2, actorId: 'a2' },
+      { name: 'Ebbe', actions: 1, actorId: 'a1' },
     ]);
   });
 
@@ -62,14 +75,16 @@ describe('SpotlightTally per play session', () => {
     expect(state.spotlight.setSessionStart(150)).toBe(true);
     expect(state.spotlight.snapshot()).toEqual({
       players: [
-        { name: 'Ebbe', actions: 1 },
-        { name: 'Mira', actions: 1 },
+        { name: 'Ebbe', actions: 1, actorId: 'Ebbe' },
+        { name: 'Mira', actions: 1, actorId: 'Mira' },
       ],
       session: true,
     });
     // A newer session: the earlier one's actions are gone from the card.
     state.spotlight.setSessionStart(250);
-    expect(state.spotlight.snapshot().players).toEqual([{ name: 'Mira', actions: 1 }]);
+    expect(state.spotlight.snapshot().players).toEqual([
+      { name: 'Mira', actions: 1, actorId: 'Mira' },
+    ]);
     expect(state.spotlight.setSessionStart(250)).toBe(false);
   });
 
@@ -84,8 +99,8 @@ describe('SpotlightTally per play session', () => {
     restarted.spotlight.setSessionStart(100);
     expect(restarted.spotlight.snapshot()).toEqual(before.spotlight.snapshot());
     expect(restarted.spotlight.snapshot().players).toEqual([
-      { name: 'Ebbe', actions: 1 },
-      { name: 'Mira', actions: 1 },
+      { name: 'Ebbe', actions: 1, actorId: 'Ebbe' },
+      { name: 'Mira', actions: 1, actorId: 'Mira' },
     ]);
   });
 

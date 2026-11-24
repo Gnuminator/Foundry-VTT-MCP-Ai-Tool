@@ -25,7 +25,7 @@ export const BOARD_REPO = 'Gnuminator/foundry-ai-tool-pm-board';
 
 export const UNCLAIMED_DAYS = 3;
 export const WAITING_LEAD_DAYS = 7;
-export const LEDGER_LIMIT = 10;
+export const LEDGER_LIMIT = 20;
 export const LEDGER_OLD_DAYS = 30;
 
 /** @param {string} iso */
@@ -221,7 +221,7 @@ export function ghJson(args) {
 }
 
 /**
- * Lows ledgers over `LEDGER_LIMIT` lines: count and how many lines are older than a month. A
+ * Lows ledgers that need a sweep: `LEDGER_LIMIT` lines or more, or any line older than a month. A
  * ledger line is a `- YYYY-MM-DD ...` bullet. Sweeping a ledger stays a planner call (CLAUDE.md, Review).
  * @param {string} lowsDir @param {string} today YYYY-MM-DD
  */
@@ -245,19 +245,19 @@ export function ledgerLines(lowsDir, today) {
     const lines = text
       .split(/\r?\n/)
       .filter(l => /^- \d{4}-\d{2}-\d{2}\b/.test(l) && realDate(l.slice(2, 12)));
-    if (lines.length <= LEDGER_LIMIT) continue;
     const old = lines.filter(l => {
       const d = dayNumber(l.slice(2, 12));
       return d !== null && now !== null && now - d > LEDGER_OLD_DAYS;
     }).length;
+    if (lines.length < LEDGER_LIMIT && old === 0) continue;
     over.push(`- ${f.slice(0, -3)}: ${lines.length} lines, ${old} older than a month`);
   }
   return over.length
     ? [
-        `Lows ledgers over ${LEDGER_LIMIT} lines (${over.length}); a sweep is a planner call:`,
+        `Lows ledgers to sweep (${LEDGER_LIMIT} lines or a month-old line) (${over.length}); a sweep is a planner call:`,
         ...over,
       ].join('\n')
-    : `Lows ledgers over ${LEDGER_LIMIT} lines: none`;
+    : `Lows ledgers to sweep (${LEDGER_LIMIT} lines or a month-old line): none`;
 }
 
 /**

@@ -4,26 +4,26 @@
     ".claude/hooks/guard-remote-commands.mjs": 1034,
     "packages/foundry-module/src/data-access/actor-builder.ts": 1418,
     "packages/foundry-module/src/data-access/guarded-write.ts": 1100,
-    "packages/foundry-module/src/data-access/player-rolls.ts": 1252,
-    "packages/foundry-module/src/export-index.ts": 1425,
+    "packages/foundry-module/src/data-access/player-rolls.ts": 1209,
+    "packages/foundry-module/src/export-index.ts": 1428,
     "packages/foundry-module/src/npc-turn.ts": 1158,
     "packages/foundry-module/src/play-recorder.ts": 2127,
     "packages/foundry-module/src/session-events.ts": 1301,
     "packages/mcp-server/src/change-history.ts": 1446,
-    "packages/mcp-server/src/guarded-write/service.ts": 1548,
+    "packages/mcp-server/src/guarded-write/service.ts": 1540,
     "packages/mcp-server/src/handouts/service.ts": 1296,
     "packages/mcp-server/src/obsidian/library-sync.ts": 1240,
-    "packages/mcp-server/src/obsidian/mirror-pump.ts": 2151,
-    "packages/mcp-server/src/obsidian/mirror-render.ts": 1510,
+    "packages/mcp-server/src/obsidian/mirror-pump.ts": 2170,
+    "packages/mcp-server/src/obsidian/mirror-render.ts": 1513,
     "packages/mcp-server/src/obsidian/render.ts": 1172,
     "packages/mcp-server/src/stats/build.ts": 1035,
     "packages/mcp-server/src/tools/character.ts": 1045,
     "packages/mcp-server/src/tools/compendium.ts": 1079,
-    "packages/mcp-server/src/tools/dnd5e/add-feature.ts": 1189,
+    "packages/mcp-server/src/tools/dnd5e/add-feature.ts": 1123,
     "packages/mcp-server/src/tools/quest-creation.ts": 1346,
     "scripts/backlog.mjs": 1006,
-    "scripts/green.mjs": 1209,
-    "scripts/live-write-sweep.mjs": 1850,
+    "scripts/green.mjs": 1199,
+    "scripts/live-write-sweep.mjs": 1855,
     "scripts/merge-runner.mjs": 1069,
     "scripts/test-kit/lib/dashboard-controls.mjs": 1305,
     "scripts/test-kit/lib/fake/origins.mjs": 1051,
@@ -122,7 +122,7 @@
       "file": ".claude/hooks/guard-remote-commands.mjs",
       "lines": 1034,
       "reason": "the stack_docker/stack_compose rule of PR 1230 (the guard must read the command and non-stage files apart from the reviewed stage scripts); the guard is one rule table",
-      "pr": ""
+      "pr": "1230"
     },
     {
       "file": "scripts/test-kit/lib/gm-actions.mjs",
@@ -158,6 +158,36 @@
       "file": "scripts/backlog.mjs",
       "lines": 1006,
       "reason": "the --board check against Board.md areas (set and add) added 6 lines to the one writer of the Backlog; splitting backlog.mjs is its own item",
+      "pr": ""
+    },
+    {
+      "file": "packages/mcp-server/src/obsidian/mirror-render.ts",
+      "lines": 1512,
+      "reason": "one line: the status note shows the full check's duration (helper lives in mirror-common.ts)",
+      "pr": ""
+    },
+    {
+      "file": "packages/mcp-server/src/obsidian/mirror-pump.ts",
+      "lines": 2170,
+      "reason": "cycle and reconcile timing for the log line and status (mirror-pi-rehearsal); the pump is split in a later item",
+      "pr": ""
+    },
+    {
+      "file": "packages/foundry-module/src/export-index.ts",
+      "lines": 1428,
+      "reason": "campaign journals are mirrored with text (D-151): a 3-line opt-in in textOptedIn, no natural split",
+      "pr": ""
+    },
+    {
+      "file": "packages/mcp-server/src/obsidian/mirror-render.ts",
+      "lines": 1513,
+      "reason": "one import line for the campaign page wikilinks (D-151); the logic lives in campaign-mirror.ts",
+      "pr": ""
+    },
+    {
+      "file": "scripts/live-write-sweep.mjs",
+      "lines": 1855,
+      "reason": "audio-locked skip of the music half (5 lines), the file is already over the limit",
       "pr": ""
     }
   ]

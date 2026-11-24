@@ -122,6 +122,12 @@ def canonicalize(notes: list[dict[str, Any]]) -> int:
     return renamed
 
 
+def name(npc: dict[str, Any], lang: str) -> str:
+    """The name to show in ``lang`` notes. Spelling variants are not shown: they belong on the
+    names check page (session notes format, rule 6)."""
+    return normalize(npc)[f"name_{lang}"]
+
+
 def label(npc: dict[str, Any], lang: str) -> str:
     """The name to show in ``lang`` notes, with the other spellings, for old and new notes."""
     n = normalize(npc)

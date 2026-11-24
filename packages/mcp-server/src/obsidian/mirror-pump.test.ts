@@ -387,6 +387,25 @@ describe('ObsidianMirrorPump: reconcile and deletes', () => {
     ]);
   });
 
+  it('times the reconcile and the cycle in the status, the status note and the log line', async () => {
+    converter.html.mockImplementation(html => {
+      clock.t += 1500; // each page conversion takes 1.5 s
+      return html;
+    });
+    const pump = await started();
+    const status = pump.status();
+    expect(status.lastReconcileMs).toBeGreaterThanOrEqual(3000);
+    expect(status.lastReconcileCycleMs).toBeGreaterThanOrEqual(status.lastReconcileMs ?? Infinity);
+    expect(await read(P.status)).toMatch(/Last full check: \d+(\.\d)? s to compare/);
+    expect(updatedLogs().at(-1)).toEqual([
+      'Obsidian mirror updated',
+      expect.objectContaining({
+        cycleMs: status.lastReconcileCycleMs,
+        reconcileMs: status.lastReconcileMs,
+      }),
+    ]);
+  });
+
   it('keeps a deleted document whose note the GM edited, and lists it', async () => {
     const pump = await started();
     const edited = `${await read(P.wolf)}\nMy own notes about the wolf.\n`;

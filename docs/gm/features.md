@@ -233,6 +233,9 @@ only after you confirm a plan, and it shows in Recent Changes with Undo.
 - **Paper sync** ("AI Tool: Paper sync (writes)"): writes the numbers from a paper sheet back into
   a character after a night played on paper. XP, level and class are never changed. Starts off.
   Turn it on after a paper night.
+- **Character diaries** ("AI Tool: Character diaries (writes)"): lets Claude add a private diary
+  journal for each player's character after a session, visible only to that player and you. One
+  undo removes every diary made in that plan. Starts off. Turn it on when you want diary drafts after a session.
 - **Character creation** ("AI Tool: Character creation (writes)"): lets Claude make a new player
   character and copy items from the packs onto it. Class features are added by hand, because level-up
   advancement does not run. Starts off. Turn it on when you build characters with Claude.

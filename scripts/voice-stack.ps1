@@ -21,7 +21,10 @@
   3101-3102, 31524-31525, 31534-31535; rehearsal 30100, 31614-31615, 3300; Control Center 3200). Never touches containers outside the
   fvtt-voice project. One GPU job at a time: transcribe takes the GPU lock (scripts/gpu-lock.ps1) and refuses, naming the holder, while another job holds it.
 
-  names options: -Dashboard <url> (default http://127.0.0.1:3100), -Offline (extra list only), -Items,
+  names options: -Dashboard <url> (default: the user variable FVTT_NAMES_DASHBOARD, the Pi dashboard, else
+  http://127.0.0.1:3100; the token is GM_DASHBOARD_TOKEN), -AnyWorld (take a test world; without it the dashboard must
+  serve the campaign world, curse-of-strahd or FVTT_CAMPAIGN_WORLD, or no names are written; a good read is saved to
+  <sessions folder>/campaign-names.txt and used when the dashboard is down), -Offline (extra list only), -Items,
   -Journals (also list world item and journal names; off by default), GM_DASHBOARD_TOKEN is sent as the
   dashboard token when set.
 
@@ -47,7 +50,8 @@ param(
   [switch]$NoRebuild,
   [switch]$NoHotwords,
   [switch]$NoAutoFix,
-  [string]$Dashboard = 'http://127.0.0.1:3100',
+  [string]$Dashboard = $(if ($env:FVTT_NAMES_DASHBOARD) { $env:FVTT_NAMES_DASHBOARD } else { 'http://127.0.0.1:3100' }),
+  [switch]$AnyWorld,
   [switch]$Offline,
   [switch]$Items,
   [switch]$Journals
@@ -236,6 +240,8 @@ switch ($Command) {
     foreach ($extra in @((Join-Path $folder 'extra-names.txt'), (Join-Path (Get-SessionsDir $envMap) 'extra-names.txt'))) {
       if (Test-Path -LiteralPath $extra) { $nArgs += @('--extra', $extra); break }
     }
+    $nArgs += @('--cache', (Join-Path (Get-SessionsDir $envMap) 'campaign-names.txt'))
+    if ($AnyWorld) { $nArgs += '--any-world' }
     if ($Offline) { $nArgs += '--offline' }
     if ($Items) { $nArgs += '--items' }
     if ($Journals) { $nArgs += '--journals' }

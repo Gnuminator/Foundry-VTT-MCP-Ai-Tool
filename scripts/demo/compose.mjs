@@ -13,6 +13,7 @@
 //   <cut>.mp4                    the 1440p60 cut: narration, ducked music, -16 LUFS, xfaded chapters
 //   <cut>.burned.mp4             the same with the captions burned in (second export)
 //   <cut>.srt, <cut>.vtt, <cut>.chapters.txt
+//   <cut>.builds.json            the repo commit and dashboard version each chapter was filmed on
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
@@ -26,6 +27,7 @@ import {
 } from 'node:fs';
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { readTakeBuild } from './lib/build-info.mjs';
 import { cuesFor, toAss, toSrt, toVtt } from './lib/captions.mjs';
 import {
   FPS,
@@ -78,6 +80,7 @@ export function resolveManifest(file) {
       bare: c.card === false,
       noClip: c.clip === false,
       narration: nar ? { wav: `${nar}.wav`, timing: `${nar}.timing.json` } : null,
+      build: readTakeBuild(dirname(t.steps)),
     };
   });
   const ids = new Set(chapters.map(c => c.id));
@@ -519,6 +522,16 @@ function makeStills(built, outDir, ff) {
   console.log(`Stills: ${dir}`);
 }
 
+/** `<cut>.builds.json`: the build each chapter of the cut was filmed on (null: take.json had none). */
+export const buildsJson = chapters =>
+  `${JSON.stringify(
+    {
+      chapters: chapters.map(c => ({ id: c.id, title: c.title, build: c.build ?? null })),
+    },
+    null,
+    2
+  )}\n`;
+
 function composeCut({ cut, parts, man, outDir, work, W, H, draft, fin, ff }) {
   const tl = timeline(
     parts.map(b => ({
@@ -597,6 +610,7 @@ function composeCut({ cut, parts, man, outDir, work, W, H, draft, fin, ff }) {
   writeFileSync(join(outDir, `${cut.name}.srt`), toSrt(cues));
   writeFileSync(join(outDir, `${cut.name}.vtt`), toVtt(cues));
   writeFileSync(join(outDir, `${cut.name}.chapters.txt`), youtubeChapters(marks));
+  writeFileSync(join(outDir, `${cut.name}.builds.json`), buildsJson(parts.map(b => b.ch)));
   if (!cues.length) return;
   const fontsOk = hasFonts(man);
   writeFileSync(

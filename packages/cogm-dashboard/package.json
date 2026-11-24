@@ -16,6 +16,7 @@
     "test:e2e": "playwright test -c web",
     "test:visual": "node scripts/visual-docker.mjs",
     "test:visual:ci": "playwright test -c web/playwright.visual.config.ts",
+    "docs:pictures": "playwright test -c web/playwright.guides.config.ts",
     "bundle:budget": "node scripts/bundle-budget.mjs",
     "storybook": "storybook dev -c web/.storybook -p 6006",
     "build-storybook": "storybook build -c web/.storybook -o storybook-static",

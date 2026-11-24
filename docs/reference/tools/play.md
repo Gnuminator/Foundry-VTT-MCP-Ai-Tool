@@ -175,6 +175,19 @@ Parameters:
   - `uuid` (string)
   - `quantity` (integer, required): Range: at least 0.
 
+## plan-character-diaries
+
+After a marked session: plan one diary draft (about 150 words, first person) per player character as a private journal, visible only to that character's player and the GM. Use only facts the recap or handouts revealed. Apply with apply-planned-change, undo with undo-change. Needs the "AI Tool: Character diaries (writes)" switch.
+
+Kind: read-only. Title: Plan character diaries.
+
+Parameters:
+
+- `diaries` (array of object, required): Items: 1 to 8.
+  - `actor` (string, required): The player character: name or id.
+  - `text` (string, required): The diary entry.
+- `session` (string): Label, e.g. "Session 1".
+
 ## plan-handout-press
 
 Render text as a handout picture (letter, notice or card) and plan a hidden page for it in Handouts; queue and reveal it with plan-page-reveal. Refuses secret terms. Limits: body letter 1200, notice 700, card 400 characters; title letter 120, notice 60, card 30.

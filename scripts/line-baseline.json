@@ -4,8 +4,8 @@
     ".claude/hooks/guard-remote-commands.mjs": 1034,
     "packages/foundry-module/src/data-access/actor-builder.ts": 1418,
     "packages/foundry-module/src/data-access/guarded-write.ts": 1100,
-    "packages/foundry-module/src/data-access/player-rolls.ts": 1252,
-    "packages/foundry-module/src/export-index.ts": 1425,
+    "packages/foundry-module/src/data-access/player-rolls.ts": 1209,
+    "packages/foundry-module/src/export-index.ts": 1428,
     "packages/foundry-module/src/npc-turn.ts": 1158,
     "packages/foundry-module/src/play-recorder.ts": 2127,
     "packages/foundry-module/src/session-events.ts": 1301,
@@ -14,7 +14,7 @@
     "packages/mcp-server/src/handouts/service.ts": 1296,
     "packages/mcp-server/src/obsidian/library-sync.ts": 1240,
     "packages/mcp-server/src/obsidian/mirror-pump.ts": 2170,
-    "packages/mcp-server/src/obsidian/mirror-render.ts": 1512,
+    "packages/mcp-server/src/obsidian/mirror-render.ts": 1513,
     "packages/mcp-server/src/obsidian/render.ts": 1172,
     "packages/mcp-server/src/stats/build.ts": 1035,
     "packages/mcp-server/src/tools/character.ts": 1045,
@@ -170,6 +170,18 @@
       "file": "packages/mcp-server/src/obsidian/mirror-pump.ts",
       "lines": 2170,
       "reason": "cycle and reconcile timing for the log line and status (mirror-pi-rehearsal); the pump is split in a later item",
+      "pr": ""
+    },
+    {
+      "file": "packages/foundry-module/src/export-index.ts",
+      "lines": 1428,
+      "reason": "campaign journals are mirrored with text (D-151): a 3-line opt-in in textOptedIn, no natural split",
+      "pr": ""
+    },
+    {
+      "file": "packages/mcp-server/src/obsidian/mirror-render.ts",
+      "lines": 1513,
+      "reason": "one import line for the campaign page wikilinks (D-151); the logic lives in campaign-mirror.ts",
       "pr": ""
     },
     {

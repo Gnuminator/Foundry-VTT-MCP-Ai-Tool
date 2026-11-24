@@ -173,6 +173,33 @@ def test_review_answers_apply_and_a_too_long_note_cannot_be_approved(tmp_path: P
         outbox.approve(session, ["pc-ebbe-en"])
 
 
+def test_ai_todos_come_from_the_runner_and_are_cached(tmp_path: Path) -> None:
+    session = make_session(tmp_path)
+    calls: list[str] = []
+
+    def runner(prompt: str, schema: dict, model: str, effort: str = "low") -> dict:
+        calls.append(prompt)
+        return {"da": ["Bekræft datoen med Danni."], "en": ["Confirm the date with Danni."]}
+
+    data = outbox.build(session, runner=runner)
+    assert "Confirm the date with Danni." in outbox.find(data, "pc-ebbe-en")["text"]
+    assert "Foundry will not be used" not in outbox.find(data, "pc-ebbe-en")["text"]
+    n = len(calls)
+    outbox.build(session, runner=runner)
+    assert len(calls) == n  # cached by input
+
+
+def test_obsidian_page_has_tags_and_links(tmp_path: Path) -> None:
+    session = make_session(tmp_path)
+    (session / "notes" / "notes.json").write_text(
+        json.dumps({"names": ["Ebbe", "Vesperhold", "Christian"], "roster": {"Ebbe (Christian)": {}}}), encoding="utf-8"
+    )
+    data = outbox.build(session)
+    page = outbox.find(data, "pc-ebbe-en")["obsidian"]
+    assert "pc/ebbe" in page and "player/christian" in page and "session/2026-11-22" in page
+    assert "[[table.en|" in page and "[[Ebbe]]" in page and "[[Christian]]" not in page
+
+
 def test_obsidian_pages_are_written_once_for_approved_notes(tmp_path: Path) -> None:
     session = make_session(tmp_path)
     outbox.build(session)

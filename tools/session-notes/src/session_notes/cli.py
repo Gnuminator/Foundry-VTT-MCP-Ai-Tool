@@ -101,7 +101,7 @@ def run_outbox(args: argparse.Namespace) -> int:
     session = resolve_session(args.session)
     try:
         if args.outbox_cmd == "build":
-            data = outbox.build(session)
+            data = outbox.build(session, runner=ClaudeCli() if args.ai else None, model=args.model)
             print(f"{len(data['items'])} note(s) in {outbox.outbox_path(session)}")
         elif args.outbox_cmd == "preview":
             print(outbox.preview(session))
@@ -223,6 +223,10 @@ def main(argv: list[str] | None = None) -> int:
         ("preview", "dry run: per recipient exactly what would go out"),
     ):
         out_sub.add_parser(name, help=helptext).add_argument("session")
+    out_sub.choices["build"].add_argument(
+        "--ai", action="store_true", help="write each player's to-dos with Claude from the Table page (subscription)"
+    )
+    out_sub.choices["build"].add_argument("--model", default="sonnet")
     out_ok = out_sub.add_parser("approve", help="approve notes by id (the approver's OK, per note)")
     out_ok.add_argument("session")
     out_ok.add_argument("ids", nargs="+")

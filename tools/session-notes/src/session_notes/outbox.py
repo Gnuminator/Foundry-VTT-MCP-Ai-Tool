@@ -318,20 +318,38 @@ def obsidian_md(item: dict[str, Any]) -> str:
     """The note as a vault page: front matter, headings, a link back to the session start page."""
     to = item["to"]
     who = to.get("player") or "group"
+    lang = item["lang"]
+    slug = lambda t: re.sub(r"[^a-z0-9]+", "-", str(t).lower()).strip("-")  # noqa: E731
+    tags = ["session-notes", f"session-notes/{item['kind']}", f"session/{item['session'][:10]}", f"lang/{lang}"]
+    if to.get("character"):
+        tags += [f"pc/{slug(to['character'])}", f"player/{slug(to['player'])}"]
+    related = [f"[[index.{lang}|Session start page]]"]
+    if item["kind"] != "table":
+        related.append(f"[[table.{lang}|Table: house rules and plans]]")
+    if item["kind"] != "recap":
+        related.append(f"[[recap.player.{lang}|Recap for the players]]")
     front = [
         "---",
         f"type: session-note-{item['kind']}",
         f"session: {item['session']}",
-        f"lang: {item['lang']}",
+        f"lang: {lang}",
         f"for: {who}",
-        *( [f"character: {to['character']}"] if to.get("character") else [] ),
-        f"tags: [session-notes/{item['kind']}]",
+        *([f"character: {to['character']}"] if to.get("character") else []),
+        "tags: [" + ", ".join(tags) + "]",
+        "related: [" + ", ".join(f'"{r}"' for r in related) + "]",
         "---",
     ]
-    other = "en" if item["lang"] == "da" else "da"
-    back = f"[[index.{item['lang']}|Session start page]]"
-    body = plain_keep_headings(item["text"])
-    return "\n".join(front) + "\n\n" + body + f"\n\n{back} · [[index.{other}|{other}]]\n"
+    other = "en" if lang == "da" else "da"
+    body = link_names(plain_keep_headings(item["text"]), item.get("linkNames", []))
+    foot = "**" + ("Se også" if lang == "da" else "See also") + "**: " + " · ".join(related)
+    return "\n".join(front) + "\n\n" + body + f"\n\n{foot} · [[index.{other}|{other}]]\n"
+
+
+def link_names(text: str, names: list[str]) -> str:
+    """Wiki-link the first mention of each name (NPCs, places) so the vault can follow it."""
+    for name in sorted(set(names), key=len, reverse=True):
+        text = re.sub(rf"(?<![\[\w|]){re.escape(name)}(?![\w\]|])", f"[[{name}]]", text, count=1)
+    return text
 
 
 def refresh(item: dict[str, Any]) -> None:
@@ -350,12 +368,76 @@ def refresh(item: dict[str, Any]) -> None:
         item["warnings"].append("A Discord message is over 2000 characters.")
 
 
-def build(session: Path) -> dict[str, Any]:
+TODO_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["da", "en"],
+    "properties": {
+        "da": {"type": "array", "items": {"type": "string"}},
+        "en": {"type": "array", "items": {"type": "string"}},
+    },
+}
+
+TODO_PROMPT = """\
+Below is the Table page of a Dungeons & Dragons session 0 (house rules, plans, open questions).
+Write the to-dos for ONE player: {player}, who plays {character}.
+
+A to-do is something this player must do, decide, bring or confirm before the next session. Each
+is one self-contained sentence that says WHAT, with the concrete detail (date, time, place, who
+it is with, what exactly to confirm), so it makes sense without the Table page. Examples of the
+right level: "Confirm with Danni whether the first live session is on 19 December at 12 at
+Christian's place." "Send David the brief for the journeyman's test."
+Leave out: observations of what someone said or noted, technical talk about screens and sound,
+things that are the GM's or another player's job, and anything that is only table chatter. Use at
+most 5. An empty list is fine. Use only what the page says; never invent.
+Write the same to-dos in Danish (`da`) and English (`en`). Game terms stay English in the Danish
+text. Never use em dashes.
+
+TABLE PAGE:
+{table}
+"""
+
+
+def ai_todos(
+    session: Path, runner: Any, model: str, table_en: str, player: str, character: str
+) -> dict[str, list[str]]:
+    """To-dos for one player written by Claude from the Table page; cached by input so a rebuild
+    does not call again."""
+    import hashlib
+
+    prompt = TODO_PROMPT.format(player=player, character=character, table=table_en)
+    key = hashlib.sha256(f"{model}\n{prompt}".encode()).hexdigest()[:16]
+    cache_path = session / "notes" / OUTBOX_DIR / "todos.json"
+    cache = json.loads(cache_path.read_text(encoding="utf-8")) if cache_path.exists() else {}
+    if key not in cache:
+        got = runner(prompt, TODO_SCHEMA, model, "medium")
+        cache[key] = {
+            "da": [str(x).strip() for x in got.get("da", []) if str(x).strip()],
+            "en": [str(x).strip() for x in got.get("en", []) if str(x).strip()],
+        }
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        cache_path.write_text(json.dumps(cache, ensure_ascii=False, indent=2), encoding="utf-8")
+    return cache[key]
+
+
+def build(session: Path, runner: Any = None, model: str = "sonnet") -> dict[str, Any]:
     """Make ``outbox.json``. Items already approved or sent keep their status and text when the
-    source is unchanged; an item whose text changed in the notes goes back to draft."""
+    source is unchanged; an item whose text changed in the notes goes back to draft. With a
+    ``runner`` (Claude) the to-dos are written from the Table page; without one they are the
+    Table lines that start with the player and say something to do."""
     notes = session / "notes"
     ids = _discord_ids(session)
     items: list[dict[str, Any]] = []
+    try:
+        meta = json.loads((notes / "notes.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        meta = {}
+    names = meta.get("names", [])
+    people = {"danni", "bassi"}  # the players and the GM are people, not pages to link
+    for key in meta.get("roster", {}):
+        people.update(p.strip().lower() for p in re.findall(r"\(([^)]+)\)", str(key)))
+    link_list = [n for n in names if isinstance(n, str) and n.lower() not in people]
+    table_en = _read(notes / "table.en.md")
     for lang in LANGS:
         chars = parse_characters(_read(notes / f"characters.{lang}.md"), lang)
         table = _read(notes / f"table.{lang}.md")
@@ -368,7 +450,10 @@ def build(session: Path) -> dict[str, Any]:
                 "character": ch.name,
                 "discordId": ids.get(first.lower()),
             }
-            todos = todos_for(table, lang, [first, ch.name])
+            if runner is not None and table_en:
+                todos = ai_todos(session, runner, model, table_en, first, ch.name)[lang]
+            else:
+                todos = todos_for(table, lang, [first, ch.name])
             slug = re.sub(r"[^a-z0-9]+", "-", ch.name.lower()).strip("-")
             items.append(
                 _item(session.name, "pc-note", lang, f"pc-{slug}", f"{LABELS[lang]['title']}: {ch.name}",
@@ -382,6 +467,9 @@ def build(session: Path) -> dict[str, Any]:
         if table:
             items.append(_item(session.name, "table", lang, "table", table.splitlines()[0].lstrip("# ").strip(),
                                table, {"type": "group"}, ["discord-group", "foundry-page", "obsidian"]))
+    for item in items:
+        item["linkNames"] = link_list
+        refresh(item)
     old = load(session)
     if old:
         prev = {i["id"]: i for i in old.get("items", [])}

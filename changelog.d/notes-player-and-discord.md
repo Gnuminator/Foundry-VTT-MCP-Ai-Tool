@@ -1,0 +1,4 @@
+### Session notes
+
+- **Notes to the players:** `session-notes outbox` builds a "Your character" note per player character and per language (that character's story without GM-only content, plus the player's own to-dos from the Table page), and the player recap and Table page, each in a Discord form (no links or timestamps, split under 2000 characters), a Foundry journal form and an Obsidian page form. Every note stays a draft until it is approved one by one; `outbox preview` is a dry run that shows what would go to each recipient.
+- **Discord sender:** `packages/discord-bot/announce/send-notes.mjs` sends approved notes only, as a DM from the bot to each player and as one post per recap and Table page to the session notes channel (`DISCORD_SESSION_NOTES_CHANNEL_ID`). A part that went out and was saved is not sent again (a part whose answer was lost may repeat); `--dry-run` sends nothing.

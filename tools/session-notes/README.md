@@ -57,6 +57,24 @@ and 3 only finish the characters note. Then publish (seconds), reveal the Recap 
 (After, Handouts, Reveal next, confirm), and the next `session.ps1` run writes `notes\approved.json`.
 Transcription was not rerun (the timeline already existed).
 
+## Notes to the players: the outbox
+
+`python -m session_notes outbox build <session>` makes `notes/outbox/outbox.json` from the finished
+notes (no Claude call): per player character and language a "Your character" note (the character's
+_In the story_ part and the player's own to-dos from the Table page; never _GM only_ or _Player
+wishes_), plus the player recap and the Table page. Each note has a Discord form (no links or
+timestamps, split under 2000 characters), a Foundry form (HTML) and an Obsidian form (a page with
+front matter). Every note is a `draft` until approved by id (`outbox approve`, or `outbox
+apply-review` for the answers of the review page); an edit sends it back to draft.
+
+- `outbox preview <session>`: dry run, per recipient exactly what would go out.
+- `node packages/discord-bot/announce/send-notes.mjs <outbox.json> [--dry-run] [--only id,id]`:
+  DMs from the bot and group posts (`DISCORD_SESSION_NOTES_CHANNEL_ID`), approved notes only, each
+  part once.
+- `outbox obsidian <session> <folder>` writes approved vault pages; `outbox foundry <session>
+<lang>` prints the approved notes for `plan-character-diaries` (player-owned pages) and the
+  journal reveal. `outbox mark-sent` records a Foundry delivery.
+
 ## Automatic runs (not registered until G2)
 
 `auto.ps1` does one pass over the sessions folder: it transcribes finished Discord recordings
@@ -217,7 +235,7 @@ applies the ownership table of the design, so the rules do not depend on the mod
 | Spelling of a name             | A page for a name that is not on the confirmed list (`names.txt`, the answers on the check page, the roster's characters) is **held**: it goes to the check page as a name with its transcript links, and the next `campaign` run adds it once someone answers. |
 | Stats, items, level, ownership | Never written. With `foundry-facts.json` (`{"Ilvara": {"level": "4"}}`, `--foundry-facts`) a claim from the talk is compared; a difference goes to the check page and the page keeps Foundry's version. Without it the claim stays a hint in the plan.          |
 | What happened                  | Timeline lines link to the transcript line (`transcript.en#^u000556`) or carry a chat time. A line citing nothing real is dropped.                                                                                                                              |
-| Rulings and house rules        | Every `Table` line is written as _Proposed (Danni confirms)_.                                                                                                                                                                                                   |
+| Rulings and house rules        | Every `Table` line is written as "Proposed (Danni confirms)".                                                                                                                                                                                                   |
 | Plans and secrets              | Not an input; never a timeline line.                                                                                                                                                                                                                            |
 
 Output: `notes/campaign-merge.json` (`entries` go straight into `plan-campaign-merge`; `held`, `checks`,

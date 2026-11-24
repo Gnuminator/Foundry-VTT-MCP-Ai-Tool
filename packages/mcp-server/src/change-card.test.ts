@@ -31,9 +31,8 @@ describe('change card', () => {
   });
 
   it('lists and reads the card over MCP', async () => {
-    const { Server } = await import('@modelcontextprotocol/sdk/server/index.js');
-    const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
-    const { InMemoryTransport } = await import('@modelcontextprotocol/sdk/inMemory.js');
+    const { Server, InMemoryTransport } = await import('@modelcontextprotocol/server');
+    const { Client } = await import('@modelcontextprotocol/client');
     const { RESOURCES_CAPABILITY, registerChangeCardHandlers } = await import('./change-card.js');
     const server = new Server({ name: 't', version: '1' }, { capabilities: RESOURCES_CAPABILITY });
     registerChangeCardHandlers(server);

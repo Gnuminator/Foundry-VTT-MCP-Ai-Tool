@@ -73,7 +73,7 @@ function run(opts = {}) {
     .map(([u, s]) =>
       s === null
         ? `${u}) echo LoadState=not-found;;`
-        : `${u}) printf 'LoadState=loaded\\nActiveState=${s.active}\\nSubState=${s.sub}\\nNRestarts=${s.restarts}\\n';;`
+        : `${u}) printf 'LoadState=loaded\\nActiveState=${s.active}\\nSubState=${s.sub}\\nNRestarts=${s.restarts}\\nActiveEnterTimestamp=${s.since ?? 'Tue 2026-11-24 12:00:00 CET'}\\n';;`
     )
     .join('\n');
   const dockerActive = opts.dockerActive === false ? 1 : 0;
@@ -178,6 +178,23 @@ describe('deployed-state.sh', { skip: noBash }, () => {
     const once = run({ units: { 'foundry.service': { active: 'active', sub: 'running', restarts: 1 } } });
     assert.equal(once.code, 0);
     assert.match(once.out, /WARNING: foundry\.service is active but restarted 1 time/);
+  });
+
+  test('the Assistant GM restarting nightly after the backup is ok, other restarts and a failed unit are not', () => {
+    const gm = 'foundry-ai-tool-gm-browser.service';
+    const night = run({ units: { [gm]: { active: 'active', sub: 'running', restarts: 7, since: 'Tue 2026-11-24 04:31:16 CET' } } });
+    assert.equal(night.code, 0);
+    assert.match(night.out, /ok: foundry-ai-tool-gm-browser\.service is active, 7 restart/);
+    assert.doesNotMatch(night.out, /WARNING: foundry-ai-tool-gm-browser/);
+    // A restart at another time of day keeps the old rule: warn from one, fail from five.
+    const day = run({ units: { [gm]: { active: 'active', sub: 'running', restarts: 2, since: 'Tue 2026-11-24 14:10:00 CET' } } });
+    assert.match(day.out, /WARNING: foundry-ai-tool-gm-browser\.service is active but restarted 2 time/);
+    const dayLoop = run({ units: { [gm]: { active: 'active', sub: 'running', restarts: 5, since: 'Tue 2026-11-24 14:10:00 CET' } } });
+    assert.equal(dayLoop.code, 1);
+    // The crash guard's start limit leaves the unit failed: a crash loop even for the optional Assistant GM.
+    const failed = run({ units: { [gm]: { active: 'failed', sub: 'failed', restarts: 9, since: 'Tue 2026-11-24 04:31:16 CET' } } });
+    assert.equal(failed.code, 1);
+    assert.match(failed.out, /FAIL: foundry-ai-tool-gm-browser\.service is in a crash loop/);
   });
 
   test('a stopped required unit fails, a stopped Assistant GM only warns', () => {

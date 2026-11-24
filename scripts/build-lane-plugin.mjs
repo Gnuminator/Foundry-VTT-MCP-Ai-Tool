@@ -113,7 +113,7 @@ const same = (a, b) => Buffer.compare(Buffer.from(a), Buffer.from(b)) === 0;
 
 /** plugin.json with the tool-version prefix of its version removed: only the kit hash decides drift. */
 const withoutToolVersion = (text) => String(text).replace(/("version": ")[^"+]*(\+)/, '$1$2');
-const norm = (rel, c) => (rel.endsWith('plugin.json') ? withoutToolVersion(c) : c);
+const norm = (rel, c) => (rel === '.claude-plugin/plugin.json' ? withoutToolVersion(c) : c);
 
 /** Differences between the plan and what is on disk (missing, changed, stale). */
 export function drift(repo = REPO) {

@@ -37,9 +37,10 @@ $ErrorActionPreference = 'Stop'
 if ($Session -notmatch '^[A-Za-z0-9][A-Za-z0-9_.-]*$') { Write-Host "Not a session folder name: $Session"; exit 2 }
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 # The ports live in shared/ports.json (generated from shared/src/ports.ts).
+if ($Real -and $PSBoundParameters.ContainsKey('Server')) { Write-Host '-Server only picks a test server; it cannot be combined with -Real.'; exit 2 }
 $portTable = (Get-Content (Join-Path (Split-Path -Parent (Split-Path -Parent $here)) 'shared/ports.json') -Raw | ConvertFrom-Json).ports
 $port = if ($Real) { $portTable.live.control } else { $portTable."test$Server".control }
-Write-Host "Session $Session; publish goes to the $(if ($Real) { 'REAL' } else { 'test' }) bridge on port $port."
+Write-Host "Session $Session; publish goes to the $(if ($Real) { 'REAL' } else { "test server $Server" }) bridge on port $port."
 
 $autoArgs = @('-Session', $Session, '-Port', $port)
 if ($DryRun) { $autoArgs += '-DryRun' }

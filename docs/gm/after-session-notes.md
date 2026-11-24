@@ -90,8 +90,9 @@ queue.
 1. In Foundry, in the toolbar group **AI Tool** (map controls), click **Handouts**. (The dashboard's
    handout drawer shows the same queue.) The recap page is in the **Queue**, oldest first, so reveal
    or **Remove** the older entries before it.
-2. Click **Reveal next**. A window shows exactly what will change. Read it and confirm. This needs
-   the switch **AI Tool: Handouts (writes)** to be on; the window says so if it is not.
+2. Click **Reveal next**. It takes the oldest entry meant for the scene you have open (or for no
+   particular scene), so entries for other scenes wait. A window shows exactly what will change.
+   Read it and confirm. This needs the switch **AI Tool: Handouts (writes)** to be on; the window says so if it is not.
 3. Tick **Show it now** next to **Reveal next** if you want the recap to pop up on the players'
    screens right away. Leave it unticked and they find it themselves.
 

@@ -64,6 +64,16 @@
         ]
       },
       {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/suggest-note-reader.mjs\"",
+            "timeout": 5
+          }
+        ]
+      },
+      {
         "matcher": "Agent|Task|mcp__ccd_session__start_session",
         "hooks": [
           {

@@ -46,7 +46,16 @@ that one session: pull from the Pi (`FVTT_PI_HOST`), consent check, names, trans
 the GPU lock), `run --layers`, publish. It publishes to the test bridge (31514); `-Real` publishes
 to the real one and is only for when the user says so. `-DryRun` shows the plan. If it stops
 (usage limit, bridge down), run the same command again. It is `auto.ps1 -Session <name> -Port <n>`
-underneath, so everything in the next section applies to it.
+underneath, so everything in the next section applies to it. `-Server B` (or `C`) publishes to
+that test server's bridge instead of A's: take its lock first and join Foundry there as `Claude` in
+a browser tab (without a joined GM the publish says "Foundry is not connected" and waits).
+
+Rehearsal 2026-11-24 (2026-11-08 recording, 971 lines, 13 scenes, test server B): notes with
+`--layers` took about 10 minutes in three passes of the same command (8.5 min, 1.5 min, 0.6 min;
+Sonnet, medium effort, 3 workers), 530,000 tokens in and 224,000 out over 33 Claude calls. Passes 2
+and 3 only finish the characters note. Then publish (seconds), reveal the Recap in the dashboard
+(After, Handouts, Reveal next, confirm), and the next `session.ps1` run writes `notes\approved.json`.
+Transcription was not rerun (the timeline already existed).
 
 ## Notes to the players: the outbox
 

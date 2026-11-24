@@ -171,6 +171,16 @@ def _points(entry: dict[str, Any]) -> list[dict[str, Any]]:
     return [p for key in POINT_KEYS for p in entry.get(key) or []]
 
 
+def _aliases(entry: str) -> set[str]:
+    """Names a roster entry answers to: "Barnon (David)" is also "barnon" and "david"."""
+    full = entry.strip().lower()
+    out = {full}
+    if "(" in full and full.endswith(")"):
+        head, _, tail = full.partition("(")
+        out |= {head.strip(), tail[:-1].strip()}
+    return {a for a in out if a}
+
+
 def check_characters(result: dict[str, Any], roster: Roster, known: set[str]) -> list[str]:
     """Hard problems that send the call back to Claude."""
     chars = result.get("characters")
@@ -181,7 +191,7 @@ def check_characters(result: dict[str, Any], roster: Roster, known: set[str]) ->
         return ["no characters although the roster has player characters"]
     problems = []
     names = {str(c.get("name", "")).strip().lower() for c in chars}
-    missing = [w for w in wanted if w.strip().lower() not in names]
+    missing = [w for w in wanted if not names & _aliases(w)]
     if missing and len(missing) == len(wanted):
         problems.append(f"none of the roster characters appear ({', '.join(missing)})")
     points = [p for c in chars for p in _points(c)]

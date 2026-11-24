@@ -2,6 +2,75 @@
 
 ## Unreleased
 
+## v0.33.0 (released 2026-11-24): player notes by post, a quieter dashboard and the new MCP protocol era
+
+**Wire contracts:** additive only. The stdio MCP server now also answers 2026-07-28 clients (`server/discover`, per-request `_meta`, `ttlMs` and `cacheScope` on `tools/list` and `prompts/list`) next to 2025-11-25 clients. The bridge queries are now typed in the shared contract with no wire name or field changes. No tool added or removed; module id, socket channel and settings namespace are unchanged.
+
+### Module
+
+- **Character, effect, event and item queries of the Play set are typed:** token details, the
+  condition list, item use, character resources, active effects, recent events and spent actions
+  now have a request and reply type in the shared bridge contract, the module registers them
+  through the typed `on`, and the server's saving throw, NPC activity and rest tools send their
+  queries through the typed client. No wire name or field changes.
+- **Combat, chat, rolls, scene and music queries are typed:** the 25 bridge queries behind the
+  combat tracker, saves, rests, NPC activities, chat, roll requests, scenes, token positions,
+  targets, music, party, renown and the live, combat and scene plans now have a request and reply
+  type in the shared bridge contract, and the module registers them through the typed `on`. No
+  wire name or field changes.
+
+### Dashboard
+
+- **Fewer background reads:** the dashboard read Foundry about 85,000 times a day. Module errors are now read every 15 s (was 6 s) and handouts every 15 s (was 5 s; a reveal made in the dashboard still reads at once). While Foundry is unreachable only one read keeps probing, and the rest resume the moment it answers. The 4,100 weekly read errors were Foundry being offline (the nightly 04:30 backup restart and deploys), not a bug (`dashboard-poll-errors`).
+
+### Orange Pi
+
+- **The Assistant GM's nightly restart no longer warns (systemd):** the 04:30 backup stops Foundry, the Assistant GM leaves
+  the game and systemd starts it again 15 seconds later, so its restart count grows by one a night. `deployed-state` now
+  reads that as routine when the unit's last start fell between 04:30 and 08:00; a restart at any other time still warns, and
+  five still fail. A unit the crash guard has stopped (failed state) now fails for every unit, the Assistant GM included.
+  The Docker side keeps the old rule until the cutover sitting (`gm-browser-restarts`).
+- **The rebuild drill runs more of a real rebuild:** after stage 8 it now also runs stages 10, 16, 20, 21, 27,
+  29, 30, 31, 32, 33 and 35 in the container, its service starter applies the drop-ins those stages write, and
+  the doc lists the stages it cannot run and why. Rerun on v0.32.0 with the 2026-11-24 backup (3.9 GiB): all
+  checks passed in 747 s.
+
+### MCP server
+
+- **MCP SDK v2 spike:** the stdio server runs on `@modelcontextprotocol/server` 2.4.0 through `serveStdio`, which serves 2025-11-25 clients (`initialize`) and 2026-07-28 clients (`server/discover`, per-request `_meta`) from one factory. `tools/list` and `prompts/list` carry `ttlMs` and `cacheScope` for the new era only. The v1 SDK stays as a dev dependency for the old-client test; the single-file bundle still builds (probed by hand, not in CI). The wrapper now exits when stdin closes or the transport closes on its own, and logs `serveStdio` errors.
+
+### Session notes
+
+- **Notes to the players:** `session-notes outbox` builds a "Your character" note per player character and per language (that character's story without GM-only content, plus the player's own to-dos from the Table page), and the player recap and Table page, each in a Discord form (no links or timestamps, split under 2000 characters), a Foundry journal form and an Obsidian page form. Every note stays a draft until it is approved one by one; `outbox preview` is a dry run that shows what would go to each recipient.
+- **Discord sender:** `packages/discord-bot/announce/send-notes.mjs` sends approved notes only, as a DM from the bot to each player and as one post per recap and Table page to the session notes channel (`DISCORD_SESSION_NOTES_CHANNEL_ID`). A part that went out and was saved is not sent again (a part whose answer was lost may repeat); `--dry-run` sends nothing.
+- **Pasted Discord to the campaign pages:** the session-notes skill now covers a pasted Discord message or
+  screenshot: a campaign merge plan labelled "Discord, pasted" with the date under the same rules as
+  `session_notes campaign` (a hint for play, a ruling only as "Proposed (Danni confirms)", names nobody
+  confirmed held, append only). The skill also documents `session_notes campaign` and the step that saves
+  `chat-log.json` and `foundry-facts.json` into the session folder (paste-to-pages).
+- **Player notes have one fixed structure:** with `outbox build --ai`, each player's note opens with
+  the first session's date, then "You so far", real hook questions and at most three to-dos that
+  each quote the Table line they come from. The Table page is rewritten as Agreed, Danni's call,
+  Open and Logistics, without gossip. English is written once and Danish is translated from it.
+  The Discord version of a player note is capped at 900 characters.
+
+### Fixes
+
+- **Lane kit plugin refreshed:** the plugin copy of the session-notes skill and the plugin version now match the repo again, so the next plugin update on every PC picks up the newer notes steps.
+- **Unused exports swept:** about 190 exports in the MCP server and the Foundry module that nothing imported are now private or removed, and the unused-code baseline dropped from 640 to 446. No behavior change.
+
+### Voice and session notes
+
+- **`session.ps1 -Server B|C`:** the manual notes command can publish to a test server other than A
+  (take that server's lock first), so a notes rehearsal no longer waits on another lane's server.
+- **Characters note with a tagged roster:** a roster entry like `Barnon (David)` now also matches the
+  character name `Barnon` or the player name `David`, so the characters note is no longer rejected
+  forever when the model writes the short name (a session 0 recording stayed "incomplete").
+
+### Docs
+
+- **Strahd kit scenario:** the 14 map pins that named missing journals were repointed in the live world (strahd-dangling-pins). The strahd-barovia scenario now allows no dangling pin and accepts five GM prep journals as pin targets.
+
 ## v0.32.0 (released 2026-11-24): campaign journals, character diaries, a backstory buddy and a leaner tool
 
 **Wire contracts:** additive for the tools. New tools `plan-campaign-merge` (Prep set) and `plan-character-diaries` (Play set), new fields in a few replies (`placedTotal`, `notePartWritten`), a new player route `POST /api/me/usage` for the My character counts, a new control-port action `session_notes` `report`, and the tool list change notice `tools/list_changed`. Seven bridge handlers with no caller were removed (the kebab-case names stay). Module id, socket channel and settings namespace are unchanged.

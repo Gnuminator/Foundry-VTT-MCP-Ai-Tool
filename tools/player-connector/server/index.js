@@ -18,7 +18,7 @@ const readline = require('node:readline');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const VERSION = '0.32.0';
+const VERSION = '0.33.0';
 
 // Protocol versions the local initialize answer offers; the newest is the fallback.
 const PROTOCOL_VERSIONS = ['2024-11-05', '2025-03-26', '2025-06-18', '2025-11-25'];

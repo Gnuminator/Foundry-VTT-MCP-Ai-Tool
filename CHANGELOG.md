@@ -4,7 +4,7 @@
 
 ## v0.32.0 (released 2026-11-24): campaign journals, character diaries, a backstory buddy and a leaner tool
 
-**Wire contracts:** additive for the tools. New tools `plan-campaign-merge` (Prep set) and `plan-character-diaries` (Play set), new fields in a few replies (`placedTotal`, `notePartWritten`, `/api/me` counts), and the tool list change notice `tools/list_changed`. Seven bridge handlers with no caller were removed (the kebab-case names stay). Module id, socket channel and settings namespace are unchanged.
+**Wire contracts:** additive for the tools. New tools `plan-campaign-merge` (Prep set) and `plan-character-diaries` (Play set), new fields in a few replies (`placedTotal`, `notePartWritten`), a new player route `POST /api/me/usage` for the My character counts, a new control-port action `session_notes` `report`, and the tool list change notice `tools/list_changed`. Seven bridge handlers with no caller were removed (the kebab-case names stay). Module id, socket channel and settings namespace are unchanged.
 
 ### Obsidian
 

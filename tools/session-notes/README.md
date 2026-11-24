@@ -48,6 +48,24 @@ to the real one and is only for when the user says so. `-DryRun` shows the plan.
 (usage limit, bridge down), run the same command again. It is `auto.ps1 -Session <name> -Port <n>`
 underneath, so everything in the next section applies to it.
 
+## Notes to the players: the outbox
+
+`python -m session_notes outbox build <session>` makes `notes/outbox/outbox.json` from the finished
+notes (no Claude call): per player character and language a "Your character" note (the character's
+_In the story_ part and the player's own to-dos from the Table page; never _GM only_ or _Player
+wishes_), plus the player recap and the Table page. Each note has a Discord form (no links or
+timestamps, split under 2000 characters), a Foundry form (HTML) and an Obsidian form (a page with
+front matter). Every note is a `draft` until approved by id (`outbox approve`, or `outbox
+apply-review` for the answers of the review page); an edit sends it back to draft.
+
+- `outbox preview <session>`: dry run, per recipient exactly what would go out.
+- `node packages/discord-bot/announce/send-notes.mjs <outbox.json> [--dry-run] [--only id,id]`:
+  DMs from the bot and group posts (`DISCORD_SESSION_NOTES_CHANNEL_ID`), approved notes only, each
+  part once.
+- `outbox obsidian <session> <folder>` writes approved vault pages; `outbox foundry <session>
+<lang>` prints the approved notes for `plan-character-diaries` (player-owned pages) and the
+  journal reveal. `outbox mark-sent` records a Foundry delivery.
+
 ## Automatic runs (not registered until G2)
 
 `auto.ps1` does one pass over the sessions folder: it transcribes finished Discord recordings

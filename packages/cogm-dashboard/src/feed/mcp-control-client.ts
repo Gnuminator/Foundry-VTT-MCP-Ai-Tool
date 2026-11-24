@@ -319,6 +319,14 @@ export class McpControlClient extends EventEmitter {
   }
 
   /**
+   * Per-tool AI permissions: `{action: 'get' | 'set' | 'approve' | 'dismiss', ...}`. A control
+   * method, never an MCP tool, so Claude cannot reach it.
+   */
+  async toolPermissions(params: Record<string, unknown>): Promise<unknown> {
+    return this.send('tool_permissions', params);
+  }
+
+  /**
    * Session notes (recap lane, D-087): `list`, `get`, `put` or `approve`. A control method,
    * never an MCP tool; a refusal is a ChannelError with a `code`. An old backend answers
    * "Unknown method".

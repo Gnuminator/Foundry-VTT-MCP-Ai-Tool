@@ -71,6 +71,30 @@ export function mountApiSwitchesRoutes(app: Express, ctx: RouteContext): void {
       });
   });
 
+  // Per-tool AI permissions: one GM-only route; the body's `action` is get, set, approve or dismiss.
+  // The bridge validates names and policies.
+  app.post('/api/tool-permissions', requireGm, (req: Request, res: Response) => {
+    if (typeof client.toolPermissions !== 'function') {
+      res.status(501).json({ error: 'This bridge cannot set tool permissions.' });
+      return;
+    }
+    const b = asRecord(req.body);
+    const params: Record<string, unknown> = {
+      action: typeof b.action === 'string' ? b.action : 'get',
+      ...(typeof b.kind === 'string' ? { kind: b.kind } : {}),
+      ...(typeof b.name === 'string' ? { name: b.name } : {}),
+      ...(typeof b.policy === 'string' || b.policy === null ? { policy: b.policy } : {}),
+    };
+    client
+      .toolPermissions(params)
+      .then(result => res.json(result))
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        logger.warn('Tool permissions failed', { error: message });
+        res.status(400).json({ error: message });
+      });
+  });
+
   app.get('/api/session/switches', requireGm, (_req: Request, res: Response) => {
     moduleSwitches('get')
       .then(switches =>

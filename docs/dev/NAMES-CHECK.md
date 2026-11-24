@@ -24,7 +24,7 @@ suggestion), the NPC names in `notes/notes.json`, and a `--candidates file.json`
   `ene`, `er`, `et`; only `s` for words of 4 letters or fewer) and possessives (`'s`).
 - Up to 3 raw lines are shown, spread over the session (first, middle, last).
 - The cleaner's line is the one with the same line id (`^u000123`) and the same player. If the ids
-  disagree it takes the latest line by the same player within 40 s before the hit. A line by another
+  disagree it takes the latest line by the same player within 40 s before the hit (or up to 2 s after it). A line by another
   speaker is never shown.
 - The guess button reads "Cleaner's spelling" when the cleaner's lines hold a close spelling that
   the transcriber did not write, "Claude's guess" when it came from the pipeline's suggestion.

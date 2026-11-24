@@ -18,6 +18,7 @@ import {
   hms,
   cutClip,
   renderPage,
+  transcriptNote,
 } from './names-check.mjs';
 
 test('termRegex: whole word, listed spellings, inflections and possessives', () => {
@@ -36,6 +37,30 @@ test('termRegex: whole word, listed spellings, inflections and possessives', () 
 test('spread: first, middle and last of many hits', () => {
   assert.deepEqual(spread([1, 2], 3), [1, 2]);
   assert.deepEqual(spread([1, 2, 3, 4, 5, 6, 7], 3), [1, 4, 7]);
+});
+
+test('spread with max 1 returns one hit; inflections are per term', () => {
+  assert.deepEqual(spread([1, 2, 3, 4], 1), [1]);
+  const rx = termRegex(['Ken', 'Kenkun']);
+  assert.ok(rx.test('Kens hat'));
+  assert.ok(rx.test('Kenkuner'));
+  assert.ok(!rx.test('Kener'));
+});
+
+test('cleanerLine honours the 40 s and 2 s bounds and prefers the id', () => {
+  const lines = parseCleaned(
+    ['**[00:00:10] GM (Danni):** early ^u000001', '**[00:02:00] GM (Danni):** by id ^u000050'].join('\n'),
+  );
+  const row = { id: 'u000050', player: 'GM (Danni)', speaker: 'danni_d' };
+  assert.equal(cleanerLine(lines, row, 20).id, 'u000050'); // id wins over the nearer line
+  const nid = { id: 'u000099', player: 'GM (Danni)', speaker: 'danni_d' };
+  assert.equal(cleanerLine(lines, nid, 51), null); // 41 s after the early line
+  assert.equal(cleanerLine(lines, nid, 50).id, 'u000001');
+  assert.equal(cleanerLine(lines, nid, 7), null); // line starts 3 s after the hit
+});
+
+test('transcriptNote has no stray space before the semicolon', () => {
+  assert.equal(transcriptNote('W', 2, ['a', 'b'], { from: 'cleaner', value: 'Y' }), 'Heard 2 times in the raw transcript as a, b; the cleaner wrote Y.');
 });
 
 test('clipWindow: 6 s either side, never before 0', () => {

@@ -3,7 +3,7 @@
  * Names check entries for any session folder (backlog `names-check-pipeline`).
  *
  *   node scripts/names-check.mjs <session folder or name> [--candidates file.json] [--out dir]
- *                                [--no-clips] [--max 3] [--lead 6]
+ *                                [--no-clips] [--max 3] [--lead 6] [--title text]
  *
  * Reads `timeline/timeline.jsonl` (the raw transcript, what the transcriber heard) and
  * `notes/transcript.en.md` (the cleaned one), builds one card per candidate name and writes
@@ -71,15 +71,18 @@ export function similarity(a, b) {
  */
 export function termRegex(terms) {
   const clean = [...new Set(terms.map((t) => t.trim()).filter(Boolean))];
-  const longest = clean.reduce((m, t) => Math.max(m, t.length), 0);
-  const infl = longest <= 4 ? '(?:s)?' : '(?:s|e|en|ene|er|et)?';
-  const alt = clean.sort((a, b) => b.length - a.length).map(esc).join('|');
-  return new RegExp(`(?<![\\p{L}\\p{N}])(${alt})${infl}(?:['’]s)?(?![\\p{L}\\p{N}])`, 'iu');
+  // inflections per term: only `s` for a term of 4 letters or fewer
+  const alt = clean
+    .sort((a, b) => b.length - a.length)
+    .map((t) => esc(t) + (t.length <= 4 ? '(?:s)?' : '(?:s|e|en|ene|er|et)?'))
+    .join('|');
+  return new RegExp(`(?<![\\p{L}\\p{N}])(${alt})(?:['’]s)?(?![\\p{L}\\p{N}])`, 'iu');
 }
 
 /** Up to `max` hits spread over the session: first, middle, last (or evenly for more). */
 export function spread(hits, max = 3) {
   if (hits.length <= max) return hits;
+  if (max <= 1) return hits.slice(0, 1);
   const idx = new Set();
   for (let i = 0; i < max; i++) idx.add(Math.round((i * (hits.length - 1)) / (max - 1)));
   return [...idx].sort((a, b) => a - b).map((i) => hits[i]);
@@ -266,10 +269,12 @@ export function buildEntry(cand, order, timeline, cleaned, opts = {}) {
 /** A note that says only what the transcript shows. */
 export function transcriptNote(word, count, variants, guess) {
   if (!count) return `Not found in the raw transcript as ${word}.`;
-  const bits = [`Heard ${count} time${count === 1 ? '' : 's'} in the raw transcript`];
-  if (variants.length > 1) bits.push(`as ${variants.join(', ')}`);
-  if (guess?.from === 'cleaner') bits.push(`; the cleaner wrote ${guess.value}`);
-  return bits.join(' ') + '.';
+  return (
+    `Heard ${count} time${count === 1 ? '' : 's'} in the raw transcript` +
+    (variants.length > 1 ? ` as ${variants.join(', ')}` : '') +
+    (guess?.from === 'cleaner' ? `; the cleaner wrote ${guess.value}` : '') +
+    '.'
+  );
 }
 
 // ---------- sweep ----------
@@ -308,7 +313,13 @@ export function sweep(session, cards, cleaned, ordinary = new Set()) {
   if (fs.existsSync(lc))
     for (const l of fs.readFileSync(lc, 'utf8').split(/\r?\n/)) {
       if (!l.trim()) continue;
-      const w = String(JSON.parse(l).word || '').replace(/^[^\p{L}]+|[^\p{L}]+$/gu, '');
+      let word = '';
+      try {
+        word = String(JSON.parse(l).word || '');
+      } catch {
+        continue; // a damaged line must not stop the sweep
+      }
+      const w = word.replace(/^[^\p{L}]+|[^\p{L}]+$/gu, '');
       if (/^\p{Lu}/u.test(w) && w.length >= 4) note(w, 'low-confidence raw word');
     }
   const outside = [...found.values()].map((e) => ({ word: e.word, count: e.count, why: [...e.why] })).sort((a, b) => b.count - a.count);
@@ -366,7 +377,7 @@ function main(argv) {
     else args._.push(a);
   }
   if (!args._[0]) {
-    console.error('usage: node scripts/names-check.mjs <session> [--candidates file.json] [--out dir] [--no-clips] [--max 3] [--lead 6]');
+    console.error('usage: node scripts/names-check.mjs <session> [--candidates file.json] [--out dir] [--no-clips] [--max 3] [--lead 6] [--title text]');
     return 2;
   }
   const session = resolveSession(args._[0]);
@@ -377,19 +388,37 @@ function main(argv) {
   const cleaned = fs.existsSync(cleanedPath) ? parseCleaned(fs.readFileSync(cleanedPath, 'utf8')) : [];
   const cands = collectCandidates(session, extra);
   const opts = { max: args.max ? +args.max : 3, lead: args.lead ? +args.lead : 6 };
-  for (const d of ['entries', 'clips']) fs.rmSync(path.join(out, d), { recursive: true, force: true }); // a rebuild leaves no stale cards or clips
+  if (!Number.isInteger(opts.max) || opts.max < 1 || !Number.isFinite(opts.lead) || opts.lead < 0) {
+    console.error('names-check: --max must be a whole number of 1 or more and --lead a number of seconds');
+    return 2;
+  }
+  if (!args.noClips && spawnSync('ffmpeg', ['-version']).status !== 0) {
+    console.error('names-check: ffmpeg was not found; install it or pass --no-clips');
+    return 2;
+  }
+  // a rebuild leaves no stale cards or clips (only this script's own files are removed)
+  for (const [d, rx] of [['entries', /^name-\d+\.json$/], ['clips', /^c-name-[\d-]+\.mp4$/]]) {
+    const dir = path.join(out, d);
+    if (fs.existsSync(dir)) for (const f of fs.readdirSync(dir)) if (rx.test(f)) fs.rmSync(path.join(dir, f));
+    fs.mkdirSync(dir, { recursive: true });
+  }
   fs.mkdirSync(path.join(out, 'entries'), { recursive: true });
   const cards = [];
   let clips = 0;
   cands.forEach((c, i) => {
     const e = buildEntry(c, i + 1, timeline, cleaned, opts);
-    for (const item of e.context) {
+    for (const [k, item] of e.context.entries()) {
       const win = item.win;
       const track = trackFor(session, item.track);
+      const speaker = item.track;
       delete item.win;
       delete item.track;
-      if (args.noClips || !track) continue;
-      const fn = `c-name-${i + 1}-${item.time.replace(/:/g, '')}.mp4`;
+      if (args.noClips) continue;
+      if (!track) {
+        console.warn(`names-check: no track for ${speaker}, no clip for ${e.word} at ${item.time}`);
+        continue;
+      }
+      const fn = `c-name-${i + 1}-${k + 1}.mp4`;
       cutClip(track, win, path.join(out, 'clips', fn));
       item.clipfile = fn;
       clips += 1;

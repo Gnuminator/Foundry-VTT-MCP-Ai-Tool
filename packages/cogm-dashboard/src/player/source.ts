@@ -92,6 +92,7 @@ export class PlayerViewSource {
   private sessionOpenValue: boolean | null = null;
   private sessionPolledAt = 0;
   private handoutsPolledAt = 0;
+  private fullRefreshQueued = false;
   private sessionStartedValue: number | null = null;
   private timer: NodeJS.Timeout | null = null;
   private inFlight = false;
@@ -176,7 +177,13 @@ export class PlayerViewSource {
    * A direct call (a reveal just applied, Foundry back) always reads them.
    */
   async refresh(options: { throttled?: boolean } = {}): Promise<void> {
-    if (this.inFlight || this.client.isConnected === false) return;
+    if (this.client.isConnected === false) return;
+    if (this.inFlight) {
+      // A direct call (a reveal just applied) must not be lost to a timer read that may have
+      // skipped the handouts or read them before the reveal: run once more when it ends.
+      if (!options.throttled) this.fullRefreshQueued = true;
+      return;
+    }
     this.inFlight = true;
     let changed = false;
     try {
@@ -217,13 +224,15 @@ export class PlayerViewSource {
       const handoutsDue =
         !options.throttled ||
         !this.handoutsReadyValue ||
-        now - this.handoutsPolledAt >= HANDOUTS_POLL_MS;
+        now - this.handoutsPolledAt >= HANDOUTS_POLL_MS - 500;
       if (handoutsDue) this.handoutsPolledAt = now;
       const raw = handoutsDue
         ? await this.client
             .callTool<RawHandouts>('get-player-handouts')
             .catch((error: unknown) => this.failed('get-player-handouts', error))
         : undefined;
+      // A failed read retries on the next tick, not after the full interval.
+      if (handoutsDue && raw === undefined) this.handoutsPolledAt = 0;
       if (raw !== undefined) {
         const { all, perPlayer, everyPlayer } = this.sanitize(raw);
         changed ||= JSON.stringify(all) !== JSON.stringify(this.handoutsValue);
@@ -236,6 +245,10 @@ export class PlayerViewSource {
       this.inFlight = false;
     }
     if (changed) this.onChange();
+    if (this.fullRefreshQueued) {
+      this.fullRefreshQueued = false;
+      void this.refresh();
+    }
   }
 
   private failed(tool: string, error: unknown): undefined {

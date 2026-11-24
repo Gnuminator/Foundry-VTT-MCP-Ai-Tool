@@ -314,6 +314,38 @@ describe('sessionSince', () => {
   });
 });
 
+describe('PlayerViewSource direct refresh during a timer read', () => {
+  it('runs a full read once the timer read ends, so a reveal is not lost', async () => {
+    const reads: string[] = [];
+    let release: (() => void) | null = null;
+    const gate = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    const client: PlayerSourceClient = {
+      isConnected: true,
+      callTool: async <T>(name: string): Promise<T> => {
+        reads.push(name);
+        if (name === 'get-player-visibility' && reads.length === 1) await gate;
+        return (
+          name === 'get-player-handouts'
+            ? { revealedUuids: [], handouts: [] }
+            : name === 'get-play-session'
+              ? { open: false, startedAt: null, endedAt: null }
+              : { schema: 1, computedAt: 0, pcActorIds: [], scene: null, tokens: [] }
+        ) as T;
+      },
+    };
+    const source = new PlayerViewSource(client, new Logger('error', 'test'), () => {});
+    const first = source.refresh({ throttled: true });
+    await source.refresh();
+    expect(reads.filter(n => n === 'get-player-handouts').length).toBe(0);
+    release?.();
+    await first;
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(reads.filter(n => n === 'get-player-handouts').length).toBe(2);
+  });
+});
+
 describe('PlayerViewSource handout throttle', () => {
   it('reads the handouts at most every 15 s on the timer, always on a direct refresh', async () => {
     const reads: string[] = [];

@@ -148,7 +148,11 @@ describe('renderPress', () => {
           ]);
           expect(stdout, template).not.toContain('data-overflow');
         } finally {
-          await fsp.rm(dir, { recursive: true, force: true });
+          // The browser can still be writing its profile for a moment after --dump-dom returns
+          // (ENOTEMPTY/EBUSY on Windows); a leftover temp folder is not a test failure.
+          await fsp
+            .rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })
+            .catch(() => undefined);
         }
       }
     },

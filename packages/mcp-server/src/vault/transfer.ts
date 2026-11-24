@@ -10,7 +10,7 @@ import { assertArea, assertFileName, assertWorldId, type VaultArea } from './pat
 import type { VaultStore } from './store.js';
 
 export const VAULT_BUNDLE_FORMAT = 'foundry-ai-tool-vault';
-export const VAULT_BUNDLE_VERSION = 1;
+const VAULT_BUNDLE_VERSION = 1;
 
 export interface VaultBundleFile {
   area: VaultArea;

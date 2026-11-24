@@ -24,7 +24,7 @@ import {
 import { coreSupportsQuerySender } from './systems/core.js';
 
 /** Prefix of the helper query names (distinct from the bridge methods). */
-export const GM_HELPER_PREFIX = `${MODULE_ID}.gm.`;
+const GM_HELPER_PREFIX = `${MODULE_ID}.gm.`;
 
 export const GM_HELPER_QUERIES = {
   openDocument: `${GM_HELPER_PREFIX}openDocument`,
@@ -73,7 +73,7 @@ export function parseUuidPayload(data: unknown): string {
 }
 
 /** Whether the payload asks to pan to a token instead of opening its sheet. */
-export function parsePanFlag(data: unknown): boolean {
+function parsePanFlag(data: unknown): boolean {
   return (data as { pan?: unknown } | null | undefined)?.pan === true;
 }
 
@@ -171,7 +171,7 @@ export function aiToolTimeoutMs(tool: string): number {
  * request but another GM's client might: no link is open, or the bridge serves a
  * newer link. Any other error is the real answer and ends the search.
  */
-export function isBridgeLinkUnavailable(error: unknown): boolean {
+function isBridgeLinkUnavailable(error: unknown): boolean {
   return (
     error instanceof Error &&
     (error.message === AI_TOOL_NOT_CONNECTED || error.message === MODULE_NOT_ACTIVE_LINK_ERROR)

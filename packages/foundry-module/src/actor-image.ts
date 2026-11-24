@@ -28,7 +28,7 @@ export const UPLOAD_ACTOR_IMAGE_QUERY = 'uploadActorImage';
 export const ACTOR_IMAGE_FEATURE_ID = 'actor-image';
 
 /** The folder every actor folder sits in, relative to the Foundry Data folder. */
-export const ART_FOLDER = 'assets/ai-art';
+const ART_FOLDER = 'assets/ai-art';
 
 const TYPES = { png: 'image/png', jpg: 'image/jpeg', webp: 'image/webp' } as const;
 type ImageType = keyof typeof TYPES;

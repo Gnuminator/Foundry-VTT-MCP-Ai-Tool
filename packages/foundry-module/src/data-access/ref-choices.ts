@@ -107,7 +107,7 @@ interface Dnd5eConfig {
   };
 }
 
-export const DEFAULT_REF_LIMIT = 200;
+const DEFAULT_REF_LIMIT = 200;
 export const MAX_REF_LIMIT = 500;
 
 const DISPOSITIONS: Record<number, string> = {
@@ -182,7 +182,7 @@ function typeAllowed(type: string | undefined, filter: RefFilter): boolean {
 // ---------------------------------------------------------------------------
 
 /** Group name for actors with a token on the current scene (`onSceneFirst`). */
-export const ON_SCENE_GROUP = 'On this scene';
+const ON_SCENE_GROUP = 'On this scene';
 
 /**
  * World actors. With `onSceneFirst`, actors that have a token on the current scene come

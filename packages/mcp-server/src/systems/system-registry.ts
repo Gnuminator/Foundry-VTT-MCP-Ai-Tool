@@ -111,10 +111,3 @@ export function getSystemRegistry(logger?: Logger): SystemRegistry {
   registryInstance ??= new SystemRegistry(logger);
   return registryInstance;
 }
-
-/**
- * Reset the global registry (for testing)
- */
-export function resetSystemRegistry(): void {
-  registryInstance = null;
-}

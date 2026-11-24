@@ -31,8 +31,8 @@ import { checkMarkdownOwnership, withGeneratedHash } from './ownership.js';
 import { frontmatter, generatedProps, GENERATED_BANNER } from './render.js';
 
 export const EVERYONE_FOLDER = 'AI Tool/Everyone';
-export const DEFAULT_EVERYONE_DEBOUNCE_MS = 3000;
-export const DEFAULT_EVERYONE_MAX_WAIT_MS = 30_000;
+const DEFAULT_EVERYONE_DEBOUNCE_MS = 3000;
+const DEFAULT_EVERYONE_MAX_WAIT_MS = 30_000;
 
 /** The note path of one day, relative to the campaign folder. */
 export function everyoneNotePath(date: string): string {

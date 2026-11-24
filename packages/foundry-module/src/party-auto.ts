@@ -87,7 +87,7 @@ function doneIds(partyId: string | undefined): Set<string> {
 }
 
 /** Whether the GM left it on. A setting that is not registered counts as off. */
-export function partyAutoEnabled(): boolean {
+function partyAutoEnabled(): boolean {
   try {
     return game.settings.get(MODULE_ID, PARTY_AUTO_SETTING) === true;
   } catch {
@@ -96,7 +96,7 @@ export function partyAutoEnabled(): boolean {
 }
 
 /** True when this browser is the active GM's. */
-export function isActiveGm(): boolean {
+function isActiveGm(): boolean {
   const g = gameRec();
   const active = rec(rec(g?.users)?.activeGM);
   const own = rec(g?.user);

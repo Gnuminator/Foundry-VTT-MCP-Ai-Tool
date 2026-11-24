@@ -15,7 +15,7 @@ export interface RuleDifference {
   rules2024: string;
 }
 
-export const RULE_DIFFERENCES: RuleDifference[] = [
+const RULE_DIFFERENCES: RuleDifference[] = [
   {
     topic: 'Counterspell',
     match: /^counterspell$/i,

@@ -8,8 +8,8 @@
  */
 import { randomInt } from 'crypto';
 
-export const COMMON_SUITS = ['swords', 'stars', 'coins', 'glyphs'] as const;
-export const COMMON_VALUES = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'master'] as const;
+const COMMON_SUITS = ['swords', 'stars', 'coins', 'glyphs'] as const;
+const COMMON_VALUES = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'master'] as const;
 export const HIGH_CARD_IDS = [
   'artifact',
   'beast',

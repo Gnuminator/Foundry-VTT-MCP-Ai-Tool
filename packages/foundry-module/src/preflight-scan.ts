@@ -380,7 +380,7 @@ interface ModuleRule {
  * The conflict list (vault `Research/Integrations.md`). Finished once the
  * campaign world's module list exists (I-067); ids are matched first, then titles.
  */
-export const MODULE_RULES: readonly ModuleRule[] = [
+const MODULE_RULES: readonly ModuleRule[] = [
   {
     rule: 'midi-qol',
     name: 'Midi-QOL',

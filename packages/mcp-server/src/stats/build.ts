@@ -416,7 +416,7 @@ function pcFor(actor: PlayActorRef, ctx: SessionContext, sessionNumber: number):
  * Null without records. Records are values copied from a paper sheet, so these are not play
  * numbers: nothing here reaches the session, party or per-character totals.
  */
-export function buildPaperNet(
+function buildPaperNet(
   records: readonly PlayRecord[],
   spare: ReadonlySet<string>
 ): PaperNet | null {

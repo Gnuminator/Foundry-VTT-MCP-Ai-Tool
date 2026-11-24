@@ -52,7 +52,7 @@ export function defaultImageRoots(env: NodeJS.ProcessEnv = process.env): string[
 export type PathModule = Pick<typeof path, 'isAbsolute' | 'relative' | 'resolve' | 'sep'>;
 
 /** A network (UNC) or device path: Windows connects out just by looking such a path up. */
-export function isNetworkPath(p: string): boolean {
+function isNetworkPath(p: string): boolean {
   return p.startsWith('\\\\') || p.startsWith('//') || p.startsWith('\\??\\');
 }
 
@@ -126,7 +126,7 @@ async function refuseNetworkLinks(file: string, notAllowed: Error): Promise<void
  * The picture's real path when it is a regular file inside an allowed folder, else throws.
  * Symlinks, junctions and `..` are resolved first, so a link cannot point out of a folder.
  */
-export async function checkImagePath(file: string, roots: string[]): Promise<string> {
+async function checkImagePath(file: string, roots: string[]): Promise<string> {
   const text = checkPathText(file, roots);
   if (text === 'relative') throw new Error('file must be an absolute path on this PC.');
   const notAllowed = new Error(

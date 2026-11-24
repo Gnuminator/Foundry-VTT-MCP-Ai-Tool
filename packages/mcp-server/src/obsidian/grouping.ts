@@ -170,7 +170,7 @@ export function splitPaperSync(
 }
 
 /** A group started by a paper start marker. */
-export function isPaperGroup(group: SessionGroup): boolean {
+function isPaperGroup(group: SessionGroup): boolean {
   return group.startedBy === 'marker' && group.events.some(isPaperStartMarker);
 }
 

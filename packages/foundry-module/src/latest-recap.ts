@@ -11,7 +11,7 @@
 import { MODULE_ID } from './constants.js';
 
 /** The session notes page title the bridge gives the recap (`PAGE_TITLES.recap`). */
-export const RECAP_PAGE_NAME = 'Recap';
+const RECAP_PAGE_NAME = 'Recap';
 
 /** What the picker needs of a journal page; tests pass plain objects. */
 export interface RecapCandidate {
@@ -70,7 +70,7 @@ function collect(): Array<RecapCandidate & { page: FoundryPage }> {
 }
 
 /** Open the newest revealed recap, or say there is none yet. */
-export function openLatestRecap(): void {
+function openLatestRecap(): void {
   const found = pickLatestRecap(collect());
   if (!found) {
     ui.notifications?.info('No recap yet. The GM shares one after a session.');

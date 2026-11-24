@@ -9,7 +9,7 @@ import type { VaultStore } from '../vault/store.js';
 
 const SESSION_LOG_FILE = /^(\d{4}-\d{2}-\d{2})\.jsonl$/;
 
-export function isPlayRecordLike(value: unknown): value is PlayRecord {
+function isPlayRecordLike(value: unknown): value is PlayRecord {
   const r = value as Partial<PlayRecord> | null;
   return (
     !!r &&

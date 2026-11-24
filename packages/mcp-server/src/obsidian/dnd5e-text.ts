@@ -9,7 +9,7 @@
  * rolls `[[/r ...]]` and `[[...]]`. Everything returned here is plain text; the caller escapes it.
  */
 
-export const ABILITY_NAMES: Readonly<Record<string, string>> = {
+const ABILITY_NAMES: Readonly<Record<string, string>> = {
   str: 'Strength',
   dex: 'Dexterity',
   con: 'Constitution',
@@ -19,7 +19,7 @@ export const ABILITY_NAMES: Readonly<Record<string, string>> = {
 };
 
 /** dnd5e skill keys: label and default ability. */
-export const SKILLS: Readonly<Record<string, { label: string; ability: string }>> = {
+const SKILLS: Readonly<Record<string, { label: string; ability: string }>> = {
   acr: { label: 'Acrobatics', ability: 'dex' },
   ani: { label: 'Animal Handling', ability: 'wis' },
   arc: { label: 'Arcana', ability: 'int' },
@@ -40,7 +40,7 @@ export const SKILLS: Readonly<Record<string, { label: string; ability: string }>
   sur: { label: 'Survival', ability: 'wis' },
 };
 
-export const DAMAGE_TYPES: ReadonlySet<string> = new Set([
+const DAMAGE_TYPES: ReadonlySet<string> = new Set([
   'acid',
   'bludgeoning',
   'cold',
@@ -74,14 +74,14 @@ function lowerKey(text: string): string {
 }
 
 /** An ability key or name (`dex`, `Dexterity`) to its name, or null. */
-export function abilityName(value: string): string | null {
+function abilityName(value: string): string | null {
   const key = lowerKey(value);
   if (ABILITY_NAMES[key]) return ABILITY_NAMES[key];
   return Object.values(ABILITY_NAMES).find(name => name.toLowerCase() === key) ?? null;
 }
 
 /** A skill key or name (`prc`, `perception`) to its key, or null. */
-export function skillKey(value: string): string | null {
+function skillKey(value: string): string | null {
   const key = lowerKey(value);
   if (SKILLS[key]) return key;
   for (const [k, skill] of Object.entries(SKILLS)) {
@@ -97,7 +97,7 @@ export function skillKey(value: string): string | null {
 // ---------------------------------------------------------------------------
 
 /** `2d6 + 3` style spacing for a dice formula. */
-export function tidyFormula(formula: string): string {
+function tidyFormula(formula: string): string {
   return formula
     .replace(/\s+/g, '')
     .replace(/([+\-*/])/g, ' $1 ')
@@ -107,7 +107,7 @@ export function tidyFormula(formula: string): string {
 }
 
 /** Average of a simple dice formula (`NdM`, numbers, `+` and `-`), floored like the books; null otherwise. */
-export function averageOf(formula: string): number | null {
+function averageOf(formula: string): number | null {
   const compact = formula.replace(/\s+/g, '');
   if (!/^[+-]?(\d+d\d+|\d+)([+-](\d+d\d+|\d+))*$/i.test(compact)) return null;
   let total = 0;
@@ -124,7 +124,7 @@ export function averageOf(formula: string): number | null {
  * An inline roll (`[[/r 1d20+2]]`, `[[2d6]]`) reads as its formula (`1d20 + 2`), as Foundry
  * shows it on the roll button; only the attack and check enrichers show a modifier.
  */
-export function rollText(formula: string): string {
+function rollText(formula: string): string {
   const compact = formula.replace(/\s+/g, '');
   // Only a dice formula gets formula spacing; other text keeps its words.
   if (!/\d/.test(compact) || /[a-ce-z]{2,}/i.test(compact.replace(/@[\w.]+/g, ''))) {
@@ -145,7 +145,7 @@ interface ParsedConfig {
 }
 
 /** dnd5e's config syntax: whitespace-separated words and `key=value` pairs (quotes allowed). */
-export function parseConfig(config: string): ParsedConfig {
+function parseConfig(config: string): ParsedConfig {
   const words: string[] = [];
   const pairs = new Map<string, string>();
   for (const match of config.matchAll(/(\w+)=("[^"]*"|'[^']*'|\S+)|("[^"]*"|\S+)/g)) {

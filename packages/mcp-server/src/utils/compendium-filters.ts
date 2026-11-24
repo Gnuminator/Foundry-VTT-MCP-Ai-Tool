@@ -11,7 +11,7 @@ import type { GameSystem } from './system-detection.js';
 /**
  * Common creature sizes
  */
-export const CreatureSizes = ['tiny', 'small', 'medium', 'large', 'huge', 'gargantuan'] as const;
+const CreatureSizes = ['tiny', 'small', 'medium', 'large', 'huge', 'gargantuan'] as const;
 export type CreatureSize = (typeof CreatureSizes)[number];
 
 /**

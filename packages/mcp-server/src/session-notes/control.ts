@@ -7,7 +7,7 @@
 import type { SessionNotesService } from './service.js';
 import { SessionNotesError } from './types.js';
 
-export const SESSION_NOTES_ACTIONS = [
+const SESSION_NOTES_ACTIONS = [
   'stage',
   'list',
   'get',

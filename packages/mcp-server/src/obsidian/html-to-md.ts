@@ -110,7 +110,7 @@ function spanOf(value: string | undefined, max: number): number {
  * The six ability scores as a one-row Markdown table, read from the text of a stat block's
  * ability area (`STR 16 (+3) DEX 14 (+2) ...`, any markup). Null unless all six are found.
  */
-export function abilityTable(text: string): string | null {
+function abilityTable(text: string): string | null {
   const found = new Map<string, string>();
   const pattern =
     /(?<![A-Za-z])(STR|DEX|CON|INT|WIS|CHA)(?![A-Za-z])\s*(\d{1,2})\s*\(\s*([+−–-]?\s*\d{1,2})\s*\)/gi;

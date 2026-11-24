@@ -118,6 +118,3 @@ const panel = createPanelWindow({
 
 /** Open the "Scene" window (one per browser). */
 export const openSceneWindow = (): Promise<boolean> => panel.open();
-
-/** Forget the window (tests). */
-export const resetSceneWindowForTests = (): void => panel.reset();

@@ -69,7 +69,7 @@ export function findActivityData(activities: unknown, id: string | undefined): R
 }
 
 /** Whether a spell is ready to cast (the module's `spellPrepared` rule, for the sanitized system data). */
-export function spellPrepared(system: Rec, level: unknown): boolean {
+function spellPrepared(system: Rec, level: unknown): boolean {
   if (typeof level !== 'number' || level === 0) return true;
   const method = text(system.method);
   if (method && method !== 'spell' && method !== 'pact') return true;

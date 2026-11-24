@@ -14,9 +14,9 @@ export const LINK_LOST_TOAST =
 export const LINK_BACK_TOAST = 'The AI Tool link is back. Claude can reach Foundry again.';
 
 /** A drop shorter than this is not worth a toast. */
-export const LINK_GRACE_MS = 10_000;
+const LINK_GRACE_MS = 10_000;
 /** The same toast never shows twice within this window. */
-export const LINK_TOAST_THROTTLE_MS = 60_000;
+const LINK_TOAST_THROTTLE_MS = 60_000;
 
 export interface LinkNotifierOptions {
   /** Shows a toast. */

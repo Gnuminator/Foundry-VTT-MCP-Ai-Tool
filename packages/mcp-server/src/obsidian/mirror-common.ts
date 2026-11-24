@@ -76,7 +76,7 @@ export const MIRROR_STATUS_PATH = `${MIRROR_ROOT}/_status.md`;
  * world NPC that stands for them (source first, then a unique name); 10: NPC and scene notes
  * list the sessions they were seen in (R4) and carry `last_seen`.
  */
-export const MIRROR_RENDER_VERSION = 10;
+const MIRROR_RENDER_VERSION = 10;
 
 /**
  * A module signature as the notes store it: with the renderer version and, optionally, a short

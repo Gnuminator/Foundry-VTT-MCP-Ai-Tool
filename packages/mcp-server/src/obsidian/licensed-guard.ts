@@ -30,12 +30,11 @@ import { writeFileAtomic } from './atomic-write.js';
 import { errorCode, errorMessage } from './note-writer.js';
 
 /** Campaign-relative folders that hold licensed content. */
-export const MIRROR_ROOT_FOLDER = 'AI Tool';
 export const LIBRARY_ROOT = 'AI Tool/Library';
 export const ATTACHMENTS_ROOT = 'AI Tool/Attachments';
 /** The `.gitignore` the guard keeps (campaign-relative). */
 export const LICENSED_GITIGNORE = 'AI Tool/.gitignore';
-export const LICENSED_GITIGNORE_LINES: readonly string[] = ['/Library/', '/Attachments/'];
+const LICENSED_GITIGNORE_LINES: readonly string[] = ['/Library/', '/Attachments/'];
 const GITIGNORE_HEADER =
   '# Written by the Foundry AI Tool: the Library and Attachments folders hold licensed\n' +
   '# compendium and book content and must never be committed to git.';
@@ -113,7 +112,7 @@ export async function findGitRoot(start: string): Promise<string | null> {
  * A `.git` (folder or file) anywhere below `root`, as a path relative to it; null when there is
  * none. Links are not followed. Throws when the search cannot finish (the caller fails closed).
  */
-export async function findNestedGit(root: string): Promise<string | null> {
+async function findNestedGit(root: string): Promise<string | null> {
   const queue: Array<{ rel: string; depth: number }> = [{ rel: '', depth: 0 }];
   let dirs = 0;
   while (queue.length > 0) {

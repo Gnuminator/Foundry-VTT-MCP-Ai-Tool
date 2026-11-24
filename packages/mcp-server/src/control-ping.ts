@@ -92,18 +92,3 @@ export async function waitForControlChannel(
     await new Promise(r => setTimeout(r, intervalMs).unref());
   }
 }
-
-/** Fetch the tool catalog over the control channel (single request). */
-export async function listToolsOverControl(
-  host: string,
-  port: number,
-  timeoutMs = 5_000
-): Promise<Array<{ name: string }>> {
-  const result = (await sendControlRequest(
-    host,
-    port,
-    { id: 'list', method: 'list_tools' },
-    timeoutMs
-  )) as { tools?: Array<{ name: string }> };
-  return result?.tools ?? [];
-}

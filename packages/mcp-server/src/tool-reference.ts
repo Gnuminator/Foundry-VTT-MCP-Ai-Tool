@@ -28,7 +28,7 @@ interface JsonSchema {
 }
 
 /** The Claude Desktop entry that serves a set (the installer writes these names). */
-export function claudeDesktopEntry(set: ToolSetName): string {
+function claudeDesktopEntry(set: ToolSetName): string {
   if (set === 'player') return 'none (served on /mcp/player only)';
   return set === 'core' ? 'foundry-mcp' : `foundry-mcp-${set}`;
 }

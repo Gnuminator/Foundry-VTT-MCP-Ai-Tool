@@ -101,7 +101,7 @@ function str(value: unknown): string | null {
 }
 
 /** A session event as the module's buffer hands it out, or null when it is malformed. */
-export function toGameEvent(raw: unknown): PendingGameEvent | null {
+function toGameEvent(raw: unknown): PendingGameEvent | null {
   const e = raw as Record<string, unknown> | null;
   if (!e || typeof e !== 'object') return null;
   const id = str(e.id);

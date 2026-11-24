@@ -20,13 +20,7 @@ import { escapeHtml } from './ai-changes-model.js';
 import type { PositionRow } from './tarokka-model.js';
 
 /** Deal order: the order cards are placed on the table. */
-export const TABLE_POSITIONS = [
-  'tome',
-  'holySymbol',
-  'sunsword',
-  'ally',
-  'strahdLocation',
-] as const;
+const TABLE_POSITIONS = ['tome', 'holySymbol', 'sunsword', 'ally', 'strahdLocation'] as const;
 
 export type SlotStage = 'empty' | 'placed' | 'revealed';
 

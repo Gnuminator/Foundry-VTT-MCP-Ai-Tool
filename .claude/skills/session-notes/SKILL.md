@@ -38,7 +38,14 @@ recorded yes (`python -m session_notes consent check <session>`; `consent set <i
      it resets); for a logout ask the user to log in to `claude`, then run it again.
    - exit 76: some scenes are still raw text. Run the same command again to finish them.
    - exit 1: show the error from the output and `notes/audit.jsonl`.
-7. The player recap (`recap.player.<lang>.md`) is a draft. Never post it to players, Discord or
+7. Names check artifact (optional, for a reviewer who wants to listen): `node scripts/names-check.mjs
+<session>` builds one card per uncertain name (3 raw lines, the same speaker's cleaned line, a
+   ~6 s `.mp4` clip per line from that speaker's own track) plus `sweep.json` (names outside the
+   pipeline's list, possible duplicate cards). Read the sweep, add real names with `--candidates`,
+   then publish `page.html` as a private artifact with the clips as assets. Details:
+   `docs/dev/NAMES-CHECK.md`. The clips hold the friends' voices: private artifact only, never
+   commit or post them.
+8. The player recap (`recap.player.<lang>.md`) is a draft. Never post it to players, Discord or
    Foundry from this skill; the GM approves it first.
 
 ## Rules

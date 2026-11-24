@@ -317,9 +317,9 @@ describe('sessionSince', () => {
 describe('PlayerViewSource direct refresh during a timer read', () => {
   it('runs a full read once the timer read ends, so a reveal is not lost', async () => {
     const reads: string[] = [];
-    let release: (() => void) | null = null;
+    const hold: { release: () => void } = { release: () => {} };
     const gate = new Promise<void>(resolve => {
-      release = resolve;
+      hold.release = resolve;
     });
     const client: PlayerSourceClient = {
       isConnected: true,
@@ -339,7 +339,7 @@ describe('PlayerViewSource direct refresh during a timer read', () => {
     const first = source.refresh({ throttled: true });
     await source.refresh();
     expect(reads.filter(n => n === 'get-player-handouts').length).toBe(0);
-    release?.();
+    hold.release();
     await first;
     await new Promise(resolve => setTimeout(resolve, 0));
     expect(reads.filter(n => n === 'get-player-handouts').length).toBe(2);

@@ -24,9 +24,15 @@ exec_start="$(sed -n 's/^ExecStart=//p' "$file" | head -n1)"
 
 # systemd sets HOME to the user's home for User=; the unit's own Environment= may override it.
 env_args=("HOME=$(getent passwd "$user" | cut -d: -f6)")
+# Like systemd: the unit file first, then its drop-ins (<unit>.service.d/*.conf) in name order. Stages 21, 27, 30 and 32
+# write drop-ins with Environment= and EnvironmentFile= lines, so a service started here gets what a rebuilt Pi gives it.
+env_files=("$file")
+for d in "/etc/systemd/system/$unit.service.d/"*.conf; do
+  [ -f "$d" ] && env_files+=("$d")
+done
 while IFS= read -r line; do
   env_args+=("$line")
-done < <(sed -n 's/^Environment=//p' "$file")
+done < <(sed -n 's/^Environment=//p' "${env_files[@]}")
 # EnvironmentFile=-path (the dash: the file may be missing). Read as root, pass on as KEY=VALUE.
 while IFS= read -r ef; do
   ef="${ef#-}"
@@ -37,7 +43,7 @@ while IFS= read -r ef; do
     line="${line/=\"/=}"
     env_args+=("$line")
   done <"$ef"
-done < <(sed -n 's/^EnvironmentFile=//p' "$file")
+done < <(sed -n 's/^EnvironmentFile=//p' "${env_files[@]}")
 
 mkdir -p /drill
 cd "${workdir:-/}"

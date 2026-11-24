@@ -223,7 +223,14 @@ export class PollingGameFeed implements GameFeed {
       const read = Array.isArray(response.events) ? response.events : [];
       const events = read.filter(e => !this.delivered.has(e.id));
 
+      // While Foundry is unreachable only the event poll runs, as the probe: the combat and
+      // module-error reads would fail the same way. Once it answers, read them at once.
+      const wasUnreachable = this.foundry === 'unreachable';
       this.onPollSuccess();
+      if (wasUnreachable) {
+        void this.pollCombat();
+        void this.pollErrors();
+      }
 
       if (events.length > 0) {
         for (const e of events) this.delivered.add(e.id);
@@ -261,7 +268,8 @@ export class PollingGameFeed implements GameFeed {
   }
 
   private async pollCombat(): Promise<void> {
-    if (!this.client.isConnected || this.combatPollInFlight) return;
+    if (!this.client.isConnected || this.combatPollInFlight || this.foundry === 'unreachable')
+      return;
     this.combatPollInFlight = true;
     try {
       const response = await this.client.callTool<RawCombatResponse>('get-combat-state');
@@ -278,7 +286,8 @@ export class PollingGameFeed implements GameFeed {
   }
 
   private async pollErrors(): Promise<void> {
-    if (!this.client.isConnected || this.errorPollInFlight) return;
+    if (!this.client.isConnected || this.errorPollInFlight || this.foundry === 'unreachable')
+      return;
     this.errorPollInFlight = true;
     const generation = this.generation;
     try {

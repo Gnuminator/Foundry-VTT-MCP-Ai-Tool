@@ -147,13 +147,13 @@ newest restic copy on this PC, and timed it. It runs in an ARM64 Debian 13 conta
 never contacts the Pi:
 
 ```powershell
-.\scripts\pi\rebuild-drill.ps1          # about 10 minutes, mostly stage 5's build
+.\scripts\pi\rebuild-drill.ps1          # about 13 minutes, mostly stage 5's build
 ```
 
 The script reads the newest snapshot from `E:\PiBackup\restic` into `E:\Restore\<date>-drill` (so it
 also proves this PC can read its copies), starts a container named like the Pi (host name
 `foundry-pi`, 4 CPUs, no ports published), runs stages 1 to 3, restores the snapshot
-(`scripts/pi/drill/restore.sh`), runs stages 5 to 8, starts Foundry, the bridge and the dashboard
+(`scripts/pi/drill/restore.sh`), runs stages 5 to 8 and the later stages listed below, starts Foundry, the bridge and the dashboard
 from the unit files the stages wrote, checks the result, and leaves the container stopped. The
 repository and the password file are mounted read-only and restic runs with `--no-lock`: nothing
 is written to `E:\PiBackup`. Every name starts with `pi-drill-`; it never touches other containers.
@@ -165,7 +165,39 @@ Docker's first image pull. A real Pi has no emulation but a slower disk and CPU;
 build in stage 5 dominate either way. Add the work no script does: flashing the card (Part A),
 Tailscale's login (stage 4), the licence zip and the SSH steps below, each with your OK.
 
-**What it proves** (`scripts/pi/drill/check.sh` runs the checks): stages 1 to 3 and 5 to 8 run in order on a fresh Debian 13 ARM64 system; the
+**Measured again on 2026-11-24** (same setup, tool `v0.32.0`, snapshot of 2026-11-24 04:30 with
+3.865 GiB, all checks passed): PC restic restore 88 s, stage 1 73 s, stage 2 12 s, stage 3 10 s,
+restore in the container 101 s, stage 5 321 s, stage 6 4 s, stage 7 21 s, stage 8 30 s, the later
+stages below 1 to 3 s each (18 s in all), start and check 37 s; 747 s in all. The snapshot is 27
+times bigger than in October, yet the restore still takes under two minutes.
+
+**Later stages the drill runs** (after stage 8, in the container): 10 (space check), 16 (board
+status), 20 (vault sync report), 21 (player vault, with `SETUP=1`: it writes the dashboard drop-in
+that the backup does not hold), 27 (bot status), 29 (game-night watch), 30 (player connector), 31
+(GM vault peers report), 32 (crash guard), 33 (Obsidian plugin) and 35 (who uses what). Stages 20
+and 31 only read and report; they prove Syncthing and the vault folder are there. Syncthing is
+started first (20, 21 and 31 need it), and the helper files that 29 and 35 expect in `/root` are
+copied in. With no systemd the other stages write their files, drop-ins and units and start
+nothing; the drill's service starter (`run-unit.sh`) reads the drop-ins too, so the bridge and the
+dashboard start with the environment a rebuilt Pi gives them.
+
+**Stages a real rebuild needs that the drill does not run, and why:**
+
+- 4 (Tailscale login) and 9 (a second SSH connection) need a person on a real Pi.
+- 15 (SSH keys only) and 18 (time sync) need sshd and a running systemd.
+- 23 and 24 (Docker, compose) need a Docker daemon inside the container.
+- 22, 28, 34, 36 and 37, and `5-check-world.sh`, need a running world with the Assistant GM browser
+  (Chromium crashes under QEMU emulation), and 22 and 34 also the Pi's GM scripts.
+- 25 needs the module archive copied to the Pi first; 19 needs the join page picture and
+  description (campaign art, never in the repo).
+- 17 (GitHub runners) needs a registration token minted for the run (`put-runner-token.sh`).
+- 12 (tunnel) is not tried: it needs `lib-gm-passwords.sh` piped after `lib.sh`, which the drill's
+  stage runner does not do, and installs cloudflared. The tunnel token itself is in the backup.
+- 26 (Discord game server) is not needed after a rebuild: it only edits id lines in
+  `discord-bot.env`, which the backup restores.
+- 11, 13 and 14 install, create or trial worlds and systems; the restore already brings them.
+
+**What it proves** (`scripts/pi/drill/check.sh` runs the checks): stages 1 to 3, 5 to 8 and the later stages above run in order on a fresh Debian 13 ARM64 system; the
 snapshot comes back with the worlds, the dnd5e system, the module, `/etc/foundry-ai-tool` and the
 tool's storage; Foundry 14.368 starts on Node 24 with the restored licence and opens the restored
 world by itself; the bridge answers on 31414 and 31415; the dashboard answers on 3000; every unit

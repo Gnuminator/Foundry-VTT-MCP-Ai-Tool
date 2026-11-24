@@ -14,6 +14,7 @@ import {
 } from './combat-window.js';
 import {
   GM_WINDOWS_SETTING,
+  GM_WINDOWS_POPOUT_SETTING,
   PANEL_REFRESH_DEBOUNCE_MS,
   gmWindowsEnabled,
   registerGmWindowsSetting,
@@ -220,6 +221,18 @@ describe('the switch, the buttons and the windows', () => {
     g.ui = { ...g.ui, controls: { render } };
     config.onChange();
     expect(render).toHaveBeenCalledWith({ reset: true });
+  });
+
+  it('shows the Detach button only while the pop-out switch is on (default off)', async () => {
+    install(true, true);
+    const popOut = registered.mock.calls[1];
+    expect(popOut[1]).toBe(GM_WINDOWS_POPOUT_SETTING);
+    expect(popOut[2]).toMatchObject({ scope: 'world', config: true, default: false });
+    await openCombatWindow();
+    const win = rendered[0];
+    expect(win._canDetach()).toBe(false);
+    world.settings.set(`${MODULE_ID}.${GM_WINDOWS_POPOUT_SETTING}`, true);
+    expect(win._canDetach()).toBe(true);
   });
 
   it('is off when the switch is off: no Combat or Party buttons, and the windows refuse to open', async () => {

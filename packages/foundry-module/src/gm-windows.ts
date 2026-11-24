@@ -19,6 +19,9 @@ import { replaceKeepingFocus } from './window-fields.js';
 /** The world setting that turns the windows on (the GM sees it in the module settings). */
 export const GM_WINDOWS_SETTING = 'gmWindows';
 
+/** The world setting that lets the GM windows pop out to their own browser window (off by default). */
+export const GM_WINDOWS_POPOUT_SETTING = 'gmWindowsPopOut';
+
 /** Wait before redrawing after a hook, so a burst of changes is one redraw. */
 export const PANEL_REFRESH_DEBOUNCE_MS = 200;
 
@@ -42,6 +45,23 @@ export function registerGmWindowsSetting(): void {
       }
     },
   });
+  game.settings.register(MODULE_ID, GM_WINDOWS_POPOUT_SETTING, {
+    name: 'AI Tool: GM window pop-out',
+    hint: 'Shows the Detach button on the GM windows (Combat, Party, Session, Scene, Loot) so one can move to its own browser window, for example on a second screen. Needs "AI Tool: GM windows". The window keeps updating while detached.',
+    scope: 'world',
+    config: true,
+    type: Boolean,
+    default: false,
+  });
+}
+
+/** Whether the GM turned pop-out on (a second screen or tablet). A setting that is not registered counts as off. */
+function gmWindowsPopOutEnabled(): boolean {
+  try {
+    return game.settings.get(MODULE_ID, GM_WINDOWS_POPOUT_SETTING) === true;
+  } catch {
+    return false;
+  }
 }
 
 /** Whether the GM turned the windows on. A setting that is not registered counts as off. */
@@ -101,6 +121,8 @@ interface AppV2Instance {
   rendered?: boolean;
   render(options?: { force?: boolean }): Promise<unknown>;
   bringToFront?(): void;
+  /** Foundry 14: whether the Detach header button shows. */
+  _canDetach?(): boolean;
   close?(): Promise<unknown>;
 }
 type AppV2Constructor = new (options?: Record<string, unknown>) => AppV2Instance;
@@ -154,6 +176,11 @@ export function createPanelWindow(spec: PanelSpec): PanelOpener {
 
       private hookIds: Array<[string, number]> = [];
       private timer: ReturnType<typeof setTimeout> | null = null;
+
+      /** Foundry 14 shows a Detach button on every window; it shows only while the pop-out switch is on. */
+      _canDetach(): boolean {
+        return gmWindowsPopOutEnabled() && (super._canDetach?.() ?? true);
+      }
 
       _prepareContext(): Promise<{ html: string }> {
         // A switch turned off, or a GM who lost the role, gets nothing drawn.

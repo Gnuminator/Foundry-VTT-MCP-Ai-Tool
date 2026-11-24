@@ -84,6 +84,7 @@
   "scripts/pi/remote/30-player-connector.sh": 15,
   "scripts/pi/remote/34-map-upscale.sh": 2,
   "scripts/pi/remote/36-drop-ddb-importer.sh": 3,
+  "scripts/pi/remote/37-world-switches.sh": 3,
   "scripts/pi/remote/5-check-world.sh": 3,
   "scripts/pi/remote/5-tool.sh": 25,
   "scripts/pi/remote/6-backup.sh": 3,

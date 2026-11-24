@@ -403,3 +403,20 @@ turns up (it never kills a process).
   module, reloads and reads the value back from the server. The Assistant GM browser keeps the module in memory until its next
   reload; a new login no longer loads it. It is best run before the dnd5e 6.1.1 update.
 - Tests: `scripts/pi/drop-ddb-importer.test.mjs` (the in-browser part against a fake `game`, the stage as text).
+
+## World switches without a bundle (stage 37)
+
+Stage 11 needs a world bundle from `push-world.ps1`, even to set one setting in a kept world. For the live
+`curse-of-strahd` that is the wrong route: `push-world.ps1` refuses the PC copy (the Pi's copy is the truth, and the
+PC copy has `racooze-map-library` active, which the Pi does not have, with its map files outside the bundle roots).
+Stage 37 (`scripts/pi/remote/37-world-switches.sh`) sets world switches in the running world from the Pi itself: it
+joins as the GM with the login in `/etc/foundry-ai-tool/world-<world>.env` and uses the same driver as stage 11
+(`world-switches.mjs`), narrowed to the named entries. Nothing else changes: no world files, modules or units.
+The default is `item-piles.enableTrading` (Request Trade); `SWITCHES=a.b,c.d` names others from the table above.
+
+- **Run it** (never on a game night; the world running, nobody online, no recording; `FORCE=1` skips only that check):
+  `scp scripts/pi/remote/world-switches.mjs foundry-pi:/root/`, then
+  `cat lib.sh 37-world-switches.sh | ssh foundry-pi 'bash -s'` (a dry run: checks only), `CHECK=1` (joins as the GM and
+  prints the named switches; sets nothing), then, after a `dietpi-backup 1` snapshot and the user's OK, the same with
+  `APPLY=1`. A second run changes nothing. Racooze stays on the PC copy and is not touched.
+- Tests: `scripts/pi/stage37-world-switches.test.mjs` (the narrowing, the stage as text).

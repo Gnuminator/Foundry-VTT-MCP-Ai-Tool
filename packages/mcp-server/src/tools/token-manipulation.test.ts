@@ -50,6 +50,14 @@ describe('TokenManipulationTools.getToolDefinitions', () => {
 // ---------------------------------------------------------------------------
 
 describe('TokenManipulationTools.handleGetTokenDetails', () => {
+  it('reports a refusal from the module instead of an empty token', async () => {
+    const { tools } = makeTools(TokenManipulationTools, () => ({
+      success: false,
+      error: 'Access denied',
+    }));
+    await expect(tools.handleGetTokenDetails({ tokenId: 'tok1' })).rejects.toThrow('Access denied');
+  });
+
   it('dispatches get-token-details and returns formatted token details', async () => {
     const rawToken = {
       id: 'tok1',
@@ -165,14 +173,14 @@ describe('TokenManipulationTools.handleGetTokenDetails', () => {
 // ---------------------------------------------------------------------------
 
 describe('TokenManipulationTools.handleGetAvailableConditions', () => {
-  it('dispatches get-available-conditions with empty params and returns shaped result', async () => {
+  it('dispatches get-available-conditions with no params and returns shaped result', async () => {
     const payload = {
       conditions: [{ id: 'prone', name: 'Prone' }],
       gameSystem: 'dnd5e',
     };
     const { tools, query } = makeTools(TokenManipulationTools, () => payload);
     const result = await tools.handleGetAvailableConditions({});
-    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.get-available-conditions', {});
+    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.get-available-conditions');
     expect(result).toEqual({
       success: true,
       conditions: [{ id: 'prone', name: 'Prone' }],
@@ -184,8 +192,16 @@ describe('TokenManipulationTools.handleGetAvailableConditions', () => {
     const payload = { conditions: [], gameSystem: 'dnd5e' };
     const { tools, query } = makeTools(TokenManipulationTools, () => payload);
     const result = await tools.handleGetAvailableConditions(undefined);
-    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.get-available-conditions', {});
+    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.get-available-conditions');
     expect(result.success).toBe(true);
+  });
+
+  it('reports a refusal from the module instead of an empty list', async () => {
+    const { tools } = makeTools(TokenManipulationTools, () => ({
+      success: false,
+      error: 'Access denied',
+    }));
+    await expect(tools.handleGetAvailableConditions({})).rejects.toThrow('Access denied');
   });
 
   it('wraps query errors as "Failed to get available conditions: <message>"', async () => {

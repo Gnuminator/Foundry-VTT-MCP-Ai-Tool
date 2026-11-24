@@ -59,9 +59,9 @@ export class SessionLogDataAccess {
    * clock skew without a separate round-trip.
    */
   async getRecentEvents(data: {
-    sinceTimestamp?: string;
-    limit?: number;
-    eventType?: string;
+    sinceTimestamp?: string | undefined;
+    limit?: number | undefined;
+    eventType?: string | undefined;
   }): Promise<{
     success: true;
     count: number;
@@ -98,11 +98,14 @@ export class SessionLogDataAccess {
  * the tracker inspects `key in filters` in some code paths, so a present-but-
  * undefined key would be misread as an explicit override.
  */
-function buildFilters<T extends Record<string, unknown>>(bag: T): Partial<T> {
-  const result: Partial<T> = {};
+function buildFilters<T extends Record<string, unknown>>(
+  bag: T
+): { [K in keyof T]?: Exclude<T[K], undefined> } {
+  const result: { [K in keyof T]?: Exclude<T[K], undefined> } = {};
   for (const key of Object.keys(bag) as Array<keyof T>) {
-    if (bag[key] !== undefined) {
-      result[key] = bag[key];
+    const value = bag[key];
+    if (value !== undefined) {
+      result[key] = value as Exclude<T[keyof T], undefined>;
     }
   }
   return result;

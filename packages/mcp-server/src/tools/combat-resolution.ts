@@ -1,9 +1,15 @@
-import { freeText, toolRef } from '@gnuminator/shared';
+import {
+  freeText,
+  isBridgeRefusal,
+  toolRef,
+  type BridgeReply,
+  type BridgeRequest,
+} from '@gnuminator/shared';
 import { z } from 'zod';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
 import type {
-  CombatResolutionBridgeReply,
+  CombatResolutionMethod,
   CombatResolutionToolDefinition,
   CombatResolutionToolResult,
 } from './types/combat-resolution-types.js';
@@ -148,15 +154,13 @@ export class CombatResolutionTools {
     ];
   }
 
-  private async query(
-    method: string,
-    params: unknown,
+  private async query<M extends CombatResolutionMethod>(
+    method: M,
+    params: BridgeRequest<M>,
     failMsg: string
-  ): Promise<CombatResolutionBridgeReply | undefined> {
-    const response = (await this.foundryClient.query(`foundry-mcp-bridge.${method}`, params)) as
-      | CombatResolutionBridgeReply
-      | undefined;
-    if (response?.success === false) {
+  ): Promise<BridgeReply<M>> {
+    const response = await this.foundryClient.query(method, params);
+    if (isBridgeRefusal(response)) {
       throw new Error(response.error || failMsg);
     }
     return response;
@@ -173,7 +177,7 @@ export class CombatResolutionTools {
     });
     try {
       return await this.query(
-        'rollSavingThrows',
+        'foundry-mcp-bridge.rollSavingThrows',
         schema.parse(args),
         'Failed to roll saving throws'
       );
@@ -200,7 +204,7 @@ export class CombatResolutionTools {
       const params = schema.parse(args);
       const { actor, ...rest } = params;
       const result = await this.query(
-        'useNpcActivity',
+        'foundry-mcp-bridge.useNpcActivity',
         { actorName: actor, ...rest },
         'Failed to use NPC activity'
       );
@@ -229,7 +233,11 @@ export class CombatResolutionTools {
       newDay: z.boolean().optional(),
     });
     try {
-      return await this.query('manageRest', schema.parse(args), 'Failed to manage rest');
+      return await this.query(
+        'foundry-mcp-bridge.manageRest',
+        schema.parse(args),
+        'Failed to manage rest'
+      );
     } catch (error: unknown) {
       this.logger.error('Error managing rest', error);
       if (error instanceof z.ZodError) {

@@ -1,5 +1,9 @@
 import type {
+  ActiveEffectsReply,
   AdvanceCombatTurnRequest,
+  AvailableConditionsReply,
+  CharacterResourcesReply,
+  TokenDetailsReply,
   GetChatLogRequest,
   ListScenesRequest,
   ManageRestRequest,
@@ -484,11 +488,11 @@ export class FoundryDataAccess {
     return this.characters.getCharacterEntity(data);
   }
 
-  async getTokenDetails(data: { tokenId: string }): Promise<unknown> {
+  async getTokenDetails(data: { tokenId: string }): Promise<TokenDetailsReply> {
     return this.scenesTokens.getTokenDetails(data);
   }
 
-  async getAvailableConditions(): Promise<unknown> {
+  async getAvailableConditions(): Promise<AvailableConditionsReply> {
     return this.resources.getAvailableConditions();
   }
 
@@ -602,11 +606,11 @@ export class FoundryDataAccess {
   // 3C: Resource tracking (spell slots, class resources, item charges, etc.)
   // ===========================================================================
 
-  async getCharacterResources(data: { identifier: string }): Promise<unknown> {
+  async getCharacterResources(data: { identifier: string }): Promise<CharacterResourcesReply> {
     return this.resources.getCharacterResources(data);
   }
 
-  async getActiveEffects(data: { identifier: string }): Promise<unknown> {
+  async getActiveEffects(data: { identifier: string }): Promise<ActiveEffectsReply> {
     return this.resources.getActiveEffects(data);
   }
 
@@ -673,10 +677,16 @@ export class FoundryDataAccess {
   }
 
   async getRecentEvents(data: {
-    sinceTimestamp?: string;
-    limit?: number;
-    eventType?: string;
-  }): Promise<unknown> {
+    sinceTimestamp?: string | undefined;
+    limit?: number | undefined;
+    eventType?: string | undefined;
+  }): Promise<{
+    success: true;
+    count: number;
+    events: unknown[];
+    latestTimestamp: string | null;
+    serverTime: string;
+  }> {
     return this.sessionLog.getRecentEvents(data);
   }
 

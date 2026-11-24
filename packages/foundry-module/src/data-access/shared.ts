@@ -49,7 +49,7 @@ const MAX_SANITIZE_NODES = 50000;
  * Remove sensitive fields from a data object with circular-reference protection.
  * Returns a sanitized copy instead of modifying the original.
  */
-export function removeSensitiveFields(
+function removeSensitiveFields(
   obj: unknown,
   visited: WeakSet<object> = new WeakSet(),
   depth: number = 0,
@@ -157,7 +157,7 @@ export function removeSensitiveFields(
  * Whether a field should be excluded from sanitized output (sensitive,
  * cycle-prone, or a deprecated dnd5e accessor).
  */
-export function isSensitiveOrProblematicField(key: string): boolean {
+function isSensitiveOrProblematicField(key: string): boolean {
   const sensitiveKeys = [
     'password',
     'token',
@@ -195,7 +195,7 @@ export function isSensitiveOrProblematicField(key: string): boolean {
  * `save`), whose legacy `save` accessor warned when read. Only that `save` is skipped; an
  * activity's `save` ({ ability, dc }) is kept.
  */
-export function isAbilityShape(obj: unknown): boolean {
+function isAbilityShape(obj: unknown): boolean {
   if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) return false;
   const keys = Object.keys(obj);
   return keys.includes('save') && keys.includes('value') && keys.includes('proficient');
@@ -205,7 +205,7 @@ export function isAbilityShape(obj: unknown): boolean {
  * Custom JSON serializer that drops deprecated Foundry accessor properties
  * (e.g. the legacy ability `save`) so reading them never logs warnings.
  */
-export function safeJSONStringify(obj: unknown): string {
+function safeJSONStringify(obj: unknown): string {
   try {
     return JSON.stringify(obj, function (this: unknown, key: string, value: unknown) {
       // Skip the legacy ability `save` (the holder is an ability entry), keep every other `save`
@@ -261,7 +261,7 @@ export function findActorByIdentifier(identifier: string): Actor | undefined {
 }
 
 /** "Multiple characters match ...": up to ten candidates with their ids. */
-export function ambiguousActorMessage(identifier: string, actors: Actor[]): string {
+function ambiguousActorMessage(identifier: string, actors: Actor[]): string {
   const shown = actors
     .slice(0, 10)
     .map(a => `${a.name} (${a.id})`)

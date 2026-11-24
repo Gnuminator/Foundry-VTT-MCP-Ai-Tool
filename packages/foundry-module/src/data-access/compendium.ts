@@ -175,7 +175,7 @@ export const INDEX_BUILDING_MESSAGE =
   'The creature index is building (after a module update or a compendium change). Try again in a minute.';
 
 /** Thrown by {@link CompendiumDataAccess.listCreaturesByCriteria} while the index builds. */
-export class CreatureIndexBuildingError extends Error {
+class CreatureIndexBuildingError extends Error {
   constructor() {
     super(INDEX_BUILDING_MESSAGE);
     this.name = 'CreatureIndexBuildingError';

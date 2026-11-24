@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 
 /** Past this size the wrapper log rolls to `<file>.1`. */
-export const LOG_ROLL_BYTES = 5 * 1024 * 1024;
+const LOG_ROLL_BYTES = 5 * 1024 * 1024;
 
 /** A `.1` younger than this was just rolled by another connector: do not roll over it. */
 export const RECENT_ROLL_MS = 60_000;

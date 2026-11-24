@@ -28,7 +28,7 @@ import { MODULE_ID } from './constants.js';
 import { trackUsage } from './usage-recorder.js';
 
 /** Where the join page files live, relative to Foundry's root (works with a route prefix). */
-export const JOIN_ASSET_DIR = `modules/${MODULE_ID}/styles/join`;
+const JOIN_ASSET_DIR = `modules/${MODULE_ID}/styles/join`;
 export const VEIL_BACKGROUND = `${JOIN_ASSET_DIR}/veil-background.svg`;
 
 /** The tagline when the GM gives none. */
@@ -125,7 +125,7 @@ export function veilTagline(description: string | null | undefined): string | nu
 }
 
 /** Whether the world background is The Veil picture. */
-export function hasVeilBackground(world: WorldJoinFields): boolean {
+function hasVeilBackground(world: WorldJoinFields): boolean {
   return world.background === VEIL_BACKGROUND;
 }
 
@@ -296,7 +296,7 @@ export function currentWorld(): WorldJoinFields {
 }
 
 /** Foundry's pieces for {@link applyJoinLook}: the loaded world and a POST to `/setup`. */
-export function foundryJoinDeps(): JoinPageDeps {
+function foundryJoinDeps(): JoinPageDeps {
   return {
     world: currentWorld,
     submit: async (change): Promise<unknown> => {

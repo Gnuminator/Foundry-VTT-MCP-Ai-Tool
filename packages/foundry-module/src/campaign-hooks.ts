@@ -4,7 +4,7 @@ import { trackUsage } from './usage-recorder.js';
 import { toGmMessage } from './gm-message.js';
 
 /** Part statuses, in the order a GM click cycles through them. */
-export const CAMPAIGN_STATUSES = ['not_started', 'in_progress', 'completed', 'skipped'] as const;
+const CAMPAIGN_STATUSES = ['not_started', 'in_progress', 'completed', 'skipped'] as const;
 
 interface CampaignPageLike {
   text?: { content?: unknown };

@@ -29,9 +29,9 @@ export const LIVE_READY_MESSAGE = 'fmb-live-ready';
 /** The `type` of the message that tells the frame Foundry's light or dark setting changed. */
 export const LIVE_SCHEME_MESSAGE = 'fmb-live-scheme';
 /** The dashboard's port on the machine that runs the bridge. */
-export const DEFAULT_DASHBOARD_PORT = 3100;
+const DEFAULT_DASHBOARD_PORT = 3100;
 /** Browser storage key for the window's place and open state (per browser, like the window). */
-export const LIVE_WINDOW_STATE_KEY = `${MODULE_ID}.liveWindowState`;
+const LIVE_WINDOW_STATE_KEY = `${MODULE_ID}.liveWindowState`;
 const WINDOW_ID = 'fmb-live-window';
 const PIN_ID = 'fmb-live-pin';
 const DEFAULT_WIDTH = 420;
@@ -124,7 +124,7 @@ export function pickScheme(uiConfig: unknown, browserPrefersLight: boolean): Liv
 }
 
 /** Foundry's scheme right now. */
-export function foundryScheme(): LiveScheme {
+function foundryScheme(): LiveScheme {
   let uiConfig: unknown = null;
   try {
     uiConfig = game.settings.get('core', 'uiConfig');
@@ -153,7 +153,7 @@ function configuredUrl(): string | null {
 }
 
 /** The ids of the tokens this GM controls on the map. */
-export function controlledTokenIds(): string[] {
+function controlledTokenIds(): string[] {
   const tokens = (canvas as unknown as { tokens?: { controlled?: Array<{ id?: unknown }> } })
     ?.tokens?.controlled;
   return (tokens ?? []).map(t => t.id).filter((id): id is string => typeof id === 'string');
@@ -307,7 +307,7 @@ function stopSchemeWatch(): void {
 }
 
 /** Tell the frame which tokens the GM controls now. */
-export function postPick(): void {
+function postPick(): void {
   const frame = frameOf();
   if (frame) postPickTo(frame, controlledTokenIds());
 }
@@ -448,7 +448,7 @@ let relayStarted = false;
  * GM page which tokens this GM controls, now and on every change, and answer its "ready" message.
  * Does nothing in a plain Foundry tab, and nothing for a player.
  */
-export function startPickRelay(): void {
+function startPickRelay(): void {
   if (relayStarted || game.user?.isGM !== true) return;
   const targets = pickTargets(window);
   if (targets.length === 0) return;
@@ -474,7 +474,7 @@ export function startPickRelay(): void {
 }
 
 /** How long the strip page has to say it listens before the window explains the blank frame. */
-export const FRAME_WAIT_MS = 8000;
+const FRAME_WAIT_MS = 8000;
 
 /**
  * What to tell the GM when the strip page did not answer: the address tried, and the usual causes
@@ -671,7 +671,7 @@ export async function toggleLiveWindow(): Promise<void> {
 }
 
 /** The pinned button, and the scene controls rebuilt, for the current switch. */
-export function refreshLiveWindowButtons(): void {
+function refreshLiveWindowButtons(): void {
   try {
     const controls = (ui as unknown as { controls?: { render?(o: object): unknown } }).controls;
     void controls?.render?.({ reset: true });
@@ -709,15 +709,4 @@ export function restoreLiveWindow(): void {
       console.warn(`${MODULE_ID} | live window restore failed`, e)
     );
   }
-}
-
-/** Forget the window (tests). */
-export function resetLiveWindow(): void {
-  windowClass = null;
-  instance = null;
-  hookId = null;
-  closing = false;
-  relayStarted = false;
-  stopSchemeWatch();
-  document.getElementById(PIN_ID)?.remove();
 }

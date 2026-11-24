@@ -14,7 +14,7 @@ import type {
 const CREATURE_TYPES = new Set(['npc', 'character']);
 
 /** Quiet time after the last pack change before the background rebuild starts. */
-export const REBUILD_DEBOUNCE_MS = 5_000;
+const REBUILD_DEBOUNCE_MS = 5_000;
 
 /** Quiet time after the last pack change before a GM browser writes the dirty stamp. */
 export const DIRTY_STAMP_DEBOUNCE_MS = 1_000;
@@ -93,7 +93,7 @@ function yieldToBrowser(): Promise<void> {
  * in every GM browser with "Any GM", since the backend may route queries to any
  * of them.)
  */
-export function isIndexBuilder(): boolean {
+function isIndexBuilder(): boolean {
   const user = game.user;
   if (!user?.isGM) return false;
   const bridgeUserId: unknown = game.settings.get(MODULE_ID, 'bridgeUserId');

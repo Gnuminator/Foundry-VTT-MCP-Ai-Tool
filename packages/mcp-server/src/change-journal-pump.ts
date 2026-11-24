@@ -77,7 +77,7 @@ export const DEFAULT_CHANGE_JOURNAL_MAX_BYTES = 64 * 1024 * 1024;
 /** How long after a failed file removal the retention run is tried again. */
 export const RETENTION_RETRY_MS = 10 * 60 * 1000;
 /** Most action ids `cutActions` keeps (the newest); a cut adds a few. */
-export const MAX_CUT_ACTIONS = 200;
+const MAX_CUT_ACTIONS = 200;
 /** A temp file of a day's rewrite older than this was left by a crash. */
 const STALE_TEMP_MS = 10 * 60 * 1000;
 

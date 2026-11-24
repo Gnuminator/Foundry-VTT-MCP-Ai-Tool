@@ -14,7 +14,7 @@ import { enrichersToText } from '../enricher-text.js';
  * packs, and the rules packs of `aitool-content`, including its "Books" journals (the DMG 2024
  * and the other rulebooks; not its monsters, which hold adventure names).
  */
-export const DEFAULT_RULES_PACKAGES = [
+const DEFAULT_RULES_PACKAGES = [
   'dnd-players-handbook',
   'dnd5e',
   ...['classes', 'species', 'backgrounds', 'feats', 'spells', 'items', 'journals'].map(
@@ -22,7 +22,7 @@ export const DEFAULT_RULES_PACKAGES = [
   ),
 ];
 
-export const RULES_SEARCH_SETTING = 'rulesSearchPacks';
+const RULES_SEARCH_SETTING = 'rulesSearchPacks';
 
 /** Words that carry no rules meaning in a question like "how does grappling work". */
 const STOP_WORDS = new Set([

@@ -76,24 +76,24 @@ import {
 } from './values.js';
 
 export const PLAN_TTL_MS = 15 * 60 * 1000;
-export const MAX_PLANS = 100;
+const MAX_PLANS = 100;
 export const MAX_OPS = 200;
 /** A Foundry apply may take long (big batches); the default 10 s query timeout is too short. */
 export const APPLY_TIMEOUT_MS = 120_000;
 /** After a lost answer, ask the module how the apply went this often (PB-04) ... */
-export const OUTCOME_POLL_INTERVAL_MS = 5_000;
+const OUTCOME_POLL_INTERVAL_MS = 5_000;
 /** ... and give up after this long. */
-export const OUTCOME_DEADLINE_MS = 120_000;
+const OUTCOME_DEADLINE_MS = 120_000;
 /** The longest an apply or undo waits for its recorded-change listeners before it answers. */
-export const LISTENER_WAIT_MS = 5_000;
+const LISTENER_WAIT_MS = 5_000;
 /** Most players a plan's "show it now" may name. */
-export const MAX_SHOW_USERS = 50;
+const MAX_SHOW_USERS = 50;
 /** Start of the diff text of a "show it now" line; an undo's diff leaves such lines out. */
-export const SHOW_DIFF_PREFIX = 'Show it now:';
+const SHOW_DIFF_PREFIX = 'Show it now:';
 /** How long "show it now" waits for Foundry (it runs inside the guarded-write lock). */
-export const SHOW_TIMEOUT_MS = 15_000;
+const SHOW_TIMEOUT_MS = 15_000;
 /** Start of the diff text of a chat notice line; an undo's diff leaves such lines out. */
-export const NOTICE_DIFF_PREFIX = 'Chat notice:';
+const NOTICE_DIFF_PREFIX = 'Chat notice:';
 
 const FEATURE_ID = /^[a-z][a-z0-9-]{1,40}$/;
 /** Vault files features may not write through vault ops. */

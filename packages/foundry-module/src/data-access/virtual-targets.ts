@@ -28,12 +28,12 @@ export const SETTING_UUID_PREFIX = 'GameSetting.';
 export const PACK_UUID_PREFIX = 'PackConfig.';
 
 export const MODULE_CONFIG_SETTING = 'core.moduleConfiguration';
-export const PACK_CONFIG_SETTING = 'core.compendiumConfiguration';
+const PACK_CONFIG_SETTING = 'core.compendiumConfiguration';
 
 /** Values over this many JSON characters are never planned (or read back whole). */
 export const MAX_SETTING_JSON = 4000;
 /** The module list holds one entry per installed module, so it gets room for several hundred. */
-export const MAX_MODULE_CONFIG_JSON = 30000;
+const MAX_MODULE_CONFIG_JSON = 30000;
 
 /** Pack configuration fields a plan may set. */
 const PACK_FIELDS = ['ownership', 'locked', 'folder'] as const;
@@ -86,7 +86,7 @@ export function isVirtualUuid(uuid: unknown): boolean {
 }
 
 /** `GameSetting.dnd5e.diagonalMovement` to its namespace and key. */
-export function parseSettingUuid(uuid: string): { namespace: string; key: string } {
+function parseSettingUuid(uuid: string): { namespace: string; key: string } {
   const rest = uuid.slice(SETTING_UUID_PREFIX.length);
   const dot = rest.indexOf('.');
   if (dot <= 0 || dot === rest.length - 1) throw new Error(`Not a setting address: ${uuid}`);
@@ -162,11 +162,7 @@ function assertSafePath(path: string): void {
  * (write switches, feature switches) can never be changed this way, nor can the permission table.
  * The module and pack lists have their own targets and checks.
  */
-export function assertSettingWritable(
-  namespace: string,
-  key: string,
-  paths: readonly string[]
-): void {
+function assertSettingWritable(namespace: string, key: string, paths: readonly string[]): void {
   const id = `${namespace}.${key}`;
   paths.forEach(assertSafePath);
   if (namespace === MODULE_ID) {
@@ -406,7 +402,7 @@ export function isSystemRequirement(r: { id?: string; type?: string }): boolean 
 }
 
 /** The ids of the modules (not systems) a module requires. */
-export function moduleRequiredIds(m: ModuleLike): string[] {
+function moduleRequiredIds(m: ModuleLike): string[] {
   return [...(m.relationships?.requires ?? [])]
     .filter(
       r =>

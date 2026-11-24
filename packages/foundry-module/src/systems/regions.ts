@@ -71,7 +71,7 @@ export function supportsRegionDocuments(): boolean {
  * circle/cone/ray/rect vocabulary to the v14 Region shape types. `pixelsPerUnit`
  * is `grid.size / grid.distance` (the same conversion `tokensInTemplate` uses).
  */
-export function templateToRegionShape(
+function templateToRegionShape(
   params: TemplateParams,
   pixelsPerUnit: number
 ): Record<string, unknown> {

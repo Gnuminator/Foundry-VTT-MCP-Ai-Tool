@@ -57,7 +57,7 @@ export function gmWindowsEnabled(): boolean {
 const openWindows = new Set<{ close?(): Promise<unknown> }>();
 
 /** Close every open GM window (the switch was turned off); a window that is not open stays so. */
-export function closeGmWindows(): void {
+function closeGmWindows(): void {
   for (const window of Array.from(openWindows)) {
     openWindows.delete(window);
     void Promise.resolve(window.close?.()).catch((e: unknown): void => {

@@ -36,7 +36,7 @@ import {
   type ExportSceneEntry,
 } from '@gnuminator/shared';
 
-export const EXPORT_INDEX_METHOD = `${MODULE_ID}.${EXPORT_INDEX_QUERY}`;
+const EXPORT_INDEX_METHOD = `${MODULE_ID}.${EXPORT_INDEX_QUERY}`;
 
 /** A 16-character Foundry id from a short seed (`fid('wolf')` = `wolf000000000000`). */
 export function fid(seed: string): string {

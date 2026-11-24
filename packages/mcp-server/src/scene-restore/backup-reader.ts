@@ -143,7 +143,7 @@ export async function findScenesDir(backupPath: string, worldId?: string): Promi
 }
 
 /** A copy changed within this long is taken for a world that is running, not a backup. */
-export const BACKUP_QUIET_MS = 5 * 60_000;
+const BACKUP_QUIET_MS = 5 * 60_000;
 
 /**
  * Why a `scenes` folder looks like a running world rather than a backup, or null. Plan B runs

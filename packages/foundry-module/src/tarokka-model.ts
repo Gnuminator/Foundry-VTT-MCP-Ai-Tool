@@ -14,12 +14,12 @@ import { escapeHtml } from './ai-changes-model.js';
 import type { RevealPlan } from './handouts-model.js';
 
 /** The longest text a reveal may carry (the backend's own limit). */
-export const MAX_REVEAL_TEXT = 5000;
+const MAX_REVEAL_TEXT = 5000;
 /** The longest page title (the backend's own limit). */
-export const MAX_REVEAL_TITLE = 120;
+const MAX_REVEAL_TITLE = 120;
 
 /** What a link button is called, as the dashboard's drawer calls it. */
-export const LINK_LABELS: Readonly<Record<string, string>> = {
+const LINK_LABELS: Readonly<Record<string, string>> = {
   journalPageUuid: 'Journal',
   sceneUuid: 'Scene',
   actorUuid: 'Actor',

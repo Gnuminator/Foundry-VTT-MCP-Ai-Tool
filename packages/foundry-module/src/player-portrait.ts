@@ -22,13 +22,13 @@ export const UPLOAD_PLAYER_PORTRAIT_QUERY = 'uploadPlayerPortrait';
 const PLAYER_PORTRAIT_FEATURE_ID = 'player-portrait';
 
 /** Most placed tokens one picture change reaches, so a plan stays readable. */
-export const MAX_PLACED_TOKENS = 100;
+const MAX_PLACED_TOKENS = 100;
 
 /** The same cap as shared's PORTRAIT_MAX_BYTES. */
 export const PORTRAIT_MAX_BYTES = 5 * 1024 * 1024;
 
 /** The folder every player folder sits in, relative to the Foundry Data folder. */
-export const PLAYERS_FOLDER = 'assets/players';
+const PLAYERS_FOLDER = 'assets/players';
 
 const TYPES = { png: 'image/png', jpg: 'image/jpeg', webp: 'image/webp' } as const;
 type PortraitType = keyof typeof TYPES;

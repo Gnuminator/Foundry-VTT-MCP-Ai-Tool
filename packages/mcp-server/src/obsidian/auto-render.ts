@@ -26,8 +26,8 @@ import {
   type ExportResult,
 } from './export.js';
 
-export const DEFAULT_RENDER_DEBOUNCE_MS = 3000;
-export const DEFAULT_RENDER_MAX_WAIT_MS = 30_000;
+const DEFAULT_RENDER_DEBOUNCE_MS = 3000;
+const DEFAULT_RENDER_MAX_WAIT_MS = 30_000;
 
 /** The vault to render into, from the environment (null = auto-render off). */
 export function obsidianAutoRenderSettings(env: NodeJS.ProcessEnv = process.env): {

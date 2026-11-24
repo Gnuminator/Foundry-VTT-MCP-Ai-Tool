@@ -47,7 +47,7 @@ test('lists open steps for a write tool and none when all are done', () => {
   assert.match(steps.join('\n'), /sweep/);
   assert.match(steps.join('\n'), /docs:tools/);
   assert.match(steps.join('\n'), /write-gate/);
-  const done = f => (f.includes('TOOL-SETS') ? '`new-tool`' : 'new-tool');
+  const done = f => (f.includes('TOOL-SETS') ? '`new-tool`' : "'new-tool'");
   assert.deepEqual(
     openSteps('new-tool', block, done).filter(s => !/write-gate/.test(s)),
     []

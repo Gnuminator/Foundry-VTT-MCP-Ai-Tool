@@ -25,11 +25,11 @@ import type { GuardedWriteService } from './guarded-write/service.js';
 import type { Logger } from './logger.js';
 
 /** A fight older than this when first seen (a replay after a restart) is not acted on. */
-export const COMBAT_MOOD_MAX_EVENT_AGE_MS = 2 * 60 * 1000;
+const COMBAT_MOOD_MAX_EVENT_AGE_MS = 2 * 60 * 1000;
 const SEEN_LIMIT = 200;
 const ACTOR = 'Combat mood';
 
-export interface CombatMoodServiceOptions {
+interface CombatMoodServiceOptions {
   foundryClient: Pick<FoundryClient, 'query'>;
   guardedWrites: Pick<GuardedWriteService, 'createPlan' | 'applyPlan' | 'undo'>;
   logger: Logger;

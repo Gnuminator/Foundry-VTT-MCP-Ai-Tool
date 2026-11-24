@@ -41,6 +41,7 @@ import {
   handlePlayerTool,
   readExtraDenyTerms,
 } from './tools/player.js';
+import { CombatMoodService } from './combat-mood.js';
 import { GameEventHub } from './game-event-hub.js';
 import { WrapperRegistry } from './wrapper-registry.js';
 import {
@@ -285,6 +286,8 @@ async function startBackend(): Promise<void> {
     handouts,
     logger,
   });
+  // Combat mood (idea 1.14): a fight starting or ending switches the scene's "Combat" mood.
+  const combatMood = new CombatMoodService({ foundryClient, guardedWrites, logger });
   const wrapperRegistry = new WrapperRegistry();
   // Filled when the pumps start below; get-preflight reads their health through it.
   const pumpHealthSources: Array<() => PumpHealthSnapshot> = [];
@@ -393,7 +396,10 @@ async function startBackend(): Promise<void> {
         logger,
         intervalMs: pumpSettings.intervalMs,
         onAppended: renderObsidian,
-        onEvents: (_worldId, events): void => gameEventHub.publishSessionEvents(events),
+        onEvents: (_worldId, events): void => {
+          gameEventHub.publishSessionEvents(events);
+          combatMood.onEvents(events);
+        },
       });
       const pump = eventPump;
       pumpHealthSources.push(() => pump.health.snapshot());

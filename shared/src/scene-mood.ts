@@ -21,6 +21,16 @@ import type { GuardedOp } from './guarded-write.js';
 /** The guarded feature id and its world-setting switch (`feature.scene-mood.enabled`). */
 export const SCENE_MOOD_FEATURE_ID = 'scene-mood';
 
+/**
+ * Combat mood (idea 1.14): while the feature `combat-mood` is on, a fight that starts on the viewed
+ * scene applies that scene's mood preset named "Combat", and the fight ending puts the look and
+ * the music back. Off by default; every change is an ordinary guarded change with an Undo.
+ */
+export const COMBAT_MOOD_FEATURE_ID = 'combat-mood';
+
+/** The preset name looked up on the scene when a fight starts (any case; see `presetKey`). */
+export const COMBAT_MOOD_PRESET = 'Combat';
+
 /** Module query names (prefixed with the module id on the wire). GM client only. */
 export const SCENE_MOOD_PLAN_QUERY = 'planSceneMood';
 export const SCENE_MOODS_QUERY = 'getSceneMoods';

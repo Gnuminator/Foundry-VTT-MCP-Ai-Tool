@@ -5,6 +5,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  COMBAT_MOOD_FEATURE_ID as SHARED_COMBAT_FEATURE,
   SCENE_MOOD_FEATURE_ID as SHARED_FEATURE,
   SCENE_MOOD_FLAG as SHARED_FLAG,
   SCENE_MOOD_PLAN_QUERY as SHARED_PLAN,
@@ -12,6 +13,7 @@ import {
 } from '@gnuminator/shared';
 import { MODULE_ID } from './constants.js';
 import {
+  COMBAT_MOOD_FEATURE_ID,
   getSceneMoods,
   planSceneMood,
   presetKey,
@@ -75,6 +77,7 @@ afterEach(() => {
 describe('names and classification', () => {
   it('mirrors the shared names; both queries are reads', () => {
     expect(SCENE_MOOD_FEATURE_ID).toBe(SHARED_FEATURE);
+    expect(COMBAT_MOOD_FEATURE_ID).toBe(SHARED_COMBAT_FEATURE);
     expect(SCENE_MOOD_FLAG).toBe(SHARED_FLAG);
     expect(SCENE_MOOD_PLAN_QUERY).toBe(SHARED_PLAN);
     expect(SCENE_MOODS_QUERY).toBe(SHARED_LIST);

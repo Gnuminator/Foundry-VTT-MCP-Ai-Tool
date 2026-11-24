@@ -793,7 +793,12 @@ export class EventTracker {
       'combat-start',
       `Combat started with ${text(combatantCount)} combatant${combatantCount === 1 ? '' : 's'}`,
       {
-        details: { combatId: dig(combat, 'id'), round: dig(combat, 'round') ?? 1, combatantCount },
+        details: {
+          combatId: dig(combat, 'id'),
+          sceneId: dig(combat, 'scene', 'id') ?? dig(combat, 'sceneId') ?? null,
+          round: dig(combat, 'round') ?? 1,
+          combatantCount,
+        },
         visibility: NO_SUBJECT_VISIBILITY,
       }
     );
@@ -807,7 +812,11 @@ export class EventTracker {
       'combat-end',
       `Combat ended after ${text(rounds)} round${rounds === 1 ? '' : 's'}`,
       {
-        details: { combatId: dig(combat, 'id'), rounds },
+        details: {
+          combatId: dig(combat, 'id'),
+          sceneId: dig(combat, 'scene', 'id') ?? dig(combat, 'sceneId') ?? null,
+          rounds,
+        },
         visibility: NO_SUBJECT_VISIBILITY,
       }
     );

@@ -804,3 +804,32 @@
   text-align: center;
   margin-top: 8px;
 }
+
+/* Run mode (per client): hide the tabs and hotbar a GM does not touch mid-session. Prep mode
+   removes the body class. Nothing on the server changes. */
+body.mcp-run-mode #hotbar,
+body.mcp-run-mode #sidebar-tabs [data-tab="items"],
+body.mcp-run-mode #sidebar-tabs [data-tab="tables"],
+body.mcp-run-mode #sidebar-tabs [data-tab="cards"],
+body.mcp-run-mode #sidebar-tabs [data-tab="macros"],
+body.mcp-run-mode #sidebar-tabs [data-tab="compendium"] {
+  display: none !important;
+}
+
+.mcp-run-mode-pill {
+  position: fixed;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  width: auto;
+  padding: 2px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  line-height: 20px;
+  cursor: pointer;
+  opacity: 0.8;
+}
+.mcp-run-mode-pill:hover {
+  opacity: 1;
+}

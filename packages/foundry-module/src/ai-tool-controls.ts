@@ -17,6 +17,7 @@ import { openHandoutsWindow } from './handouts-window.js';
 import { liveWindowEnabled, toggleLiveWindow } from './live-window.js';
 import { openLootWindow } from './loot-window.js';
 import { openPartyWindow } from './party-window.js';
+import { toggleRunMode } from './run-mode.js';
 import { openSceneWindow } from './scene-window.js';
 import { openSessionWindow } from './session-window.js';
 import { openTarokkaTableWindow } from './tarokka-table-window.js';
@@ -94,6 +95,12 @@ export const AI_TOOL_BUTTONS: readonly AiToolButton[] = [
     icon: 'fa-solid fa-coins',
     open: () => openLootWindow(),
     gmWindow: true,
+  },
+  {
+    name: 'runMode',
+    title: 'Run / Prep mode',
+    icon: 'fa-solid fa-eye-slash',
+    open: () => toggleRunMode(),
   },
   {
     name: 'live',

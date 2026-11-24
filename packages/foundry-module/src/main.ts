@@ -32,6 +32,7 @@ import { ROOM_SETUP_FEATURE_ID } from './room-setup.js';
 import { RULES_CHECK_FEATURE_ID } from './rules-check.js';
 import { PARTY_FEATURE_ID, WHO_NOTICES_FEATURE_ID } from './party-scan.js';
 import { registerGmWindowsSetting } from './gm-windows.js';
+import { registerRunModeHooks, registerRunModeSetting } from './run-mode.js';
 import { registerLiveWindowSettings, restoreLiveWindow } from './live-window.js';
 import { registerPartyAuto, registerPartyAutoSettings } from './party-auto.js';
 import { registerSessionSwitchSettings } from './session-switches.js';
@@ -141,6 +142,8 @@ class FoundryMCPBridge {
       registerSettingsUsageHooks();
       registerSessionSwitchSettings();
       registerGmWindowsSetting();
+      registerRunModeSetting();
+      registerRunModeHooks();
       registerLiveWindowSettings();
       // Player characters go into the dnd5e party by themselves (active GM's client only).
       registerPartyAutoSettings();

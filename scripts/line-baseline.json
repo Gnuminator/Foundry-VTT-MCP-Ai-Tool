@@ -122,7 +122,7 @@
       "file": ".claude/hooks/guard-remote-commands.mjs",
       "lines": 1034,
       "reason": "the stack_docker/stack_compose rule of PR 1230 (the guard must read the command and non-stage files apart from the reviewed stage scripts); the guard is one rule table",
-      "pr": ""
+      "pr": "1230"
     },
     {
       "file": "scripts/test-kit/lib/gm-actions.mjs",

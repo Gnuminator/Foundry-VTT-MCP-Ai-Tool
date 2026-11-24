@@ -99,5 +99,5 @@ Write-Host ''
 Write-Host 'NOT carried back: the bridge vault, all bridge data of that night (Undo list, session log, Tarokka, omens, downtime, handout reveals).'
 Write-Host "  It stays on this PC in $($L.VaultDir) and the Pi's vault will lack it."
 Write-Host '  stop.ps1 -Clean -PushedBack DELETES it. To keep it, copy it on this PC first (no Pi change):'
-Write-Host "    Copy-Item -Recurse `"$($L.VaultDir)`" `"$($L.Root)-vault-$(Get-Date -Format yyyyMMdd)`""
+Write-Host "    Copy-Item -Recurse `"$($L.VaultDir)`" `"$($L.Root)-vault-$(Get-Date -Format yyyyMMdd-HHmmss)`""
 Write-Host '  Putting it into the Pi vault needs a reviewed stage script with a snapshot and a stopped bridge; there is none yet.'

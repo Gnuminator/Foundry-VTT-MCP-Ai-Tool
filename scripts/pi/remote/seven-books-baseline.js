@@ -341,6 +341,7 @@ if (collisions.length)
     `${collisions.length} id collision(s) between the kept packs, nothing changed: ${collisions.slice(0, 10).join(' | ')}`
   );
 const miss = new Set();
+const supersededKeys = new Set(); // "pack|id" of the 2014 species this run does not copy
 let nameLinks = 0;
 const sourceRe = sourcePacks;
 const wantedCopy = new Map(); // id -> { data (rewritten, plain), target }
@@ -370,6 +371,7 @@ for (const id of sourcePacks) {
   for (const doc of await pick(game.packs.get(id), ids)) {
     const o = doc.toObject();
     if (isSuperseded(o)) {
+      supersededKeys.add(`${id}|${o._id}`);
       log(`SKIPPED superseded 2014 species ${o.name} (not copied to the players' pack)`);
       continue;
     }
@@ -467,8 +469,15 @@ log(`JOURNAL PAGES to rewrite: ${journalPlan.length}`);
 log(
   `NAME-FORM LINKS @Compendium[pack.Name] to kept packs (not rewritten, they stay as they are): ${nameLinks}`
 );
+// A link to a superseded 2014 species is not dead yet: its target exists in the hidden source pack and is only left out of
+// the players' pack, so it is listed apart from the links that were dead before this run.
+const supersededMiss = [...miss].filter(k => supersededKeys.has(k));
+const deadMiss = [...miss].filter(k => !supersededKeys.has(k));
 log(
-  `LINKS TO KEPT PACKS WITH NO ENTRY (already dead, left as they are): ${miss.size}${miss.size ? ` (${[...miss].slice(0, 20).join(', ')})` : ''}`
+  `LINKS TO KEPT PACKS WITH NO ENTRY (already dead, left as they are): ${deadMiss.length}${deadMiss.length ? ` (${deadMiss.slice(0, 20).join(', ')})` : ''}`
+);
+log(
+  `LINKS TO SUPERSEDED 2014 SPECIES (not copied, so these links are dead for players after the run): ${supersededMiss.length}${supersededMiss.length ? ` (${supersededMiss.slice(0, 20).join(', ')})` : ''}`
 );
 const toHide = sourcePacks.filter(id => !same(ownershipOf(game.packs.get(id)), HIDDEN));
 const toOpen = targetIds.filter(

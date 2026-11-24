@@ -180,9 +180,16 @@ svc_cid() {
   ids="$(containers_of "$COMPOSE_LIVE_PROJECT" "$1" "${2:-}" 2>/dev/null)" || return 1
   printf '%s' "$ids" | head -n 1
 }
-# svc_active SERVICE: runs now.
+# svc_active SERVICE: runs now. Returns 0 running, 1 not running, 2 unknown (containers only: the Docker daemon does not answer).
+# Most callers read 2 as "not running" (they test only for 0); a caller where that would be unsafe tests for 1 as in stage 21.
 svc_active() {
-  if [ "$STACK" = containers ]; then [ -n "$(svc_cid "$1")" ]; else systemctl is-active --quiet "$(svc_unit "$1")"; fi
+  local cid
+  if [ "$STACK" = containers ]; then
+    cid="$(svc_cid "$1")" || return 2
+    [ -n "$cid" ] || return 1
+  else
+    systemctl is-active --quiet "$(svc_unit "$1")" || return 1
+  fi
 }
 # svc_wanted SERVICE: runs now, or is set up to run (enabled unit, existing container): "it was part of the stack". On
 # containers it means "the container exists", so an Assistant GM container someone stopped on purpose is started again by

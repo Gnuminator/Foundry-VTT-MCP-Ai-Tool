@@ -161,7 +161,9 @@ night; changes made by hand in Foundry need no dashboard.
    (Undo list, session log, Tarokka, omens, downtime, handout reveals) stays in `C:\FoundryPlanB\tool\vault`,
    and the Pi's vault (`/var/lib/foundry-ai-tool/vault`) does not get it; `push-back.ps1` says so in its last
    lines. Step 4 (`stop.ps1 -Clean`) deletes that folder. To keep it, copy it on the PC first, no Pi change:
-   `Copy-Item -Recurse C:\FoundryPlanB\tool\vault C:\FoundryPlanB-vault-<date>`. Merging it into the Pi's
+   `Copy-Item -Recurse <root>\tool\vault <root>-vault-<date>-<time>` (`push-back.ps1` prints this command with your root and
+   the time filled in; `C:\FoundryPlanB` is the default root; the time keeps a second copy on the same day from nesting
+   inside the first). Merging it into the Pi's
    vault by hand is not advised (the Pi bridge writes it all the time); that needs a stage script with a
    snapshot and a stopped bridge, which does not exist yet.
 

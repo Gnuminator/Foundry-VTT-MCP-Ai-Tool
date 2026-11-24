@@ -587,6 +587,16 @@ def sync(session: Path) -> CheckReport:
     for e in entries:
         e.suggestion = suggest(e.key, names) or next((s for v in e.variants[1:] if (s := suggest(v, names))), "")
     entries += fact_entries(session, raw, lines, names)
+    # Held pages and disagreements from the campaign merge plan (campaign.py) join the same page.
+    from . import campaign
+
+    have = {e.key.casefold() for e in entries}
+    for extra in campaign.pending_entries(session):
+        if extra.key.casefold() not in have:
+            if extra.kind == "name":
+                extra.suggestion = suggest(extra.key, names)
+            entries.append(extra)
+            have.add(extra.key.casefold())
     report.entries = sum(1 for e in entries if e.kind == "name")
     report.facts = len(entries) - report.entries
 

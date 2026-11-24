@@ -226,6 +226,17 @@ try {
       }
     }
 
+    # The campaign merge plan (D-151): one more Claude call after the notes. Best effort: a failure or a
+    # pause never holds back the publish; the plan is rebuilt when the notes are newer than the plan.
+    if (-not $DryRun -and (Test-NotesDone $folder)) {
+      $notesJson = Join-Path $folder 'notes\notes.json'
+      $planJson = Join-Path $folder 'notes\campaign-merge.json'
+      if (-not (Test-Path $planJson) -or (Get-Item $planJson).LastWriteTime -lt (Get-Item $notesJson).LastWriteTime) {
+        $code = Invoke-Notes @('campaign', $folder)
+        if ($code -ne 0) { Say "$($dir.Name): campaign merge plan not built (exit $code); the next pass tries again" }
+      }
+    }
+
     if ((Test-NotesDone $folder) -and -not (Test-Path (Join-Path $folder 'notes\approved.json'))) {
       if ($DryRun) { Say "$($dir.Name): would publish the notes to the bridge" }
       else {

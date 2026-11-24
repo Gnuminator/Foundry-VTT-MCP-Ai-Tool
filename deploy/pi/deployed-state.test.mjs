@@ -439,6 +439,18 @@ describe('deployed-state.sh', { skip: noBash }, () => {
       for (const m of t.matchAll(/install -m 0?644 (?:-o root -g root )?"\$(?:SETTINGS_DRIVER|SWITCH_DRIVER|SESSION_DRIVER)" "[^"]*\/([\w.-]+\.mjs)"/g)) {
         assert.ok(listed.has(m[1]), `${f} installs ${m[1]} but deploy/pi/stage-files.txt has no row for it`);
       }
+      // The other install forms: the loop over a `files="a b"` list (stages 29, 35) needs a row per listed file ...
+      if (/for f in \$files; do install -m 0?644 [^;]*"\$src_dir\/\$f" "\$dest\/\$f"/.test(t)) {
+        const list = /^files="([^"]+)"/m.exec(t);
+        assert.ok(list, `${f} installs "$files" in a loop but has no files="..." line the test can read`);
+        for (const name of list[1].split(/\s+/)) {
+          assert.ok(listed.has(name), `${f} installs ${name} (its files list) but deploy/pi/stage-files.txt has no row for it`);
+        }
+      }
+      // ... and a plain `install -m 0644 "$var" "<dir>/<name>.mjs"` whatever the variable is called (stage 5's driver_src).
+      for (const m of t.matchAll(/install -m 0?644 (?:-o root -g root )?"\$\w+" "\$\w+\/([\w.-]+\.mjs)"/g)) {
+        assert.ok(listed.has(m[1]), `${f} installs ${m[1]} but deploy/pi/stage-files.txt has no row for it`);
+      }
     }
   });
 

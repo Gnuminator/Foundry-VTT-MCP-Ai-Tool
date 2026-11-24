@@ -264,6 +264,19 @@ exit 0
     assert.match(r.stderr, /does not answer/);
   });
 
+  test('svc_active: 0 running, 1 not running, 2 when the Docker daemon is silent (unknown is not "not running")', () => {
+    const r = run(
+      'live',
+      'use_stack "x"; svc_active foundry; echo "running=$?"; DOCKER_MODE=down; export DOCKER_MODE; rc=0; svc_active foundry || rc=$?; echo "silent=$rc"'
+    );
+    assert.match(r.stdout, /running=0/);
+    assert.match(r.stdout, /silent=2/);
+    const none = run('stopped', 'use_stack "x"; rc=0; svc_active foundry || rc=$?; echo "stopped=$rc"');
+    assert.match(none.stdout, /stopped=1/);
+    const units = run('none', 'use_stack "x"; rc=0; svc_active foundry || rc=$?; echo "unit=$rc"');
+    assert.match(units.stdout, /unit=1/);
+  });
+
   test('svc_start of a service with no container is an error, not a silent success', () => {
     const r = run('none', 'use_stack "x"; STACK=containers; svc_start foundry || echo "rc=$?"');
     assert.match(r.stdout, /rc=1/);
@@ -379,6 +392,16 @@ describe('every stage that starts, restarts or enables a unit calls the guard', 
       if (hits.length && !allowed.has(f)) assert.fail(`${f} uses stack_docker or stack_compose: only the use_stack stages and lib.sh may (the guard hides their verbs)`);
       for (const m of text.matchAll(verbs)) found.set(m[1], (found.get(m[1]) ?? 0) + 1);
       assert.doesNotMatch(text, /\bstack_compose\b[^\n]*\b(?:down|kill)\b/, `${f}: stack_compose down or kill is stage 24's, with its own checks`);
+      // Outside lib.sh the stage files may only start or recreate what changed (up, never --force-recreate) and read the
+      // config (config); anything else goes through stage 24 or a lib.sh helper with its own checks.
+      if (f !== 'lib.sh') {
+        for (const line of text.split('\n')) {
+          const m = /\bstack_compose\s+(\S+)(.*)$/.exec(line);
+          if (!m || line.trimStart().startsWith('#')) continue;
+          assert.ok(['up', 'config'].includes(m[1]), `${f}: stack_compose ${m[1]} is not allowed in a stage file (only up and config)`);
+          assert.doesNotMatch(m[2], /--force-recreate/, `${f}: stack_compose up --force-recreate recreates healthy containers: not allowed in a stage file`);
+        }
+      }
     }
     for (const verb of found.keys()) assert.ok(['stop', 'start', 'restart', 'rm', 'run', 'logs', 'inspect'].includes(verb) || verb.startsWith('-'), `stack_docker ${verb}`);
   });

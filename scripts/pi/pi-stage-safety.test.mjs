@@ -666,6 +666,42 @@ describe('the stages', () => {
     assert.match(text, /CHECK=1 timeout 60 bash -s/);
     assert.match(text, /warn "stage 33 check: /);
     assert.ok(text.indexOf('stage 33 check') < text.indexOf('say "stage 5 done'));
+    assert.doesNotMatch(text, /\/tmp\/stage33-check/, 'the check output stays in a variable, not a fixed /tmp file');
+  });
+
+  // The block itself, run in bash against a stand-in stage 33 (and a lib.sh that only has to exist).
+  describe('stage 5 stage 33 check block', () => {
+    const text = read('scripts/pi/remote/5-tool.sh');
+    const start = text.indexOf('stage33="$app/scripts/pi/remote/33-obsidian-plugin.sh"');
+    const end = text.indexOf('say "stage 5 done');
+    assert.ok(start > 0 && end > start);
+    const block = text.slice(start, end);
+    const run = stage33Body => {
+      const d = tmp();
+      const app = join(d, 'app');
+      mkdirSync(join(app, 'scripts', 'pi', 'remote'), { recursive: true });
+      writeFileSync(join(app, 'scripts', 'pi', 'remote', 'lib.sh'), '# stand-in\n');
+      writeFileSync(join(app, 'scripts', 'pi', 'remote', '33-obsidian-plugin.sh'), stage33Body);
+      const script = `ok() { echo "OK: $*"; }\nwarn() { echo "WARN: $*"; }\napp="${posix(app)}"\n${block}\n`;
+      const file = join(d, 'block.sh');
+      writeFileSync(file, script);
+      const r = spawnSync('bash', [posix(file)], { encoding: 'utf8' });
+      return `${r.stdout}${r.stderr}`;
+    };
+
+    test('a matching plugin is an ok line', () => {
+      assert.match(run('exit 0\n'), /^OK: stage 33 check: the GM vault's Obsidian plugin matches this build/m);
+    });
+    test('the check saying "not in step" tells the operator to run stage 33', () => {
+      const out = run('echo "stage 33 check: not in step (run this stage)"; exit 1\n');
+      assert.match(out, /WARN: stage 33 check: the GM vault's Obsidian plugin is not in step with this build: run stage 33 next/);
+    });
+    test('a check that could not run is not reported as "not in step"', () => {
+      const out = run('echo "die: the GM vault is missing"; exit 1\n');
+      assert.match(out, /WARN: stage 33 check could not run \(exit 1\)/);
+      assert.match(out, /die: the GM vault is missing/);
+      assert.doesNotMatch(out, /run stage 33 next/);
+    });
   });
 
   test('stage 5 and 12 warn when the dashboard split is off', () => {

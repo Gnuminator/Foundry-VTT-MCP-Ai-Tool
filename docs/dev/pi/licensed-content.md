@@ -190,7 +190,7 @@ Build each bundle while the PC's Foundry does not have the world open; the bundl
 checked even though the kept world is not replaced from it.
 
 Because the world is kept, anything changed in it during a call stays for the next one. To start over,
-add `REPLACE_WORLD=1` to the command of step 3. Build the bundle with `-NewerThanSnapshot` naming a time older than the PC copy's newest file (the Pi backup from before the call works), and add `REPLACE_NEWER=1` with the user's OK, because dropping what the call changed on the Pi is the point; the Pi's old copy is kept in `prev-<time>`.
+add `REPLACE_WORLD=1` to the command of step 3. Build the bundle with `-NewerThanSnapshot` naming a time older than the PC copy's newest file. `push-world.ps1` refuses a copy whose newest file is not newer than that time, so the Pi backup from before the call only works when the PC copy was opened after it; an untouched copy needs a time just before its newest file (`(Get-ChildItem <PC data>\worlds\frostmaiden-training -Recurse -File | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1).LastWriteTimeUtc`, minus a minute, as ISO UTC). Add `REPLACE_NEWER=1` with the user's OK, because dropping what the call changed on the Pi is the point; the Pi's old copy is kept in `prev-<time>`.
 
 If a proxy ever has to run elsewhere, it is our patched copy (it reads the cookie from a file and
 keeps it out of its logs), bound to `127.0.0.1`, never the upstream one (which logs the cookie).
@@ -316,7 +316,7 @@ The player-facing content is cut to the seven kept books (PHB 2024, DMG 2024, Co
   them, and goes back to the module packs when they are hidden).
   - **Pi sitting:** snapshot (`/boot/dietpi/dietpi-backup 1`), the user's OK, `scp` the three scripts, trim if not done
     (`MODE=trim`), then `MODE=baseline` (dry run: read `COUNT`, `JOURNAL PAGES`, `REFRESH`, `ORPHANS`, `SOURCE PACK MISSING`,
-    `NAME-FORM LINKS`, `LINKS TO KEPT PACKS WITH NO ENTRY`; `SOURCE PACK MISSING` means a module pack is gone and its copies are kept, so stop and look and note
+    `NAME-FORM LINKS`, `LINKS TO KEPT PACKS WITH NO ENTRY` (dead before the run), `LINKS TO SUPERSEDED 2014 SPECIES` (not copied, so dead for players after it); `SOURCE PACK MISSING` means a module pack is gone and its copies are kept, so stop and look and note
     that the check fails on it; `NAME-FORM LINKS` are `@Compendium[pack.Name]` links, which are not rewritten and are only counted; the baseline refuses to run, dry run and real run, when the legacy pack is missing and no
     `world.player-*` pack exists, i.e. before the trim),
     `MODE=baseline APPLY=1 OTHER_WORLDS_OK=1` (the baseline rewrites the journal pages of the shared module packs

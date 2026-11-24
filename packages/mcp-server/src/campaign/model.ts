@@ -209,13 +209,16 @@ export function readSummary(html: string, lang: CampaignLang): string {
   const { text } = within(html, lang);
   const m = /<div class="campaign-summary">([\s\S]*?)<\/div>/.exec(text);
   if (!m) return '';
-  return (
-    m[1]
-      // one pass: the "new" marker with its text, then any other tag (an unterminated "<" too)
-      .replace(/<em class="campaign-new">[^<]*<\/em>\s*|<[^>]*>?/g, '')
-      .replace(/&(quot|gt|lt|amp);/g, (_all, name: string) => ENTITY_CHARS[name] ?? _all)
-      .trim()
-  );
+  // Strip the "new" marker with its text, then every tag (an unterminated "<" too), until
+  // nothing changes, so "<<b>script>" cannot leave a tag behind.
+  let text_ = m[1];
+  for (let prev = ''; prev !== text_; ) {
+    prev = text_;
+    text_ = text_.replace(/<em class="campaign-new">[^<]*<\/em>\s*|<[^>]*>?/g, '');
+  }
+  return text_
+    .replace(/&(quot|gt|lt|amp);/g, (_all, name: string) => ENTITY_CHARS[name] ?? _all)
+    .trim();
 }
 
 /** Put a summary into a language section whose summary is empty (an addition). */

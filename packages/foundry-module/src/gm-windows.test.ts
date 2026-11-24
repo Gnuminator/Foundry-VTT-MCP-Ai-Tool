@@ -232,6 +232,7 @@ describe('the switch, the buttons and the windows', () => {
       'handouts',
       'tarokka',
       'tarokkaTable',
+      'runMode',
     ]);
     expect(await openCombatWindow()).toBe(false);
     expect(await openPartyWindow()).toBe(false);
@@ -252,6 +253,7 @@ describe('the switch, the buttons and the windows', () => {
       'session',
       'scene',
       'loot',
+      'runMode',
     ]);
     expect(controls[AI_TOOL_CONTROL].tools.party).toMatchObject({ order: 6, button: true });
     restore();

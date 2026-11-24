@@ -24,7 +24,7 @@ function newestSource(dir: string): number {
  * Why a build cannot be trusted: its file is missing, or older than the newest non-test source in
  * `srcDir`. Returns undefined when it is fine.
  */
-export function staleBuildReason(distFile: string, srcDir: string): string | undefined {
+function staleBuildReason(distFile: string, srcDir: string): string | undefined {
   if (!fs.existsSync(distFile)) return `${distFile} is not built`;
   if (fs.statSync(distFile).mtimeMs < newestSource(srcDir)) {
     return `${distFile} is older than its source (stale build)`;

@@ -2234,10 +2234,10 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
   test('up with SOAK_PLAYERS hands it to the driver, and says which soak players it made', () => {
     const r = run('up-soak');
     assert.equal(r.exit, 0, r.output);
-    assert.match(r.output, /ACTION=setup .* SOAK_PLAYERS=4/);
+    assert.match(r.output, /DRIVER_SOAK ACTION=setup SOAK_PLAYERS=4/);
     assert.match(r.output, /Soak players: Kit Player 2 to Kit Player 4 \(no password\)/);
     const plain = run('up-ok');
-    assert.match(plain.output, /SOAK_PLAYERS=(\s|$)/m);
+    assert.doesNotMatch(plain.output, /DRIVER_SOAK/);
     assert.doesNotMatch(plain.output, /Soak players:/);
   });
 

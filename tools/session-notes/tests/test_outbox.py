@@ -208,3 +208,14 @@ def test_obsidian_pages_are_written_once_for_approved_notes(tmp_path: Path) -> N
     written = outbox.write_obsidian(session, vault)
     assert len(written) == 1 and written[0].read_text(encoding="utf-8").startswith("---")
     assert outbox.write_obsidian(session, vault) == []
+
+
+def test_rebuild_keeps_the_sent_record_even_when_the_source_changed(tmp_path: Path) -> None:
+    session = make_session(tmp_path)
+    outbox.build(session)
+    outbox.mark_sent(session, "pc-ebbe-en", "discordDm")
+    data = outbox.load(session)
+    outbox.find(data, "pc-ebbe-en")["text"] = "# Old source text"  # the source text now differs
+    outbox.write(session, data)
+    rebuilt = outbox.build(session)
+    assert outbox.find(rebuilt, "pc-ebbe-en")["sent"]["discordDm"]["done"] is True

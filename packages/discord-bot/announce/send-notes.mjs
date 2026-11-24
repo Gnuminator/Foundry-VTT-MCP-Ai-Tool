@@ -18,6 +18,7 @@
  * - DISCORD_API_BASE points the calls at a fake Discord for tests (default the real API).
  * The token is never printed.
  */
+import { createHash } from 'node:crypto';
 import { readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
@@ -37,6 +38,9 @@ export function groupChannel(env = process.env, envFile = defaultEnvFile(env)) {
   }
   return '';
 }
+
+/** Fingerprint of the Discord text, kept with a partial send so an edit cannot mix old and new parts. */
+const textHash = messages => createHash('sha256').update(JSON.stringify(messages)).digest('hex').slice(0, 16);
 
 /** One authorised JSON call to Discord; returns the parsed body or throws without the token. */
 async function discord(fetchImpl, base, token, method, path, body) {
@@ -69,6 +73,8 @@ export function plan(outbox, { group = '', only } = {}) {
     let skip;
     if (item.status !== 'approved') skip = 'not approved';
     else if (item.sent?.[key]?.done) skip = 'already sent';
+    else if (item.sent?.[key]?.parts && item.sent[key].textHash !== textHash(item.discord))
+      skip = 'text changed after some parts went out; clear sent.' + key + ' in the outbox to resend all';
     else if (dm && !item.to.discordId) skip = 'no Discord id for this player';
     else if (grp && !group) skip = 'no session notes channel set (DISCORD_SESSION_NOTES_CHANNEL_ID)';
     out.push({ id: item.id, to, kind, messages: item.discord, ...(skip ? { skip } : {}) });
@@ -127,6 +133,7 @@ export async function runCli(argv, o = {}) {
     const key = p.kind === 'dm' ? 'discordDm' : 'discordGroup';
     item.sent ??= {};
     const rec = (item.sent[key] ??= { parts: 0, done: false });
+    rec.textHash = textHash(p.messages);
     try {
       let channelId = group;
       if (p.kind === 'dm') {
@@ -146,6 +153,7 @@ export async function runCli(argv, o = {}) {
         save(file, outbox);
       }
       rec.done = true;
+      delete rec.error;
       rec.at = new Date().toISOString();
       save(file, outbox);
       log(`sent ${p.id} -> ${p.kind} ${p.to}: ${p.messages.length} message(s)`);

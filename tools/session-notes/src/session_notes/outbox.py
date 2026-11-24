@@ -85,7 +85,6 @@ def plain(text: str) -> str:
         if line.startswith(">"):  # draft banners and quote marks are not for players
             continue
         out.append(line.rstrip())
-    joined = "\n".join(out)
     return re.sub(r"\n{3,}", "\n\n", "\n".join(out)).strip()
 
 
@@ -477,6 +476,9 @@ def build(session: Path, runner: Any = None, model: str = "sonnet") -> dict[str,
             was = prev.get(item["id"])
             if was is None:
                 continue
+            if was.get("sent"):
+                # Never forget what already went out, even when the text changed (never re-send).
+                item["sent"] = was["sent"]
             if was["text"] == item["text"] or was.get("edited"):
                 # Same source, or the approver's own edit: keep it and its status.
                 item.update({k: was[k] for k in ("text", "status", "approvedAt", "sent", "edited") if k in was})

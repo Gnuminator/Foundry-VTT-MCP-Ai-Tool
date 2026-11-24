@@ -119,4 +119,17 @@ describe('send-notes', () => {
     expect(second.calls.filter(c => c.body.content).map(c => c.body.content)).toEqual(['two']);
     rmSync(dir, { recursive: true });
   });
+
+  it('an edit after a partial send is not mixed with the parts already delivered', async () => {
+    const { dir, file } = setup();
+    const first = fakeFetch(3);
+    await runCli([file, '--only', 'pc-a-da'], { env, fetchImpl: first.f, log: () => {} });
+    const box = JSON.parse(readFileSync(file, 'utf8'));
+    box.items[0].discord = ['new one', 'new two'];
+    writeFileSync(file, JSON.stringify(box));
+    const second = fakeFetch();
+    await runCli([file, '--only', 'pc-a-da'], { env, fetchImpl: second.f, log: () => {} });
+    expect(second.f).not.toHaveBeenCalled();
+    rmSync(dir, { recursive: true });
+  });
 });

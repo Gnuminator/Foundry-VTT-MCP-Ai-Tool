@@ -147,7 +147,10 @@ export async function collect(pr, tailLines, headOverride) {
     'run', 'list', '--repo', REPO, '-w', 'ci.yml', '--commit', head, '-L', '5',
     '--json', 'databaseId,conclusion,status,event,createdAt',
   ]);
-  const run = runs.find(r => ['failure', 'timed_out', 'startup_failure', 'cancelled'].includes(r.conclusion)) || runs[0];
+  const run =
+    runs.find(r => ['failure', 'timed_out', 'startup_failure'].includes(r.conclusion)) ||
+    runs.find(r => r.conclusion === 'cancelled') ||
+    runs[0];
   if (run && runs[0] && runs[0].conclusion === 'success' && run !== runs[0])
     body.push('## Note', `The newest run ${runs[0].databaseId} succeeded; the failure below is from an older run (${run.databaseId}) and may be stale.`, '');
   if (!run) {
@@ -209,7 +212,7 @@ async function main(argv) {
     return i >= 0 ? argv[i + 1] : undefined;
   };
   if (!pr) {
-    console.error('usage: npm run ci:evidence -- <PR> [--out <file>] [--tail <lines>]');
+    console.error('usage: npm run ci:evidence -- <PR> [--head <sha>] [--out <file>] [--tail <lines>]');
     return 2;
   }
   const { text, kind, head } = await collect(pr, Number(opt('--tail')) || 150, opt('--head'));

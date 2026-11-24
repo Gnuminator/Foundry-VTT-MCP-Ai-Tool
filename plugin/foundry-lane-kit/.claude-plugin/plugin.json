@@ -1,6 +1,6 @@
 {
   "name": "foundry-lane-kit",
-  "version": "0.31.0+1b5607fc",
+  "version": "0.31.0+22fda9a9",
   "description": "Foundry AI Tool lane kit: lane, planner, pi-work and foundry-* skills, the guard hooks and the review agents.",
   "author": {
     "name": "Gnuminator"

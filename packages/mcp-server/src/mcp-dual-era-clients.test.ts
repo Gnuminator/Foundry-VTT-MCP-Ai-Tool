@@ -44,7 +44,8 @@ let tmpDir = '';
 // Without a build the suite is skipped (the drift check's merged worktree never builds); CI
 // always builds, so a missing dist there is an error, not a skip.
 const built = fs.existsSync(distIndex);
-const skipUnbuilt = !built && !process.env['CI'];
+// (The drift check sets CI itself, so GitHub's own variable is the signal.)
+const skipUnbuilt = !built && !process.env['GITHUB_ACTIONS'];
 
 beforeAll(async () => {
   if (skipUnbuilt) return;

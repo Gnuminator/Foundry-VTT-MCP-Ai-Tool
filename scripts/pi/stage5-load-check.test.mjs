@@ -25,7 +25,10 @@ after(() => roots.forEach(d => rmSync(d, { recursive: true, force: true })));
 /** Runs the function on `tree` (a folder); returns { status, out }. */
 function check(tree, env = {}) {
   const script = ['set -euo pipefail', fn, `check_build_loads "${posix(tree)}"`].join('\n');
-  const r = spawnSync('bash', ['-c', script], { encoding: 'utf8', env: { ...process.env, ...env } });
+  const r = spawnSync('bash', ['-c', script], {
+    encoding: 'utf8',
+    env: { ...process.env, ...env },
+  });
   return { status: r.status, out: `${r.stdout}${r.stderr}` };
 }
 
@@ -114,7 +117,10 @@ describe('check_build_loads on fake builds', () => {
     const root = fakeBuild({ 'packages/discord-bot/dist/rec/voice.js': ['@discordjs/voice'] });
     const r = check(root);
     assert.equal(r.status, 1, r.out);
-    assert.match(r.out, /discord: packages\/discord-bot\/dist\/rec\/voice\.js: .*@discordjs\/voice/);
+    assert.match(
+      r.out,
+      /discord: packages\/discord-bot\/dist\/rec\/voice\.js: .*@discordjs\/voice/
+    );
     install(root, '@discordjs/voice');
     assert.equal(check(root).status, 0);
   });
@@ -161,18 +167,24 @@ describe('check_build_loads on fake builds', () => {
 });
 
 describe('check_build_loads on this repository', () => {
-  const built =
-    existsSync(join(repo, 'packages/cogm-dashboard/dist/app.js')) &&
-    existsSync(join(repo, 'shared/dist/index.js'));
-  test(
-    'the real build loads and starts nothing',
-    { skip: !built && 'the repository is not built' },
-    () => {
-      const r = check(repo);
-      assert.equal(r.status, 0, r.out);
-      assert.equal(r.out.trim(), '', 'importing the modules printed something');
-    }
-  );
+  // Every module the check names must be built (a lane or gate worktree may lack, for example,
+  // discord-bot/dist). CI always builds, so there a missing file is a failure, not a skip.
+  const needed = [
+    'packages/mcp-server/dist/config.js',
+    'packages/cogm-dashboard/dist/app.js',
+    'shared/dist/index.js',
+    'packages/discord-bot/dist/rec/voice.js',
+  ];
+  const missing = needed.filter(f => !existsSync(join(repo, f)));
+  const skip =
+    missing.length > 0 &&
+    !process.env.GITHUB_ACTIONS &&
+    `not built here (run "npm run build"): ${missing.join(', ')}`;
+  test('the real build loads and starts nothing', { skip }, () => {
+    const r = check(repo);
+    assert.equal(r.status, 0, r.out);
+    assert.equal(r.out.trim(), '', 'importing the modules printed something');
+  });
 });
 
 describe('the stage', () => {

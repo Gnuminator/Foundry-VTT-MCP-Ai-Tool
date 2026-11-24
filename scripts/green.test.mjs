@@ -112,13 +112,25 @@ const calledGroups = job =>
     .map(c => RUN_CALL.exec(normalizeCommand(c))?.[1])
     .filter(Boolean);
 
-test('parity: build-test holds no test command outside a `checks.mjs --run <group>` call', () => {
-  const stray = ciRunCommands(ciYml, 'build-test').filter(c => !RUN_CALL.test(normalizeCommand(c)));
-  assert.deepEqual(
-    stray,
-    [],
-    'build-test may only install and call `node scripts/checks.mjs --run`'
-  );
+/** The jobs that call CI groups; the job `build-test` is only the summary that needs them. */
+const GROUP_JOBS = ['static', 'scripts', 'pi', 'build-test-steps'];
+
+test('parity: the build-test jobs hold no test command outside a `checks.mjs --run <group>` call', () => {
+  for (const job of GROUP_JOBS) {
+    const stray = ciRunCommands(ciYml, job).filter(c => !RUN_CALL.test(normalizeCommand(c)));
+    assert.deepEqual(
+      stray,
+      [],
+      `${job} may only install and call \`node scripts/checks.mjs --run\``
+    );
+  }
+});
+
+test('parity: the required check build-test (Node 24) is a summary of every group job', () => {
+  const summary = ciDoc.jobs['build-test'];
+  assert.deepEqual([...summary.needs].sort(), [...GROUP_JOBS].sort());
+  assert.equal(summary.name.startsWith('build-test (Node 24)'), true);
+  assert.deepEqual(ciRunCommands(ciYml, 'build-test').filter(c => RUN_CALL.test(c)), []);
 });
 
 test('parity: no job writes a test command in ci.yml outside `checks.mjs --run`, except the named ones', () => {
@@ -156,9 +168,11 @@ test('parity: every named exception still stands in ci.yml and has a reason', ()
   }
 });
 
-test('parity: build-test calls every CI group once in order; the ARM job calls the arm group', () => {
-  const called = calledGroups('build-test');
-  assert.deepEqual(called, Object.keys(CI_GROUPS));
+test('parity: the build-test jobs call every CI group once; the ARM job calls the arm group', () => {
+  const called = GROUP_JOBS.flatMap(calledGroups);
+  assert.deepEqual([...called].sort(), Object.keys(CI_GROUPS).sort());
+  // Each group job runs only the groups the build does not feed, in CI_GROUPS order.
+  assert.deepEqual(calledGroups('build-test-steps'), ['tools', 'build', 'kit', 'unit', 'smoke']);
   assert.ok(called.length >= 6 && called.length <= 10, `${called.length} groups`);
   assert.deepEqual(calledGroups('build-test-arm'), Object.keys(NAMED_GROUPS));
   for (const job of Object.keys(ciDoc.jobs)) {
@@ -324,8 +338,8 @@ test('every repo path a pi-group test file names in a string literal is inside P
   assert.deepEqual(missed, [], 'move that test to another group or widen PI_GROUP_PATHS');
 });
 
-test('the build-test checkout is deep enough for the pi group diff', () => {
-  assert.equal(ciDoc.jobs['build-test'].steps[0].with['fetch-depth'], 2);
+test('the pi job checkout is deep enough for the pi group diff', () => {
+  assert.equal(ciDoc.jobs.pi.steps[0].with['fetch-depth'], 2);
 });
 
 test('runGroup: runs every check after a red one, names failures, writes the summary table', () => {
@@ -406,8 +420,8 @@ test('ciRunCommands: single lines, blocks, comments, npm ci, other jobs', () => 
 });
 
 test('ciRunCommands finds the commands of the real ci.yml', () => {
-  const cmds = ciRunCommands(ciYml);
-  assert.ok(cmds.length >= 8);
+  const cmds = ciRunCommands(ciYml, 'build-test-steps');
+  assert.ok(cmds.length >= 5);
   assert.ok(cmds.includes('node scripts/checks.mjs --run build'));
   assert.ok(!cmds.includes('npm ci'));
   assert.ok(!cmds.some(c => c.includes('lint-baseline') || c.includes('Usage catalogue')));

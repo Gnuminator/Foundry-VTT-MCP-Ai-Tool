@@ -25,7 +25,7 @@
     "scripts/green.mjs": 1199,
     "scripts/live-write-sweep.mjs": 1855,
     "scripts/merge-runner.mjs": 1069,
-    "scripts/test-kit/lib/dashboard-controls.mjs": 1305,
+    "scripts/test-kit/lib/dashboard-controls.mjs": 1311,
     "scripts/test-kit/lib/fake/origins.mjs": 1051,
     "scripts/test-kit/lib/features.mjs": 1387,
     "scripts/test-kit/lib/gm-actions.mjs": 1977,
@@ -189,6 +189,12 @@
       "lines": 1049,
       "reason": "useItem refusal now throws through unwrapBridgeReply (PR 1345 review M1); +4 lines",
       "pr": ""
+    },
+    {
+      "file": "scripts/test-kit/lib/dashboard-controls.mjs",
+      "lines": 1311,
+      "reason": "the kit must classify every dashboard control; one row for the Tool permissions menu item",
+      "pr": "1365"
     }
   ]
 }

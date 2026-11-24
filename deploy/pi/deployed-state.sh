@@ -34,9 +34,19 @@ COMPOSE_PROJECT="${COMPOSE_PROJECT:-foundry-ai-tool-pi}"
 # A restart count at or above this on a unit or container is a crash loop (decision 41).
 LOOP_RESTARTS="${LOOP_RESTARTS:-5}"
 # The Assistant GM leaves the game when the nightly backup (04:30) stops Foundry, exits 1 and systemd starts it again
-# 15 s later, so its count grows by one a night (audit 2026-11-24). A count below this is that routine, not a loop;
-# a real loop is still caught by auto-restart here and by the crash guard (stage 32: 10 starts in 600 s).
-GM_BROWSER_LOOP_RESTARTS="${GM_BROWSER_LOOP_RESTARTS:-30}"
+# 15 s later, so its count grows by one a night (audit 2026-11-24). A systemd unit whose last start fell in the backup
+# window (04:30 to 08:00, minutes of the day below) is that routine, whatever the count; a restart at any other time
+# counts as before. A fast loop ends in the failed state (stage 32 start limit), which fails for every unit.
+BACKUP_WINDOW_FROM=270
+BACKUP_WINDOW_TO=480
+started_in_backup_window() { # $1 "Tue 2026-11-24 04:31:16 CET" (ActiveEnterTimestamp); false when it cannot be read
+  local hh mm
+  hh="$(printf '%s' "$1" | sed -n 's/.* \([0-9][0-9]\):[0-9][0-9]:[0-9][0-9].*/\1/p')"
+  mm="$(printf '%s' "$1" | sed -n 's/.* [0-9][0-9]:\([0-9][0-9]\):[0-9][0-9].*/\1/p')"
+  [[ "$hh" =~ ^[0-9]+$ && "$mm" =~ ^[0-9]+$ ]] || return 1
+  local t=$((10#$hh * 60 + 10#$mm))
+  [ "$t" -ge "$BACKUP_WINDOW_FROM" ] && [ "$t" -le "$BACKUP_WINDOW_TO" ]
+}
 
 n_ok=0
 n_warn=0
@@ -114,7 +124,7 @@ fi
 # ---- units ---------------------------------------------------------------------------------------------------
 check_unit() { # $1 unit name, $2 compose service it becomes, $3 "required" or "optional"
   local unit="$1" service="$2" need="$3" props active sub restarts
-  props="$("$SYSTEMCTL" show "$unit" -p LoadState -p ActiveState -p SubState -p NRestarts 2>/dev/null)" || props=""
+  props="$("$SYSTEMCTL" show "$unit" -p LoadState -p ActiveState -p SubState -p NRestarts -p ActiveEnterTimestamp 2>/dev/null)" || props=""
   if ! printf '%s\n' "$props" | grep -q '^LoadState=loaded'; then
     if [ "$mode" = containers ] || [ "$need" = optional ]; then ok "$unit is not installed"; else fail "$unit is not installed"; fi
     return
@@ -123,8 +133,11 @@ check_unit() { # $1 unit name, $2 compose service it becomes, $3 "required" or "
   sub="$(printf '%s\n' "$props" | sed -n 's/^SubState=//p')"
   restarts="$(printf '%s\n' "$props" | sed -n 's/^NRestarts=//p')"
   [[ "$restarts" =~ ^[0-9]+$ ]] || restarts=0
-  local loop_at="$LOOP_RESTARTS"
-  [ "$service" = gm-browser ] && loop_at="$GM_BROWSER_LOOP_RESTARTS"
+  local routine=no
+  if [ "$service" = gm-browser ] && [ "$active" = active ] && [ "$restarts" -gt 0 ] &&
+    started_in_backup_window "$(printf '%s\n' "$props" | sed -n 's/^ActiveEnterTimestamp=//p')"; then
+    routine=yes
+  fi
   if [ "$mode" = containers ]; then
     case "$running_services" in
       *" $service "*)
@@ -138,13 +151,14 @@ check_unit() { # $1 unit name, $2 compose service it becomes, $3 "required" or "
     esac
     # No running container for it: judge the unit as on systemd (a rollback under way, or a stopped container).
   fi
-  if [ "$sub" = auto-restart ] || [ "$restarts" -ge "$loop_at" ]; then
+  if [ "$sub" = auto-restart ] || { [ "$restarts" -ge "$LOOP_RESTARTS" ] && [ "$routine" = no ]; } ||
+    { [ "$active" = failed ] && [ "$restarts" -gt 0 ]; }; then
     fail "$unit is in a crash loop ($active/$sub, $restarts restarts)"
   elif [ "$active" != active ]; then
     # A unit that is installed but stopped is expected for the Assistant GM during a kit session.
     if [ "$need" = required ] && [ "$mode" = systemd ]; then fail "$unit is $active ($sub)"; else warn "$unit is $active ($sub)"; fi
-  elif [ "$restarts" -gt 0 ] && [ "$service" = gm-browser ]; then
-    ok "$unit is active, $restarts restart(s) since it was last started by hand (the nightly backup stops Foundry and it rejoins by itself)"
+  elif [ "$routine" = yes ]; then
+    ok "$unit is active, $restarts restart(s) since it was last started by hand, the last one in the nightly backup window (the backup stops Foundry and it rejoins by itself)"
   elif [ "$restarts" -gt 0 ]; then
     warn "$unit is active but restarted $restarts time(s) since it started"
   else

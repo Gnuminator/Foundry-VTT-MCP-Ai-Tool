@@ -1,6 +1,6 @@
 ---
 source: gm/features.md
-sourceHash: 885236ba1c8f
+sourceHash: 0d71d1d52af0
 title: Funktioner og hvornår du slår dem til
 description: De funktionsknapper i Foundry AI Tool, du bruger ved bordet, hvad hver af dem gør, og hvornår du skal slå dem til.
 ---
@@ -236,7 +236,8 @@ udført, når du har bekræftet en plan, og den står i Recent Changes med Undo.
   skifter scenen af sig selv til sit gemte mood preset med navnet "Combat", og når kampen er slut,
   kommer det tidligere lys og den tidligere musik tilbage. Starter slået fra. Gem presetet først
   (bed Claude gemme det nuværende udseende som "Combat"); en scene uden et sådant preset bliver
-  ikke rørt. Hvert skift står i Changes med en Undo.
+  ikke rørt. Hvert skift står i Changes med en Undo. Hvis AI Tool genstartes midt i en kamp, sætter
+  kampens afslutning ikke udseendet tilbage: fortryd ændringen "Combat started" i Changes.
 - **NPC turn assistant** ("AI Tool: NPC turn assistant (writes)"): flytter et monster på dets turn
   og trækker hit points fra de skabninger, det rammer. Attacks og saves bliver rullet først, hver
   for sig. Starter slået fra. Slå den til, når du vil have Claude til at hjælpe med et monsters turn.

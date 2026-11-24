@@ -128,6 +128,13 @@ describe('combat mood', () => {
     expect(applyPlan).toHaveBeenCalledTimes(1);
   });
 
+  it('still restores when the end event arrives late', async () => {
+    service.onEvents([event('combat-start')]);
+    service.onEvents([event('combat-end', { timestampMs: NOW - 60 * 60 * 1000 })]);
+    await service.idle();
+    expect(undo).toHaveBeenCalledTimes(1);
+  });
+
   it('only restores for the fight it started', async () => {
     service.onEvents([event('combat-start')]);
     service.onEvents([event('combat-end', { details: { combatId: 'other', sceneId: 's1' } })]);

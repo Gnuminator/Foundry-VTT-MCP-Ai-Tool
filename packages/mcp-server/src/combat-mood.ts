@@ -87,8 +87,12 @@ export class CombatMoodService {
       if (!combatId || !sceneId) continue;
       const at =
         typeof e?.timestampMs === 'number' ? e.timestampMs : Date.parse(String(e?.timestamp));
-      if (!Number.isFinite(at) || this.now() - at > COMBAT_MOOD_MAX_EVENT_AGE_MS) continue;
       const start = type === 'combat-start';
+      // Only a start can be a replay; an end with no fight of ours is already a no-op, and a late
+      // one (a stalled pump, a skewed clock) must still put the room back.
+      if (start && (!Number.isFinite(at) || this.now() - at > COMBAT_MOOD_MAX_EVENT_AGE_MS)) {
+        continue;
+      }
       this.queue = this.queue
         .then(() => (start ? this.onStart(combatId, sceneId) : this.onEnd(combatId, sceneId)))
         .catch(error => {
@@ -111,6 +115,7 @@ export class CombatMoodService {
   }
 
   private async onStart(combatId: string, sceneId: string): Promise<void> {
+    // One mood per scene: a second fight on the same scene leaves it, and the first end restores.
     if (this.active.has(sceneId)) return;
     if (!(await this.enabled())) return;
     const before = unwrapBridgeReply<SceneMoodsReply>(
@@ -169,7 +174,10 @@ export class CombatMoodService {
         'Could not read the moods'
       );
       if (viewed.sceneId !== sceneId) {
-        this.logger.info('Combat mood left as is: another scene is in view', { sceneId });
+        this.logger.warn('Combat mood left on: another scene is in view; undo it in Changes', {
+          sceneId,
+          changeId: entry.changeId,
+        });
         return;
       }
       const built = unwrapBridgeReply(
@@ -183,8 +191,9 @@ export class CombatMoodService {
       });
       await this.guardedWrites.applyPlan(plan.planId, { confirm: true }, ACTOR);
     } catch (error) {
-      this.logger.warn('Combat mood could not restore the earlier look', {
+      this.logger.warn('Combat mood could not restore the earlier look; undo it in Changes', {
         sceneId,
+        changeId: entry.changeId,
         reason: message(error),
       });
     }

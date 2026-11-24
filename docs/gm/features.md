@@ -227,7 +227,8 @@ only after you confirm a plan, and it shows in Recent Changes with Undo.
   viewing, the scene switches by itself to its saved mood preset named "Combat", and when the fight
   ends the earlier look and music come back. Starts off. Save the preset first (ask Claude to save
   the current look as "Combat"); a scene without one is left alone. Every switch shows in Changes
-  with an Undo.
+  with an Undo. If the AI Tool is restarted in the middle of a fight, the end of that fight will not
+  put the look back: undo the "Combat started" change in Changes.
 - **NPC turn assistant** ("AI Tool: NPC turn assistant (writes)"): moves a monster on its turn and
   takes hit points off the creatures it hits. The attacks and saves are rolled first, separately.
   Starts off. Turn it on when you want Claude to help run a monster's turn.

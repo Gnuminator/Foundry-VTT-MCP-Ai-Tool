@@ -496,6 +496,7 @@ _TEXT = {
         "ok": "kept as it is",
         "ignored": "marked as not a name",
         "note": "Note",
+        "answer_note": "Note on the answer",
         "scored": "Heard under {p:.0%} certainty.",
     },
     "da": {
@@ -520,6 +521,7 @@ _TEXT = {
         "ok": "bevaret som det er",
         "ignored": "markeret som ikke et navn",
         "note": "Note",
+        "answer_note": "Note til svaret",
         "scored": "Hørt med under {p:.0%} sikkerhed.",
     },
 }
@@ -550,6 +552,9 @@ def render_page(lang: str, entries: list[Entry], answers: dict[str, dict[str, An
         if given:
             kind = given.get("kind")
             out.append(f"{t['status']}: {t['ignored'] if kind == 'not-name' else t['ok'] if kind == 'ok' else t['applied']}")
+            extra = given.get("note_en" if lang == "en" else "note_da") or given.get("note_en")
+            if extra:  # a note kept with the answer (set in name-answers.json), shown on both pages
+                out.append(f"{t['answer_note']}: {extra}")
         out.append("")
         return out
 

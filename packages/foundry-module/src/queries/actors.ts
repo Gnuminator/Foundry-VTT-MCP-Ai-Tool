@@ -30,16 +30,16 @@ export function registerActorHandlers(ctx: QueryContext, table: BridgeHandlerTab
   table.set(`${MODULE_ID}.findActor`, 'read', withCtx(ctx, findActor));
 
   // Tokens and conditions
-  table.set(`${MODULE_ID}.get-token-details`, 'read', withCtx(ctx, getTokenDetails));
-  table.set(`${MODULE_ID}.get-available-conditions`, 'read', () => getAvailableConditions(ctx));
+  table.on(`${MODULE_ID}.get-token-details`, 'read', withCtx(ctx, getTokenDetails));
+  table.on(`${MODULE_ID}.get-available-conditions`, 'read', () => getAvailableConditions(ctx));
 
   // Items, resources and effects of one character
-  table.set(`${MODULE_ID}.useItem`, 'write', withCtx(ctx, useItem));
+  table.on(`${MODULE_ID}.useItem`, 'write', withCtx(ctx, useItem));
   table.set(`${MODULE_ID}.searchCharacterItems`, 'read', withCtx(ctx, searchCharacterItems));
   table.on(`${MODULE_ID}.getCharacterEntity`, 'read', withCtx(ctx, getCharacterEntity));
-  table.set(`${MODULE_ID}.getCharacterResources`, 'read', withCtx(ctx, getCharacterResources));
+  table.on(`${MODULE_ID}.getCharacterResources`, 'read', withCtx(ctx, getCharacterResources));
   table.set(`${MODULE_ID}.getLevelUpOptions`, 'read', withCtx(ctx, getLevelUpOptions));
-  table.set(`${MODULE_ID}.getActiveEffects`, 'read', withCtx(ctx, getActiveEffects));
+  table.on(`${MODULE_ID}.getActiveEffects`, 'read', withCtx(ctx, getActiveEffects));
 
   // My character (I-096): the sheets of the characters one player owns, for the dashboard's
   // /me page. Read-only; the dashboard maps the player's link key to the user id. Not an MCP
@@ -201,7 +201,10 @@ async function findActor(ctx: QueryContext, data: DataArg<'findActor'>): Promise
 /**
  * Handle get token details request
  */
-async function getTokenDetails(ctx: QueryContext, data: { tokenId: string }): Promise<unknown> {
+async function getTokenDetails(
+  ctx: QueryContext,
+  data: BridgeRequest<'foundry-mcp-bridge.get-token-details'>
+): Promise<BridgeAnswer<'foundry-mcp-bridge.get-token-details'>> {
   return ctx.withGmGate('Failed to get token details', async () => {
     if (!data.tokenId) {
       throw new Error('tokenId is required');
@@ -214,7 +217,9 @@ async function getTokenDetails(ctx: QueryContext, data: { tokenId: string }): Pr
 /**
  * Handle get available conditions request
  */
-async function getAvailableConditions(ctx: QueryContext): Promise<unknown> {
+async function getAvailableConditions(
+  ctx: QueryContext
+): Promise<BridgeAnswer<'foundry-mcp-bridge.get-available-conditions'>> {
   return ctx.withGmGate('Failed to get available conditions', async () => {
     return await ctx.dataAccess.getAvailableConditions();
   });
@@ -225,19 +230,8 @@ async function getAvailableConditions(ctx: QueryContext): Promise<unknown> {
  */
 async function useItem(
   ctx: QueryContext,
-  data: {
-    actorIdentifier: string;
-    itemIdentifier: string;
-    targets?: string[];
-    options?: {
-      consume?: boolean;
-      configureDialog?: boolean;
-      spellLevel?: number;
-      versatile?: boolean;
-      rollAttack?: boolean;
-    };
-  }
-): Promise<unknown> {
+  data: BridgeRequest<'foundry-mcp-bridge.useItem'>
+): Promise<BridgeAnswer<'foundry-mcp-bridge.useItem'>> {
   return ctx.withGmGate('Failed to use item', async () => {
     if (!data.actorIdentifier) {
       throw new Error('actorIdentifier is required');
@@ -300,8 +294,8 @@ async function getCharacterEntity(
 
 async function getCharacterResources(
   ctx: QueryContext,
-  data: { identifier: string }
-): Promise<unknown> {
+  data: BridgeRequest<'foundry-mcp-bridge.getCharacterResources'>
+): Promise<BridgeAnswer<'foundry-mcp-bridge.getCharacterResources'>> {
   return ctx.withGmGate('Failed to get character resources', async () => {
     if (!data?.identifier) {
       throw new Error('identifier is required');
@@ -325,7 +319,10 @@ async function getLevelUpOptions(
   });
 }
 
-async function getActiveEffects(ctx: QueryContext, data: { identifier: string }): Promise<unknown> {
+async function getActiveEffects(
+  ctx: QueryContext,
+  data: BridgeRequest<'foundry-mcp-bridge.getActiveEffects'>
+): Promise<BridgeAnswer<'foundry-mcp-bridge.getActiveEffects'>> {
   return ctx.withGmGate('Failed to get active effects', async () => {
     if (!data?.identifier) {
       throw new Error('identifier is required');

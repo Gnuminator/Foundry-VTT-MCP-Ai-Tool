@@ -3,6 +3,7 @@
  * journal, usage log, session events, spent actions, the Obsidian export index, the pre-flight
  * and prep scans, tool-runner pickers and opening a document on the GM's screen. All read-only.
  */
+import type { BridgeAnswer, BridgeRequest } from '@gnuminator/shared';
 import type { BridgeHandlerTable } from '../bridge-handlers.js';
 import { MODULE_ID } from '../constants.js';
 import { changeJournal } from '../change-journal.js';
@@ -26,8 +27,8 @@ import { withCtx, type QueryContext } from './context.js';
 export function registerRecordHandlers(ctx: QueryContext, table: BridgeHandlerTable): void {
   // Session event log
   table.set(`${MODULE_ID}.getSessionLog`, 'read', withCtx(ctx, getSessionLog));
-  table.set(`${MODULE_ID}.getRecentEvents`, 'read', withCtx(ctx, getRecentEvents));
-  table.set(`${MODULE_ID}.getSpentActions`, 'read', withCtx(ctx, getSpentActions));
+  table.on(`${MODULE_ID}.getRecentEvents`, 'read', withCtx(ctx, getRecentEvents));
+  table.on(`${MODULE_ID}.getSpentActions`, 'read', withCtx(ctx, getSpentActions));
 
   // O3: full play log (raw records behind the session/stats notes)
   table.on(
@@ -95,8 +96,8 @@ export function registerRecordHandlers(ctx: QueryContext, table: BridgeHandlerTa
 /** Rules check: what an actor used since its own turn began, and its rules version (read-only). */
 async function getSpentActions(
   ctx: QueryContext,
-  data: { actorId?: unknown; itemId?: unknown }
-): Promise<unknown> {
+  data: BridgeRequest<'foundry-mcp-bridge.getSpentActions'>
+): Promise<BridgeAnswer<'foundry-mcp-bridge.getSpentActions'>> {
   return ctx.withGmGate('Failed to read spent actions', async () => {
     const actorId = typeof data?.actorId === 'string' ? data.actorId : '';
     const combat = game.combat;
@@ -141,12 +142,8 @@ async function getSessionLog(
 
 async function getRecentEvents(
   ctx: QueryContext,
-  data: {
-    sinceTimestamp?: string;
-    limit?: number;
-    eventType?: string;
-  }
-): Promise<unknown> {
+  data: BridgeRequest<'foundry-mcp-bridge.getRecentEvents'>
+): Promise<BridgeAnswer<'foundry-mcp-bridge.getRecentEvents'>> {
   return ctx.withGmGate('Failed to get recent events', async () => {
     return await ctx.dataAccess.getRecentEvents(data || {});
   });

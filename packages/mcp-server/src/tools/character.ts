@@ -425,7 +425,7 @@ export class CharacterTools {
           skipDialog: skipDialog ?? true, // Default to skipping dialogs for MCP automation
           ...(rollAttack ? { rollAttack } : {}),
         },
-      })) as Rec;
+      })) as unknown as Rec;
 
       this.logger.debug('Successfully used item', {
         actorName: result.actorName,

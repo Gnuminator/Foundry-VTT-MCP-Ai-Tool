@@ -165,14 +165,14 @@ describe('TokenManipulationTools.handleGetTokenDetails', () => {
 // ---------------------------------------------------------------------------
 
 describe('TokenManipulationTools.handleGetAvailableConditions', () => {
-  it('dispatches get-available-conditions with empty params and returns shaped result', async () => {
+  it('dispatches get-available-conditions with no params and returns shaped result', async () => {
     const payload = {
       conditions: [{ id: 'prone', name: 'Prone' }],
       gameSystem: 'dnd5e',
     };
     const { tools, query } = makeTools(TokenManipulationTools, () => payload);
     const result = await tools.handleGetAvailableConditions({});
-    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.get-available-conditions', {});
+    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.get-available-conditions');
     expect(result).toEqual({
       success: true,
       conditions: [{ id: 'prone', name: 'Prone' }],
@@ -184,7 +184,7 @@ describe('TokenManipulationTools.handleGetAvailableConditions', () => {
     const payload = { conditions: [], gameSystem: 'dnd5e' };
     const { tools, query } = makeTools(TokenManipulationTools, () => payload);
     const result = await tools.handleGetAvailableConditions(undefined);
-    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.get-available-conditions', {});
+    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.get-available-conditions');
     expect(result.success).toBe(true);
   });
 

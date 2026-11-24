@@ -1,11 +1,7 @@
-import { toolRef } from '@gnuminator/shared';
+import { toolRef, type AvailableConditionsReply, type TokenDetailsReply } from '@gnuminator/shared';
 import { z } from 'zod';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
-import type {
-  AvailableConditionsReply,
-  TokenDetailsReply,
-} from './types/token-manipulation-types.js';
 
 interface TokenToolDefinition {
   name: string;
@@ -149,8 +145,7 @@ export class TokenManipulationTools {
 
     try {
       const result = (await this.foundryClient.query(
-        'foundry-mcp-bridge.get-available-conditions',
-        {}
+        'foundry-mcp-bridge.get-available-conditions'
       )) as AvailableConditionsReply;
 
       this.logger.debug('Retrieved available conditions', { count: result.conditions?.length });

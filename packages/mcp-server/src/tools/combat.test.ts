@@ -74,7 +74,7 @@ describe('CombatTools.handleGetCombatState', () => {
     expect(result).toBe(payload);
   });
 
-  it('always passes an empty object as params regardless of args', async () => {
+  it('always sends no params regardless of args', async () => {
     const { tools, query } = makeTools(CombatTools);
     await tools.handleGetCombatState({ unexpected: 'arg' });
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getCombatState');

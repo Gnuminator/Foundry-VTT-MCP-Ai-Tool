@@ -403,3 +403,161 @@ export interface PlayPlaylistReply {
   success: true;
   playlist: string;
 }
+
+/** Request of `get-token-details`. */
+export interface GetTokenDetailsRequest {
+  tokenId: string;
+}
+
+/** Reply of `get-token-details`. */
+export interface TokenDetailsReply {
+  success: true;
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+  scale: number;
+  alpha: number;
+  hidden: boolean;
+  disposition: number;
+  elevation: number;
+  lockRotation: boolean;
+  img: string | null | undefined;
+  actorId: string | undefined;
+  actorData: { name: string; type: string; img: string } | null;
+  actorLink: boolean;
+}
+
+/** One condition `get-available-conditions` lists. */
+export interface ConditionEntry {
+  id: string;
+  name: unknown;
+  icon: unknown;
+  description: unknown;
+  /** dnd5e's own rules page for the condition (a uuid, no text); absent for ones it has none for. */
+  reference?: string | undefined;
+}
+
+/** Reply of `get-available-conditions`. */
+export interface AvailableConditionsReply {
+  success: true;
+  gameSystem: string | undefined;
+  conditions: ConditionEntry[];
+}
+
+/** Request of `useItem`. */
+export interface UseItemRequest {
+  actorIdentifier: string;
+  itemIdentifier: string;
+  /** Target character or token names or ids; "self" targets the caster. */
+  targets?: string[] | undefined;
+  options?:
+    | {
+        consume?: boolean | undefined;
+        configureDialog?: boolean | undefined;
+        skipDialog?: boolean | undefined;
+        spellLevel?: number | undefined;
+        versatile?: boolean | undefined;
+        rollAttack?: boolean | undefined;
+      }
+    | undefined;
+}
+
+/** Reply of `useItem`. */
+export interface UseItemReply {
+  success: boolean;
+  status?: string | undefined;
+  message: string;
+  itemName?: string | undefined;
+  actorName?: string | undefined;
+  targets?: string[] | undefined;
+  requiresGMInteraction?: boolean | undefined;
+}
+
+/** Request of `getCharacterResources` and `getActiveEffects`. */
+export interface ActorIdentifierRequest {
+  identifier: string;
+}
+
+/** Reply of `getCharacterResources`. */
+export interface CharacterResourcesReply {
+  success: true;
+  actorId: string;
+  actorName: string;
+  system: string | undefined;
+  spellSlots: Record<
+    string,
+    { max: number; current: number; expended: number; level?: number | null | undefined }
+  >;
+  classResources: { key: string; label: string; max: number | null; current: number | null }[];
+  itemCharges: { itemName: string; charges: number; max: number; recharge: string | null }[];
+  concentration: { active: false } | { active: true; spell: string | null; remaining: unknown };
+  hitDice: { total: number | null; available: number | null; dieType: string | null } | null;
+  deathSaves: { successes: number; failures: number } | null;
+}
+
+/** Reply of `getActiveEffects`. */
+export interface ActiveEffectsReply {
+  success: true;
+  actorId: string;
+  actorName: string;
+  count: number;
+  effects: {
+    id: string;
+    name: string;
+    icon: string | null;
+    disabled: boolean;
+    isCondition: boolean;
+    type: 'condition' | 'buff/debuff';
+    statuses: string[];
+    duration: {
+      rounds: number | null;
+      turns: number | null;
+      seconds: number | null;
+      remaining: number | null;
+    };
+    changes: { key: string; mode: string; type: string; value: unknown }[];
+    requiresConcentration: boolean;
+  }[];
+}
+
+/** Request of `getRecentEvents`. */
+export interface GetRecentEventsRequest {
+  sinceTimestamp?: string | undefined;
+  limit?: number | undefined;
+  eventType?: string | undefined;
+}
+
+/** Reply of `getRecentEvents`; each event is the module's session log entry. */
+export interface RecentEventsReply {
+  success: true;
+  count: number;
+  events: unknown[];
+  latestTimestamp: string | null;
+  serverTime: string;
+}
+
+/** Request of `getSpentActions`. */
+export interface GetSpentActionsRequest {
+  actorId?: string | undefined;
+  itemId?: string | undefined;
+}
+
+/** Reply of `getSpentActions`. */
+export interface SpentActionsReply {
+  success: true;
+  /** False when the module has not seen this combat's turns, so nothing can be said. */
+  tracked: boolean;
+  /** Uses since the actor's own turn began (its current turn, or the last one it took). */
+  sinceOwnTurn: {
+    item: string;
+    itemType: string;
+    activation: string;
+    itemLevel: number | null;
+  }[];
+  actorRules: { version: string; source: string } | null;
+  itemRules: { version: string; source: string } | null;
+}

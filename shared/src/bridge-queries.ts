@@ -9,9 +9,10 @@
  * module talks to a new backend and the other way round, so add fields as optional and never
  * rename one. This file only gives the existing wire values names; it changes nothing on the wire.
  *
- * Not every method is here yet (lint zero step 2): the queries the `src/tools/` tools send are
- * added after the G0 lanes merge. An unlisted method still works through the untyped overload of
- * `FoundryClient.query` and the module's untyped `bridgeHandlers.set`.
+ * Not every method is here yet: the play set (combat, chat and rolls, scenes and tokens, music,
+ * character resources and effects, the event log) is typed; the other sets follow lane by lane.
+ * An unlisted method still works through the untyped overload of `FoundryClient.query` and the
+ * module's untyped `bridgeHandlers.set`.
  */
 
 import type { CombatChangePlan, CombatChangeRequest } from './combat-change.js';
@@ -301,6 +302,31 @@ export interface BridgeQueryMap {
   'foundry-mcp-bridge.playPlaylist': {
     request: Play.PlayPlaylistRequest;
     reply: Play.PlayPlaylistReply;
+  };
+  'foundry-mcp-bridge.get-token-details': {
+    request: Play.GetTokenDetailsRequest;
+    reply: Play.TokenDetailsReply;
+  };
+  'foundry-mcp-bridge.get-available-conditions': {
+    request: undefined;
+    reply: Play.AvailableConditionsReply;
+  };
+  'foundry-mcp-bridge.useItem': { request: Play.UseItemRequest; reply: Play.UseItemReply };
+  'foundry-mcp-bridge.getCharacterResources': {
+    request: Play.ActorIdentifierRequest;
+    reply: Play.CharacterResourcesReply;
+  };
+  'foundry-mcp-bridge.getActiveEffects': {
+    request: Play.ActorIdentifierRequest;
+    reply: Play.ActiveEffectsReply;
+  };
+  'foundry-mcp-bridge.getRecentEvents': {
+    request: Play.GetRecentEventsRequest;
+    reply: Play.RecentEventsReply;
+  };
+  'foundry-mcp-bridge.getSpentActions': {
+    request: Play.GetSpentActionsRequest;
+    reply: Play.SpentActionsReply;
   };
   'foundry-mcp-bridge.getPartyState': { request: undefined; reply: PartyState };
   'foundry-mcp-bridge.getRenownState': { request: undefined; reply: RenownState };

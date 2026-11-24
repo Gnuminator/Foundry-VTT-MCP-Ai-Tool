@@ -1,18 +1,9 @@
+import type { ConditionEntry } from '@gnuminator/shared';
 import { ERROR_MESSAGES } from '../constants.js';
 import { dig } from '../doc-read.js';
 import * as shared from './shared.js';
 import { effectChanges, effectDuration, effectImg, type EffectChange } from '../systems/core.js';
 import { statusEffectList } from '../systems/dnd5e/status-effects.js';
-
-/** One `CONFIG.statusEffects` entry as {@link ResourcesEffectsDataAccess.getAvailableConditions} lists it. */
-interface ConditionEntry {
-  id: string;
-  name: unknown;
-  icon: unknown;
-  description: unknown;
-  /** dnd5e's own rules page for the condition (a uuid, no text); absent for ones it has none for. */
-  reference?: string;
-}
 
 /** The uuid of the rules page dnd5e keeps for a condition (`CONFIG.DND5E.conditionTypes`), if any. */
 function localizeName(key: unknown): string {

@@ -40,6 +40,8 @@ In the confirm window:
 
 ## The Tool Runner (🛠 Tool Runner)
 
+![The Tool Runner drawer open on plan-actor-change, with its form fields](../images/dashboard/dashboard-tool-runner.png)
+
 A drawer on the side with every tool the bridge has, the same tools Claude uses. Use it when you
 want to do one exact thing yourself, or to apply a plan Claude made.
 

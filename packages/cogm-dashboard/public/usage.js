@@ -16,6 +16,9 @@
   var ENDPOINT = (script && script.getAttribute('data-usage-endpoint')) || '/api/usage';
   var SURFACE = (script && script.getAttribute('data-usage-surface')) || 'dashboard';
   var TOKEN_KEY = (script && script.getAttribute('data-usage-token-key')) || 'cogm_token';
+  // /me keeps a private key and sends it in a header (data-usage-key-header); the key is read from
+  // localStorage only, never from the URL, and sendBeacon (no headers) is not used for it.
+  var KEY_HEADER = (script && script.getAttribute('data-usage-key-header')) || '';
 
   var FLUSH_MS = 15000;
   var FLUSH_AT = 50;
@@ -44,10 +47,12 @@
   var who = { userId: null };
 
   function getToken() {
-    try {
-      var fromUrl = new URL(location.href).searchParams.get('token');
-      if (fromUrl) return fromUrl;
-    } catch (e) {}
+    if (!KEY_HEADER) {
+      try {
+        var fromUrl = new URL(location.href).searchParams.get('token');
+        if (fromUrl) return fromUrl;
+      } catch (e) {}
+    }
     try {
       return localStorage.getItem(TOKEN_KEY) || '';
     } catch (e) {
@@ -117,7 +122,7 @@
     var events = queue;
     queue = [];
     var json = body(events);
-    if (closing && navigator.sendBeacon) {
+    if (closing && navigator.sendBeacon && !KEY_HEADER) {
       var token = getToken();
       var url = ENDPOINT + (token ? '?token=' + encodeURIComponent(token) : '');
       try {
@@ -126,7 +131,10 @@
     }
     var headers = { 'Content-Type': 'application/json' };
     var t = getToken();
-    if (t) headers['X-CoGM-Token'] = t;
+    if (KEY_HEADER) {
+      if (t) headers[KEY_HEADER] = t;
+      else return requeue(events);
+    } else if (t) headers['X-CoGM-Token'] = t;
     try {
       fetch(ENDPOINT, { method: 'POST', headers: headers, body: json, keepalive: closing })
         .then(function (res) {

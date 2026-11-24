@@ -22,6 +22,8 @@ dashboard changes the game until you turn on **GM Actions** and confirm.
 The tabs **Before**, **During** and **After** in the header switch what the page shows. They
 follow your evening, and you can click any of them at any time.
 
+![The Before screen: Pre-flight checks and the Prep summary](../images/dashboard/dashboard-before.png)
+
 - **Before**: the Pre-flight check and the Prep panel, the **Pick your During layout** card
   (until you have picked a layout).
 - **During**: the Combat order strip, the Live Feed, and Handouts, Party and Recent Changes.
@@ -47,6 +49,8 @@ player page, which shows only what a player already sees.
 > **Not sure? Ask Claude.** Ask the GM coach: "What are the Before, During and After views, and which one should I be on?" ([how to add the GM coach](gm-coach.md))
 
 ## The header
+
+![The dashboard header: the Before, During and After tabs, the session buttons, GM Actions, Theme, Pre-flight and Advanced menu, and the connection marks](../images/dashboard/dashboard-header.png)
 
 ### The connection mark and Pre-flight
 

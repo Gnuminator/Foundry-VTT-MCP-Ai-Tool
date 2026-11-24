@@ -9,6 +9,8 @@ Part of [The dashboard](dashboard.md).
 
 ## The player page (/player)
 
+![The player page for a player who has picked a name: Mine with the character and an open roll request](../images/dashboard/player-page.png)
+
 The page players look at: the dashboard address with `/player` at the end. Open it yourself before a session
 to check what they see. It follows the evening. While a session is open (or a fight runs) the live
 cards come first: Combat order, Live Feed, then Handouts. Between sessions it leads with Last
@@ -77,6 +79,10 @@ check that the Handouts list shows only what you revealed.
 > **Not sure? Ask Claude.** Ask the GM coach: "What do my players see on the player page, and how do I reveal a handout without spoiling it early?" ([how to add the GM coach](gm-coach.md))
 
 ## Player links and My character (/me)
+
+![The Player links window with each player's personal link](../images/dashboard/dashboard-player-links.png)
+
+![My character: a player's own sheet on the My character page](../images/dashboard/my-character.png)
 
 Each player can have their own character page: their sheet on a phone or laptop, read-only, and
 up to date during play (HP, spell slots, conditions, resources). It opens from a private link

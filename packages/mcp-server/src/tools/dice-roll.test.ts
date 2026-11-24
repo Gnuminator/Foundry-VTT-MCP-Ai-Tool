@@ -80,7 +80,7 @@ describe('DiceRollTools.getToolDefinitions', () => {
 // ---------------------------------------------------------------------------
 
 describe('DiceRollTools.handleRequestAbilityCheck', () => {
-  it('dispatches requestAbilityCheck with parsed params and returns success string', async () => {
+  it('dispatches request-player-rolls for an ability check with parsed params and returns success string', async () => {
     const { tools, query } = makeTools(DiceRollTools, () => ({
       success: true,
       message: 'Roll button posted.',
@@ -273,7 +273,7 @@ describe('DiceRollTools.handleRequestAttackRoll', () => {
     );
   });
 
-  it('dispatches requestAttackRoll with parsed params and returns success string', async () => {
+  it('dispatches request-player-rolls for an attack with parsed params and returns success string', async () => {
     const { tools, query } = makeTools(DiceRollTools, () => ({
       success: true,
       message: 'Attack roll button posted.',

@@ -21,6 +21,8 @@ read-only page with the party, the fight and the scene, for a phone. See
 
 > **Not sure? Ask Claude.** Ask the GM coach: "Which live view fits my setup for running a fight?" ([how to add the GM coach](gm-coach.md))
 
+![The combat order strip with a fight running: four combatants, the turn marker and a Prone condition](../images/dashboard/dashboard-strip.png)
+
 ## Monster attacks on the strip
 
 Pick one creature that is not a player character on the strip, and up to four of its weapon attacks

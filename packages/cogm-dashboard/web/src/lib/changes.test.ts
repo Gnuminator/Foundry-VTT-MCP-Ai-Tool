@@ -230,6 +230,20 @@ describe('obsidianChangePath', () => {
     );
   });
 
+  it('opens the month note while the export has not written the part yet', () => {
+    const at = '2026-10-06T19:05:00Z';
+    expect(
+      obsidianChangePath({ appliedAt: at, notePart: '2026-10-p2', notePartWritten: false })
+    ).toBe('AI Tool/Changes/2026-10');
+    expect(
+      obsidianChangePath({ appliedAt: at, notePart: '2026-10-p2', notePartWritten: true })
+    ).toBe('AI Tool/Changes/2026-10-p2');
+    const [a] = readAiChanges({
+      changes: [{ changeId: 'c1', appliedAt: at, notePart: '2026-10-p2', notePartWritten: false }],
+    });
+    expect(a?.notePartWritten).toBe(false);
+  });
+
   it('reads notePart from list-recent-changes and drops a malformed one', () => {
     const row = { changeId: 'c1', appliedAt: '2026-10-06T19:05:00Z' };
     const [a, b] = readAiChanges({

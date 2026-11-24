@@ -1219,7 +1219,12 @@ async function newerPlanSteps() {
       action: 'music',
       playlist: fixture.name,
       mode: 'play',
-    });
+    }).catch(e =>
+      // Audio locked: the darkness half above passed and was undone; the product's refusal stands.
+      /not unlocked audio/.test(e?.message)
+        ? skip('darkness ok, music: audio locked')
+        : Promise.reject(e)
+    );
     let started = false;
     for (let i = 0; i < 10 && !started; i++) {
       started = await playing();

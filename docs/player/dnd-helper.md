@@ -215,8 +215,9 @@ search is on in your chat); it does not copy the site.
 
 ## Optional: the backstory and roleplay buddy
 
-A second small skill, the backstory buddy, installs next to the helper. The person who runs
-the tool sends you its zip; then go to Settings, Plugins, Skills, add a skill, and upload the zip
+A second small skill, the backstory buddy, installs next to the helper. Download
+[foundry-backstory-buddy.zip](https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases/latest/download/foundry-backstory-buddy.zip)
+from the release page; then go to Settings, Plugins, Skills, add a skill, and upload the zip
 without unpacking it. It uses the same player connector. Ask
 it "help me write a backstory for my character" or "how would my character talk?". It reads your
 sheet and the handouts the GM has revealed to you, asks two or three questions, and ends with one

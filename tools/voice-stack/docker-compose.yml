@@ -1,19 +1,10 @@
 # The voice stack as ONE compose project ("fvtt-voice") so Docker Desktop shows it as one group.
 #
 #   profile transcribe  transcriber (GPU job) and pipeline (CPU job)
-#   profile livekit     livekit, redis, egress, recorder (from tools/livekit); add profile tls for Caddy
 #   profile media       reserved for ComfyUI later (see the placeholder at the bottom)
 #
 # Drive it with scripts/voice-stack.ps1. Nothing starts without a profile.
 name: fvtt-voice
-
-include:
-  # The LiveKit kit is included unchanged; livekit.override.yml only puts its services in the
-  # "livekit" profile and moves the recordings to the sessions folder.
-  - path:
-      - ../livekit/docker-compose.yml
-      - ./livekit.override.yml
-    project_directory: ../livekit
 
 x-sessions: &sessions '${FVTT_SESSIONS_DIR:-${FVTT_DATA_DIR:-${USERPROFILE}/Documents}/FoundrySessions}'
 

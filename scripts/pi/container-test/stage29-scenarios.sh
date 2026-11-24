@@ -10,6 +10,7 @@
 #   6 CHECK exits 0 when the round is clean and 1 when a check prints FAIL; it prints no secret
 #   7 the snapshot rule: a stale snapshot refuses before anything is written; DRY_RUN and CHECK need none
 #   8 UNDO removes the unit and the files and keeps the settings file
+#   6c a failed round together with a password finding; a world whose users cannot be read; a stopped watch unit
 #   9 with a fake systemctl and journalctl: a first run starts the unit and waits for the watching line; a file newer than
 #     the running service restarts it; nothing newer does not; a unit that never reaches its watching line fails the stage
 # The stand-in Node refuses --env-file anywhere on its command line, as real Node does (CHECK must use --env-files).
@@ -203,6 +204,22 @@ if [ "$before" = "$after" ]; then pass "the password checks changed nothing unde
 if ! echo "$OUT" | grep -q '00112233445566778899aabbccddeeff'; then pass "no salt or hash is printed"; else fail "salt in output"; fi
 fake_gm_user strahd "a-real-password"
 
+# 6c. The branches 6 and 6b leave out: a failed round and a password finding together, and a world the check cannot read.
+touch /tmp/fake-fail
+fake_gm_user strahd ""
+run CHECK=1
+rc=$?
+rm -f /tmp/fake-fail
+if [ "$rc" -eq 1 ] && echo "$OUT" | grep -q 'at least one check failed and a password check found something'; then pass "CHECK names a failed round and a password finding together"; else fail "combined failure: rc=$rc $OUT"; fi
+fake_gm_user strahd "a-real-password"
+cp "$FOUNDRY_DATA/Data/worlds/strahd/data/users/fixture.json" /tmp/fixture.good
+printf '{ not json' >"$FOUNDRY_DATA/Data/worlds/strahd/data/users/fixture.json"
+run CHECK=1
+rc=$?
+cp /tmp/fixture.good "$FOUNDRY_DATA/Data/worlds/strahd/data/users/fixture.json"
+rm -f /tmp/fixture.good
+if [ "$rc" -eq 1 ] && echo "$OUT" | grep -q 'could not read every world'; then pass "CHECK says so when a world's users cannot be read and exits 1"; else fail "unreadable world: rc=$rc $OUT"; fi
+
 # 7.
 fresh
 mkdir -p /tmp/fakedietpi
@@ -276,6 +293,14 @@ took=$((SECONDS - t0))
 rm -f /tmp/fake-diesoon /tmp/fake-dead
 # "At once": the wait gives up after the unit stopped, well before its 20 s run out (the no-watching case takes the full 20).
 if [ "$rc" -ne 0 ] && [ "$took" -lt 12 ] && echo "$OUT" | grep -q "'watching' line"; then pass "a unit that stops before its watching line fails the stage at once"; else fail "unit stops first: rc=$rc $OUT"; fi
+# A stopped watch unit no longer ends CHECK before the password section: it counts as a failed check and the passwords are still read.
+touch /tmp/fake-active /tmp/fake-dead
+fake_gm_user strahd ""
+run PATH="/tmp/fakebin:$PATH" CHECK=1
+rc=$?
+rm -f /tmp/fake-dead
+fake_gm_user strahd "a-real-password"
+if [ "$rc" -eq 1 ] && echo "$OUT" | grep -q 'is not running' && echo "$OUT" | grep -q 'FOUND: strahd: Gamemaster'; then pass "CHECK on a stopped watch unit still reads the passwords and exits 1"; else fail "stopped unit check: rc=$rc $OUT"; fi
 rm -rf /run/systemd/system /tmp/fakebin /tmp/fake-active /tmp/fake-started /tmp/fake-acted /tmp/systemctl.log
 
 if [ "$fails" -eq 0 ]; then echo "ALL SCENARIOS OK"; else echo "$fails scenario(s) FAILED"; exit 1; fi

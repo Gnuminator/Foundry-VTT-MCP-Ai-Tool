@@ -63,6 +63,9 @@ Usage: npm run kit:run -- [options]
   --session <id>           the lock's session id (default KIT_RUN_SESSION, else kit-run-<time>);
                            pass your own when you already hold the lock, it is then kept
   --holder <name>          the name on the lock (default "kit run")
+  --demo-rehearsal         after a passing kit, stop the environment and rehearse every demo take
+                           (scripts/demo/rehearse.mjs, headless, no recording) under the same lock;
+                           a failing take fails the run
   --no-build               skip npm run build (the module copy is still synced from the last build)
   --keep-up                leave the test environment running afterwards (default: stopped)
   --no-vault               write last-run.json only, not the vault note
@@ -81,6 +84,7 @@ export function parseArgs(argv) {
     holder: 'kit run',
     build: true,
     keepUp: false,
+    demoRehearsal: false,
     vault: true,
     help: false,
   };
@@ -103,6 +107,7 @@ export function parseArgs(argv) {
     else if (a === '--holder') o.holder = value(a);
     else if (a === '--no-build') o.build = false;
     else if (a === '--keep-up') o.keepUp = true;
+    else if (a === '--demo-rehearsal') o.demoRehearsal = true;
     else if (a === '--no-vault') o.vault = false;
     else throw new Error(`unknown option ${a} (see --help)`);
   }
@@ -642,6 +647,29 @@ export async function kitRun(o, deps = {}) {
         state: 'failed',
         detail: r.total ? '' : firstLine(kit.stderr, 'the kit stopped'),
       };
+    if (o.demoRehearsal && r.state === 'passed' && !interrupted) {
+      log('rehearsing the demo takes (headless, no recording) ...');
+      // The demo reset refuses to stop a server that runs another world, so stop it first.
+      await pwsh(run, 'stop.ps1', onServer);
+      const reh = await run(
+        process.execPath,
+        [
+          path.join(REPO_ROOT, 'scripts', 'demo', 'rehearse.mjs'),
+          '--no-lock',
+          '--server',
+          server,
+        ],
+        { echo: true, signal: abort.signal }
+      );
+      if (reh.code !== 0) {
+        const failed = reh.stdout
+          .split(/\r?\n/)
+          .map(l => /^FAIL\s+([\w-]+)/.exec(l)?.[1])
+          .filter((n, i, a) => n && a.indexOf(n) === i)
+          .join(', ');
+        r = { ...r, state: 'failed', detail: `demo takes failed: ${failed || 'see the console'}` };
+      }
+    }
     if (interrupted) r = { ...r, state: 'error', detail: 'interrupted' };
   } catch (err) {
     r =

@@ -4,9 +4,8 @@
   Drive the voice stack (tools/voice-stack, compose project "fvtt-voice") from PowerShell.
 
 .DESCRIPTION
-  init                 Create tools/voice-stack/.env from .env.example with random LiveKit dev keys (once).
-  up <profile>         livekit (server, redis, egress, recorder), tls (livekit plus local TLS on 7443) or
-                       transcribe (build the two job images only; the jobs run with the transcribe command).
+  init                 Create tools/voice-stack/.env from .env.example (once).
+  up transcribe        Build the two job images only; the jobs run with the transcribe command.
   down                 Stop and remove this project's containers (not the Hugging Face model cache).
   status               Project containers, GPU memory, images and the sessions folder.
   logs [service]       Follow the logs.
@@ -22,7 +21,10 @@
   3101-3102, 31524-31525, 31534-31535; rehearsal 30100, 31614-31615, 3300; Control Center 3200). Never touches containers outside the
   fvtt-voice project. One GPU job at a time: transcribe takes the GPU lock (scripts/gpu-lock.ps1) and refuses, naming the holder, while another job holds it.
 
-  names options: -Dashboard <url> (default http://127.0.0.1:3100), -Offline (extra list only), -Items,
+  names options: -Dashboard <url> (default: the user variable FVTT_NAMES_DASHBOARD, the Pi dashboard, else
+  http://127.0.0.1:3100; the token is GM_DASHBOARD_TOKEN), -AnyWorld (take a test world; without it the dashboard must
+  serve the campaign world, curse-of-strahd or FVTT_CAMPAIGN_WORLD, or no names are written; a good read is saved to
+  <sessions folder>/campaign-names.txt and used when the dashboard is down), -Offline (extra list only), -Items,
   -Journals (also list world item and journal names; off by default), GM_DASHBOARD_TOKEN is sent as the
   dashboard token when set.
 
@@ -48,7 +50,8 @@ param(
   [switch]$NoRebuild,
   [switch]$NoHotwords,
   [switch]$NoAutoFix,
-  [string]$Dashboard = 'http://127.0.0.1:3100',
+  [string]$Dashboard = $(if ($env:FVTT_NAMES_DASHBOARD) { $env:FVTT_NAMES_DASHBOARD } else { 'http://127.0.0.1:3100' }),
+  [switch]$AnyWorld,
   [switch]$Offline,
   [switch]$Items,
   [switch]$Journals
@@ -88,12 +91,10 @@ function Get-DefaultSessionsDir {
 function Initialize-Env {
   if (Test-Path $EnvFile) { return }
   $text = Get-Content (Join-Path $Root '.env.example') -Raw
-  $text = $text -replace 'LIVEKIT_API_KEY=.*', "LIVEKIT_API_KEY=devkey$(New-RandomString 8)"
-  $text = $text -replace 'LIVEKIT_API_SECRET=.*', "LIVEKIT_API_SECRET=$(New-RandomString 48)"
   $sessions = Get-DefaultSessionsDir
   $text = $text -replace 'FVTT_SESSIONS_DIR=.*', "FVTT_SESSIONS_DIR=$($sessions -replace '\\', '/')"
   Set-Content -Path $EnvFile -Value $text -NoNewline
-  Write-Host "Wrote $EnvFile (random dev keys, gitignored). Check FVTT_SESSIONS_DIR in it."
+  Write-Host "Wrote $EnvFile (gitignored). Check FVTT_SESSIONS_DIR in it."
 }
 
 function Assert-SafePorts($envMap) {
@@ -187,7 +188,7 @@ function Get-HostPython {
 
 $envMap = $null
 if ($Command -ne 'init') {
-  Initialize-Env   # compose needs the LiveKit variables to exist even for the transcribe jobs
+  Initialize-Env
   $envMap = Read-DotEnv
   Assert-SafePorts $envMap
   Assert-Docker
@@ -200,24 +201,15 @@ switch ($Command) {
     if (Test-Path $EnvFile) { Write-Host '.env already exists, leaving it alone.' } else { Initialize-Env }
   }
   'up' {
-    if (-not $Target) { throw 'Usage: voice-stack.ps1 up <livekit|tls|transcribe>' }
+    if (-not $Target) { throw 'Usage: voice-stack.ps1 up <transcribe>' }
     switch ($Target) {
-      'livekit' {
-        foreach ($key in 'LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET') {
-          if (-not $envMap[$key] -or $envMap[$key] -match 'REPLACEME') { throw "$key in $EnvFile is not set." }
-        }
-        Invoke-Compose @('--profile', 'livekit', 'up', '-d', '--build')
-      }
-      'tls' {
-        Invoke-Compose @('--profile', 'livekit', '--profile', 'tls', 'up', '-d', '--build')
-      }
       'transcribe' {
         $null = Set-VoiceSourceHashes
         Invoke-Compose @('--profile', 'transcribe', 'build')
         Write-Host 'Images built. Run a job with: voice-stack.ps1 transcribe <session folder>'
       }
       'media' { throw 'The media profile (ComfyUI) is a placeholder and not built yet.' }
-      default { throw "Unknown profile '$Target'. Use livekit, tls or transcribe." }
+      default { throw "Unknown profile '$Target'. Use transcribe." }
     }
   }
   'down' {
@@ -248,6 +240,8 @@ switch ($Command) {
     foreach ($extra in @((Join-Path $folder 'extra-names.txt'), (Join-Path (Get-SessionsDir $envMap) 'extra-names.txt'))) {
       if (Test-Path -LiteralPath $extra) { $nArgs += @('--extra', $extra); break }
     }
+    $nArgs += @('--cache', (Join-Path (Get-SessionsDir $envMap) 'campaign-names.txt'))
+    if ($AnyWorld) { $nArgs += '--any-world' }
     if ($Offline) { $nArgs += '--offline' }
     if ($Items) { $nArgs += '--items' }
     if ($Journals) { $nArgs += '--journals' }

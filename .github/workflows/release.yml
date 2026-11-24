@@ -12,6 +12,7 @@ name: Release
 #   - foundry-dnd-helper.zip          the GM edition of the D&D helper skill (thin stub)
 #   - foundry-gm-coach.zip            the GM coach skill (thin stub)
 #   - foundry-prep-ritual.zip         the prep ritual skill (the GM's five-step prep walk)
+#   - foundry-backstory-buddy.zip     the backstory and roleplay buddy skill (players)
 #   - SHA256SUMS.txt                  the SHA-256 of every file above
 # The publish job waits for an Approve in the "release" environment. workflow_dispatch runs the same build as a dry run (artifacts only, no release is created).
 #
@@ -236,9 +237,10 @@ jobs:
           node tools/dnd-helper/build.mjs --out player-out
           node tools/gm-coach/build.mjs --out player-out
           node tools/prep-ritual/build.mjs --out player-out
+          node tools/backstory-buddy/build.mjs --out player-out
           ls -lh player-out/foundry-player.mcpb player-out/foundry-dnd-helper-player.zip \
             player-out/foundry-dnd-helper.zip player-out/foundry-gm-coach.zip \
-            player-out/foundry-prep-ritual.zip
+            player-out/foundry-prep-ritual.zip player-out/foundry-backstory-buddy.zip
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -249,6 +251,7 @@ jobs:
             player-out/foundry-dnd-helper.zip
             player-out/foundry-gm-coach.zip
             player-out/foundry-prep-ritual.zip
+            player-out/foundry-backstory-buddy.zip
           retention-days: 30
 
   installer:
@@ -351,7 +354,7 @@ jobs:
           sha256sum module.json foundry-mcp-bridge.zip foundry-ai-tool-obsidian.zip \
             "foundry-mcp-server-${TAG}.zip" "FoundryMCPServer-Setup-${TAG}.exe" \
             foundry-player.mcpb foundry-dnd-helper-player.zip foundry-dnd-helper.zip \
-            foundry-gm-coach.zip foundry-prep-ritual.zip > SHA256SUMS.txt
+            foundry-gm-coach.zip foundry-prep-ritual.zip foundry-backstory-buddy.zip > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
       - name: Create the GitHub release
@@ -374,6 +377,7 @@ jobs:
             release-files/foundry-dnd-helper.zip
             release-files/foundry-gm-coach.zip
             release-files/foundry-prep-ritual.zip
+            release-files/foundry-backstory-buddy.zip
             release-files/SHA256SUMS.txt
           body: |
             ## Foundry AI Tool ${{ github.ref_name }}

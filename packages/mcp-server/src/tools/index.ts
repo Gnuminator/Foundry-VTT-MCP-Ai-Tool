@@ -17,6 +17,7 @@ import { combatChangeModule } from './modules/combat-change.js';
 import { combatResolutionModule } from './modules/combat-resolution.js';
 import { combatModule } from './modules/combat.js';
 import { compendiumModule } from './modules/compendium.js';
+import { campaignMergeModule } from './modules/campaign-merge.js';
 import { diagnosticsModule } from './modules/diagnostics.js';
 import { diceRollModule } from './modules/dice-roll.js';
 import { dnd5eAddFeatureModule } from './modules/dnd5e-add-feature.js';
@@ -33,6 +34,7 @@ import { npcTurnModule } from './modules/npc-turn.js';
 import { obsidianMirrorModule } from './modules/obsidian-mirror.js';
 import { omensModule } from './modules/omens.js';
 import { ownershipModule } from './modules/ownership.js';
+import { characterDiariesModule } from './modules/character-diaries.js';
 import { paperSyncModule } from './modules/paper-sync.js';
 import { partyModule } from './modules/party.js';
 import { pcCreationModule } from './modules/pc-creation.js';
@@ -84,6 +86,7 @@ export const TOOL_MODULES: readonly AnyToolModule[] = [
   sceneRestoreModule,
   npcTurnModule,
   paperSyncModule,
+  characterDiariesModule,
   roomSetupModule,
   pcCreationModule,
   tokenRingsModule,
@@ -113,6 +116,7 @@ export const TOOL_MODULES: readonly AnyToolModule[] = [
   omensModule,
   playStatsModule,
   obsidianMirrorModule,
+  campaignMergeModule,
   playerViewModule,
   preflightModule,
   prepDigestModule,

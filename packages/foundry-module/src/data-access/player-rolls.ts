@@ -248,49 +248,6 @@ export class PlayerRollsDataAccess {
     }
   }
 
-  /** Convenience wrapper: request an ability check, folding reason + DC into the flavor. */
-  async requestAbilityCheck(data: {
-    targetPlayer: string;
-    ability: string;
-    dc?: number;
-    isPublic: boolean;
-    reason?: string;
-    advantage?: RollAdvantage;
-  }): Promise<{ success: boolean; message: string; error?: string }> {
-    const flavorParts: string[] = [];
-    if (data.reason) flavorParts.push(data.reason);
-    if (data.dc != null) flavorParts.push(`DC ${data.dc}`);
-
-    return this.requestPlayerRolls({
-      rollType: 'ability',
-      rollTarget: data.ability,
-      targetPlayer: data.targetPlayer,
-      isPublic: data.isPublic,
-      rollModifier: '',
-      flavor: flavorParts.join(' — '),
-      ...(data.dc != null ? { dc: data.dc } : {}),
-      ...(data.advantage ? { advantage: data.advantage } : {}),
-    });
-  }
-
-  /** Convenience wrapper: request an attack roll for a named weapon/spell. */
-  async requestAttackRoll(data: {
-    targetPlayer: string;
-    weaponOrSpellName: string;
-    isPublic: boolean;
-    advantage?: RollAdvantage;
-  }): Promise<{ success: boolean; message: string; error?: string }> {
-    return this.requestPlayerRolls({
-      ...(data.advantage ? { advantage: data.advantage } : {}),
-      rollType: 'attack',
-      rollTarget: data.weaponOrSpellName,
-      targetPlayer: data.targetPlayer,
-      isPublic: data.isPublic,
-      rollModifier: '',
-      flavor: `${data.weaponOrSpellName} attack`,
-    });
-  }
-
   /**
    * Roll a check directly for a GM-controlled actor (no player button) and post
    * the result. Attacks read the matched item's `labels.toHit`; everything else

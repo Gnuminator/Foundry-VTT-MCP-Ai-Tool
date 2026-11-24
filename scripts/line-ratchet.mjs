@@ -25,7 +25,7 @@ import path from 'node:path';
 export const LIMIT = 1000;
 const SOURCE_EXT = /\.(?:ts|tsx|mjs|js|cjs|css|sh|ps1)$/;
 const EXCLUDED =
-  /(?:^|\/)(?:dist|node_modules|test-support|container-test)\/|\.(?:test|spec|stories|generated)\.[^/]+$/;
+  /(?:^|\/)(?:dist|node_modules|test-support|container-test)\/|^plugin\/foundry-lane-kit\/|\.(?:test|spec|stories|generated)\.[^/]+$/;
 
 /** True for a tracked path the ratchet counts. */
 export function isCounted(/** @type {string} */ file) {

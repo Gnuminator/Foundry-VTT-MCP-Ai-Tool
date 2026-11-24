@@ -111,9 +111,14 @@ if [ "$check" = 1 ]; then
   out="$(runuser -u "$FOUNDRY_USER" -- "$NODE_DIR/bin/node" "$dest/gamenight-watch-pi.mjs" --once --always --env-files "$bot_env,$watch_env" 2>&1)" || rc=$?
   printf '%s\n' "$out" | sed 's/^/    /' || true
   if have_systemd; then
-    systemctl is-active --quiet "$unit" && ok "$unit is running" || die "$unit is not running: journalctl -u $unit -n 20"
+    # A stopped unit is a failed check, not a reason to skip the password section below.
+    if systemctl is-active --quiet "$unit"; then ok "$unit is running"; else
+      printf '    FAIL: %s is not running: journalctl -u %s -n 20\n' "$unit" "$unit"
+      unit_down=1
+    fi
   fi
   watch_failed=0
+  [ "${unit_down:-0}" = 0 ] || watch_failed=1
   if [ "${rc:-0}" -ne 0 ] || printf '%s\n' "$out" | grep -q ' FAIL '; then watch_failed=1; fi
   say "passwords (read-only, by name): the administrator password and the GM users of every world"
   pw_failed=0

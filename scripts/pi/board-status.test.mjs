@@ -53,6 +53,10 @@ function fakePi({
     'assistant-gm.env': 'ASSISTANT_GM_PASSWORD="pw"\n',
   },
   ref = 'v0.25.0',
+  upgradable = 3,
+  rebootRequired = false,
+  kernel = '6.1.115-vendor-rk35xx',
+  modulesDirs = ['6.1.115-vendor-rk35xx'],
 } = {}) {
   const d = tmp();
   const bin = path.join(d, 'bin');
@@ -87,6 +91,14 @@ function fakePi({
   }
   // A CI runner has a real docker on PATH: a docker that fails every call stands in for it; the script reports null too.
   else stub('docker', `${logCall}\nexit 1`);
+  // apt prints a header and one line per upgradable package; uname -r is the running kernel.
+  stub(
+    'apt',
+    `echo 'Listing...'; for i in $(seq 1 ${upgradable}); do echo "pkg$i/stable 1.2 arm64 [upgradable from: 1.1]"; done; echo 'pkgX/stable 1.0 arm64'`,
+  );
+  stub('uname', `echo "${kernel}"`);
+  for (const k of modulesDirs) mkdirSync(path.join(d, 'modules', k), { recursive: true });
+  if (rebootRequired) writeFileSync(path.join(d, 'reboot-required'), '*** System restart required ***\n');
   const stats = path.join(d, 'dietpi-backup_stats');
   if (snapshotEpoch !== null) {
     writeFileSync(stats, 'x');
@@ -128,6 +140,8 @@ function run(pi, { args = [], env = {}, api = 'http://127.0.0.1:1/api/status', u
         FOUNDRY_STATUS_DF_PATH: posix(pi.d),
         FOUNDRY_STATUS_SNAPSHOT_STATS: posix(pi.stats),
         FOUNDRY_STATUS_TOOL_DIR: posix(path.join(pi.d, 'tool')),
+        FOUNDRY_STATUS_REBOOT_FILE: posix(path.join(pi.d, 'reboot-required')),
+        FOUNDRY_STATUS_MODULES_DIR: posix(path.join(pi.d, 'modules')),
         FOUNDRY_STATUS_API: api,
         FOUNDRY_STATUS_URL: url,
         ...env,
@@ -175,9 +189,22 @@ describe('status script', () => {
     assert.deepEqual(p.clock, { ntpSynced: true, offsetMs: -2.331 });
     assert.ok(Number.isFinite(Date.parse(p.sentAt)));
     assert.equal(typeof p.disk.freePercent, 'number');
-    assert.deepEqual(Object.keys(p).sort(), ['backup', 'clock', 'deployed', 'disk', 'foundry', 'host', 'sentAt', 'uptimeSeconds', 'v']);
+    assert.deepEqual(Object.keys(p).sort(), ['backup', 'clock', 'deployed', 'disk', 'foundry', 'host', 'os', 'sentAt', 'uptimeSeconds', 'v']);
     // No world name, user count or anything else Foundry said.
     assert.ok(!r.stdout.includes('curse'));
+  });
+
+  test('dry run: the OS block counts upgradable packages, a pending reboot and a kernel without modules', async () => {
+    const ok = await run(fakePi(), { args: ['--dry-run'] });
+    assert.deepEqual(JSON.parse(ok.stdout).os, { upgradable: 3, rebootPending: false, modulesMatchKernel: true });
+    const bad = await run(fakePi({ upgradable: 0, rebootRequired: true, modulesDirs: ['6.1.99-old'] }), { args: ['--dry-run'] });
+    assert.deepEqual(JSON.parse(bad.stdout).os, { upgradable: 0, rebootPending: true, modulesMatchKernel: false });
+    assert.ok(!bad.stdout.includes('pkg'), 'no package names');
+    // apt that fails is unknown (null), never the all-clear 0.
+    const pi = fakePi();
+    writeFileSync(path.join(pi.bin, 'apt'), '#!/usr/bin/env bash\nexit 100\n');
+    const broken = await run(pi, { args: ['--dry-run'] });
+    assert.equal(JSON.parse(broken.stdout).os.upgradable, null);
   });
 
   test('dry run: the deployed state carries names and states only', async () => {

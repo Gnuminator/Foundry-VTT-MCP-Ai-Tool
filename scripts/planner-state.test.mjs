@@ -3,10 +3,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import {
   ciState,
   dueWaiting,
   kitLine,
+  LEDGER_LIMIT,
   ledgerLines,
   mainLine,
   newestNote,
@@ -130,34 +132,54 @@ test('dueWaiting honours the 7-day lead and the from date', () => {
   assert.doesNotMatch(out, /W2|W3/);
 });
 
-test('ledgerLines names ledgers over 10 lines with count and lines older than a month', () => {
+test('ledgerLines names ledgers at 20 lines or with a month-old line', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ledgers-'));
   const bullets = (n, date) =>
     Array.from({ length: n }, (_, i) => `- ${date} PR 1 L${i + 1}: x, y`).join('\n');
-  fs.writeFileSync(
-    path.join(dir, 'Big.md'),
-    `# Lows: Big\n\n${bullets(7, '2026-09-01')}\n${bullets(5, '2026-11-10')}\n`
-  );
-  fs.writeFileSync(path.join(dir, 'Edge.md'), `# Lows: Edge\n\n${bullets(10, '2026-09-01')}\n`);
-  fs.writeFileSync(path.join(dir, 'Small.md'), `# Lows: Small\n\n${bullets(3, '2026-11-10')}\n`);
+  const ledger = (name, n, date) =>
+    fs.writeFileSync(path.join(dir, `${name}.md`), `# Lows: ${name}\n\n${bullets(n, date)}\n`);
+  ledger('Full', 20, '2026-11-10');
+  ledger('Aged', 2, '2026-09-01');
+  ledger('Edge', 19, '2026-11-10');
+  ledger('Month', 3, '2026-10-14');
+  ledger('Day31', 1, '2026-10-13');
   const s = ledgerLines(dir, '2026-11-13');
-  assert.match(s, /over 10 lines \(1\); a sweep is a planner call/);
-  assert.match(s, /- Big: 12 lines, 7 older than a month/);
-  assert.doesNotMatch(s, /Edge|Small/);
-  fs.rmSync(path.join(dir, 'Big.md'));
-  assert.equal(ledgerLines(dir, '2026-11-13'), 'Lows ledgers over 10 lines: none');
+  assert.match(s, /to sweep \(20 lines or a month-old line\) \(3\)/);
+  assert.match(s, /- Day31: 1 lines, 1 older than a month/);
+  assert.match(s, /- Full: 20 lines, 0 older than a month/);
+  assert.match(s, /- Aged: 2 lines, 2 older than a month/);
+  assert.doesNotMatch(s, /Edge|Month/);
+  fs.rmSync(path.join(dir, 'Full.md'));
+  fs.rmSync(path.join(dir, 'Aged.md'));
+  fs.rmSync(path.join(dir, 'Day31.md'));
+  assert.equal(
+    ledgerLines(dir, '2026-11-13'),
+    'Lows ledgers to sweep (20 lines or a month-old line): none'
+  );
   assert.equal(ledgerLines(path.join(dir, 'nope'), '2026-11-13'), 'Lows ledgers: not readable');
+});
+
+test('the lane and planner skills state the sweep threshold ledgerLines uses', () => {
+  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+  for (const s of ['lane', 'planner']) {
+    const text = fs.readFileSync(path.join(root, '.claude', 'skills', s, 'SKILL.md'), 'utf8');
+    assert.ok(text.includes(`${LEDGER_LIMIT} lines or a month-old line`), `${s} skill`);
+    assert.doesNotMatch(text, /\b10 lines\b/, `${s} skill has a stale limit`);
+  }
 });
 
 test('ledgerLines skips a folder named *.md and a malformed date', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ledgers-'));
   fs.mkdirSync(path.join(dir, 'Odd.md'));
-  const good = Array.from({ length: 10 }, (_, i) => `- 2026-11-10 PR 1 L${i}: x, y`).join('\n');
+  const good = Array.from({ length: 19 }, (_, i) => `- 2026-11-10 PR 1 L${i}: x, y`).join('\n');
   fs.writeFileSync(
     path.join(dir, 'Big.md'),
     `# Lows: Big\n\n${good}\n- 2026-13-45 PR 2 L1: x, y\n`
   );
-  assert.equal(ledgerLines(dir, '2026-11-13'), 'Lows ledgers over 10 lines: none');
+  assert.equal(
+    ledgerLines(dir, '2026-11-13'),
+    'Lows ledgers to sweep (20 lines or a month-old line): none'
+  );
 });
 
 test('newestNote picks the note whose last Head reviewed line is the head', () => {

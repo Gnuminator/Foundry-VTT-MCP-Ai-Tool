@@ -1,13 +1,18 @@
 """Write the notes as Markdown (Obsidian-friendly) plus one JSON file with everything.
 
-Per language (``da``, ``en``), in ``<session>/notes/``:
+The layout is fixed (design "Session notes format", 2026-11-23): the same files in ``da`` and
+``en``, in ``<session>/notes/``:
 
-* ``transcript.<lang>.md``: L1, the cleaned transcript by scene; each line ends with its block
-  anchor ``^u000123`` so notes can link to it.
-* ``scenes.<lang>.md``: L2, per scene the summary, events, decisions, NPCs, loot, threads, dice,
-  quotes, and a GM-only section; every entry links to the transcript lines it is based on.
-* ``summary.<lang>.md``: L3 for the GM.
-* ``recap.player.<lang>.md``: L3 for the players, a draft until the GM approves it.
+* ``index.<lang>.md``: the start page (title, date, GM, who plays whom, five lines, links).
+* ``scenes.<lang>.md``: per scene the same headings in the same order (What happened, Decisions,
+  NPCs met, Open threads, Quotes, GM only), "None" when empty; a scene wholly at the table is a
+  short stub. One timestamp link per line.
+* ``table.<lang>.md``: everything said at the table (house rules, play style, planning ...).
+* ``characters.<lang>.md``, ``remember.<lang>.md`` (with the layers): GM only.
+* ``summary.<lang>.md``: the long summary for the GM.
+* ``recap.player.<lang>.md``: for the players, a draft until the GM approves it.
+* ``transcript.<lang>.md`` (cleaned, each line ends with its block anchor ``^u000123``) and
+  ``raw.<lang>.md`` (the recogniser's text).
 
 Plus ``notes.json`` (all of it, for later steps such as the journal page for the recap).
 """
@@ -15,17 +20,58 @@ Plus ``notes.json`` (all of it, for later steps such as the journal page for the
 from __future__ import annotations
 
 import json
+from datetime import datetime, timedelta
 from pathlib import Path
+import re
 from typing import Any
 
 from . import extras, layers
-from .model import Line, Roster, clock
-from .npcs import label as npc_label
+from .check import PAGE as CHECK_PAGE
+from .fmt import (
+    AT_TABLE,
+    NONE,
+    SCENE_HEADINGS,
+    SEE,
+    SETTING_LABEL,
+    TABLE_HEADINGS,
+    TABLE_NAME,
+    stamp,
+    table_link,
+)
+from .model import Line, Roster, clock, is_gm
+from .npcs import name as npc_name
 
 LANGS = ("da", "en")
+HEAD_CHARACTERS = {"da": "Personer", "en": "Characters"}
+HEAD_REMEMBER = {"da": "Værd at huske", "en": "Worth remembering"}
+DEPTH_TITLE = "Dybdegående noter"
+WEEKDAYS = {
+    "da": ["mandag", "tirsdag", "onsdag", "torsdag", "fredag", "lørdag", "søndag"],
+    "en": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+}
+MONTHS = {
+    "da": ["januar", "februar", "marts", "april", "maj", "juni", "juli", "august", "september",
+           "oktober", "november", "december"],
+    "en": ["January", "February", "March", "April", "May", "June", "July", "August", "September",
+           "October", "November", "December"],
+}
 HEAD = {
     "da": {
+        "index": "Sessionens noter",
+        "date": "Dato",
+        "character": "Karakter",
+        "played_by": "Spillet af",
+        "in_short": "Kort fortalt",
+        "pages_title": "Sider",
+        "pages": {
+            "scenes": ("Scener", "hvad der skete, scene for scene"),
+            "table": "husregler, aftaler og planer lavet uden for spillet",
+        },
+        "gm_only": "kun for GM",
+        "draft_short": "kladde, venter på GM'ens godkendelse",
+        "other_language": "English version",
         "transcript": "Transskription",
+        "raw": "Rå transskription",
         "scenes": "Scener",
         "summary": "Resumé",
         "recap": "Resumé til spillerne",
@@ -36,19 +82,23 @@ HEAD = {
         "changed": "Hvad ændrede sig",
         "fallback": "Denne scene kunne ikke behandles; transskriptionen er rå.",
         "ooc": "uden for spillet",
-        "sections": {
-            "events": "Hændelser",
-            "decisions": "Beslutninger",
-            "npcs": "NPC'er",
-            "loot": "Fund og tab",
-            "threads": "Åbne tråde",
-            "dice": "Terninger",
-            "quotes": "Citater",
-            "gm_only": "Kun for GM",
-        },
     },
     "en": {
+        "index": "Session notes",
+        "date": "Date",
+        "character": "Character",
+        "played_by": "Played by",
+        "in_short": "In short",
+        "pages_title": "Pages",
+        "pages": {
+            "scenes": ("Scenes", "what happened, scene by scene"),
+            "table": "house rules, agreements and plans made out of character",
+        },
+        "gm_only": "GM only",
+        "draft_short": "draft, waiting for the GM's approval",
+        "other_language": "Dansk version",
         "transcript": "Transcript",
+        "raw": "Raw transcript",
         "scenes": "Scenes",
         "summary": "Summary",
         "recap": "Recap for the players",
@@ -59,23 +109,8 @@ HEAD = {
         "changed": "What changed",
         "fallback": "This scene could not be processed; the transcript is raw.",
         "ooc": "out of character",
-        "sections": {
-            "events": "Events",
-            "decisions": "Decisions",
-            "npcs": "NPCs",
-            "loot": "Loot and losses",
-            "threads": "Open threads",
-            "dice": "Dice",
-            "quotes": "Quotes",
-            "gm_only": "GM only",
-        },
     },
 }
-
-
-def _cite(ids: list[str], lang: str, starts: dict[str, float]) -> str:
-    links = [f"[[transcript.{lang}#^{i}|{clock(starts[i])}]]" for i in ids if i in starts]
-    return f" ({', '.join(links)})" if links else ""
 
 
 def _banner(h: dict[str, Any], incomplete: bool) -> list[str]:
@@ -102,6 +137,30 @@ def render_transcript(
     return "\n".join(out)
 
 
+def _quote_line(e: dict[str, Any], lang: str, starts: dict[str, float]) -> str:
+    """Quotes stay in the spoken language; the English file adds the translation in brackets."""
+    spoken = e.get("spoken") or e.get("da") or ""
+    spoken_lang = e.get("spoken_lang") or ("da" if "spoken" not in e else "en")
+    text = f'"{spoken}"'
+    translation = e.get("en") or ""
+    if lang == "en" and spoken_lang == "da" and translation and translation != spoken:
+        text += f" ({translation})"
+    return f"- {text}{stamp([e['id']], lang, starts)}"
+
+
+def _table_pointer(scene: dict[str, Any], lang: str, starts: dict[str, float]) -> str | None:
+    """At most one pointer line from a scene to the Table page."""
+    items = scene.get("table") or []
+    note = (scene.get("table_note") or {}).get(lang, "").strip()
+    if not items and not note:
+        return None
+    headings = dict(TABLE_HEADINGS[lang])
+    heading = headings.get(items[0].get("topic", "open")) if items else None
+    cites = items[0].get("cites", []) if items else []
+    head = f"{AT_TABLE[lang]}: {note}; " if note else f"{AT_TABLE[lang]}: "
+    return f"- {head}{SEE[lang]} {table_link(lang, heading)}.{stamp(cites, lang, starts)}"
+
+
 def render_scenes(
     lang: str, lines: list[Line], notes: list[dict[str, Any]], incomplete: bool = False
 ) -> str:
@@ -109,26 +168,72 @@ def render_scenes(
     starts = {ln.id: ln.start for ln in lines}
     out = [f"# {h['scenes']}", "", *_banner(h, incomplete)]
     for scene in notes:
+        setting = scene.get("setting") or "game"
+        label = SETTING_LABEL[lang].get(setting, SETTING_LABEL[lang]["game"])
         out += [
             f"## {scene['index']}. {scene[f'title_{lang}']}",
-            f"*{clock(scene['start'])} to {clock(scene['end'])}*",
+            f"*{clock(scene['start'])} to {clock(scene['end'])} · {label}*",
             "",
         ]
+        if scene.get("fallback"):
+            out += [f"> {h['fallback']}", ""]
+            # half of a split scene may have worked: its notes are still shown
+            has_notes = scene[f"summary_{lang}"] or any(
+                scene.get(k) for k in ("events", "decisions", "npcs", "threads", "quotes", "gm_only", "table")
+            )
+            if not has_notes:
+                continue
         if scene[f"summary_{lang}"]:
             out += [scene[f"summary_{lang}"], ""]
-        for key, title in h["sections"].items():
+        if setting == "table":
+            # wholly at the table: a short stub, no empty headings
+            out += [f"{table_link(lang)}", ""]
+            continue
+        pointer = _table_pointer(scene, lang, starts)
+        for key, title in SCENE_HEADINGS[lang]:
             entries = scene.get(key) or []
-            if not entries:
-                continue
             out += [f"### {title}", ""]
+            body: list[str] = []
             for e in entries:
                 if key == "quotes":
-                    out.append(f"- \"{e[lang]}\"{_cite([e['id']], lang, starts)}")
+                    body.append(_quote_line(e, lang, starts))
                 elif key == "npcs":
-                    out.append(f"- **{npc_label(e, lang)}**: {e[lang]}{_cite(e['cites'], lang, starts)}")
+                    body.append(f"- **{npc_name(e, lang)}**: {e[lang]}{stamp(e['cites'], lang, starts)}")
                 else:
-                    out.append(f"- {e[lang]}{_cite(e['cites'], lang, starts)}")
-            out.append("")
+                    body.append(f"- {e[lang]}{stamp(e['cites'], lang, starts)}")
+            if key == "events" and pointer:
+                body.append(pointer)
+            out += (body + [""]) if body else [NONE[lang], ""]
+    return "\n".join(out)
+
+
+def render_table(
+    lang: str,
+    lines: list[Line],
+    notes: list[dict[str, Any]],
+    session: dict[str, Any] | None,
+    incomplete: bool = False,
+) -> str:
+    """What was said at the table, gathered from every scene, under fixed headings."""
+    h = HEAD[lang]
+    starts = {ln.id: ln.start for ln in lines}
+    title = f"# {TABLE_NAME[lang]}"
+    if session and session.get(f"title_{lang}"):
+        title += f": {session[f'title_{lang}']}"
+    out = [title, "", *_banner(h, incomplete)]
+    seen: set[str] = set()
+    for topic, heading in TABLE_HEADINGS[lang]:
+        out += [f"## {heading}", ""]
+        body: list[str] = []
+        for scene in notes:
+            for item in scene.get("table") or []:
+                text = str(item.get(lang, "")).strip()
+                key = f"{topic}|{text.casefold()}"
+                if item.get("topic") != topic or not text or key in seen:
+                    continue
+                seen.add(key)
+                body.append(f"- {text}{stamp(item.get('cites', []), lang, starts)}")
+        out += (body + [""]) if body else [NONE[lang], ""]
     return "\n".join(out)
 
 
@@ -153,6 +258,82 @@ def render_recap(lang: str, session: dict[str, Any] | None) -> str:
     )
 
 
+_SESSION_DIR = re.compile(r"^(\d{4})-(\d{2})-(\d{2})(?:_(\d{2})(\d{2}))?(?:-(.+))?$")
+
+
+def _date_line(lang: str, folder: str, lines: list[Line]) -> str | None:
+    """"Sunday 22 November 2026, 19:06 to 21:09 (online, Discord)" from the folder name
+    (``2026-11-22_1906-discord``) and the length of the recording."""
+    m = _SESSION_DIR.match(folder)
+    if not m:
+        return None
+    try:
+        day = datetime(int(m[1]), int(m[2]), int(m[3]))
+    except ValueError:
+        return None
+    wd, mo = WEEKDAYS[lang][day.weekday()], MONTHS[lang][day.month - 1]
+    text = f"{wd} {day.day}. {mo} {day.year}" if lang == "da" else f"{wd} {day.day} {mo} {day.year}"
+    if m[4] is not None and lines:
+        start = day.replace(hour=int(m[4]), minute=int(m[5]))
+        end = start + timedelta(seconds=lines[-1].end)
+        text += f", {start:%H:%M} {'til' if lang == 'da' else 'to'} {end:%H:%M}"
+    if m[6] and m[6].lower() == "discord":
+        text += " (online, Discord)"
+    return text
+
+
+def render_index(
+    lang: str,
+    folder: str,
+    lines: list[Line],
+    roster: Roster,
+    session: dict[str, Any] | None,
+    pages: set[str],
+    incomplete: bool,
+) -> str:
+    """The start page: title, date, GM, who plays whom, five lines, links to the pages and to the
+    other language. ``pages`` names the optional pages that exist (characters, remember, names,
+    depth)."""
+    h = HEAD[lang]
+    other = "en" if lang == "da" else "da"
+    out = [f"# {session[f'title_{lang}'] if session else h['index']}", ""]
+    date = _date_line(lang, folder, lines)
+    if date:
+        out.append(f"**{h['date']}:** {date}")
+    gms = [p for p, c in roster.players.items() if is_gm(c)]
+    if gms:
+        out.append("**GM:** " + ", ".join(gms))
+    out.append("")
+    pcs = extras.player_characters(roster)
+    if pcs:
+        out += [f"| {h['character']} | {h['played_by']} |", "|---|---|"]
+        out += [f"| {c} | {p} |" for c, p in pcs]
+        out.append("")
+    if incomplete:
+        out += _banner(h, True)
+    if session:
+        out += [f"## {h['in_short']}", ""]
+        out += [f"{n}. {t}" for n, t in enumerate(session.get(f"in_short_{lang}") or [], 1)]
+        out.append("")
+    out += [f"## {h['pages_title']}", ""]
+    p = h["pages"]
+    out += [f"- [[scenes.{lang}|{p['scenes'][0]}]]: {p['scenes'][1]}",
+            f"- [[table.{lang}|{TABLE_NAME[lang]}]]: {p['table']}"]
+    if "characters" in pages:
+        out.append(f"- [[characters.{lang}|{HEAD_CHARACTERS[lang]}]] ({h['gm_only']})")
+    if "remember" in pages:
+        out.append(f"- [[remember.{lang}|{HEAD_REMEMBER[lang]}]] ({h['gm_only']})")
+    out.append(f"- [[summary.{lang}|{h['summary']}]] ({h['gm_only']})")
+    if "depth" in pages and lang == "da":
+        out.append(f"- [[depth.da|{DEPTH_TITLE}]] ({h['gm_only']})")
+    out.append(f"- [[recap.player.{lang}|{h['recap']}]] ({h['draft_short']})")
+    if "names" in pages:
+        out.append(f"- [[{CHECK_PAGE}.{lang}|{CHECK_PAGE}]]")
+    out.append(f"- [[transcript.{lang}|{h['transcript']}]] · [[raw.{lang}|{h['raw']}]]")
+    out += ["", f"[[index.{other}|{h['other_language']}]]", ""]
+    return "\n".join(out)
+
+
 def write_outputs(
     notes_dir: Path,
     lines: list[Line],
@@ -162,8 +343,8 @@ def write_outputs(
     depth: dict[int, dict[str, Any]] | None = None,
     extra: dict[str, dict[str, Any] | None] | None = None,
 ) -> list[Path]:
-    """``depth`` is None unless the three Danish layers are on (I-066): then raw, in-depth and
-    index files are written too (an empty dict means no in-depth notes yet)."""
+    """``depth`` is None unless the layers are on (I-066): then the in-depth notes, the character
+    and worth-remembering pages are written too (an empty dict means no in-depth notes yet)."""
     notes_dir.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
     # No session part means the run did not finish (pending raw scenes, a pause, a failed summary):
@@ -175,16 +356,20 @@ def write_outputs(
         path.write_text(text, encoding="utf-8", newline="\n")
         written.append(path)
 
+    layers_info: dict[str, Any] | None = None
+    optional: set[str] = set()
+    if depth is not None:
+        optional |= {"characters", "remember", "depth"}
     for lang in LANGS:
         put(f"transcript.{lang}.md", render_transcript(lang, lines, notes, incomplete))
         put(f"scenes.{lang}.md", render_scenes(lang, lines, notes, incomplete))
+        put(f"table.{lang}.md", render_table(lang, lines, notes, session, incomplete))
         put(f"summary.{lang}.md", render_summary(lang, session))
         put(f"recap.player.{lang}.md", render_recap(lang, session))
-    layers_info: dict[str, Any] | None = None
+        put(f"raw.{lang}.md", layers.render_raw(lines, notes, lang))
     if depth is not None:
         wanted = [n["index"] for n in notes if not n.get("fallback")]
         depth_complete = not incomplete and all(i in depth for i in wanted)
-        put("raw.da.md", layers.render_raw(lines, notes))
         put("depth.da.md", layers.render_depth(lines, notes, depth, not depth_complete))
         extra = extra or {}
         for lang in LANGS:
@@ -193,19 +378,27 @@ def write_outputs(
             put(f"remember.{lang}.md", extras.render_remember(lang, lines, extra.get("remember")))
         chars_done = not incomplete and extra.get("characters") is not None
         remember_done = not incomplete and extra.get("remember") is not None
-        put("index.da.md", layers.render_index(session, depth_complete, chars_done, remember_done))
         layers_info = {
             "depth_complete": depth_complete,
             "characters_complete": chars_done,
             "remember_complete": remember_done,
         }
+        incomplete = incomplete or not (depth_complete and chars_done and remember_done)
+    for lang in LANGS:
+        pages = set(optional)
+        if (notes_dir / f"{CHECK_PAGE}.{lang}.md").exists():
+            pages.add("names")
+        put(
+            f"index.{lang}.md",
+            render_index(lang, notes_dir.parent.name, lines, roster, session, pages, incomplete),
+        )
     put(
         "notes.json",
         json.dumps(
             {
                 "roster": roster.players,
                 "names": roster.names,
-                "complete": not incomplete,
+                "complete": session is not None,
                 "scenes": notes,
                 "session": session,
                 "depth": {str(k): v for k, v in (depth or {}).items()} or None,

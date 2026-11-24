@@ -23,11 +23,16 @@ jobs:
           fail: true
           # History is never rewritten; .claude holds Claude's own skills; the vault repo is private;
           # raspberrypi.com answers link checkers with 403 (it opens fine in a browser).
+          # docs/wiki holds only the two landing pages (index.md, index.da.md): their media and
+          # page links are absolute site paths under /Foundry-VTT-MCP-Ai-Tool/ that lychee cannot
+          # resolve from the checkout (--root-dir has no way to drop a prefix). The wiki build's
+          # links validator and scripts/site/build.mjs check them on every wiki run.
           args: >-
             --no-progress
             --exclude-loopback
             --exclude-path docs/history
             --exclude-path .claude
+            --exclude-path docs/wiki
             --exclude 'github\.com/Gnuminator/obsidian-vault'
             --exclude 'raspberrypi\.com'
             --accept 200,204,206,429

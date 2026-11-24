@@ -46,6 +46,8 @@ export interface AiChange {
   requestedBy: string;
   /** The Obsidian Changes/ note that holds it (`2026-10-p2`), when the bridge says. */
   notePart?: string;
+  /** False when the export has not written `notePart` yet; absent from an older bridge. */
+  notePartWritten?: boolean;
 }
 
 /** The AI changes of a list-recent-changes answer; entries without an id are dropped. */
@@ -68,6 +70,9 @@ export function readAiChanges(result: unknown): AiChange[] {
       diff: strings(c['diff']),
       requestedBy: str(c['requestedBy']),
       ...(/^\d{4}-\d{2}(-p\d+)?$/.test(str(c['notePart'])) ? { notePart: str(c['notePart']) } : {}),
+      ...(typeof c['notePartWritten'] === 'boolean'
+        ? { notePartWritten: c['notePartWritten'] }
+        : {}),
     });
   }
   return changes;
@@ -86,11 +91,14 @@ export function changeState(c: Pick<AiChange, 'mode' | 'undoneBy' | 'risk'>): Ch
  * The note an AI change is filed in, by UTC month of `appliedAt` (obsidian/export.ts files them by
  * `appliedAt.slice(0, 7)`): the path under the world's folder of the vault, or null without a month.
  */
-export function obsidianChangePath(c: Pick<AiChange, 'appliedAt' | 'notePart'>): string | null {
+export function obsidianChangePath(
+  c: Pick<AiChange, 'appliedAt' | 'notePart' | 'notePartWritten'>
+): string | null {
   const month = c.appliedAt.slice(0, 7);
   if (!/^\d{4}-\d{2}$/.test(month)) return null;
   // A long month rolls over to -p2, -p3 (the bridge names the part); the month's own note otherwise.
-  const note = c.notePart?.startsWith(month) ? c.notePart : month;
+  // A part the export has not written yet (the change that tipped the month) opens the month note.
+  const note = c.notePart?.startsWith(month) && c.notePartWritten !== false ? c.notePart : month;
   return `AI Tool/Changes/${note}`;
 }
 

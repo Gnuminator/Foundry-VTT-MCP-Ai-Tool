@@ -2,7 +2,7 @@
 
 Verified on Foundry 14.368 / dnd5e 6.0.6, module 7.5.9, 2026-10-28 (test server B). Parts not clicked through are marked "(not verified)".
 
-**Verdict: optional.** A content-build tool for this PC only: it needs the owner's D&D Beyond login cookie, it never goes to the Pi, and it is not part of a table session. It is in the `modules-all` kit profile (`scripts/test-kit/data/profiles/modules-all.json`), which loads every Strahd-list module for the update rehearsal, but in no other profile (settled 2026-10-28: the first page said it was in no kit profile).
+**Verdict: drop.** Dropped on 2026-11-20 (the user: everything is imported from D&D Beyond, no plans to import more; its proxy also fails on dnd5e 6.1.1). It left the Strahd list (`scripts/modules/strahd-modules.json`), the `modules-all` kit profile and the expected-findings list. It is no longer a table module. The module files stay installed, switched off, on this PC's test servers (and are still on the Pi until the switch-off stage runs, see below). Reinstall only for a future import: put it back on the Strahd list and in `modules-all` first, and use only our patched local proxy (it needs the owner's D&D Beyond login cookie). Everything below describes the module as checked on 2026-10-28.
 
 **For Danni's guides:** DDB-Importer pulls your D&D Beyond characters and books into Foundry; you do not need it at the table, our server already has the finished content.
 
@@ -50,7 +50,7 @@ Other values seen on B (hidden settings): `beta-key` empty, `patreon-user` null,
 - Importing a D&D Beyond character with no species fails silently: the armour class step reads the species name, throws, and leaves an empty "New Actor". Give the character a species on D&D Beyond first (build-plan note, 2026-10-03).
 - The cookie can be lost when the browser pane's storage is cleared; the note records restoring `ddb-cobalt-cookie` from the local proxy setup. On B the cookie is kept browser-side (`cobalt-cookie-local` true) and is empty (not verified how server A holds it today).
 - Upstream's proxy logs the cookie; use only our patched copy and check any log for the cookie before reading it (CLAUDE.md).
-- Kit: only the `modules-all` profile enables it (it must stay in step with `scripts/modules/strahd-modules.json`; a test checks). Linux/Pi: not installed, by rule.
+- Kit: only the `modules-all` profile enables it (it must stay in step with `scripts/modules/strahd-modules.json`; a test checks). Linux/Pi: the push refused it by rule, yet the 2026-11-23 read-only check found the module files in `/var/lib/foundry/Data/modules/ddb-importer` and switched on in the `curse-of-strahd` world (nothing listens on port 31517 there; the proxy only ever ran on this PC). A Pi stage switches it off (backlog item `drop-ddb-importer`).
 - Buying the adventure on D&D Beyond is needed before it can be imported (build-plan note); no content is stored in this repo.
 
 ## Sources

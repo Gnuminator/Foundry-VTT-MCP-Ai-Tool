@@ -118,6 +118,7 @@ export const TEST_FOLDER_EXCEPTIONS = {
   'scripts/dev/': 'npm run dev:test',
   'scripts/tool-eval/': 'npm run dev:test',
   'scripts/wiki/': 'npm run wiki:test (wiki-scripts)',
+  'scripts/site/build.test.mjs': 'workflow wiki.yml',
   'scripts/dep-ranges-check.test.mjs': 'npm run deps:check',
   'scripts/docs-quest-check.test.mjs': 'npm run docs:links',
   'scripts/pi/docker-compose.test.mjs': 'workflow pi-images.yml',
@@ -206,19 +207,6 @@ export const CHECKS = [
   // Not in the `pi` group: world-switches, runtime-imports and the Obsidian guides read module and
   // package sources and the docs (packages/*, docs/), so a pull request outside the Pi paths can break them.
   { name: 'wiki-scripts', group: 'scripts', cmd: 'npm', args: ['run', 'wiki:test'], env: CI },
-  {
-    name: 'livekit-recorder-install',
-    group: 'tools',
-    cmd: 'npm',
-    args: ['ci', '--prefix', 'tools/livekit/recorder'],
-  },
-  {
-    name: 'livekit-recorder-test',
-    group: 'tools',
-    cmd: 'npm',
-    args: ['test', '--prefix', 'tools/livekit/recorder'],
-    env: CI,
-  },
   { name: 'coverage-check', group: 'gate', cmd: 'node', args: ['scripts/test-coverage-check.mjs'] },
   npmRun('changelog', 'static', 'changelog:check', {
     drift: { name: 'changelog fragments', order: 3 },
@@ -447,6 +435,7 @@ export const PI_CONTAINER_MATRIX = [
   { name: 'kit session', env: 'PI_KIT_SESSION_CONTAINER', test: 'kit-session.test.mjs' },
   { name: 'stage 11', env: 'PI_STAGE11_CONTAINER', test: 'stage11-world.test.mjs' },
   { name: 'stage 15', env: 'PI_SSH_KEYS_ONLY_CONTAINER', test: 'ssh-keys-only.test.mjs' },
+  { name: 'stage 6', env: 'PI_STAGE6_CONTAINER', test: 'backup-nightly-container.test.mjs' },
   { name: 'stage 7', env: 'PI_STAGE7_CONTAINER', test: 'stage7-foundry-url.test.mjs' },
   { name: 'stage 20', env: 'PI_STAGE20_CONTAINER', test: 'vault-sync.test.mjs' },
   { name: 'stage 21', env: 'PI_STAGE21_CONTAINER', test: 'player-vault.test.mjs' },

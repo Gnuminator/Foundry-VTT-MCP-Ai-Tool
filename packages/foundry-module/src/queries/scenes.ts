@@ -28,7 +28,6 @@ export function registerSceneHandlers(ctx: QueryContext, table: BridgeHandlerTab
   table.set(`${MODULE_ID}.getActiveScene`, 'read', () => getActiveScene(ctx));
   table.set(`${MODULE_ID}.list-scenes`, 'read', withCtx(ctx, listScenes));
   table.set(`${MODULE_ID}.switch-scene`, 'write', withCtx(ctx, switchScene));
-  table.set(`${MODULE_ID}.addActorsToScene`, 'write', withCtx(ctx, addActorsToScene));
 
   // Movement and positioning
   table.set(`${MODULE_ID}.getTokenPositions`, 'read', withCtx(ctx, getTokenPositions));
@@ -116,30 +115,6 @@ async function switchScene(ctx: QueryContext, data: DataArg<'switchScene'>): Pro
     }
 
     return await ctx.dataAccess.switchScene(data);
-  });
-}
-
-/**
- * Handle add actors to scene request
- */
-async function addActorsToScene(
-  ctx: QueryContext,
-  data: {
-    actorIds: string[];
-    placement?: 'random' | 'grid' | 'center';
-    hidden?: boolean;
-  }
-): Promise<unknown> {
-  return ctx.withGmGate('Failed to add actors to scene', async () => {
-    if (!data.actorIds || !Array.isArray(data.actorIds) || data.actorIds.length === 0) {
-      throw new Error('actorIds array is required and must not be empty');
-    }
-
-    return await ctx.dataAccess.addActorsToScene({
-      actorIds: data.actorIds,
-      placement: data.placement || 'random',
-      hidden: data.hidden || false,
-    });
   });
 }
 

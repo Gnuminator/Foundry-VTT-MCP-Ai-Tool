@@ -4,11 +4,9 @@
     "packages/foundry-module/src/data-access.actor-builder-items.test.ts": 1,
     "packages/foundry-module/src/data-access.actor-builder-npc.test.ts": 6,
     "packages/foundry-module/src/data-access.combat-mutation.test.ts": 1,
-    "packages/foundry-module/src/data-access.player-rolls.test.ts": 1,
     "packages/foundry-module/src/data-access/actor-builder.ts": 7,
     "packages/foundry-module/src/data-access/actor-compendium-import.ts": 5,
     "packages/foundry-module/src/data-access/combat.ts": 1,
-    "packages/foundry-module/src/data-access/player-rolls.ts": 1,
     "packages/foundry-module/src/session-events.ts": 1
   }
 }

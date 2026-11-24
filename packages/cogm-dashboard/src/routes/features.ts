@@ -97,6 +97,10 @@ export function mountRawBodyRoutes(
     logger: logger.child('usage'),
     directory,
     requireGm,
+    meUserFor: key => {
+      const world = ctx.world()?.id;
+      return world ? f.links.userFor(world, key) : null;
+    },
   });
   // The handout seen log (I-039): parses its own small body; the GM's drawer refreshes on a new open.
   mountHandoutSeenRoute(app, {

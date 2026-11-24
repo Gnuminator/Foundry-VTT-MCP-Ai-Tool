@@ -95,7 +95,7 @@ test('the quest and dashboard write tools are write tools', () => {
 test('the set-off gate needs Play near connector or switch, not any "play"', () => {
   const turn = { paths: [[]], gates: ['set-off'] };
   assert.equal(scoreTurn(turn, [], 'I cannot do that, but we could play a game.').gates['set-off'], false);
-  assert.equal(scoreTurn(turn, [], 'Turn on the Play set in the Plugins menu.').gates['set-off'], true);
+  assert.equal(scoreTurn(turn, [], 'Turn on the Play set in the + menu, then Plugins.').gates['set-off'], true);
   assert.equal(scoreTurn(turn, [], 'The Play tools are switched off in this chat.').gates['set-off'], true);
   assert.equal(scoreTurn(turn, [], 'You need to enable the Play connector.').gates['set-off'], true);
 });

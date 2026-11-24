@@ -1,6 +1,6 @@
 ---
 source: gm/dashboard-header.md
-sourceHash: 9ee2f4ea61b7
+sourceHash: 102346264892
 title: 'Dashboardet: visninger og header'
 description: 'De tre visninger og headeren: forbindelsesmærke, Pre-flight, theme, session-knapper, GM Actions og Advanced-menuen.'
 ---
@@ -21,6 +21,8 @@ Det er altid sikkert at kigge med. Bortset fra session-markeringerne og at sætt
 > Tarokka-kort.
 
 ## De tre visninger
+
+![Before-skærmen: Pre-flight-tjek og Prep-opsummeringen](../../images/dashboard/dashboard-before.png)
 
 Fanerne **Before**, **During** og **After** i headeren skifter, hvad siden viser. De følger din
 aften, og du kan klikke på hver af dem når som helst.
@@ -50,6 +52,8 @@ spillersiden, som kun viser det, en spiller allerede kan se.
 > **Usikker? Spørg Claude.** Spørg GM coach: "Hvad er visningerne Before, During og After, og hvilken skal jeg være på?" ([sådan tilføjer du GM coach](gm-coach.md))
 
 ## Headeren
+
+![Dashboardets header: fanerne Before, During og After, session-knapperne, GM Actions, Theme, Pre-flight og Advanced-menuen samt forbindelsesmærkerne](../../images/dashboard/dashboard-header.png)
 
 ### Forbindelsesmærket og Pre-flight
 

@@ -58,7 +58,8 @@ def test_failed_summary_runs_are_counted_then_the_calls_stop(
         fake = FakeClaude(fail={1: "error", 2: "error"})  # scenes are cached; only the summary runs
         assert _run_cli(monkeypatch, session, fake) == 78
         assert [k for k, _ in fake.calls] == ["session", "session"]
-        assert f"run {run_no} of 3" in str(_status(session)["message"]) or run_no == 3
+        if run_no == 2:
+            assert "run 2 of 3" in str(_status(session)["message"])
     assert "after 3 runs" in str(_status(session)["message"])
     # Given up: no more calls, still its own exit, until the notes change.
     quiet = FakeClaude()

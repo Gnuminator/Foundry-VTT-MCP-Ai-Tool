@@ -66,7 +66,7 @@ export default {
     const sceneId = t.kit?.scene?.sceneId;
     if (!boss || !hero || !sceneId) {
       await t.step('the boss combat needs a kit scene', async () =>
-        t.skip('no kit scene with a legendary monster and a hero token')
+        t.skip('no kit scene with a legendary monster and a player-owned hero token')
       );
       return;
     }

@@ -97,9 +97,10 @@ let interrupted = false;
 
 /** Stops a child and everything it started (demo.mjs owns the browser). */
 function treeKill(child) {
-  if (process.platform === 'win32' && child.pid)
-    spawnSync('taskkill', ['/T', '/F', '/PID', String(child.pid)], { windowsHide: true });
-  else child.kill('SIGKILL');
+  if (process.platform === 'win32' && child.pid) {
+    const r = spawnSync('taskkill', ['/T', '/F', '/PID', String(child.pid)], { windowsHide: true });
+    if (r.error || r.status !== 0) child.kill('SIGKILL');
+  } else child.kill('SIGKILL');
 }
 
 /** A take that takes longer than this is hung: it fails and gives the lock back. */
@@ -152,7 +153,18 @@ function runProc(file, args, { env = {}, echo = false, timeoutMs = 0 } = {}) {
 const pwsh = (script, args) =>
   runProc('pwsh', ['-NoProfile', '-File', join(TEST_ENV, script), ...args]);
 
-const sleep = ms => new Promise(r => setTimeout(r, ms));
+/** Wakes every interruptible sleep at once when a stop signal comes in. */
+const wakeSleepers = new Set();
+const sleepInterruptibly = ms =>
+  new Promise(resolve => {
+    const done = () => {
+      clearTimeout(timer);
+      wakeSleepers.delete(done);
+      resolve();
+    };
+    const timer = setTimeout(done, ms);
+    wakeSleepers.add(done);
+  });
 
 const lastLine = text =>
   text
@@ -217,12 +229,13 @@ async function main() {
 
   // Ctrl+C, a closed console or a kill: stop the take (and its browser), then let the finally
   // block stop the server and release the lock. A second signal exits at once.
-  for (const sig of ['SIGINT', 'SIGTERM', 'SIGBREAK']) {
+  for (const sig of ['SIGINT', 'SIGTERM', 'SIGBREAK', 'SIGHUP']) {
     process.on(sig, () => {
       if (interrupted) process.exit(1);
       interrupted = true;
       console.error(`${sig}: stopping, then releasing the lock ...`);
       for (const c of children) treeKill(c);
+      for (const wake of [...wakeSleepers]) wake();
     });
   }
 
@@ -244,7 +257,8 @@ async function main() {
     let queued = false;
     for (;;) {
       const r = await pwsh('lock.ps1', lockArgs);
-      if (r.code === 127) throw new Error('pwsh is not on PATH; the test environment scripts need it.');
+      if (r.code === 127)
+        throw new Error('pwsh is not on PATH; the test environment scripts need it.');
       if (r.code === 0) {
         took = !/already hold/i.test(r.stdout);
         break;
@@ -252,6 +266,7 @@ async function main() {
       if (interrupted || Date.now() >= deadline) {
         if (interrupted) console.error('Interrupted while waiting for the lock.');
         if (queued) await pwsh('lock.ps1', ['leave', '-Session', session, ...onServer]);
+        if (interrupted) return 1;
         console.error(`The test server lock is not free:\n${r.out.trim()}`);
         return 3;
       }
@@ -268,7 +283,11 @@ async function main() {
         ]);
         queued = true;
       }
-      await sleep(60000);
+      await sleepInterruptibly(60000);
+      if (interrupted) {
+        await pwsh('lock.ps1', ['leave', '-Session', session, ...onServer]);
+        return 1;
+      }
     }
     console.log(`Lock on server ${o.server} taken (${session}).`);
   }

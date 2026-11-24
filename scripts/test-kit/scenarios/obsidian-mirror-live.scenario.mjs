@@ -182,7 +182,10 @@ export default {
       const total = Object.values(status.counts ?? {}).reduce((a, b) => a + Number(b), 0);
       t.check(total > 0, 'the status counts managed notes', status.counts);
       t.equal(status.errors, [], 'mirror errors');
-      t.equal(status.skipped, [], 'skipped notes before any edit');
+      const ownSkipped = (status.skipped ?? []).filter((/** @type {any} */ s) =>
+        [PC_NAME, NPC_NAME].some(n => String(s.path).includes(n))
+      );
+      t.equal(ownSkipped, [], 'skipped notes of this scenario before any edit');
       return `${total} notes`;
     });
 

@@ -78,11 +78,6 @@ function Read-DotEnv {
   return $map
 }
 
-function New-RandomString([int]$Length) {
-  $chars = [char[]]'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-  -join (1..$Length | ForEach-Object { $chars[[System.Security.Cryptography.RandomNumberGenerator]::GetInt32($chars.Length)] })
-}
-
 # The default sessions folder, the same as shared/src/sessions-dir.ts says for the dashboard and the bot.
 function Get-DefaultSessionsDir {
   return Get-DataFolder 'FoundrySessions'

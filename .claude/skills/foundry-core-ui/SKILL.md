@@ -1,6 +1,6 @@
 ---
 name: foundry-core-ui
-description: Navigate and drive the Foundry VTT v14 web client and the dnd5e 6 system by hand (setup screen, join, users and permissions, the in-world layout, every sidebar tab, scene controls and canvas layers, document sheets, configuration menus, chat and rolls, combat tracker, dnd5e character/NPC/item sheets and system settings). Use when a task needs clicking through Foundry's own UI in the browser pane (checking what a player or GM sees, verifying a feature in the client, changing a setting through the UI, finding where a button lives), or when writing docs or tests that name Foundry UI elements. Reference pages are verified against Foundry 14.368 / dnd5e 6.0.5.
+description: Drive the Foundry v14 web client and dnd5e 6 sheets by hand in the browser pane. Use when a task needs clicking through Foundry's own UI or docs naming its UI elements.
 ---
 
 # Foundry v14 + dnd5e 6: driving the client

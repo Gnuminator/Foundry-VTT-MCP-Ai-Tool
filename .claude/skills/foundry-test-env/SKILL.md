@@ -1,6 +1,6 @@
 ---
 name: foundry-test-env
-description: Start, use and stop the personal local Foundry VTT test environment for this repo (Foundry 14 on localhost:30001 with the dnd5e world "ai-tool-test", a test bridge on ports 31514 and 31515, the co-GM dashboard on 3100, a separate vault), join as the passwordless "Claude" GM or "Player" in the browser pane, sync the module after code changes, install packages or create worlds on the test server, inspect installed modules/systems, and troubleshoot. Use before any live check in Foundry. Testing the AI Tool itself (tools, dashboard, smoke checklist) is the foundry-ai-tool skill; Foundry's own UI is foundry-core-ui. Never touches the live campaign or the live bridge ports 31414-31416.
+description: Start, use and stop the local Foundry test server (localhost:30001, test bridge 31514/31515, dashboard 3100). Use before any live check; never touches live ports.
 ---
 
 # Foundry test environment

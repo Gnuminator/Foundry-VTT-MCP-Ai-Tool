@@ -166,6 +166,9 @@ export function findBrowser(env: NodeJS.ProcessEnv = process.env): string | null
 
 const RENDER_TIMEOUT_MS = 30_000;
 
+/** Browsers that failed a render in this process; tried last from then on. */
+const failedBrowsers = new Set<string>();
+
 /** Set once the browser has said it has no usable sandbox here. */
 let noSandboxNeeded = false;
 
@@ -195,11 +198,18 @@ export async function renderPress(
       'The handout press needs Microsoft Edge, Google Chrome or Chromium on the computer the backend runs on, and found none (set FOUNDRY_AI_TOOL_PRESS_BROWSER to a browser program).'
     );
   }
+  // A browser that failed on an earlier render goes last, so it does not cost every handout a
+  // wasted start (or a 30 s hang).
+  const ordered = [
+    ...candidates.filter(c => !failedBrowsers.has(c)),
+    ...candidates.filter(c => failedBrowsers.has(c)),
+  ];
   let lastError: unknown;
-  for (const candidate of candidates) {
+  for (const candidate of ordered) {
     try {
       return await renderWith(candidate, template, content, runBrowser);
     } catch (error) {
+      failedBrowsers.add(candidate);
       lastError = error;
     }
   }
@@ -250,7 +260,11 @@ async function renderWith(
       png = await readFile(out);
     } catch {
       await run(first || noSandboxNeeded);
-      png = await readFile(out);
+      try {
+        png = await readFile(out);
+      } catch {
+        throw new Error('The browser exited without writing the picture.');
+      }
     }
     return new Uint8Array(png);
   } finally {

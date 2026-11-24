@@ -77,12 +77,16 @@ describe('renderPress', () => {
     expect(Array.from(png)).toEqual(Array.from(PNG));
     // Edge gets its one retry, then Chrome renders.
     expect(calls).toEqual(['edge', 'edge', 'chrome']);
+    // Edge is remembered as bad: the next render starts with Chrome.
+    calls.length = 0;
+    await renderPress('letter', { title: 't', body: 'b' }, ['edge', 'chrome'], runner);
+    expect(calls).toEqual(['chrome']);
   });
 
   it('fails when every browser misses the picture', async () => {
     await expect(
       renderPress('letter', { title: 't', body: 'b' }, ['a', 'b'], async () => undefined)
-    ).rejects.toThrow();
+    ).rejects.toThrow(/without writing the picture/);
   });
 
   it('lists the wanted browser first and only browsers that exist', () => {

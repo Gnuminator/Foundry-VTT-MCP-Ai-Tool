@@ -103,7 +103,7 @@ export function tail(log, n) {
 /** Strip the GitHub log prefix (job, step, timestamp) and ANSI colours. */
 export function clean(log) {
   return log
-    .replace(/(?:\x1b|\^)?\[[0-9;]{1,6}m/g, '')
+    .replace(new RegExp(`(?:${String.fromCharCode(27)}|\\^)?\\[[0-9;]{1,6}m`, 'g'), '')
     .replace(/^[^\t\n]*\t[^\t\n]*\t\d{4}-\d\d-\d\dT[\d:.]+Z /gm, '')
     .replace(/^\d{4}-\d\d-\d\dT[\d:.]+Z /gm, '');
 }

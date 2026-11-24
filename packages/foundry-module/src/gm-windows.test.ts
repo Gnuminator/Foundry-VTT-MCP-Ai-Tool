@@ -233,6 +233,10 @@ describe('the switch, the buttons and the windows', () => {
     expect(win._canDetach()).toBe(false);
     world.settings.set(`${MODULE_ID}.${GM_WINDOWS_POPOUT_SETTING}`, true);
     expect(win._canDetach()).toBe(true);
+    g.game.settings.get = (): never => {
+      throw new Error('not registered');
+    };
+    expect(win._canDetach()).toBe(false);
   });
 
   it('is off when the switch is off: no Combat or Party buttons, and the windows refuse to open', async () => {

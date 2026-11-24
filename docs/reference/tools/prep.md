@@ -211,7 +211,7 @@ Parameters:
 - `kind` (string): add: the kind. One of: `read-aloud`, `npc-line`, `letter`, `recap`.
 - `text` (string): add or edit: the text.
 - `speaker` (string): NPC line: the speaker. Letter: who it is from.
-- `whisperTo` (string): A player name; without it, posts to all.
+- `whisperTo` (string): Foundry user name (not a character); without it, posts to all.
 - `id` (string)
 
 ## get-play-stats

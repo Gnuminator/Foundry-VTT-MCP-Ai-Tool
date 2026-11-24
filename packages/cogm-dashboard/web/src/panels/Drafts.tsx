@@ -17,6 +17,7 @@ interface Draft {
   id: string;
   kind: DraftKind;
   text: string;
+  rev?: number;
   speaker?: string;
   whisperTo?: string;
   status: DraftStatus;
@@ -66,6 +67,8 @@ export function DraftsSection({ open }: { open: boolean }): JSX.Element {
       return true;
     } catch (err) {
       toast(`✗ Drafts: ${errorText(err)}`, 'err');
+      // The list may have changed behind the failure (a new flag, an edit): show it now.
+      await queryClient.invalidateQueries({ queryKey: DRAFTS_KEY });
       return false;
     } finally {
       setBusy(null);
@@ -79,9 +82,12 @@ export function DraftsSection({ open }: { open: boolean }): JSX.Element {
       );
       if (!ok) return;
     }
+    // The version and flags shown here are what the server checks, so text that changed since
+    // (or a term first found now) is refused and the refreshed list shows it.
     void run(draft.id, '/api/drafts/publish', {
       id: draft.id,
-      confirmFlagged: draft.secretTerms !== undefined,
+      rev: draft.rev ?? 0,
+      confirmedTerms: draft.secretTerms ?? [],
     }).then(ok => {
       if (ok) toast('Published to chat', 'ok');
     });

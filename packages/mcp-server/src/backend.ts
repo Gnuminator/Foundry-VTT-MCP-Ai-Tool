@@ -57,6 +57,7 @@ import { ClientsFile, handleWhoUsesWhat } from './who-uses-what.js';
 import { TarokkaService } from './tarokka/service.js';
 import { handleDowntime } from './downtime/store.js';
 import { HandoutsService, handleRecordHandoutSeen } from './handouts/service.js';
+import { DIRECT_WRITE_TIMEOUT_MS, queryTimeoutContext } from './direct-write-timeout.js';
 import { createDraftsStore, draftsControlReply } from './drafts/store.js';
 import { createOmensStore, omensControlReply } from './omens/store.js';
 import { SecretTermsService } from './secret-terms.js';
@@ -278,13 +279,17 @@ async function startBackend(): Promise<void> {
   const omens = createOmensStore(vaultStore, worldIds, secretTerms);
   // Draft tray (I-069): publishing posts to Foundry chat through the existing chat bridge query.
   const drafts = createDraftsStore(vaultStore, worldIds, secretTerms, async post => {
-    const reply = (await foundryClient.query('foundry-mcp-bridge.sendChatMessage', {
-      message: post.message,
-      messageType: post.whisperTargets ? 'whisper' : 'ic',
-      ...(post.speakerActorName ? { speakerActorName: post.speakerActorName } : {}),
-      ...(post.whisperTargets ? { whisperTargets: post.whisperTargets } : {}),
-    })) as { success?: boolean; error?: string } | undefined;
+    // Longer wait like other direct writes; a lost answer keeps the draft out of "publish again".
+    const reply = (await queryTimeoutContext.run({ timeoutMs: DIRECT_WRITE_TIMEOUT_MS }, () =>
+      foundryClient.query('foundry-mcp-bridge.sendChatMessage', {
+        message: post.message,
+        messageType: post.whisperTargets ? 'whisper' : 'ic',
+        ...(post.whisperTargets ? { whisperTargets: post.whisperTargets } : {}),
+      })
+    )) as { success?: boolean; error?: string; warning?: string } | undefined;
     if (reply?.success === false) throw new Error(reply.error || 'Failed to send chat message');
+    // A whisper target that matches no Foundry user goes to the GMs only: not delivered.
+    if (reply?.warning) throw new Error(`Not delivered: ${reply.warning}`);
   });
   // Session notes into Foundry (recap lane, D-087): staged by the pipeline, put automatically.
   const sessionNotes = new SessionNotesService({

@@ -14,6 +14,7 @@
  * - Publishing claims the draft first (`publishing`), so a crash between the post and its record
  *   never posts twice; a stuck `publishing` shows to the GM, who can reopen it.
  */
+import { isLostAnswerMessage } from '../direct-write-timeout.js';
 import type { SecretTermsService } from '../secret-terms.js';
 import { newDocumentId } from '../tarokka/service.js';
 import type { VaultStore } from '../vault/store.js';
@@ -32,6 +33,8 @@ type DraftStatus = 'draft' | 'publishing' | 'published' | 'discarded';
 interface Draft {
   kind: DraftKind;
   text: string;
+  /** Counts up with every edit, so a publish can say which version the GM read. */
+  rev?: number;
   /** NPC line: who speaks. Letter: who it is from. Optional for the others. */
   speaker?: string;
   /** A Foundry user name to whisper to; without it the text is posted to everyone. */
@@ -51,7 +54,7 @@ interface DraftsFile {
 /** What the store hands the chat sender; the backend wires this to the chat bridge query. */
 export interface DraftPost {
   message: string;
-  speakerActorName?: string;
+  /** Foundry user names; a name that matches no user makes the post fail. */
   whisperTargets?: string[];
 }
 
@@ -90,13 +93,31 @@ function cleanKind(kind: unknown): DraftKind {
   return kind as DraftKind;
 }
 
-/** The chat text for a draft: a letter shows who it is from; an NPC line speaks as the NPC. */
+function escapeHtml(text: string): string {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/** Foundry reads chat content as HTML: blank lines become paragraphs, single newlines breaks. */
+function paragraphs(text: string): string {
+  return text
+    .split(/\n{2,}/)
+    .map(part => `<p>${escapeHtml(part.trim()).replace(/\n/g, '<br>')}</p>`)
+    .join('');
+}
+
+/**
+ * The chat text for a draft. An NPC line is prefixed with the speaker's name and a letter ends
+ * with who it is from; both are plain text, never an actor lookup, so the name that is checked
+ * for secret terms is the name that appears in chat.
+ */
 export function draftChatPost(draft: Draft): DraftPost {
-  const base: DraftPost = {
-    message:
-      draft.kind === 'letter' && draft.speaker ? `${draft.text}\n\n${draft.speaker}` : draft.text,
-  };
-  if (draft.kind === 'npc-line' && draft.speaker) base.speakerActorName = draft.speaker;
+  let message = paragraphs(draft.text);
+  if (draft.kind === 'npc-line' && draft.speaker) {
+    message = `<p><strong>${escapeHtml(draft.speaker)}</strong></p>${message}`;
+  } else if (draft.kind === 'letter' && draft.speaker) {
+    message = `${message}<p><em>${escapeHtml(draft.speaker)}</em></p>`;
+  }
+  const base: DraftPost = { message };
   if (draft.whisperTo) base.whisperTargets = [draft.whisperTo];
   return base;
 }
@@ -173,6 +194,7 @@ export class DraftsStore {
       const draft: Draft = {
         kind,
         text,
+        rev: 1,
         ...(speaker ? { speaker } : {}),
         ...(whisperTo ? { whisperTo } : {}),
         status: 'draft',
@@ -209,6 +231,7 @@ export class DraftsStore {
       const next: Draft = {
         kind: draft.kind,
         text: nextText,
+        rev: (draft.rev ?? 0) + 1,
         status: 'draft',
         createdAt: draft.createdAt,
       };
@@ -262,33 +285,57 @@ export class DraftsStore {
   }
 
   /**
-   * Publish (dashboard only): claim, post to chat, record. The secret terms are checked again
-   * now; a flagged draft needs `confirmFlagged`. A failed post puts the draft back with the reason.
+   * Publish (dashboard only): claim, post to chat, record.
+   * - `seen.rev` is the version the GM read; a draft edited since (by Claude, say) is refused, so
+   *   what is posted is what the GM saw, whisper target included.
+   * - The secret terms are checked again now; a term the GM did not confirm (`seen.confirmedTerms`,
+   *   the flags they were shown) refuses the publish and is stored so the panel shows it.
+   * - Foundry refusing the post puts the draft back with the reason. A lost answer (timeout) leaves
+   *   it `publishing`: the message may be in chat, so the GM checks before reopening.
    */
-  async publish(id: string, confirmFlagged = false): Promise<Draft> {
+  async publish(
+    id: string,
+    seen: { rev?: unknown; confirmedTerms?: unknown } = {}
+  ): Promise<Draft> {
     if (!this.post) throw new Error('Publishing needs a Foundry connection');
     const worldId = await this.worldIds.current();
-    let claimed: Draft | null = null;
     const fresh = await this.draftOf(worldId, id);
     if (!fresh) throw new Error(`No draft ${id}`);
+    const rev = fresh.rev ?? 0;
+    const changedMessage = `Draft ${id} changed since you read it; read it again and publish`;
+    if (seen.rev !== rev) throw new Error(changedMessage);
+    const confirmed = new Set(
+      Array.isArray(seen.confirmedTerms)
+        ? seen.confirmedTerms.filter((t): t is string => typeof t === 'string')
+        : []
+    );
     const secretTerms = await this.terms(worldId, fresh.text, fresh.speaker);
-    if (secretTerms && !confirmFlagged) {
-      await this.change(worldId, id, draft => ({ ...draft, secretTerms }));
+    if (secretTerms?.some(term => !confirmed.has(term))) {
+      await this.change(worldId, id, draft =>
+        (draft.rev ?? 0) === rev ? { ...draft, secretTerms } : draft
+      );
       throw new Error(
         `Draft ${id} names ${secretTerms.join(', ')}; read it again and confirm to publish`
       );
     }
+    let claimed: Draft | null = null;
     await this.change(worldId, id, draft => {
       if (draft.status !== 'draft') throw new Error(`Draft ${id} is ${draft.status}`);
+      if ((draft.rev ?? 0) !== rev) throw new Error(changedMessage);
       claimed = draft;
       return { ...draft, status: 'publishing' };
     });
     try {
       await this.post(draftChatPost(claimed!));
     } catch (e: unknown) {
-      const lastError = (e instanceof Error ? e.message : 'the post failed').slice(0, 200);
-      await this.change(worldId, id, draft => ({ ...draft, status: 'draft', lastError }));
-      throw new Error(`Could not post to chat: ${lastError}`, { cause: e });
+      const message = (e instanceof Error ? e.message : 'the post failed').slice(0, 200);
+      if (isLostAnswerMessage(message)) {
+        const lastError = 'No answer from Foundry; it may be in chat. Check the chat log first.';
+        await this.change(worldId, id, draft => ({ ...draft, lastError }));
+        throw new Error(lastError, { cause: e });
+      }
+      await this.change(worldId, id, draft => ({ ...draft, status: 'draft', lastError: message }));
+      throw new Error(`Could not post to chat: ${message}`, { cause: e });
     }
     return this.change(worldId, id, draft => {
       const { lastError: _e, ...rest } = draft;
@@ -330,7 +377,9 @@ export async function handleDraftsControl(store: DraftsStore, params: unknown): 
     case 'reopen':
       return { draft: await store.reopen(id, p.confirmUnsure === true) };
     case 'publish':
-      return { draft: await store.publish(id, p.confirmFlagged === true) };
+      return {
+        draft: await store.publish(id, { rev: p.rev, confirmedTerms: p.confirmedTerms }),
+      };
     default:
       throw new Error('Unknown drafts action');
   }

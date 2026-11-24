@@ -54,7 +54,8 @@ export function mountApiDraftsRoutes(app: Express, ctx: RouteContext): void {
     const body = asRecord(req.body);
     run(res, 'publish', {
       id: readStr(body.id, ''),
-      confirmFlagged: body.confirmFlagged === true,
+      rev: typeof body.rev === 'number' ? body.rev : undefined,
+      confirmedTerms: Array.isArray(body.confirmedTerms) ? body.confirmedTerms : [],
     });
   });
 }

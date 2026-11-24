@@ -36,7 +36,10 @@ export class DraftsTools {
               type: 'string',
               description: 'NPC line: the speaker. Letter: who it is from.',
             },
-            whisperTo: { type: 'string', description: 'A player name; without it, posts to all.' },
+            whisperTo: {
+              type: 'string',
+              description: 'Foundry user name (not a character); without it, posts to all.',
+            },
             id: { type: 'string', ...freeText('A draft id from action list') },
           },
           required: ['action'],

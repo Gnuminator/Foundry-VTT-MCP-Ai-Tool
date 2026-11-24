@@ -54,6 +54,41 @@ describe('planTokenRings', () => {
     expect(plan).toMatchObject({ count: 2, remaining: 0, alreadyDone: 1 });
   });
 
+  it('with the steel look writes colours and scale, and plans a ring that is on without it', () => {
+    world.actors.get('a2')!.prototypeToken = {
+      ring: {
+        enabled: true,
+        colors: { ring: '#8A8D99', background: '#15151b' },
+        subject: { scale: 0.8 },
+      },
+    };
+    world.actors.get('a1')!.prototypeToken = {
+      ring: { enabled: true, colors: { ring: '#ffffff' }, subject: { scale: 1 } },
+    };
+    const plan = planTokenRings({ action: 'enable', look: 'steel', actorType: 'npc' });
+    expect(plan.ops).toEqual([
+      {
+        kind: 'update',
+        uuid: 'Actor.a1',
+        changes: {
+          'prototypeToken.ring.enabled': true,
+          'prototypeToken.ring.colors.ring': '#8a8d99',
+          'prototypeToken.ring.colors.background': '#15151b',
+          'prototypeToken.ring.subject.scale': 0.8,
+        },
+      },
+    ]);
+    expect(plan.summary).toContain('steel look');
+    expect(plan.alreadyDone).toBe(1);
+  });
+
+  it('refuses an unknown look and a look with disable', () => {
+    expect(() => planTokenRings({ action: 'enable', look: 'gold' })).toThrow(
+      /Unknown token ring look/
+    );
+    expect(() => planTokenRings({ action: 'disable', look: 'steel' })).toThrow(/only applies/);
+  });
+
   it('disable only touches actors that have a ring', () => {
     const plan = planTokenRings({ action: 'disable' });
     expect(plan.ops).toEqual([
@@ -138,6 +173,27 @@ describe('planTokenRings, placed tokens', () => {
     ]);
     expect(plan).toMatchObject({ count: 3, remaining: 0, alreadyDone: 1, unmatched: [] });
     expect(plan.summary).toContain('3 placed tokens');
+  });
+
+  it('with the steel look writes the look on each placed token', () => {
+    const plan = planTokenRings({
+      action: 'enable',
+      tokens: 'placed',
+      look: 'steel',
+      names: ['Ireena'],
+    });
+    expect(plan.ops).toEqual([
+      {
+        kind: 'update',
+        uuid: 'Scene.s1.Token.t2',
+        changes: {
+          'ring.enabled': true,
+          'ring.colors.ring': '#8a8d99',
+          'ring.colors.background': '#15151b',
+          'ring.subject.scale': 0.8,
+        },
+      },
+    ]);
   });
 
   it('filters by scene, reports names that matched nothing, and can disable', () => {

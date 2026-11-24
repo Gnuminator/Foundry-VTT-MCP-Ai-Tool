@@ -32,6 +32,17 @@ export const TOKEN_RINGS_BATCH = 150;
 export const TOKEN_RINGS_ACTIONS = ['enable', 'disable'] as const;
 export type TokenRingsAction = (typeof TOKEN_RINGS_ACTIONS)[number];
 
+/** `steel`: also the table's ring look (steel ring, dark background, subject scale 0.8). Only with enable. */
+export const TOKEN_RINGS_LOOKS = ['steel'] as const;
+export type TokenRingsLook = (typeof TOKEN_RINGS_LOOKS)[number];
+
+/** The steel look, written beside `enabled`; the same values as scripts/token-rings/apply-rings.js. */
+export const TOKEN_RINGS_STEEL = {
+  ring: '#8a8d99',
+  background: '#15151b',
+  scale: 0.8,
+} as const;
+
 export const TOKEN_RINGS_ACTOR_TYPES = ['all', 'npc', 'character'] as const;
 export type TokenRingsActorType = (typeof TOKEN_RINGS_ACTOR_TYPES)[number];
 
@@ -45,6 +56,8 @@ export interface TokenRingsPlanRequest {
   tokens?: TokenRingsTarget;
   /** With tokens `placed`: only the scenes with these names (case insensitive); default all. */
   scenes?: string[];
+  /** With enable: also set the ring look; a ring that is on without that look is planned too. */
+  look?: TokenRingsLook;
   /** Which actors: all (default; characters and NPCs), only NPCs, or only characters. */
   actorType?: TokenRingsActorType;
   /** Only the actors with these names (case insensitive). */

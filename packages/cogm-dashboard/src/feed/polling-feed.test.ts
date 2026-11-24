@@ -453,3 +453,37 @@ describe('PollingGameFeed resync races an in-flight poll', () => {
     expect(got).toEqual(['new']);
   });
 });
+
+describe('PollingGameFeed while Foundry is unreachable', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-30T10:00:00.000Z'));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('keeps only the event poll as the probe, and reads the rest again once Foundry answers', async () => {
+    const { feed, client } = setup();
+    const calls: string[] = [];
+    const original = client.callTool.bind(client);
+    client.callTool = (tool: string): Promise<unknown> => {
+      calls.push(tool);
+      return original(tool);
+    };
+    feed.start();
+    client.behaviour = 'module-down';
+    await vi.advanceTimersByTimeAsync(2100);
+    calls.length = 0;
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(calls.length).toBeGreaterThan(0);
+    expect(new Set(calls)).toEqual(new Set(['get-recent-events']));
+
+    calls.length = 0;
+    client.behaviour = 'ok';
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(calls).toContain('get-combat-state');
+    expect(calls).toContain('get-module-errors');
+    feed.stop();
+  });
+});

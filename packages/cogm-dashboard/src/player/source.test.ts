@@ -313,3 +313,45 @@ describe('sessionSince', () => {
     }
   });
 });
+
+describe('PlayerViewSource handout throttle', () => {
+  it('reads the handouts at most every 15 s on the timer, always on a direct refresh', async () => {
+    const reads: string[] = [];
+    const answers: Record<string, unknown> = {
+      'get-player-visibility': {
+        schema: 1,
+        computedAt: 0,
+        pcActorIds: [],
+        scene: null,
+        tokens: [],
+      },
+      'get-play-session': { open: false, startedAt: null, endedAt: null },
+      'get-player-handouts': { revealedUuids: [], handouts: [] },
+    };
+    const client: PlayerSourceClient = {
+      isConnected: true,
+      callTool: <T>(name: string): Promise<T> => {
+        reads.push(name);
+        return Promise.resolve(answers[name] as T);
+      },
+    };
+    const source = new PlayerViewSource(client, new Logger('error', 'test'), () => {});
+    const handouts = (): number => reads.filter(n => n === 'get-player-handouts').length;
+    vi.useFakeTimers();
+    try {
+      await source.refresh({ throttled: true });
+      expect(handouts()).toBe(1);
+      await vi.advanceTimersByTimeAsync(5_000);
+      await source.refresh({ throttled: true });
+      expect(handouts()).toBe(1);
+      await source.refresh();
+      expect(handouts()).toBe(2);
+      await vi.advanceTimersByTimeAsync(15_000);
+      await source.refresh({ throttled: true });
+      expect(handouts()).toBe(3);
+      expect(reads.filter(n => n === 'get-player-visibility').length).toBe(4);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

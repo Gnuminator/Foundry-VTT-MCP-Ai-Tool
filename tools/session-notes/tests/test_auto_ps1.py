@@ -470,11 +470,10 @@ def test_session_ps1_port_and_host(tmp_path: Path, sessions: Path, folder_with_n
     want = PORTS["live" if real else "testA"]["control"]
     assert f"on port {want}" in out
     assert log.exists(), out
-    if True:
-        line = log.read_text("utf-8").split()
-        assert line[0] == str(want)
-        # Without -Real the host is pinned to this PC; with it, MCP_CONTROL_HOST stays in charge.
-        assert line[1:] == ([] if real else ["127.0.0.1"])
+    line = log.read_text("utf-8").split()
+    assert line[0] == str(want)
+    # Without -Real the host is pinned to this PC; with it, MCP_CONTROL_HOST stays in charge.
+    assert line[1:] == ([] if real else ["127.0.0.1"])
 
 
 def test_session_ps1_stale_status_is_not_a_run(tmp_path: Path, sessions: Path, folder_with_timeline: Path) -> None:

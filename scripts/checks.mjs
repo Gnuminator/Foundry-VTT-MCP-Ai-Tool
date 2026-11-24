@@ -118,6 +118,7 @@ export const TEST_FOLDER_EXCEPTIONS = {
   'scripts/dev/': 'npm run dev:test',
   'scripts/tool-eval/': 'npm run dev:test',
   'scripts/wiki/': 'npm run wiki:test (wiki-scripts)',
+  'scripts/site/build.test.mjs': 'workflow wiki.yml',
   'scripts/dep-ranges-check.test.mjs': 'npm run deps:check',
   'scripts/docs-quest-check.test.mjs': 'npm run docs:links',
   'scripts/pi/docker-compose.test.mjs': 'workflow pi-images.yml',

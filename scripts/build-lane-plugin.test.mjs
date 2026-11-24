@@ -1,6 +1,6 @@
 // node --test scripts/build-lane-plugin.test.mjs
 import assert from 'node:assert/strict';
-import { cpSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -14,6 +14,22 @@ test('a fresh write has no drift, and a changed file is reported', () => {
     write(dir);
     assert.deepEqual(drift(dir), []);
     writeFileSync(path.join(dir, 'plugin', NAME, 'hooks', 'hooks.json'), '{}');
+    assert.equal(drift(dir).length, 1);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a lagging tool-version prefix is not drift, a changed kit hash is', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'lane-plugin-lag-'));
+  try {
+    cpSync(path.join(REPO, '.claude'), path.join(dir, '.claude'), { recursive: true });
+    cpSync(path.join(REPO, 'package.json'), path.join(dir, 'package.json'));
+    write(dir);
+    const pj = path.join(dir, 'plugin', NAME, '.claude-plugin', 'plugin.json');
+    writeFileSync(pj, readFileSync(pj, 'utf8').replace(/"version": "[^+]*\+/, '"version": "0.0.1+'));
+    assert.deepEqual(drift(dir), []);
+    writeFileSync(pj, readFileSync(pj, 'utf8').replace(/\+[0-9a-f]{8}"/, '+deadbeef"'));
     assert.equal(drift(dir).length, 1);
   } finally {
     rmSync(dir, { recursive: true, force: true });

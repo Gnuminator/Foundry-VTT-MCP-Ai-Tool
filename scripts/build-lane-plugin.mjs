@@ -111,6 +111,10 @@ export function marketplaceJson() {
 
 const same = (a, b) => Buffer.compare(Buffer.from(a), Buffer.from(b)) === 0;
 
+/** plugin.json with the tool-version prefix of its version removed: only the kit hash decides drift. */
+const withoutToolVersion = (text) => String(text).replace(/("version": ")[^"+]*(\+)/, '$1$2');
+const norm = (rel, c) => (rel.endsWith('plugin.json') ? withoutToolVersion(c) : c);
+
 /** Differences between the plan and what is on disk (missing, changed, stale). */
 export function drift(repo = REPO) {
   const root = path.join(repo, 'plugin', NAME);
@@ -119,7 +123,7 @@ export function drift(repo = REPO) {
   for (const [rel, content] of want) {
     const p = path.join(root, rel);
     if (!existsSync(p)) problems.push(`missing: plugin/${NAME}/${rel}`);
-    else if (!same(readFileSync(p), content)) problems.push(`changed: plugin/${NAME}/${rel}`);
+    else if (!same(norm(rel, readFileSync(p)), norm(rel, content))) problems.push(`changed: plugin/${NAME}/${rel}`);
   }
   const have = [];
   const walk = (dir, rel) => {

@@ -363,10 +363,8 @@ describe('FoundryDataAccess: getCharacterResources', () => {
     );
     const res = await da.getCharacterResources({ identifier: 'Concentrator' });
     // spell = name stripped of "Concentrating: " prefix
-    expect(res.concentration.active).toBe(true);
-    expect(res.concentration.spell).toBe('Bless');
     // remaining comes from duration.seconds when duration.remaining is absent
-    expect(res.concentration.remaining).toBe(60);
+    expect(res.concentration).toMatchObject({ active: true, spell: 'Bless', remaining: 60 });
   });
 
   it('detects concentration via flags.dnd5e.itemData presence', async () => {

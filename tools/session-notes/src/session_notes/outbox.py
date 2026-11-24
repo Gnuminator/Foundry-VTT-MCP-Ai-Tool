@@ -89,6 +89,11 @@ def plain(text: str) -> str:
     return re.sub(r"\n{3,}", "\n\n", "\n".join(out)).strip()
 
 
+def diary_text(text: str) -> str:
+    """The note for the Foundry diary tool, which wraps plain text itself: no bold or italic marks."""
+    return re.sub(r"\*+", "", plain(text))
+
+
 def split_discord(text: str, limit: int = DISCORD_SAFE) -> list[str]:
     """Split under ``limit`` characters at blank lines, then line breaks, then spaces."""
     text = text.strip()
@@ -358,7 +363,7 @@ def refresh(item: dict[str, Any]) -> None:
     item["foundry"] = foundry_html(item["text"])
     item["obsidian"] = obsidian_md(item)
     # Only the player's own note goes through the diary tool, which refuses text over 2000 characters.
-    item["foundryChars"] = len(plain(item["text"])) if item["kind"] == "pc-note" else None
+    item["foundryChars"] = len(diary_text(item["text"])) if item["kind"] == "pc-note" else None
     item["warnings"] = []
     if item["foundryChars"] and item["foundryChars"] > FOUNDRY_DIARY_MAX:
         item["warnings"].append(
@@ -836,19 +841,26 @@ def preview(session: Path) -> str:
 
 # ---------------------------------------------------------------------------
 # Obsidian and Foundry hand-over (approved items only)
-def write_obsidian(session: Path, folder: Path) -> list[Path]:
-    """Write each approved item's vault page into ``folder`` once (a page already there is kept)."""
+def write_obsidian(session: Path, folder: Path, gm_folder: Path | None = None) -> list[Path]:
+    """Write each approved item's vault page into ``folder`` once (a page already there is kept).
+    The GM's own decisions note goes only to ``gm_folder`` and is skipped without one, so it never
+    lands in a folder the players' vault shares."""
     data = load(session) or build(session)
     written: list[Path] = []
     for item in data["items"]:
         if item["status"] != "approved" or "obsidian" not in item["channels"]:
             continue
+        target = folder
+        if item["kind"] == "gm-decisions":
+            if gm_folder is None:
+                continue
+            target = gm_folder
         who = item["to"].get("character") or item["kind"]
         name = re.sub(r"[^\w .-]+", "", f"{item['kind']} {who} {item['lang']}").strip().replace(" ", "-")
-        path = folder / f"{name}.md"
+        path = target / f"{name}.md"
         if item.get("sent", {}).get("obsidian", {}).get("done") and path.exists():
             continue
-        folder.mkdir(parents=True, exist_ok=True)
+        target.mkdir(parents=True, exist_ok=True)
         path.write_text(item["obsidian"], encoding="utf-8")
         item.setdefault("sent", {})["obsidian"] = {"done": True, "at": _now(), "path": str(path)}
         written.append(path)
@@ -868,7 +880,7 @@ def foundry_payload(session: Path, lang: str) -> dict[str, Any]:
         if "foundry-page" not in item["channels"] and "foundry-recap" not in item["channels"] and item["kind"] != "pc-note":
             continue  # for example Danni's own page: Discord and Obsidian only
         if item["kind"] == "pc-note":
-            diaries.append({"actor": item["to"]["character"], "text": plain(item["text"]), "id": item["id"]})
+            diaries.append({"actor": item["to"]["character"], "text": diary_text(item["text"]), "id": item["id"]})
         else:
             pages.append({"kind": item["kind"], "title": item["title"], "html": item["foundry"], "id": item["id"]})
     return {"session": data["session"], "lang": lang, "diaries": diaries, "pages": pages}

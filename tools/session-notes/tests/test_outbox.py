@@ -272,3 +272,26 @@ def test_danni_gets_his_own_decisions_note_and_it_never_goes_to_foundry(tmp_path
     assert "Correct Jorr" not in outbox.find(data, "table-en")["text"]
     outbox.approve(session, ["gm-decisions-en"])
     assert all(p["id"] != "gm-decisions-en" for p in outbox.foundry_payload(session, "en")["pages"])
+
+
+def test_diary_text_has_no_markdown_marks_and_gm_note_stays_out_of_the_player_folder(tmp_path: Path) -> None:
+    session = make_session(tmp_path)
+    tracks = {"tracks": [{"file": "1.rec", "userId": "111", "displayName": "Ebbe (Christian)"},
+                         {"file": "2.rec", "userId": "999", "displayName": "GM (Danni)"}]}
+    (session / "raw" / "session.json").write_text(json.dumps(tracks), encoding="utf-8")
+
+    def runner(prompt: str, schema: dict, model: str, effort: str = "low") -> dict:
+        if "session_when" in schema["properties"]:
+            return {"session_when": "soon", "confirmed": False, "changed": [], "agreed": [], "call": ["Q?"],
+                    "open": [], "logistics": [], "gm_only": []}
+        return {"so_far": "x", "threads": [], "known": [], "todos": []}
+
+    data = outbox.build(session, runner=runner)
+    outbox.approve(session, [i["id"] for i in data["items"]])
+    diary = outbox.foundry_payload(session, "en")["diaries"][0]["text"]
+    assert "*" not in diary and "Session 1: soon" in diary
+    folder = tmp_path / "players"
+    written = outbox.write_obsidian(session, folder)
+    assert all("gm-decisions" not in p.name for p in written)
+    gm = outbox.write_obsidian(session, folder, gm_folder=tmp_path / "gm")
+    assert any("gm-decisions" in p.name and p.parent.name == "gm" for p in gm)

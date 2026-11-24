@@ -76,6 +76,8 @@ export interface UploadPlayerPortraitReply {
   userName?: string;
   /** Tokens already placed on scenes for the actor (`Scene.<id>.Token.<id>`), at most 100. */
   placedTokens?: string[];
+  /** How many tokens are placed for the actor in all, so a capped list can say "100 of N". */
+  placedTotal?: number;
 }
 
 export interface PlayerPortraitResult {

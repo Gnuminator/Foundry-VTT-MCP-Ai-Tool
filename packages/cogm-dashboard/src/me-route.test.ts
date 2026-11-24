@@ -5,6 +5,7 @@
 import type { Server } from 'http';
 import type { AddressInfo } from 'net';
 
+import type { UsageEvent } from '@gnuminator/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createDashboard, PLAYER_CSP, type Dashboard } from './app.js';
@@ -34,12 +35,23 @@ async function start(
     bare?: boolean;
     portrait?: 'on' | 'off' | 'unknown' | 'nowrites';
   } = {}
-): Promise<{ base: string; asked: string[]; rolled: string[][]; portraits: string[][] }> {
+): Promise<{
+  base: string;
+  asked: string[];
+  rolled: string[][];
+  portraits: string[][];
+  usage: UsageEvent[];
+}> {
+  const usage: UsageEvent[] = [];
   const asked: string[] = [];
   const rolled: string[][] = [];
   const portraits: string[][] = [];
   const client = {
     isConnected: true,
+    recordUsage: (events: UsageEvent[]): Promise<{ accepted: number; dropped: number }> => {
+      usage.push(...events);
+      return Promise.resolve({ accepted: events.length, dropped: 0 });
+    },
     listTools: (): Promise<unknown[]> => Promise.resolve([]),
     callTool: <T>(name: string): Promise<T> =>
       name === 'get-world-info'
@@ -178,6 +190,7 @@ async function start(
     asked,
     rolled,
     portraits,
+    usage,
   };
 }
 
@@ -230,6 +243,42 @@ describe('/api/me and the player links', () => {
     expect(body.rollRequests).toEqual([
       { buttonId: 'abcdefghij012345', label: 'Stealth Skill Check (Private)' },
     ]);
+  });
+
+  it('records usage counts for the key owner only, with me.* names', async () => {
+    const { base, usage } = await start();
+    const key = keyOf(await makeLink(base, PLAYER));
+    const send = (k: string | undefined, name: string): Promise<Response> =>
+      fetch(`${base}/api/me/usage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(k ? { 'X-CoGM-Me': k } : {}) },
+        body: JSON.stringify({
+          events: [
+            {
+              v: 1,
+              key: 'abc:1',
+              t: Date.now(),
+              seq: 1,
+              clientId: 'abc',
+              surface: 'dashboard',
+              kind: 'action',
+              name,
+              who: { role: 'gm', userId: TAMSIN, name: 'Spoofed' },
+            },
+          ],
+        }),
+      });
+    expect((await send(undefined, 'me.print')).status).toBe(401);
+    expect((await send('x'.repeat(24), 'me.print')).status).toBe(401);
+    expect(usage).toEqual([]);
+    expect((await send(key, 'me.print')).status).toBe(200);
+    expect((await send(key, 'dash.tools.open')).status).toBe(200);
+    expect(usage).toHaveLength(1);
+    expect(usage[0]).toMatchObject({
+      name: 'me.print',
+      surface: 'player',
+      who: { role: 'player', userId: PLAYER, name: 'Player' },
+    });
   });
 
   it('rolls for the player through their own key, as that player only', async () => {

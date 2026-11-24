@@ -78,6 +78,7 @@
     "demo:export": "node scripts/demo/export.mjs",
     "demo:compose": "node scripts/demo/compose.mjs",
     "demo:loops": "node scripts/demo/loops.mjs",
+    "docs:dashboard-pictures": "npm run build -w @gnuminator/cogm-dashboard && npm run docs:pictures -w @gnuminator/cogm-dashboard",
     "docs:foundry-images": "node scripts/demo/foundry-basics.mjs",
     "format": "prettier --write \"**/*.{ts,js,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,js,json,md}\"",

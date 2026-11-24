@@ -10,6 +10,7 @@ import { GAME_STATE_KEY } from '../lib/guarded';
 import { REMEMBER, readText, writeChoice } from '../lib/remember';
 import {
   DEFAULT_HINT_AFTER,
+  type RosterMember,
   buildSpotlight,
   readHintAfter,
   readSpotlight,
@@ -22,11 +23,11 @@ import { useRecordingHealth, useSpotlight } from '../lib/stream';
 import styles from './Spotlight.module.css';
 
 interface PartyNames {
-  groups?: { members?: { name?: string }[] | null }[] | null;
+  groups?: { members?: { name?: string; actorId?: string }[] | null }[] | null;
 }
 
 /** The party's character names, so a character who has done nothing still has a row. Fetched only once the card has something to show, so an idle dashboard makes no extra get-party call. */
-function useRoster(active: boolean): string[] {
+function useRoster(active: boolean): RosterMember[] {
   const party = useQuery({
     queryKey: [...GAME_STATE_KEY, 'spotlight-roster'],
     queryFn: () => callTool<PartyNames | null>('get-party', {}),
@@ -35,7 +36,17 @@ function useRoster(active: boolean): string[] {
     enabled: active,
   });
   const members = (party.data?.groups ?? []).flatMap(g => g.members ?? []);
-  return [...new Set(members.flatMap(m => (typeof m.name === 'string' ? [m.name] : [])))];
+  const seen = new Set<string>();
+  const roster: RosterMember[] = [];
+  for (const m of members) {
+    if (typeof m.name !== 'string' || seen.has(m.name)) continue;
+    seen.add(m.name);
+    roster.push({
+      name: m.name,
+      ...(typeof m.actorId === 'string' && m.actorId ? { actorId: m.actorId } : {}),
+    });
+  }
+  return roster;
 }
 
 export function Spotlight(): JSX.Element {

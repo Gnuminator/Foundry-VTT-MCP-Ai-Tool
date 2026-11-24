@@ -1,13 +1,22 @@
 /**
  * The host-only control method `session_notes` (recap lane, D-087). Never an MCP tool: the
  * stdio wrapper forwards only `list_tools` and `call_tool`, so Claude cannot reach it. The
- * pipeline calls `stage` and `status`; the dashboard server exposes `list`, `get`, `put` and
+ * pipeline calls `stage`, `status` and `report` (its run status and approved recap); the dashboard server exposes `list`, `get`, `put` and
  * `approve` on GM routes.
  */
 import type { SessionNotesService } from './service.js';
 import { SessionNotesError } from './types.js';
 
-export const SESSION_NOTES_ACTIONS = ['stage', 'list', 'get', 'put', 'approve', 'status'] as const;
+export const SESSION_NOTES_ACTIONS = [
+  'stage',
+  'list',
+  'get',
+  'put',
+  'approve',
+  'status',
+  'report',
+  'pipeline',
+] as const;
 
 export async function handleSessionNotes(
   service: SessionNotesService,
@@ -27,6 +36,10 @@ export async function handleSessionNotes(
       return service.approve(p);
     case 'status':
       return service.status(p);
+    case 'report':
+      return service.report(p);
+    case 'pipeline':
+      return service.pipelineReport();
     default:
       throw new SessionNotesError(
         'bad-request',

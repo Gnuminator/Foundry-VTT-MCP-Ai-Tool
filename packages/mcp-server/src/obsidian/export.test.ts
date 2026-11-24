@@ -824,6 +824,24 @@ describe('a month with more than 400 changes is split into -pN notes', () => {
     expect(await exists(path.join(changesDir, '2026-09-p2.md'))).toBe(false);
     expect(await exists(path.join(changesDir, '2026-09.md'))).toBe(true);
   });
+
+  it('records the Changes notes it wrote, and leaves out a part whose write failed', async () => {
+    const written = async (): Promise<string[]> =>
+      (await store.read<{ names: string[] }>(WORLD, 'gm', 'changes-notes-written.json'))?.data
+        ?.names ?? [];
+    const changesDir = path.join(campaignDir(vaultDir, WORLD), 'AI Tool/Changes');
+
+    // A folder where the -p2 note belongs: the write fails and the export goes on.
+    await fsp.mkdir(path.join(changesDir, '2026-09-p2.md'), { recursive: true });
+    await seedHistory(401);
+    await run();
+    expect(await written()).toEqual(['2026-09']);
+
+    // Once the part can be written, the next export lists it.
+    await fsp.rm(path.join(changesDir, '2026-09-p2.md'), { recursive: true });
+    await run();
+    expect(await written()).toEqual(['2026-09', '2026-09-p2']);
+  });
 });
 
 describe('render helpers', () => {

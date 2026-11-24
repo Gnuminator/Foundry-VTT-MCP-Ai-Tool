@@ -50,7 +50,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { OMENS_CONTROLS } from './dashboard-controls-omens.mjs';
+import { EXTRA_CONTROLS } from './dashboard-controls-me.mjs';
 
 export const HOWS = [
   'open',
@@ -1214,11 +1214,11 @@ export const PLAYER_CONTROLS = [
   },
 ];
 /** Both tables, dashboard first (the omens rows are in their own file). */
-export const CONTROLS = [...DASHBOARD_CONTROLS, ...OMENS_CONTROLS, ...PLAYER_CONTROLS];
+export const CONTROLS = [...DASHBOARD_CONTROLS, ...EXTRA_CONTROLS, ...PLAYER_CONTROLS];
 
 /** The surface a control name belongs to, from its prefix. */
 export function surfaceOf(name) {
-  if (name.startsWith('player.')) return 'player';
+  if (name.startsWith('player.') || name.startsWith('me.')) return 'player';
   if (name.startsWith('module.')) return 'module';
   return 'dashboard';
 }

@@ -29,6 +29,9 @@ function scan(files: string[]): Found[] {
     for (const m of text.matchAll(/data-track="([^"]+)"/g)) {
       found.push({ kind: 'action', name: m[1] ?? '' });
     }
+    for (const m of text.matchAll(/\.setAttribute\(\s*'data-track'\s*,\s*'([^']+)'\s*\)/g)) {
+      found.push({ kind: 'action', name: m[1] ?? '' });
+    }
     for (const m of text.matchAll(/\.track\(\s*'([a-z]+)'\s*,\s*'([^']+)'/g)) {
       found.push({ kind: m[1] ?? '', name: m[2] ?? '' });
     }
@@ -42,35 +45,35 @@ function scan(files: string[]): Found[] {
   return found;
 }
 
-describe.each([['the player page', ['player.html', 'player.js'], 'player.']])(
-  'control names of %s',
-  (_label, files, prefix) => {
-    const found = scan(files);
+describe.each([
+  ['the player page', ['player.html', 'player.js'], 'player.'],
+  ['the My character page', ['me.html', 'me.js', 'me-downtime.js', 'me-paper.js'], 'me.'],
+])('control names of %s', (_label, files, prefix) => {
+  const found = scan(files);
 
-    it('has instrumented controls', () => {
-      expect(found.length).toBeGreaterThanOrEqual(5);
-    });
+  it('has instrumented controls', () => {
+    expect(found.length).toBeGreaterThanOrEqual(5);
+  });
 
-    it('are valid, lowercase, literal and use the surface prefix', () => {
-      for (const { kind, name } of found) {
-        expect(USAGE_KINDS as readonly string[], name).toContain(kind);
-        expect(name.length, name).toBeLessThanOrEqual(USAGE_NAME_MAX);
-        expect(name, name).toMatch(USAGE_NAME_RE);
-        expect(name.startsWith(prefix), name).toBe(true);
-      }
-    });
+  it('are valid, lowercase, literal and use the surface prefix', () => {
+    for (const { kind, name } of found) {
+      expect(USAGE_KINDS as readonly string[], name).toContain(kind);
+      expect(name.length, name).toBeLessThanOrEqual(USAGE_NAME_MAX);
+      expect(name, name).toMatch(USAGE_NAME_RE);
+      expect(name.startsWith(prefix), name).toBe(true);
+    }
+  });
 
-    it('never put free text in a name (no spaces, capitals or underscores)', () => {
-      for (const { name } of found) expect(name).not.toMatch(/\s|[A-Z_]/);
-    });
-  }
-);
+  it('never put free text in a name (no spaces, capitals or underscores)', () => {
+    for (const { name } of found) expect(name).not.toMatch(/\s|[A-Z_]/);
+  });
+});
 
 describe('usage.js', () => {
   const source = read('usage.js');
 
   it('is plain browser JS: no inline scripts in the pages, no eval', () => {
-    for (const page of ['player.html', '../web/index.html']) {
+    for (const page of ['player.html', 'me.html', '../web/index.html']) {
       const html = read(page);
       expect(html).toMatch(/src="(\.?\/)?usage\.js"/);
     }
@@ -79,6 +82,7 @@ describe('usage.js', () => {
 
   it('sends the page-specific endpoint, never reads typed text', () => {
     expect(read('../web/index.html')).toContain('data-usage-endpoint="/api/usage"');
+    expect(read('me.html')).toContain('data-usage-endpoint="/api/me/usage"');
     expect(read('player.html')).toContain('data-usage-endpoint="/api/player/usage"');
     expect(source).not.toMatch(/\.value\b/);
   });

@@ -31,6 +31,13 @@ afterEach(async () => {
 });
 
 describe('readPreviously', () => {
+  it('ignores folders that are not dated -discord sessions', async () => {
+    await put('2026-10-08_2000-discord', 'summary.en.md', '# Summary: Real\n\nReal text.\n');
+    await put('livekit-recordings-discord', 'summary.en.md', '# Summary: No\n\nNo.\n');
+    await put('.incoming', 'summary.en.md', '# Summary: No\n\nNo.\n');
+    expect(await readPreviously(dir)).toMatchObject({ session: '2026-10-08_2000-discord' });
+  });
+
   it('counts a restarted recording (-discord-2) in the same minute as the newest session', async () => {
     await put('2026-10-08_2000-discord', 'summary.en.md', '# Summary: Older\n\nOlder text.\n');
     await put('2026-10-15_2000-discord', 'summary.en.md', '# Summary: First try\n\nAborted.\n');

@@ -34,6 +34,7 @@ import { npcTurnModule } from './modules/npc-turn.js';
 import { obsidianMirrorModule } from './modules/obsidian-mirror.js';
 import { omensModule } from './modules/omens.js';
 import { ownershipModule } from './modules/ownership.js';
+import { characterDiariesModule } from './modules/character-diaries.js';
 import { paperSyncModule } from './modules/paper-sync.js';
 import { partyModule } from './modules/party.js';
 import { pcCreationModule } from './modules/pc-creation.js';
@@ -85,6 +86,7 @@ export const TOOL_MODULES: readonly AnyToolModule[] = [
   sceneRestoreModule,
   npcTurnModule,
   paperSyncModule,
+  characterDiariesModule,
   roomSetupModule,
   pcCreationModule,
   tokenRingsModule,

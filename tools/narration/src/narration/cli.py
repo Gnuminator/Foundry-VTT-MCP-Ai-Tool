@@ -15,7 +15,7 @@ from pathlib import Path
 from .check import transcribe_folder, whisper_available
 from .render import Renderer
 from .script import Script, load_lexicon, parse_script
-from .voices import DEFAULT_VOICE, VOICES, Voice, resolve_voice
+from .voices import DEFAULT_VOICE, VOICES, Voice, load_local_voices, resolve_voice
 
 TOOL_DIR = Path(__file__).resolve().parents[2]
 _ENGINES: object | None = None
@@ -129,6 +129,9 @@ def main(argv: list[str] | None = None) -> int:
                 for name, v in voices.items():
                     mark = " (default)" if DEFAULT_VOICE[lang] == name else ""
                     print(f"{lang}  {name:6} {v.engine:6} speed {v.speed}{mark}")
+            for lang, voices in load_local_voices().items():
+                for name, v in voices.items():
+                    print(f"{lang}  {name:6} {v.engine:6} speed {v.speed} (voices.local)")
             print("Any language: voice: ref:C:\\path\\clip.wav clones a 5 to 15 s clip.")
             return 0
         if args.cmd == "list":

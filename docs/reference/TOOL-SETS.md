@@ -8,7 +8,7 @@ The bridge has 117 tools. Their definitions are about 129,250 characters of JSON
 40,400 tokens that Claude reads at the start of every conversation, before anyone types. Many
 tools also look alike, which makes Claude pick the wrong one more often. Eight of the 117 are the
 player set (see below), which no Claude Desktop entry carries: the GM's Claude Desktop can load at
-most the other 109, about 128,150 characters.
+most the other 109, about 126,150 characters.
 
 So the tools are split into five sets. Each set is its own entry in Claude Desktop's
 configuration, so Claude Desktop shows one switch per set in the **+** menu, then **Plugins**. Turn on
@@ -17,13 +17,13 @@ what the conversation needs. The switches are remembered for new chats.
 | Set        | Claude Desktop entry      | Tools | Size (characters) | For                                                                                                                                                                                                                                                        |
 | ---------- | ------------------------- | ----- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **core**   | `foundry-mcp`             | 25    | about 19,000      | Look things up (world, characters, scenes, journals, compendiums, combat) and review, apply or undo planned changes. Always on.                                                                                                                            |
-| **play**   | `foundry-mcp-play`        | 41    | about 44,200      | Run the table live: tokens, combat turns, rolls, damage, conditions, resources, chat, scene mood, map notes and loot.                                                                                                                                      |
-| **prep**   | `foundry-mcp-prep`        | 22    | about 25,200      | Prepare sessions and write recaps: quests and journals, encounter budgets, the Tarokka reading, handouts, the session log, play stats and the pre-flight check.                                                                                            |
+| **play**   | `foundry-mcp-play`        | 42    | about 45,000      | Run the table live: tokens, combat turns, rolls, damage, conditions, resources, chat, scene mood, map notes and loot.                                                                                                                                      |
+| **prep**   | `foundry-mcp-prep`        | 21    | about 23,250      | Prepare sessions and write recaps: quests and journals, encounter budgets, the Tarokka reading, handouts, the session log, play stats and the pre-flight check.                                                                                            |
 | **build**  | `foundry-mcp-build`       | 10    | about 24,700      | Make and change NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells. Set up rooms: teleports and tokens in a room.                                                                                              |
-| **admin**  | `foundry-mcp-admin`       | 11    | about 10,750      | Set up and troubleshoot: installed modules and their errors, Foundry settings, modules on or off, user roles, who can open a pack, journal or scene, who owns which actor, round token rings, and the Obsidian mirror settings.                            |
+| **admin**  | `foundry-mcp-admin`       | 11    | about 11,000      | Set up and troubleshoot: installed modules and their errors, Foundry settings, modules on or off, user roles, who can open a pack, journal or scene, who owns which actor, round token rings, and the Obsidian mirror settings.                            |
 | **player** | none (`/mcp/player` only) | 8     | about 3,050       | A player's own read-only view: their character sheet, what their next level grants, short passages from the books their Foundry user can see, their revealed handouts, recap and quests, and their play stats. Served only on /mcp/player, never on stdio. |
 
-A prep chat with core and prep on carries about 44,350 characters instead of 129,250. Core alone is
+A prep chat with core and prep on carries about 42,250 characters instead of 129,250. Core alone is
 about 15% of everything.
 
 The dashboard is not affected: it reads the bridge directly and always has every tool.
@@ -56,7 +56,7 @@ Each tool's set is the `set` field of its entry in the `tools` map of its module
   `plan-undo-changes`, `check-secret-terms`, `get-skill-guide`
 - **play:** `use-item`, `switch-scene`, `request-player-rolls`, `request-ability-check`,
   `request-attack-roll`, `roll-npc-check`, `plan-scene-restore`, `plan-npc-turn`, `plan-paper-sync`,
-  `plan-handout-press`, `plan-scene-mood`, `list-scene-moods`, `check-action`, `get-token-details`,
+  `plan-character-diaries`, `plan-handout-press`, `plan-scene-mood`, `list-scene-moods`, `check-action`, `get-token-details`,
   `get-available-conditions`, `get-chat-log`, `get-combat-play-by-play`, `send-chat-message`,
   `get-character-resources`, `get-active-effects`, `advance-combat-turn`, `set-initiative`,
   `roll-initiative-for-npcs`, `measure-distance`, `get-targets`, `get-recent-events`,
@@ -66,7 +66,7 @@ Each tool's set is the `set` field of its entry in the `tools` map of its module
 - **prep:** `create-quest-journal`, `link-quest-to-npc`, `update-quest-journal`,
   `create-campaign-dashboard`, `get-session-log`, `suggest-balanced-encounter`,
   `get-tarokka-reading`, `plan-tarokka-import`, `suggest-tarokka-links`, `plan-tarokka-links`,
-  `plan-tarokka-reveal`, `get-play-session`, `draft-omens`, `get-play-stats`, `plan-campaign-merge`, `get-player-visibility`,
+  `plan-tarokka-reveal`, `get-play-session`, `draft-omens`, `get-play-stats`, `get-player-visibility`,
   `list-revealed-pages`, `get-player-handouts`, `plan-page-reveal`, `get-preflight`,
   `get-prep-digest`, `list-ref-choices`
 - **build:** `manage-world-items`, `list-creatures-by-criteria`, `create-actor-from-compendium`,

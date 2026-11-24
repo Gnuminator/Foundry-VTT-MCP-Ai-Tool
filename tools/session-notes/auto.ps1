@@ -39,6 +39,9 @@
 #>
 param([switch]$DryRun, [string]$Session = '', [int]$Port = 0)
 
+# -Session names one folder in the sessions folder: a path or a wildcard is refused.
+if ($Session -and $Session -notmatch '^[^\\/*?:<>|]+$') { Write-Host "-Session must be a folder name, not a path: $Session"; exit 2 }
+
 $ErrorActionPreference = 'Stop'
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repo = Resolve-Path (Join-Path $here '..\..')
@@ -207,6 +210,11 @@ try {
             Say "$($dir.Name): paused (usage limit, or Claude not logged in: see notes\status.json); the next pass continues"
             Tell "paused|$($dir.Name)|$(Get-Date -Format 'yyyy-MM-dd')" "Session notes for $($dir.Name) are paused: the usage limit is reached or Claude is logged out. The next pass continues."
           }
+          78 {
+            Say "$($dir.Name): the scene notes are done but the session summary failed (see notes\status.json); the next pass tries again"
+            # No date in the key: told once for the session, not once a day.
+            Tell "summary-failed|$($dir.Name)" "The scene notes for $($dir.Name) are written, but the session summary could not be. The next pass tries again."
+          }
           76 { Say "$($dir.Name): some scenes are still raw; the next pass tries them again" }
           default {
             Say "$($dir.Name): notes failed (exit $code), see notes\audit.jsonl"
@@ -237,6 +245,10 @@ try {
       }
     }
   }
+
+  # Last: tell the bridge how the newest session ended and what the approved recap says, so a
+  # dashboard on another host (the Pi) needs no sessions folder. Best effort; never fails the pass.
+  if (-not $DryRun) { [void](Invoke-Notes @('report')) }
 } finally {
   if (-not $DryRun) { Remove-Item $lock -ErrorAction SilentlyContinue }
 }

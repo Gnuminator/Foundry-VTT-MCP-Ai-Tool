@@ -111,6 +111,8 @@ test('the fake implements every GM action and every tool the scenarios and the b
   for (const { scenario, file, dir } of scenarios) {
     const source = readFileSync(path.join(dir, file), 'utf8');
     if (source.includes('t.browser') || source.includes('t.joinFoundry')) continue;
+    // A scenario that needs a real vault skips itself in its first lines against the fake.
+    if (source.includes('if (t.fake) t.skip(')) continue;
     for (const name of scenario.tools) wanted.add(name);
   }
   const missing = [...wanted].filter(name => !FAKE_TOOL_NAMES.includes(name));

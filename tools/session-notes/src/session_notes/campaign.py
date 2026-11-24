@@ -100,6 +100,15 @@ material for each page. Produce the JSON described by the schema.
   beat many thin ones.
 """
 
+# Text that states what Foundry owns (stats, level, armor class, hit points, dice). On a page about
+# a person or creature such a line goes to the hints instead: the prompt asks for that, the code makes sure.
+FACT_TEXT = re.compile(
+    r"\b(?:level|niveau|lvl)\s*\d+|\b(?-i:AC)\s*\d+|\barmor class\b|\bhit points\b|\b(?-i:HP)\b"
+    r"|\b\d+d\d+\b|\b(?-i:STR|DEX|CON|WIS|CHA)\b",
+    re.I,
+)
+FACT_KINDS = frozenset({"brothers", "npcs", "creatures"})
+
 CHANGES_HEAD = {
     "da": "Foreslået (Danni bekræfter): ",
     "en": "Proposed (Danni confirms): ",
@@ -131,7 +140,7 @@ class CampaignResult:
 
 def session_label(session: Path) -> str:
     """``Session 00`` from a folder name that carries a number, else the folder name."""
-    m = re.search(r"(?:session|sess|s)[ _-]?(\d{1,3})", session.name, re.I)
+    m = re.search(r"(?<![A-Za-z])(?:session|sess)[ _-]?(\d{1,3})(?!\d)", session.name, re.I)
     return f"Session {int(m.group(1)):02d}" if m else f"Session {session.name}"
 
 
@@ -277,11 +286,12 @@ def prompt(ctx: Context) -> str:
 def input_key(ctx: Context) -> str:
     """Cache key: the call depends on the notes, the chat log, the label and the rules, not on the
     confirmed names (those are applied afterwards), so answering a name never costs a new call."""
+    cited = _cited(ctx)
     blob = json.dumps(
         [
             ctx.label,
             ctx.remember,
-            [(ln.id, ln.text) for ln in ctx.lines if ln.id in _cited(ctx)],
+            [(ln.id, ln.text) for ln in ctx.lines if ln.id in cited],
             ctx.chat,
             hashlib.sha256(CAMPAIGN_RULES.encode("utf-8")).hexdigest(),
         ],
@@ -352,8 +362,10 @@ def _timeline(ctx: Context, raw: list[dict[str, Any]], dropped: list[str]) -> li
             if said is None:
                 dropped.append(en or da)
                 continue
-            if said["time"]:
-                item["time"] = said["time"]
+            # The page shows a time only next to a transcript link, so a chat line carries it in its text.
+            tag = f"[chat {said['time']}] " if said["time"] else "[chat] "
+            item["da"] = tag + da if da else da
+            item["en"] = tag + en if en else en
         out.append(item)
     return out
 
@@ -367,11 +379,66 @@ def _relations(raw: list[dict[str, Any]]) -> list[dict[str, str]]:
     return out
 
 
+def _owned_text(about: str, row: dict[str, Any], hints: list[dict[str, Any]]) -> bool:
+    """True (and a hint) when a timeline or relation row states what Foundry owns."""
+    text = f"{row.get('da', '')} {row.get('en', '')}"
+    if not FACT_TEXT.search(text):
+        return False
+    hints.append({"about": about, "field": "text", "value": str(row.get("en") or row.get("da")), "why": "Foundry owns it; the line states stats"})
+    return True
+
+
+def _one_session_page(ctx: Context, entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The session's page is named by the label, whatever Claude called it, and there is one."""
+    out: list[dict[str, Any]] = []
+    page: dict[str, Any] | None = None
+    for e in entries:
+        if e.get("kind") != "sessions":
+            out.append(e)
+        elif page is None:
+            page = {**e, "name": ctx.label}
+            out.append(page)
+        else:
+            page["timeline"] = [*page.get("timeline", []), *e.get("timeline", [])]
+            page["relations"] = [*page.get("relations", []), *e.get("relations", [])]
+    return out
+
+
+def _known_relations(
+    relations: list[dict[str, str]],
+    plain: set[str],
+    ctx: Context,
+    cites: list[str],
+    held: list[dict[str, str]],
+    checks: dict[str, list[dict[str, Any]]],
+) -> list[dict[str, str]]:
+    """A relation names another page: it needs a confirmed name too. An unconfirmed one is dropped
+    and asked about on the check page (unless a held page already asks)."""
+    out = []
+    asked = {n["key"].casefold() for n in checks["names"]}
+    for rel in relations:
+        to = rel["to"]
+        if to.casefold() in plain or is_confirmed(to, ctx.confirmed):
+            out.append(rel)
+        elif to.casefold() not in asked:
+            checks["names"].append(_check_name({}, ctx, to, cites))
+            asked.add(to.casefold())
+    return out
+
+
 def _check_name(entry: dict[str, Any], ctx: Context, name: str, cites: list[str]) -> dict[str, Any]:
     """The check page's ``name`` entry for a held page: where the name was heard."""
     by_id = {ln.id: ln for ln in ctx.lines}
     where = [[c, by_id[c].start] for c in cites if c in by_id]
     return {"key": name, "variants": [name], "count": max(1, len(where)), "where": where}
+
+
+def _agrees(field_name: str, value: str, owned: Any) -> bool:
+    """Level and ownership must be equal; items (a list) may be named inside the said text."""
+    said = value.strip().casefold()
+    if isinstance(owned, list):
+        return any(str(x).strip().casefold() in said or said in str(x).strip().casefold() for x in owned)
+    return str(owned).strip().casefold() == said
 
 
 def _fact_claims(
@@ -389,8 +456,11 @@ def _fact_claims(
             hints.append({"about": about, "field": field_name, "value": value, "why": "Foundry owns it; no value to compare"})
             continue
         owned = theirs[field_name]
+        if isinstance(owned, dict):
+            hints.append({"about": about, "field": field_name, "value": value, "why": "Foundry's value is structured; compare by hand"})
+            continue
         owned_text = " ".join(str(x) for x in owned) if isinstance(owned, list) else str(owned)
-        if value.casefold() in owned_text.casefold():
+        if _agrees(field_name, value, owned):
             continue
         checks["facts"].append(
             {
@@ -412,7 +482,10 @@ def build_plan(ctx: Context, result: dict[str, Any], switch: bool = False) -> di
     hints: list[dict[str, Any]] = []
     checks: dict[str, list[dict[str, Any]]] = {"names": [], "facts": []}
     seen: set[tuple[str, str]] = set()
-    for raw in result.get("entries", []):
+    proposed = _one_session_page(ctx, result.get("entries", []))
+    # Pages a relation may point to without a confirmed name: the plain-word kinds of this plan.
+    entries_names = {str(e.get("name", "")).strip().casefold() for e in proposed if e.get("kind") not in NAMED_KINDS}
+    for raw in proposed:
         kind, name = str(raw.get("kind")), str(raw.get("name", "")).strip()
         if kind not in KINDS or not name or (kind, name.casefold()) in seen:
             continue
@@ -421,6 +494,13 @@ def build_plan(ctx: Context, result: dict[str, Any], switch: bool = False) -> di
         entry: dict[str, Any] = {"kind": kind, "name": name, "nameConfirmed": True}
         summary = {"da": str(raw.get("summary_da", "")).strip(), "en": str(raw.get("summary_en", "")).strip()}
         timeline = _timeline(ctx, raw.get("timeline", []), dropped)
+        relations = _relations(raw.get("relations", []))
+        if kind in FACT_KINDS:
+            timeline = [t for t in timeline if not _owned_text(name, t, hints)]
+            if FACT_TEXT.search(summary["da"] + " " + summary["en"]):
+                hints.append({"about": name, "field": "summary", "value": summary["en"] or summary["da"], "why": "Foundry owns it; the summary states stats"})
+                summary = {"da": "", "en": ""}
+            relations = [r for r in relations if not _owned_text(name, r, hints)]
         if kind == "table":
             summary = {k: (CHANGES_HEAD[k] + v if v else v) for k, v in summary.items()}
             for line in timeline:
@@ -428,7 +508,7 @@ def build_plan(ctx: Context, result: dict[str, Any], switch: bool = False) -> di
                 line["en"] = CHANGES_HEAD["en"] + line["en"] if line["en"] else line["en"]
         if summary["da"] or summary["en"]:
             entry["summary"] = summary
-        relations = _relations(raw.get("relations", []))
+        relations = _known_relations(relations, entries_names, ctx, cites, held, checks)
         if relations:
             entry["relations"] = relations
         if timeline:

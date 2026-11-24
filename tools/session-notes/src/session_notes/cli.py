@@ -281,7 +281,7 @@ def main(argv: list[str] | None = None) -> int:
                 facts=args.foundry_facts,
                 switch=args.switch == "on",
             )
-        except (FileNotFoundError, ClaudeError) as exc:
+        except (FileNotFoundError, ClaudeError, ValueError) as exc:
             print(exc, file=sys.stderr)
             return 1
         if done.paused:

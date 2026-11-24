@@ -172,7 +172,7 @@ def test_chat_log_line_gets_a_time_and_no_transcript_link(tmp_path: Path) -> Non
     runner = Runner(answer())
     plan = campaign.run(session, runner).plan
     line = entry(plan, "The chat thread")["timeline"][0]
-    assert line["time"] == "01:42" and "ref" not in line
+    assert line["en"].startswith("[chat 01:42] ") and "ref" not in line
     assert "c0001 [01:42] Ilvara: Ilvara casts Spare the Dying" in runner.prompts[0]
 
 
@@ -250,3 +250,31 @@ def test_is_confirmed(name: str, known: set[str], expected: bool) -> None:
 def test_session_label() -> None:
     assert campaign.session_label(Path("2026-11-08_Session 0")) == "Session 00"
     assert campaign.session_label(Path("x/session-12")) == "Session 12"
+
+
+def test_stats_in_free_text_go_to_hints(tmp_path: Path) -> None:
+    result = answer()
+    result["entries"][0]["timeline"].append(
+        {"da": "Ilvara er level 5 med AC 17", "en": "Ilvara is level 5 with AC 17", "cites": ["u000004"]}
+    )
+    plan = campaign.build_plan(campaign.build_context(make_session(tmp_path)), result)
+    eva = entry(plan, "Madam Eva")
+    assert all("level 5" not in line["en"] for line in eva["timeline"])
+    assert any("level 5" in h["value"] for h in plan["hints"])
+
+
+def test_relation_to_an_unconfirmed_name_is_dropped_and_asked(tmp_path: Path) -> None:
+    result = answer()
+    result["entries"][0]["relations"] = [{"to": "Hrafne", "da": "kender", "en": "knows"}]
+    plan = campaign.build_plan(campaign.build_context(make_session(tmp_path)), result)
+    assert "relations" not in entry(plan, "Madam Eva")
+    assert "Hrafne" in [n["key"] for n in plan["checks"]["names"]]
+
+
+def test_session_page_is_named_by_the_label(tmp_path: Path) -> None:
+    result = answer()
+    result["entries"].append(
+        {"kind": "sessions", "name": "Session 0: Eva", "summary_da": "", "summary_en": "x", "relations": [], "timeline": []}
+    )
+    plan = campaign.build_plan(campaign.build_context(make_session(tmp_path)), result)
+    assert [e["name"] for e in plan["entries"] if e["kind"] == "sessions"] == ["Session 00"]

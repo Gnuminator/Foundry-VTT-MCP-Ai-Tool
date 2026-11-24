@@ -152,55 +152,94 @@ const BROWSERS = [
   '/usr/bin/google-chrome',
 ];
 
-/** The browser to render with: FOUNDRY_AI_TOOL_PRESS_BROWSER, else Edge or Chrome. */
-export function findBrowser(env: NodeJS.ProcessEnv = process.env): string | null {
+/** Every browser to try, in order: FOUNDRY_AI_TOOL_PRESS_BROWSER first, then Edge, Chrome, Chromium. */
+export function findBrowsers(env: NodeJS.ProcessEnv = process.env): string[] {
   const wanted = env['FOUNDRY_AI_TOOL_PRESS_BROWSER'];
-  if (wanted && existsSync(wanted)) return wanted;
-  return BROWSERS.find(existsSync) ?? null;
+  const found = BROWSERS.filter(existsSync);
+  return wanted && existsSync(wanted) ? [wanted, ...found.filter(b => b !== wanted)] : found;
+}
+
+/** The browser to render with: the first of findBrowsers, or null. */
+export function findBrowser(env: NodeJS.ProcessEnv = process.env): string | null {
+  return findBrowsers(env)[0] ?? null;
 }
 
 const RENDER_TIMEOUT_MS = 30_000;
 
+/** Browsers that failed a render in this process; tried last from then on. */
+const failedBrowsers = new Set<string>();
+
 /** Set once the browser has said it has no usable sandbox here. */
 let noSandboxNeeded = false;
 
-/** Render one handout to PNG bytes. Throws a plain sentence when no browser is found. */
+type BrowserRunner = (browser: string, args: string[]) => Promise<void>;
+
+const execBrowser: BrowserRunner = (browser, args) =>
+  new Promise<void>((resolve, reject) => {
+    execFile(browser, args, { timeout: RENDER_TIMEOUT_MS, windowsHide: true }, error =>
+      error ? reject(new Error(`The browser could not render: ${error.message}`)) : resolve()
+    );
+  });
+
+/**
+ * Render one handout to PNG bytes. Throws a plain sentence when no browser is found. Given
+ * several browsers, a candidate that fails or exits without writing the picture (Edge can do
+ * that on a locked-down PC) is skipped for the next one.
+ */
 export async function renderPress(
   template: HandoutPressTemplate,
   content: PressContent,
-  browser: string | null = findBrowser()
+  browser: string | string[] | null = findBrowsers(),
+  runBrowser: BrowserRunner = execBrowser
 ): Promise<Uint8Array> {
-  if (!browser) {
+  const candidates = browser === null ? [] : Array.isArray(browser) ? browser : [browser];
+  if (candidates.length === 0) {
     throw new Error(
       'The handout press needs Microsoft Edge, Google Chrome or Chromium on the computer the backend runs on, and found none (set FOUNDRY_AI_TOOL_PRESS_BROWSER to a browser program).'
     );
   }
+  // A browser that failed on an earlier render goes last, so it does not cost every handout a
+  // wasted start (or a 30 s hang).
+  const ordered = [
+    ...candidates.filter(c => !failedBrowsers.has(c)),
+    ...candidates.filter(c => failedBrowsers.has(c)),
+  ];
+  let lastError: unknown;
+  for (const candidate of ordered) {
+    try {
+      return await renderWith(candidate, template, content, runBrowser);
+    } catch (error) {
+      failedBrowsers.add(candidate);
+      lastError = error;
+    }
+  }
+  throw lastError;
+}
+
+async function renderWith(
+  browser: string,
+  template: HandoutPressTemplate,
+  content: PressContent,
+  runBrowser: BrowserRunner
+): Promise<Uint8Array> {
   const { width, height } = PRESS_SIZES[template];
   const dir = await mkdtemp(path.join(tmpdir(), 'handout-press-'));
   try {
     const page = path.join(dir, 'page.html');
     const out = path.join(dir, 'out.png');
     const run = (noSandbox: boolean): Promise<void> =>
-      new Promise<void>((resolve, reject) => {
-        execFile(
-          browser,
-          [
-            '--headless=new',
-            '--disable-gpu',
-            '--hide-scrollbars',
-            '--no-first-run',
-            ...(noSandbox ? ['--no-sandbox'] : []),
-            `--user-data-dir=${path.join(dir, 'profile')}`,
-            '--force-device-scale-factor=2',
-            `--window-size=${width},${height}`,
-            `--screenshot=${out}`,
-            pathToFileURL(page).href,
-          ],
-          { timeout: RENDER_TIMEOUT_MS, windowsHide: true },
-          error =>
-            error ? reject(new Error(`The browser could not render: ${error.message}`)) : resolve()
-        );
-      });
+      runBrowser(browser, [
+        '--headless=new',
+        '--disable-gpu',
+        '--hide-scrollbars',
+        '--no-first-run',
+        ...(noSandbox ? ['--no-sandbox'] : []),
+        `--user-data-dir=${path.join(dir, 'profile')}`,
+        '--force-device-scale-factor=2',
+        `--window-size=${width},${height}`,
+        `--screenshot=${out}`,
+        pathToFileURL(page).href,
+      ]);
     await writeFile(page, pressHtml(template, content), 'utf8');
     // A browser run as root (a container), or on a Linux that blocks unprivileged sandboxes
     // (Ubuntu 23.10+), refuses to start with its sandbox. The page is our own escaped markup,
@@ -221,7 +260,11 @@ export async function renderPress(
       png = await readFile(out);
     } catch {
       await run(first || noSandboxNeeded);
-      png = await readFile(out);
+      try {
+        png = await readFile(out);
+      } catch {
+        throw new Error('The browser exited without writing the picture.');
+      }
     }
     return new Uint8Array(png);
   } finally {

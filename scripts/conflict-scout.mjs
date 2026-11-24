@@ -181,7 +181,7 @@ export function touchesOf(text, id) {
   const raw = (item.fields.get('touches') ?? []).join(' ');
   return raw
     .split(/[\s,;]+/)
-    .map(s => s.replace(/^[`'"(]+|[`'")\.]+$/g, ''))
+    .map(s => s.replace(/^[`'"(]+|[`'").]+$/g, ''))
     .filter(s => /[\\/]/.test(s) || /\.\w{1,5}$/.test(s));
 }
 

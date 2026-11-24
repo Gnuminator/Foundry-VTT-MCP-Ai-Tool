@@ -57,6 +57,7 @@ import { ClientsFile, handleWhoUsesWhat } from './who-uses-what.js';
 import { TarokkaService } from './tarokka/service.js';
 import { handleDowntime } from './downtime/store.js';
 import { HandoutsService, handleRecordHandoutSeen } from './handouts/service.js';
+import { createDraftsStore, draftsControlReply } from './drafts/store.js';
 import { createOmensStore, omensControlReply } from './omens/store.js';
 import { SecretTermsService } from './secret-terms.js';
 import { isBatchRider } from './guarded-write/rider-undo.js';
@@ -275,6 +276,16 @@ async function startBackend(): Promise<void> {
     foundryClient,
   });
   const omens = createOmensStore(vaultStore, worldIds, secretTerms);
+  // Draft tray (I-069): publishing posts to Foundry chat through the existing chat bridge query.
+  const drafts = createDraftsStore(vaultStore, worldIds, secretTerms, async post => {
+    const reply = (await foundryClient.query('foundry-mcp-bridge.sendChatMessage', {
+      message: post.message,
+      messageType: post.whisperTargets ? 'whisper' : 'ic',
+      ...(post.speakerActorName ? { speakerActorName: post.speakerActorName } : {}),
+      ...(post.whisperTargets ? { whisperTargets: post.whisperTargets } : {}),
+    })) as { success?: boolean; error?: string } | undefined;
+    if (reply?.success === false) throw new Error(reply.error || 'Failed to send chat message');
+  });
   // Session notes into Foundry (recap lane, D-087): staged by the pipeline, put automatically.
   const sessionNotes = new SessionNotesService({
     foundryClient,
@@ -316,6 +327,7 @@ async function startBackend(): Promise<void> {
     secretTerms,
     handouts,
     omens,
+    drafts,
     onPlaySessionMarked: renderObsidian,
     wrapperStatus: () => wrapperRegistry.status(),
     pumpHealth: (): PumpHealthSnapshot[] => pumpHealthSources.map(source => source()),
@@ -706,6 +718,13 @@ async function startBackend(): Promise<void> {
               socket.write(`${JSON.stringify({ id: msg.id, error: { message } })}\n`);
             }
 
+            continue;
+          }
+
+          if (msg.method === 'drafts') {
+            socket.write(
+              `${JSON.stringify(await draftsControlReply(drafts, msg.id, msg.params))}\n`
+            );
             continue;
           }
 

@@ -1,0 +1,234 @@
+// Draft tray (I-069), in the Prep drawer: texts Claude drafted for players (read-aloud, NPC line,
+// letter, recap). Nothing reaches a player until you publish it here, to chat for everyone or as a
+// whisper. Edit the text first if you like; a draft that names a secret term (a dealt Tarokka
+// card, say) is flagged and asks for a confirm. GM only, from /api/drafts (the bridge's drafts
+// control method, which Claude cannot reach).
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState, type JSX } from 'react';
+
+import { useToast } from '../components/Toasts';
+import { api, errorText } from '../lib/api';
+import { Button, QueryState } from '../ui';
+
+type DraftKind = 'read-aloud' | 'npc-line' | 'letter' | 'recap';
+type DraftStatus = 'draft' | 'publishing' | 'published' | 'discarded';
+
+interface Draft {
+  id: string;
+  kind: DraftKind;
+  text: string;
+  speaker?: string;
+  whisperTo?: string;
+  status: DraftStatus;
+  secretTerms?: string[];
+  lastError?: string;
+}
+
+const DRAFTS_KEY = ['drafts'] as const;
+
+const KIND_TEXT: Record<DraftKind, string> = {
+  'read-aloud': 'Read-aloud',
+  'npc-line': 'NPC line',
+  letter: 'Letter',
+  recap: 'Recap',
+};
+
+const STATUS_TEXT: Record<DraftStatus, string> = {
+  draft: 'waiting for you',
+  publishing: 'posting now, or posted without being recorded: check the chat before reopening',
+  published: 'published to chat',
+  discarded: 'discarded',
+};
+
+async function load(): Promise<Draft[]> {
+  const list = await api<{ drafts?: Draft[] }>('/api/drafts');
+  return list.drafts ?? [];
+}
+
+export function DraftsSection({ open }: { open: boolean }): JSX.Element {
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const query = useQuery({
+    queryKey: DRAFTS_KEY,
+    queryFn: load,
+    enabled: open,
+    staleTime: 0,
+    retry: false,
+  });
+  const [busy, setBusy] = useState<string | null>(null);
+  const [editing, setEditing] = useState<Record<string, string>>({});
+
+  async function run(key: string, path: string, body: Record<string, unknown>): Promise<boolean> {
+    setBusy(key);
+    try {
+      await api(path, { method: 'POST', body: JSON.stringify(body) });
+      await queryClient.invalidateQueries({ queryKey: DRAFTS_KEY });
+      return true;
+    } catch (err) {
+      toast(`✗ Drafts: ${errorText(err)}`, 'err');
+      return false;
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function publish(draft: Draft): void {
+    if (draft.secretTerms) {
+      const ok = window.confirm(
+        `This draft names ${draft.secretTerms.join(', ')}, which players may not know yet. Publish it anyway?`
+      );
+      if (!ok) return;
+    }
+    void run(draft.id, '/api/drafts/publish', {
+      id: draft.id,
+      confirmFlagged: draft.secretTerms !== undefined,
+    }).then(ok => {
+      if (ok) toast('Published to chat', 'ok');
+    });
+  }
+
+  function reopen(draft: Draft): void {
+    if (draft.status === 'publishing') {
+      const ok = window.confirm(
+        'This draft may already be in chat. Check the chat log first. Reopen it anyway?'
+      );
+      if (!ok) return;
+    }
+    void run(draft.id, '/api/drafts/reopen', {
+      id: draft.id,
+      confirmUnsure: draft.status === 'publishing',
+    });
+  }
+
+  async function saveEdit(draft: Draft): Promise<void> {
+    const text = editing[draft.id];
+    if (text === undefined) return;
+    const ok = await run(draft.id, '/api/drafts/edit', { id: draft.id, text });
+    if (ok) {
+      setEditing(e => {
+        const { [draft.id]: _gone, ...rest } = e;
+        return rest;
+      });
+    }
+  }
+
+  return (
+    <QueryState
+      query={query}
+      errorLabel="Couldn't load the draft tray"
+      isEmpty={d => d.length === 0}
+      empty="The tray is empty. Ask Claude to draft a read-aloud, NPC line, letter or recap."
+    >
+      {drafts => (
+        <ul className="pf-list" id="drafts-list">
+          {drafts.map(draft => {
+            const isOpen = draft.status === 'draft';
+            const text = editing[draft.id];
+            return (
+              <li key={draft.id} className="pf-row" data-draft-status={draft.status}>
+                <span>
+                  <strong>{KIND_TEXT[draft.kind]}</strong>
+                  {draft.speaker && <span className="pf-detail"> · {draft.speaker}</span>}{' '}
+                  <span className="pf-detail">
+                    · {draft.whisperTo ? `whisper to ${draft.whisperTo}` : 'to everyone'} ·{' '}
+                    {STATUS_TEXT[draft.status]}
+                  </span>
+                  <br />
+                  {text !== undefined ? (
+                    <textarea
+                      aria-label="Draft text"
+                      rows={5}
+                      value={text}
+                      onChange={e => setEditing(s => ({ ...s, [draft.id]: e.target.value }))}
+                    />
+                  ) : (
+                    draft.text
+                  )}
+                  {draft.lastError && (
+                    <span className="pf-detail">
+                      <br />✗ {draft.lastError}
+                    </span>
+                  )}
+                  {draft.secretTerms && (
+                    <span className="pf-detail">
+                      <br />⚠ Names {draft.secretTerms.join(', ')}.
+                    </span>
+                  )}
+                </span>
+                {isOpen && text === undefined && (
+                  <>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="primary"
+                      data-track="dash.drafts.publish"
+                      disabled={busy !== null}
+                      onClick={() => publish(draft)}
+                    >
+                      Publish
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      data-track="dash.drafts.edit"
+                      disabled={busy !== null}
+                      onClick={() => setEditing(s => ({ ...s, [draft.id]: draft.text }))}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      data-track="dash.drafts.discard"
+                      disabled={busy !== null}
+                      onClick={() => void run(draft.id, '/api/drafts/discard', { id: draft.id })}
+                    >
+                      Discard
+                    </Button>
+                  </>
+                )}
+                {isOpen && text !== undefined && (
+                  <>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="primary"
+                      data-track="dash.drafts.save"
+                      disabled={busy !== null || !text.trim()}
+                      onClick={() => void saveEdit(draft)}
+                    >
+                      Save
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() =>
+                        setEditing(s => {
+                          const { [draft.id]: _gone, ...rest } = s;
+                          return rest;
+                        })
+                      }
+                    >
+                      Cancel
+                    </Button>
+                  </>
+                )}
+                {(draft.status === 'discarded' || draft.status === 'publishing') && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    data-track="dash.drafts.reopen"
+                    disabled={busy !== null}
+                    onClick={() => reopen(draft)}
+                  >
+                    Back to draft
+                  </Button>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </QueryState>
+  );
+}

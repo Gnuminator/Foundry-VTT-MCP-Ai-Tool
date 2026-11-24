@@ -45,6 +45,18 @@ export const PROFILE = [
   { ns: 'item-piles', key: 'enableTrading', value: true, optional: true },
 ];
 
+// SWITCH_ONLY (comma separated `<ns>.<key>`) narrows a run to some entries (stage 37); every name must be in PROFILE.
+export function selectProfile(only, profile = PROFILE) {
+  const names = String(only ?? '')
+    .split(',')
+    .map(n => n.trim())
+    .filter(Boolean);
+  if (!names.length) return profile;
+  const unknown = names.filter(n => !profile.some(p => `${p.ns}.${p.key}` === n));
+  if (unknown.length) throw new Error(`SWITCH_ONLY names no known switch: ${unknown.join(', ')}`);
+  return profile.filter(p => names.includes(`${p.ns}.${p.key}`));
+}
+
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 // Runs in the browser. One row per entry: whether Foundry registered the setting, its scope and its value.
@@ -203,14 +215,19 @@ async function main() {
       page.waitForFunction(() => globalThis.game?.ready === true, null, { timeout: 120_000 });
     await ready();
 
-    const args = { profile: PROFILE };
+    const only = selectProfile(process.env.SWITCH_ONLY);
+    const args = { profile: only };
     const before = await page.evaluate(readState, args);
     log(`world ${before.world}, joined as ${before.user} (GM: ${before.isGM})`);
-    const problems = blockers(before, world);
+    const problems = blockers(before, world, only);
     if (problems.length) throw new Error(problems.join('; '));
-    for (const w of warnings(before)) log(`warning: ${w}`);
+    for (const w of warnings(before, only)) log(`warning: ${w}`);
     log(`before: ${show(before)}`);
 
+    if (process.env.SWITCH_READ_ONLY === '1') {
+      log('read only (SWITCH_READ_ONLY=1): nothing was set');
+      return;
+    }
     const changed = await page.evaluate(applyState, args);
     log(changed.length ? `changed: ${changed.join(', ')}` : 'nothing to change (already set)');
 
@@ -219,7 +236,7 @@ async function main() {
     await ready();
     const after = await page.evaluate(readState, args);
     log(`after:  ${show(after)}`);
-    const wrong = mismatches(after);
+    const wrong = mismatches(after, only);
     if (wrong.length) throw new Error(`read-back does not match: ${wrong.join('; ')}`);
     log('verified');
   } finally {

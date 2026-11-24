@@ -52,6 +52,7 @@
     "docs:lint": "markdownlint-cli2",
     "docs:links": "node scripts/check-links.mjs && node scripts/wiki/da.mjs check && node scripts/docs-quest-check.mjs && node --test scripts/docs-quest-check.test.mjs",
     "docs:tools": "node scripts/docs-tools.mjs",
+    "docs:tools:check": "node scripts/docs-tools.mjs --check",
     "tool-eval": "node scripts/tool-eval/run.mjs",
     "docs:ui": "node scripts/docs-ui-check.mjs",
     "docs:kit": "node scripts/docs-kit.mjs",

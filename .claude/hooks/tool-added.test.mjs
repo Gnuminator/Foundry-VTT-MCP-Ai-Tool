@@ -54,6 +54,14 @@ test('lists open steps for a write tool and none when all are done', () => {
   );
 });
 
+test('plan-* tools (kind read) and destructive tools need the sweep step; plain reads do not', () => {
+  const blk = kind => `    'x': {\n      set: 'core',\n      kind: '${kind}',\n    },`;
+  const docs = f => (f.includes('TOOL-SETS') ? '`plan-x` `x`' : "'plan-xy'");
+  assert.equal(openSteps('plan-x', blk('read'), docs).filter(s => /sweep/.test(s)).length, 1);
+  assert.equal(openSteps('x', blk('destructive'), docs).filter(s => /sweep/.test(s)).length, 1);
+  assert.deepEqual(openSteps('x', blk('read'), docs), []);
+});
+
 test('a read tool with two sets is flagged', () => {
   const block = "    'r': {\n      set: 'core',\n      set: 'play',\n      kind: 'read',\n    },";
   const steps = openSteps('r', block, () => '`r`');

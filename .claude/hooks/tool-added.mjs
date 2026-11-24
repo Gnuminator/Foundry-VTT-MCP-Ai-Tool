@@ -64,9 +64,10 @@ export function openSteps(name, block, read) {
   const sets = (block.match(/\bset\s*:/g) ?? []).length;
   if (sets !== 1)
     steps.push(`${name}: needs exactly one \`set\` in its tools entry (found ${sets})`);
-  const isWrite = /kind\s*:\s*'(?:write|recordless-write)'/.test(block);
+  // The sweep test's rule: every write or destructive tool and every guarded plan-* tool (kind 'read').
+  const isWrite = name.startsWith('plan-') || /kind\s*:\s*'(?:write|destructive)'/.test(block);
   if (isWrite) {
-    const swept = read(SWEEP).includes(name) || read(SWEEP_TEST).includes(`'${name}'`);
+    const swept = read(SWEEP).includes(`'${name}'`) || read(SWEEP_TEST).includes(`'${name}'`);
     if (!swept)
       steps.push(
         `${name}: no live sweep step in ${SWEEP} and no recorded skip in ${SWEEP_TEST} (live-sweep-coverage fails)`

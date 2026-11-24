@@ -211,7 +211,7 @@ export function readSummary(html: string, lang: CampaignLang): string {
   if (!m) return '';
   return m[1]
     .replace(/<em class="campaign-new">[^<]*<\/em>\s*/g, '')
-    .replace(/<[^>]+>/g, '')
+    .replace(/<[^>]*>?/g, '') // also drops an unterminated "<", so no raw "<" survives
     .replace(/&(quot|gt|lt|amp);/g, (_all, name: string) => ENTITY_CHARS[name] ?? _all)
     .trim();
 }

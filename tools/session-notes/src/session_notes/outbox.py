@@ -531,20 +531,29 @@ def _cached(session: Path, runner: Any, model: str, prompt: str, schema: dict[st
     return cache[key]
 
 
-def _clean_quoted(rows: Any) -> list[dict[str, str]]:
+def _squash(text: str) -> str:
+    return re.sub(r"[^\w]+", " ", text.lower()).strip()
+
+
+def _clean_quoted(rows: Any, corpus: str | None = None) -> list[dict[str, str]]:
+    """Keep rows that carry a source quote. With ``corpus`` the quote must also occur in it
+    (case, punctuation and spacing ignored), so an invented source does not pass."""
+    hay = _squash(corpus) if corpus is not None else None
     out = []
     for r in rows or []:
         if isinstance(r, dict) and str(r.get("text", "")).strip() and str(r.get("source", "")).strip():
+            if hay is not None and _squash(str(r["source"])) not in hay:
+                continue
             out.append({"text": str(r["text"]).strip(), "source": str(r["source"]).strip()})
     return out
 
 
-def _fix_pc(data: dict[str, Any]) -> dict[str, Any]:
+def _fix_pc(data: dict[str, Any], corpus: str | None = None) -> dict[str, Any]:
     return {
         "so_far": str(data.get("so_far", "")).strip(),
-        "threads": _clean_quoted(data.get("threads"))[:3],
+        "threads": _clean_quoted(data.get("threads"), corpus)[:3],
         "known": [],  # only lines said to the whole table may ever go here; none for session 0
-        "todos": _clean_quoted(data.get("todos"))[:3],
+        "todos": _clean_quoted(data.get("todos"), corpus)[:3],
     }
 
 
@@ -561,7 +570,8 @@ def ai_pc(
     prompt = PC_PROMPT.format(
         character=ch.name, player=player, story=story, table=plain(table_en), recap=plain(recap_en)
     )
-    en = _fix_pc(_cached(session, runner, model, prompt, PC_SCHEMA))
+    corpus = "\n".join([table_en, recap_en, story])
+    en = _fix_pc(_cached(session, runner, model, prompt, PC_SCHEMA), corpus)
     da_raw = _cached(
         session, runner, model, TRANSLATE_PROMPT.format(data=json.dumps(en, ensure_ascii=False)), PC_SCHEMA
     )
@@ -656,8 +666,8 @@ def build(session: Path, runner: Any = None, model: str = "sonnet") -> dict[str,
     link_list = [n for n in names if isinstance(n, str) and n.lower() not in people]
     table_en = _read(notes / "table.en.md")
     recap_en = _read(notes / "recap.player.en.md")
-    structured = runner is not None and bool(table_en)
     parse_en = {c.name: c for c in parse_characters(_read(notes / "characters.en.md"), "en")}
+    structured = runner is not None and bool(table_en) and bool(parse_en)
     table_data = ai_table(session, runner, model, table_en) if structured else {}
     for lang in LANGS:
         # Structured notes are written in English and translated, so they need only the English files.

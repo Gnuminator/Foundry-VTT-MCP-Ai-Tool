@@ -188,7 +188,7 @@ def fake_runner(calls: list[str]):
                 "open": ["Fumble rule (Danni)."],
                 "logistics": ["Max 6 hours."],
             }
-        todo = {"text": "Bekræft datoen." if da else "Confirm the date.", "source": "Christian will confirm"}
+        todo = {"text": "Bekræft datoen." if da else "Confirm the date.", "source": "Christian and Danni will confirm the date"}
         junk = {"text": "Foundry will not be used.", "source": ""}  # no source: dropped
         return {"so_far": "Du er klar." if da else "You are ready.", "threads": [junk], "known": [todo], "todos": [todo, junk]}
 
@@ -222,6 +222,14 @@ def test_discord_version_is_short_and_edit_drops_it(tmp_path: Path) -> None:
     outbox.edit(session, "pc-ebbe-en", "My own text")
     again = outbox.find(outbox.load(session), "pc-ebbe-en")
     assert again["discord"] == ["My own text"] and "short" not in again
+
+
+def test_an_invented_source_quote_is_dropped_when_the_texts_are_known() -> None:
+    rows = [{"text": "Real.", "source": "Danni wants to RUN the introduction"},
+            {"text": "Invented.", "source": "Danni promised a dragon"}]
+    corpus = "- Danni wants to run the introduction. (00:48:27)"
+    kept = outbox._clean_quoted(rows, corpus)
+    assert [r["text"] for r in kept] == ["Real."]
 
 
 def test_render_pc_drops_whole_bullets_over_the_cap_but_keeps_date_and_so_far() -> None:

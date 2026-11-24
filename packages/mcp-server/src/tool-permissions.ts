@@ -17,8 +17,8 @@ import * as path from 'path';
 
 import { toolSetOf, ALL_TOOL_SET_NAMES } from './tool-sets.js';
 
-export const TOOL_PERMISSION_POLICIES = ['allow', 'ask', 'deny'] as const;
-export type ToolPolicy = (typeof TOOL_PERMISSION_POLICIES)[number];
+const TOOL_PERMISSION_POLICIES = ['allow', 'ask', 'deny'] as const;
+type ToolPolicy = (typeof TOOL_PERMISSION_POLICIES)[number];
 
 export const TOOL_PERMISSIONS_FILE = 'tool-permissions.json';
 
@@ -28,24 +28,24 @@ export const GRANT_MS = 5 * 60_000;
 const PENDING_MS = 60 * 60_000;
 const MAX_PENDING = 50;
 
-export function isToolPolicy(value: unknown): value is ToolPolicy {
+function isToolPolicy(value: unknown): value is ToolPolicy {
   return (TOOL_PERMISSION_POLICIES as readonly unknown[]).includes(value);
 }
 
-export interface PendingAsk {
+interface PendingAsk {
   tool: string;
   set: string | null;
   /** Epoch ms of the first refused call. */
   at: number;
 }
 
-export interface PermissionCheck {
+interface PermissionCheck {
   ok: boolean;
   /** For a refusal: what Claude is told. */
   message?: string;
 }
 
-export interface PermissionsSnapshot {
+interface PermissionsSnapshot {
   /** Per set: its own policy and each tool's own policy (absent: follows the set / allow). */
   sets: Array<{ set: string; policy: ToolPolicy | null }>;
   tools: Array<{

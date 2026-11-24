@@ -12,7 +12,7 @@ import { Button } from '../ui';
 
 type Policy = 'allow' | 'ask' | 'deny';
 
-export interface PermissionsSnapshot {
+interface PermissionsSnapshot {
   sets: Array<{ set: string; policy: Policy | null }>;
   tools: Array<{ tool: string; set: string | null; own: Policy | null; effective: Policy }>;
   pending: Array<{ tool: string; set: string | null; at: number }>;

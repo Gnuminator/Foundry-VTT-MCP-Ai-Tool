@@ -28,6 +28,9 @@ interface RawRow {
 /** How often the session marker is re-read (ms); each read scans vault files. */
 const SESSION_POLL_MS = 60_000;
 
+/** How often the timer re-reads the handouts (ms); a reveal through the dashboard reads at once. */
+const HANDOUTS_POLL_MS = 15_000;
+
 /** The session marker as `get-play-session` reports it, checked. */
 export interface SessionMarker {
   open: boolean;
@@ -88,6 +91,8 @@ export class PlayerViewSource {
   private lastEndedMs: number | null = null;
   private sessionOpenValue: boolean | null = null;
   private sessionPolledAt = 0;
+  private handoutsPolledAt = 0;
+  private fullRefreshQueued = false;
   private sessionStartedValue: number | null = null;
   private timer: NodeJS.Timeout | null = null;
   private inFlight = false;
@@ -147,10 +152,17 @@ export class PlayerViewSource {
     return this.handoutsReadyValue;
   }
 
-  start(intervalMs: number): void {
+  /**
+   * Start the timer. `skipWhile` (optional) says Foundry is known to be down: the tick is then
+   * skipped, since every read would fail; the caller refreshes once Foundry is back.
+   */
+  start(intervalMs: number, skipWhile?: () => boolean): void {
     if (this.timer) return;
     void this.refresh();
-    this.timer = setInterval(() => void this.refresh(), intervalMs);
+    this.timer = setInterval(() => {
+      if (skipWhile?.()) return;
+      void this.refresh({ throttled: true });
+    }, intervalMs);
     this.timer.unref();
   }
 
@@ -159,9 +171,19 @@ export class PlayerViewSource {
     this.timer = null;
   }
 
-  /** Poll both tools once; `onChange` fires when either result changed. */
-  async refresh(): Promise<void> {
-    if (this.inFlight || this.client.isConnected === false) return;
+  /**
+   * Poll the tools once; `onChange` fires when a result changed. The timer passes `throttled`:
+   * handouts change only when a page is revealed, so they are read every HANDOUTS_POLL_MS then.
+   * A direct call (a reveal just applied, Foundry back) always reads them.
+   */
+  async refresh(options: { throttled?: boolean } = {}): Promise<void> {
+    if (this.client.isConnected === false) return;
+    if (this.inFlight) {
+      // A direct call (a reveal just applied) must not be lost to a timer read that may have
+      // skipped the handouts or read them before the reveal: run once more when it ends.
+      if (!options.throttled) this.fullRefreshQueued = true;
+      return;
+    }
     this.inFlight = true;
     let changed = false;
     try {
@@ -199,9 +221,18 @@ export class PlayerViewSource {
         changed ||= since !== this.sessionSinceValue;
         this.sessionSinceValue = since;
       }
-      const raw = await this.client
-        .callTool<RawHandouts>('get-player-handouts')
-        .catch((error: unknown) => this.failed('get-player-handouts', error));
+      const handoutsDue =
+        !options.throttled ||
+        !this.handoutsReadyValue ||
+        now - this.handoutsPolledAt >= HANDOUTS_POLL_MS - 500;
+      if (handoutsDue) this.handoutsPolledAt = now;
+      const raw = handoutsDue
+        ? await this.client
+            .callTool<RawHandouts>('get-player-handouts')
+            .catch((error: unknown) => this.failed('get-player-handouts', error))
+        : undefined;
+      // A failed read retries on the next tick, not after the full interval.
+      if (handoutsDue && raw === undefined) this.handoutsPolledAt = 0;
       if (raw !== undefined) {
         const { all, perPlayer, everyPlayer } = this.sanitize(raw);
         changed ||= JSON.stringify(all) !== JSON.stringify(this.handoutsValue);
@@ -214,6 +245,10 @@ export class PlayerViewSource {
       this.inFlight = false;
     }
     if (changed) this.onChange();
+    if (this.fullRefreshQueued) {
+      this.fullRefreshQueued = false;
+      void this.refresh();
+    }
   }
 
   private failed(tool: string, error: unknown): undefined {

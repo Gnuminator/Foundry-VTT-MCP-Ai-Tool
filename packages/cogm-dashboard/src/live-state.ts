@@ -411,7 +411,7 @@ export function createLiveState(inputs: LiveStateInputs): LiveState {
     broadcastTheme,
     broadcastSettings,
     start(): void {
-      playerView.start(PLAYER_SOURCE_INTERVAL_MS);
+      playerView.start(PLAYER_SOURCE_INTERVAL_MS, () => currentStatus.foundry === 'unreachable');
       playerVaults?.start();
       // The heartbeat (item gm-health-line): the status again every STATUS_HEARTBEAT_MS, so a page
       // can tell "quiet" from "the stream died without telling it" (its watchdog is 45 s).

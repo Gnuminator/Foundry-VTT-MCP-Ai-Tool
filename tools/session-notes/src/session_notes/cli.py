@@ -10,6 +10,7 @@ Exit codes: 0 done, 1 error, 3 the bridge cannot take the notes now (publish; tr
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 from pathlib import Path
@@ -92,6 +93,38 @@ def run_consent(args: argparse.Namespace) -> int:
     if args.write_status:
         write_status(session, "waiting", f"Waiting for recording consent. {result.message}")
     return EXIT_NO_CONSENT
+
+
+def run_outbox(args: argparse.Namespace) -> int:
+    from . import outbox
+
+    session = resolve_session(args.session)
+    try:
+        if args.outbox_cmd == "build":
+            data = outbox.build(session, runner=ClaudeCli() if args.ai else None, model=args.model)
+            print(f"{len(data['items'])} note(s) in {outbox.outbox_path(session)}")
+        elif args.outbox_cmd == "preview":
+            print(outbox.preview(session))
+        elif args.outbox_cmd == "approve":
+            print("Approved: " + ", ".join(outbox.approve(session, args.ids, by=args.by)))
+        elif args.outbox_cmd == "obsidian":
+            for path in outbox.write_obsidian(session, args.folder):
+                print(f"wrote {path}")
+        elif args.outbox_cmd == "foundry":
+            print(json.dumps(outbox.foundry_payload(session, args.lang), ensure_ascii=False, indent=2))
+        elif args.outbox_cmd == "mark-sent":
+            outbox.mark_sent(session, args.id, args.medium, args.detail)
+        elif args.outbox_cmd == "edit":
+            item = outbox.edit(session, args.id, args.file.read_text(encoding="utf-8"))
+            print(f"{item['id']} edited, back to draft ({len(item['discord'])} Discord message(s)).")
+        else:
+            review = json.loads(args.file.read_text(encoding="utf-8"))
+            for key, what in outbox.apply_review(session, review, by=args.by).items():
+                print(f"{key}: {what}")
+    except (OSError, KeyError, ValueError) as exc:
+        print(exc, file=sys.stderr)
+        return 1
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -183,6 +216,40 @@ def main(argv: list[str] | None = None) -> int:
     ros_sub = ros.add_subparsers(dest="roster_cmd", required=True)
     ros_check = ros_sub.add_parser("check", help="list the speakers of a session that the roster does not know")
     ros_check.add_argument("session")
+    out = sub.add_parser("outbox", help="the notes that go out to players: build, preview, approve (sends nothing)")
+    out_sub = out.add_subparsers(dest="outbox_cmd", required=True)
+    for name, helptext in (
+        ("build", "make notes/outbox/outbox.json from the finished notes (no Claude call)"),
+        ("preview", "dry run: per recipient exactly what would go out"),
+    ):
+        out_sub.add_parser(name, help=helptext).add_argument("session")
+    out_sub.choices["build"].add_argument(
+        "--ai", action="store_true", help="write each player's to-dos with Claude from the Table page (subscription)"
+    )
+    out_sub.choices["build"].add_argument("--model", default="sonnet")
+    out_ok = out_sub.add_parser("approve", help="approve notes by id (the approver's OK, per note)")
+    out_ok.add_argument("session")
+    out_ok.add_argument("ids", nargs="+")
+    out_ok.add_argument("--by", default="Christian")
+    out_ed = out_sub.add_parser("edit", help="replace a note's text from a file; it goes back to draft")
+    out_ed.add_argument("session")
+    out_ed.add_argument("id")
+    out_ed.add_argument("file", type=Path)
+    out_ob = out_sub.add_parser("obsidian", help="write approved notes as vault pages into a folder")
+    out_ob.add_argument("session")
+    out_ob.add_argument("folder", type=Path)
+    out_fd = out_sub.add_parser("foundry", help="print the approved notes as the Foundry step takes them (JSON)")
+    out_fd.add_argument("session")
+    out_fd.add_argument("lang", choices=["da", "en"])
+    out_ms = out_sub.add_parser("mark-sent", help="record that a medium was delivered for a note")
+    out_ms.add_argument("session")
+    out_ms.add_argument("id")
+    out_ms.add_argument("medium", choices=["foundry", "foundryPlan"])
+    out_ms.add_argument("--detail", default="")
+    out_rv = out_sub.add_parser("apply-review", help="apply a review page's saved answers (JSON file)")
+    out_rv.add_argument("session")
+    out_rv.add_argument("file", type=Path)
+    out_rv.add_argument("--by", default="Christian")
     inb = sub.add_parser(
         "inbox", help="recap inbox for a cloud routine (I-132); needs FVTT_RECAP_INBOX"
     )
@@ -199,6 +266,8 @@ def main(argv: list[str] | None = None) -> int:
         result = roster.check(resolve_session(args.session), sessions_root())
         print(result.message)
         return 0 if result.ok else 1
+    if args.cmd == "outbox":
+        return run_outbox(args)
     if args.cmd == "inbox":
         raw = os.environ.get("FVTT_RECAP_INBOX")
         if not raw or not Path(raw).is_dir():

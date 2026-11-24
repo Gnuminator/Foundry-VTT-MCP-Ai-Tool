@@ -18,7 +18,7 @@ if (kitPw) writeFileSync('/tmp/seen-kit-pw', kitPw);
 const origBridge =
   process.env.ORIG_BRIDGE_USER === undefined ? 'unset' : `set:${process.env.ORIG_BRIDGE_USER}`;
 console.log(
-  `DRIVER ACTION=${process.env.ACTION} WORLD=${process.env.WORLD} HOME=${process.env.HOME} TOOL_APP=${process.env.TOOL_APP} MAX_DELETE=${process.env.MAX_DELETE ?? ''} HAS_USER=${(process.env.GM_USER || '') !== ''} HAS_PW=${(process.env.GM_PASSWORD || '') !== ''} HAS_KITPW=${kitPw !== ''} KITPW_SHAPE=${/^[0-9a-f]{32}$/.test(kitPw)}`
+  `DRIVER ACTION=${process.env.ACTION} WORLD=${process.env.WORLD} HOME=${process.env.HOME} TOOL_APP=${process.env.TOOL_APP} MAX_DELETE=${process.env.MAX_DELETE ?? ''} HAS_USER=${(process.env.GM_USER || '') !== ''} HAS_PW=${(process.env.GM_PASSWORD || '') !== ''} HAS_KITPW=${kitPw !== ''} KITPW_SHAPE=${/^[0-9a-f]{32}$/.test(kitPw)} SOAK_PLAYERS=${process.env.SOAK_PLAYERS ?? ''}`
 );
 console.log(
   `DRIVER_SEES options=${options.world} foundry_runs=${foundryRuns} kit_env=${kitEnvMode} since_stamp=${process.env.SINCE_STAMP ?? ''} since_epoch=${process.env.SINCE_EPOCH ?? ''} orig_bridge=${origBridge}`

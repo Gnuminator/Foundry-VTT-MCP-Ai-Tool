@@ -25,11 +25,11 @@ const MAX_DRAFTS = 60;
 const MAX_LABEL = 80;
 
 export const DRAFT_KINDS = ['read-aloud', 'npc-line', 'letter', 'recap'] as const;
-export type DraftKind = (typeof DRAFT_KINDS)[number];
+type DraftKind = (typeof DRAFT_KINDS)[number];
 
-export type DraftStatus = 'draft' | 'publishing' | 'published' | 'discarded';
+type DraftStatus = 'draft' | 'publishing' | 'published' | 'discarded';
 
-export interface Draft {
+interface Draft {
   kind: DraftKind;
   text: string;
   /** NPC line: who speaks. Letter: who it is from. Optional for the others. */

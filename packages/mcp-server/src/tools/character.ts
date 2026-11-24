@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { AT_THE_TABLE, toolRef } from '@gnuminator/shared';
+import { AT_THE_TABLE, toolRef, unwrapBridgeReply } from '@gnuminator/shared';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
 import { SystemRegistry } from '../systems/system-registry.js';
@@ -415,17 +415,21 @@ export class CharacterTools {
         },
         true
       );
-      const result = (await this.foundryClient.query('foundry-mcp-bridge.useItem', {
-        actorIdentifier: actor,
-        itemIdentifier,
-        targets,
-        options: {
-          consume: consume ?? true,
-          spellLevel,
-          skipDialog: skipDialog ?? true, // Default to skipping dialogs for MCP automation
-          ...(rollAttack ? { rollAttack } : {}),
-        },
-      })) as unknown as Rec;
+      const reply = unwrapBridgeReply(
+        await this.foundryClient.query('foundry-mcp-bridge.useItem', {
+          actorIdentifier: actor,
+          itemIdentifier,
+          targets,
+          options: {
+            consume: consume ?? true,
+            spellLevel,
+            skipDialog: skipDialog ?? true, // Default to skipping dialogs for MCP automation
+            ...(rollAttack ? { rollAttack } : {}),
+          },
+        }),
+        'Item use refused'
+      );
+      const result = reply as unknown as Rec;
 
       this.logger.debug('Successfully used item', {
         actorName: result.actorName,

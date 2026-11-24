@@ -17,7 +17,7 @@
     "packages/mcp-server/src/obsidian/mirror-render.ts": 1513,
     "packages/mcp-server/src/obsidian/render.ts": 1172,
     "packages/mcp-server/src/stats/build.ts": 1035,
-    "packages/mcp-server/src/tools/character.ts": 1045,
+    "packages/mcp-server/src/tools/character.ts": 1049,
     "packages/mcp-server/src/tools/compendium.ts": 1079,
     "packages/mcp-server/src/tools/dnd5e/add-feature.ts": 1123,
     "packages/mcp-server/src/tools/quest-creation.ts": 1346,
@@ -182,6 +182,12 @@
       "file": "scripts/live-write-sweep.mjs",
       "lines": 1855,
       "reason": "audio-locked skip of the music half (5 lines), the file is already over the limit",
+      "pr": ""
+    },
+    {
+      "file": "packages/mcp-server/src/tools/character.ts",
+      "lines": 1049,
+      "reason": "useItem refusal now throws through unwrapBridgeReply (PR 1345 review M1); +4 lines",
       "pr": ""
     }
   ]

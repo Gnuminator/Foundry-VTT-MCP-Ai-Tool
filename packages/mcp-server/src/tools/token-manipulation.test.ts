@@ -50,6 +50,14 @@ describe('TokenManipulationTools.getToolDefinitions', () => {
 // ---------------------------------------------------------------------------
 
 describe('TokenManipulationTools.handleGetTokenDetails', () => {
+  it('reports a refusal from the module instead of an empty token', async () => {
+    const { tools } = makeTools(TokenManipulationTools, () => ({
+      success: false,
+      error: 'Access denied',
+    }));
+    await expect(tools.handleGetTokenDetails({ tokenId: 'tok1' })).rejects.toThrow('Access denied');
+  });
+
   it('dispatches get-token-details and returns formatted token details', async () => {
     const rawToken = {
       id: 'tok1',
@@ -186,6 +194,14 @@ describe('TokenManipulationTools.handleGetAvailableConditions', () => {
     const result = await tools.handleGetAvailableConditions(undefined);
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.get-available-conditions');
     expect(result.success).toBe(true);
+  });
+
+  it('reports a refusal from the module instead of an empty list', async () => {
+    const { tools } = makeTools(TokenManipulationTools, () => ({
+      success: false,
+      error: 'Access denied',
+    }));
+    await expect(tools.handleGetAvailableConditions({})).rejects.toThrow('Access denied');
   });
 
   it('wraps query errors as "Failed to get available conditions: <message>"', async () => {

@@ -1,4 +1,9 @@
-import { toolRef, type AvailableConditionsReply, type TokenDetailsReply } from '@gnuminator/shared';
+import {
+  toolRef,
+  unwrapBridgeReply,
+  type AvailableConditionsReply,
+  type TokenDetailsReply,
+} from '@gnuminator/shared';
 import { z } from 'zod';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
@@ -70,9 +75,10 @@ export class TokenManipulationTools {
     this.logger.info('Getting token details', { tokenId });
 
     try {
-      const tokenData = (await this.foundryClient.query('foundry-mcp-bridge.get-token-details', {
-        tokenId,
-      })) as TokenDetailsReply;
+      const tokenData: TokenDetailsReply = unwrapBridgeReply(
+        await this.foundryClient.query('foundry-mcp-bridge.get-token-details', { tokenId }),
+        'Token details refused'
+      );
 
       this.logger.debug('Retrieved token details', {
         tokenId,
@@ -144,9 +150,10 @@ export class TokenManipulationTools {
     this.logger.info('Getting available conditions');
 
     try {
-      const result = (await this.foundryClient.query(
-        'foundry-mcp-bridge.get-available-conditions'
-      )) as AvailableConditionsReply;
+      const result: AvailableConditionsReply = unwrapBridgeReply(
+        await this.foundryClient.query('foundry-mcp-bridge.get-available-conditions'),
+        'Conditions refused'
+      );
 
       this.logger.debug('Retrieved available conditions', { count: result.conditions?.length });
 

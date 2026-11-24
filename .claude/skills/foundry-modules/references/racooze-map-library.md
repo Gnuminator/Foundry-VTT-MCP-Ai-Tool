@@ -2,7 +2,7 @@
 
 Verified on Foundry 14.368 / dnd5e 6.0.6, module 1.2.42, 2026-10-28 (loaded on test server A; the Map Library button seen in the Scenes directory; no Patreon login was made, so connecting, browsing and importing are drafted from the source and marked "(not verified)").
 
-**Verdict: drop.** Left out of Danni's picks (2026-10-29); the Pi world needs only the scenes it produced. Version 1.2.42 is a well-behaved importer for Racooze battlemaps on Foundry 14, but it needs a paid Patreon connection, sends its download key to `library.racooze.de` on every call and writes big files. Use it on the PC to build scenes; the Pi world only needs the scenes it produces.
+**Verdict: optional (was drop; the user 2026-11-20: keep on the Pi for G1).** It is on the Pi for the Castle Ravenloft floors (castle-lane-2); the free Castle Ravenloft imports with no Patreon key (rehearsed on 1.2.50, 2026-11-24; 1.2.50 shows an update badge on its Scenes button and opens on "New & Updated", so the castle script clicks "All Maps" first). Left out of Danni's picks (2026-10-29), so not in his guides. Version 1.2.42 is a well-behaved importer for Racooze battlemaps on Foundry 14, but premium maps need a paid Patreon connection, sends its download key to `library.racooze.de` on every call and writes big files. Use it on the PC to build scenes; the Pi world only needs the scenes it produces.
 
 **For Danni's guides:** The Map Library button in the Scenes tab lets you pick a Racooze map and bring it in as a ready scene, once your Patreon is connected.
 

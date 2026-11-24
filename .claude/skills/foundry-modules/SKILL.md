@@ -40,7 +40,7 @@ version: the Pi gets the pinned set from stage 25 (`scripts/pi/remote/25-modules
 | `autoanimations`           | 8.0.7            | `references/autoanimations.md`           | optional |
 | `calendaria`               | 1.4.10           | `references/calendaria.md`               | keep     |
 | `lib-wrapper`              | 1.13.5.1         | `references/lib-wrapper.md`              | keep     |
-| `racooze-map-library`      | 1.2.42           | `references/racooze-map-library.md`      | drop     |
+| `racooze-map-library`      | 1.2.50           | `references/racooze-map-library.md`      | optional |
 | `racoozes-free-battlemaps` | 1.2.0            | `references/racoozes-free-battlemaps.md` | optional |
 | `sequencer`                | 4.3.0            | `references/sequencer.md`                | keep     |
 | `share-media`              | 3.14.3           | `references/share-media.md`              | keep     |

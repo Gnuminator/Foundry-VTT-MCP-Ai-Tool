@@ -201,6 +201,9 @@ function within(
   return { range, text: html.slice(range.start, range.end) };
 }
 
+/** The four entities summaryHtml writes; decoded in one pass so a decoded `&amp;lt;` stays text. */
+const ENTITY_CHARS: Record<string, string> = { quot: '"', gt: '>', lt: '<', amp: '&' };
+
 /** The summary text of one language (plain, without the *new* marker); '' when empty. */
 export function readSummary(html: string, lang: CampaignLang): string {
   const { text } = within(html, lang);
@@ -209,10 +212,7 @@ export function readSummary(html: string, lang: CampaignLang): string {
   return m[1]
     .replace(/<em class="campaign-new">[^<]*<\/em>\s*/g, '')
     .replace(/<[^>]+>/g, '')
-    .replace(/&quot;/g, '"')
-    .replace(/&gt;/g, '>')
-    .replace(/&lt;/g, '<')
-    .replace(/&amp;/g, '&')
+    .replace(/&(quot|gt|lt|amp);/g, (_all, name: string) => ENTITY_CHARS[name] ?? _all)
     .trim();
 }
 

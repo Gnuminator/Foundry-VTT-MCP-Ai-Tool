@@ -6,8 +6,14 @@ function newestSource(dir: string): number {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     const p = path.join(dir, e.name);
     if (e.isDirectory()) {
-      if (e.name !== 'node_modules') newest = Math.max(newest, newestSource(p));
-    } else if (e.name.endsWith('.ts') && !e.name.endsWith('.test.ts')) {
+      // test-support is excluded from the build (tsconfig), so it never makes dist stale.
+      if (e.name !== 'node_modules' && e.name !== 'test-support')
+        newest = Math.max(newest, newestSource(p));
+    } else if (
+      e.name.endsWith('.ts') &&
+      !e.name.endsWith('.test.ts') &&
+      !e.name.endsWith('.d.ts')
+    ) {
       newest = Math.max(newest, fs.statSync(p).mtimeMs);
     }
   }

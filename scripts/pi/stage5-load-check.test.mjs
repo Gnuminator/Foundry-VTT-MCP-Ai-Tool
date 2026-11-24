@@ -168,7 +168,7 @@ describe('check_build_loads on fake builds', () => {
 
 describe('check_build_loads on this repository', () => {
   // Every module the check names must be built (a lane or gate worktree may lack, for example,
-  // discord-bot/dist). CI always builds, so there a missing file is a failure, not a skip.
+  // discord-bot/dist). CI's pi step runs before the build, so it skips there too.
   const needed = [
     'packages/mcp-server/dist/config.js',
     'packages/cogm-dashboard/dist/app.js',
@@ -176,10 +176,7 @@ describe('check_build_loads on this repository', () => {
     'packages/discord-bot/dist/rec/voice.js',
   ];
   const missing = needed.filter(f => !existsSync(join(repo, f)));
-  const skip =
-    missing.length > 0 &&
-    !process.env.GITHUB_ACTIONS &&
-    `not built here (run "npm run build"): ${missing.join(', ')}`;
+  const skip = missing.length > 0 && `not built here (run "npm run build"): ${missing.join(', ')}`;
   test('the real build loads and starts nothing', { skip }, () => {
     const r = check(repo);
     assert.equal(r.status, 0, r.out);

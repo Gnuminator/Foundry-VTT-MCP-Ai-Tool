@@ -1,3 +1,0 @@
-### Orange Pi
-
-- **Actor Studio no longer lists Aasimar, Goliath and Orc twice:** the players' species pack held the 2024 Player's Handbook species and the old 2014 "(MotM)" copy of each, and Actor Studio's edition filter missed the pair because the names differ. The seven-book baseline (stage 22 MODE=baseline) now skips those three 2014 copies and removes any copy already in the players' pack; the source entries stay in the hidden module pack and characters that already have one keep it. Changeling and Shifter have no 2024 twin and stay. To undo, empty `SUPERSEDED_SPECIES` in `seven-books-baseline.js` and run the baseline again (Backlog studio-species-dupes-g0).

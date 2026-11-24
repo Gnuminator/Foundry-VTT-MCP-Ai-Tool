@@ -134,7 +134,7 @@ export function ToolPermissionsPane({
                         <PolicySelect
                           label={t.tool}
                           value={t.own}
-                          inherit={`Like ${s.set}: ${LABEL[t.effective]}`}
+                          inherit={`Like ${s.set}: ${LABEL[s.policy ?? 'allow']}`}
                           onChange={p => setPolicy('tool', t.tool, p)}
                         />
                       </li>

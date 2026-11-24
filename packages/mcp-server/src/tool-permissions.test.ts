@@ -48,6 +48,20 @@ describe('ToolPermissions', () => {
     expect(p.check(coreTool).ok).toBe(false);
   });
 
+  it('a set-wide change drops cards and grants of tools no longer on ask', async () => {
+    const p = new ToolPermissions(dir());
+    await p.set('set', 'play', 'ask');
+    expect(p.check(playTool).ok).toBe(false);
+    expect(p.snapshot([playTool]).pending).toHaveLength(1);
+    await p.set('set', 'play', 'allow');
+    expect(p.snapshot([playTool]).pending).toEqual([]);
+    await p.set('set', 'play', 'ask');
+    p.approve(playTool);
+    await p.set('set', 'play', 'deny');
+    await p.set('set', 'play', 'ask');
+    expect(p.check(playTool).ok).toBe(false);
+  });
+
   it('saves to the data dir and a new instance reads it back', async () => {
     const d = dir();
     const p = new ToolPermissions(d);

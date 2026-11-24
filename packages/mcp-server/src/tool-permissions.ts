@@ -146,10 +146,7 @@ export class ToolPermissions {
     const bucket = kind === 'tool' ? this.data.tools : this.data.sets;
     if (policy === null) delete bucket[name];
     else bucket[name] = policy;
-    if (policy !== 'ask') {
-      this.pending.delete(name);
-      this.grants.delete(name);
-    }
+    this.prune(this.now());
     await this.save();
   }
 
@@ -172,8 +169,11 @@ export class ToolPermissions {
   }
 
   private prune(now: number): void {
-    for (const [tool, p] of this.pending) if (now - p.at > PENDING_MS) this.pending.delete(tool);
-    for (const [tool, until] of this.grants) if (until <= now) this.grants.delete(tool);
+    // A card or grant only means something while the tool is on Ask (a set-wide change can end that).
+    for (const [tool, p] of this.pending)
+      if (now - p.at > PENDING_MS || this.policyFor(tool) !== 'ask') this.pending.delete(tool);
+    for (const [tool, until] of this.grants)
+      if (until <= now || this.policyFor(tool) !== 'ask') this.grants.delete(tool);
   }
 
   private save(): Promise<void> {

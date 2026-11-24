@@ -37,6 +37,7 @@ test('the menu lists the panels and tools in their set order', async ({ page }) 
     '▦ Try the During layouts',
     '🛠 Tool Runner',
     '🩺 Module diagnostics',
+    '🔒 Tool permissions',
     '🔗 Player links',
     // The Versions panel itself shows only once this switch is on (I-127, off by default).
     'Version tracker: off',

@@ -22,6 +22,7 @@ The folder lives in the session's ``notes`` folder on the PC (never in the repo)
 from __future__ import annotations
 
 import json
+import os
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -466,6 +467,17 @@ def build(session: Path, runner: Any = None, model: str = "sonnet") -> dict[str,
         if table:
             items.append(_item(session.name, "table", lang, "table", table.splitlines()[0].lstrip("# ").strip(),
                                table, {"type": "group"}, ["discord-group", "foundry-page", "obsidian"]))
+    seen_ids: set[str] = set()
+    seen_to: set[tuple[str, str]] = set()
+    for item in items:
+        if item["id"] in seen_ids:
+            raise ValueError(f"two notes share the id {item['id']}; rename one character")
+        seen_ids.add(item["id"])
+        did = item["to"].get("discordId")
+        if item["kind"] == "pc-note" and did:
+            if (item["lang"], did) in seen_to:
+                raise ValueError(f"two players resolve to Discord id {did}; their notes would go to one person")
+            seen_to.add((item["lang"], did))
     for item in items:
         item["linkNames"] = link_list
         refresh(item)
@@ -498,7 +510,9 @@ def load(session: Path) -> dict[str, Any] | None:
 def write(session: Path, data: dict[str, Any]) -> Path:
     path = outbox_path(session)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    tmp = path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    os.replace(tmp, path)
     return path
 
 

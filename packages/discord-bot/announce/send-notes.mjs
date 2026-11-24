@@ -9,7 +9,7 @@
  * - Only items with `status: "approved"` go out. A draft is never sent, whatever else is set.
  * - Each Discord channel of an item goes out once: `sent.discordDm` / `sent.discordGroup` is
  *   written to the file after each message part, so a rerun carries on where it stopped and never
- *   repeats a part that was delivered.
+ *   repeats a part whose delivery was saved (a part whose answer was lost may repeat).
  * - `--dry-run` sends nothing and writes nothing; it prints per recipient what would go out.
  * - No message mentions anyone (allowed_mentions parse is empty).
  * - The group channel is DISCORD_SESSION_NOTES_CHANNEL_ID, else DISCORD_SESSION_POST_CHANNEL_ID
@@ -106,6 +106,11 @@ export async function runCli(argv, o = {}) {
     return 2;
   }
   const outbox = JSON.parse(readFileSync(file, 'utf8'));
+  const ids = outbox.items.map(i => i.id);
+  if (new Set(ids).size !== ids.length) {
+    log('send-notes: the outbox has two notes with the same id; nothing sent');
+    return 1;
+  }
   const settings = loadSettings(env, o.envFile);
   const group = groupChannel(env, o.envFile);
   const todo = plan(outbox, { group, ...(only ? { only } : {}) });
@@ -172,7 +177,8 @@ if (isEntry(process.argv[1], fileURLToPath(import.meta.url))) {
     code => {
       process.exitCode = code;
     },
-    () => {
+    e => {
+      console.log(`send-notes: stopped: ${e instanceof Error ? e.message : String(e)} (a part may have been delivered but not saved; check sent.* in the outbox before a rerun)`);
       process.exitCode = 1;
     }
   );

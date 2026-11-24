@@ -120,6 +120,17 @@ describe('send-notes', () => {
     rmSync(dir, { recursive: true });
   });
 
+  it('refuses an outbox with two notes sharing an id', async () => {
+    const { dir, file } = setup();
+    const box = JSON.parse(readFileSync(file, 'utf8'));
+    box.items[1].id = box.items[0].id;
+    writeFileSync(file, JSON.stringify(box));
+    const run = fakeFetch();
+    expect(await runCli([file], { env, fetchImpl: run.f, log: () => {} })).toBe(1);
+    expect(run.f).not.toHaveBeenCalled();
+    rmSync(dir, { recursive: true });
+  });
+
   it('an edit after a partial send is not mixed with the parts already delivered', async () => {
     const { dir, file } = setup();
     const first = fakeFetch(3);

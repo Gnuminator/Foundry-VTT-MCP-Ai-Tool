@@ -219,3 +219,11 @@ def test_rebuild_keeps_the_sent_record_even_when_the_source_changed(tmp_path: Pa
     outbox.write(session, data)
     rebuilt = outbox.build(session)
     assert outbox.find(rebuilt, "pc-ebbe-en")["sent"]["discordDm"]["done"] is True
+
+
+def test_two_players_with_one_discord_id_cannot_be_built(tmp_path: Path) -> None:
+    session = make_session(tmp_path)
+    chars = session / "notes" / "characters.en.md"
+    chars.write_text(chars.read_text(encoding="utf-8").replace("played by David", "played by Christian"), encoding="utf-8")
+    with pytest.raises(ValueError):
+        outbox.build(session)

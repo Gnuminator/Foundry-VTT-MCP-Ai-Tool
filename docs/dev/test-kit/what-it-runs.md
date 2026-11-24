@@ -175,10 +175,12 @@ before each gate and the G1 list, run after every refresh of the campaign copy o
    Close every other browser joined to the server first: a second GM tab holds a second bridge link and the
    "open a page" check goes to it.
 
-Last run: 2026-11-23 on server C at `8d9f31959`, 4 of 4 green. What the live world looks like to the scenarios:
+Last run: 2026-11-23 on server C at `8d9f31959`, 4 of 4 green (before the pin repoint below; on 2026-11-24 `strahd-barovia`
+alone ran green on a fresh copy). What the live world looks like to the scenarios:
 the castle floors are not in the world yet (their checks say so and skip until the castle import); the book pin
-counts are a minimum because the world carries GM prep pins; 14 pins name five journals that no longer exist (a
-known finding listed in the scenario, any other count fails); handout reveals are an ordinary write with Undo since
+counts are a minimum because the world carries GM prep pins, and a pin may name one of five GM prep journals
+(Campaign Structure, The Thistlebottom Brothers, Death House, Bromdur Stonehide, Side Quests & Treasure); the 14 pins
+to journals that no longer existed were repointed on 2026-11-24, so the scenario allows no dangling pin; handout reveals are an ordinary write with Undo since
 2026-10-30. The Tarokka scenario also checks the flip ceremony: the overlay turns the card on the GM screen, shows
 that card and no other name, Escape closes it, and an undo plays nothing.
 

@@ -1,3 +1,4 @@
+import type { ListScenesRequest, SwitchSceneRequest } from '@gnuminator/shared';
 import { errorMessage } from '@gnuminator/shared/browser';
 import { ERROR_MESSAGES } from '../constants.js';
 import * as shared from './shared.js';
@@ -234,9 +235,7 @@ export class ScenesTokensDataAccess {
    * filter, so `{ include_active_only: true, filter }` returns the active
    * scenes whose name also matches.
    */
-  async listScenes(
-    options: { filter?: string; include_active_only?: boolean } = {}
-  ): Promise<SceneSummary[]> {
+  async listScenes(options: ListScenesRequest = {}): Promise<SceneSummary[]> {
     shared.validateFoundryState();
 
     try {
@@ -285,7 +284,7 @@ export class ScenesTokensDataAccess {
    * not explicitly `false` and a canvas is available, pan/zoom the canvas to fit
    * the newly active scene.
    */
-  async switchScene(options: { scene_identifier: string; optimize_view?: boolean }): Promise<{
+  async switchScene(options: SwitchSceneRequest): Promise<{
     success: true;
     sceneId: string;
     sceneName: string;
@@ -430,7 +429,7 @@ export class ScenesTokensDataAccess {
    * in both pixels and grid coordinates, with category (pc / enemy / npc), HP,
    * and active conditions, the tactical snapshot the co-GM map view consumes.
    */
-  async getTokenPositions(data: { sceneId?: string }): Promise<TokenPositions> {
+  async getTokenPositions(data: { sceneId?: string | undefined }): Promise<TokenPositions> {
     shared.validateFoundryState();
 
     const scene = data.sceneId ? game.scenes?.get(data.sceneId) : viewedScene(game.scenes);

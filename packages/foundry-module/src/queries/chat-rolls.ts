@@ -2,9 +2,10 @@
  * Bridge handlers about chat and rolls: the chat log, combat play-by-play, in-character chat
  * and the roll requests and NPC rolls (all of them new chat messages players see).
  */
+import type { BridgeAnswer, BridgeMethod, BridgeRequest } from '@gnuminator/shared';
 import type { BridgeHandlerTable } from '../bridge-handlers.js';
 import { MODULE_ID } from '../constants.js';
-import { withCtx, type QueryContext } from './context.js';
+import type { QueryContext } from './context.js';
 
 /**
  * Registration table: wire method name (after `${MODULE_ID}.`) and its kind. The kind decides
@@ -13,34 +14,32 @@ import { withCtx, type QueryContext } from './context.js';
  */
 export function registerChatRollHandlers(ctx: QueryContext, table: BridgeHandlerTable): void {
   // Chat log / combat play-by-play / in-character chat
-  table.set(`${MODULE_ID}.getChatLog`, 'read', withCtx(ctx, getChatLog));
-  table.set(`${MODULE_ID}.getCombatPlayByPlay`, 'read', () => getCombatPlayByPlay(ctx));
-  table.set(`${MODULE_ID}.sendChatMessage`, 'recordless-write', withCtx(ctx, sendChatMessage));
+  table.on(`${MODULE_ID}.getChatLog`, 'read', data => getChatLog(ctx, data));
+  table.on(`${MODULE_ID}.getCombatPlayByPlay`, 'read', () => getCombatPlayByPlay(ctx));
+  table.on(`${MODULE_ID}.sendChatMessage`, 'recordless-write', data => sendChatMessage(ctx, data));
 
   // Roll requests (interactive roll buttons in chat) and NPC rolls
-  table.set(
-    `${MODULE_ID}.request-player-rolls`,
-    'recordless-write',
-    withCtx(ctx, requestPlayerRolls)
+  table.on(`${MODULE_ID}.request-player-rolls`, 'recordless-write', data =>
+    requestPlayerRolls(ctx, data)
   );
-  table.set(`${MODULE_ID}.rollNpcCheck`, 'recordless-write', withCtx(ctx, rollNpcCheck));
+  table.on(`${MODULE_ID}.rollNpcCheck`, 'recordless-write', data => rollNpcCheck(ctx, data));
 }
+
+type Answer<M extends BridgeMethod> = Promise<BridgeAnswer<M>>;
+type Req<M extends BridgeMethod> = BridgeRequest<M>;
 
 async function getChatLog(
   ctx: QueryContext,
-  data: {
-    limit?: number;
-    speakerName?: string;
-    messageType?: string;
-    sinceTimestamp?: string;
-  }
-): Promise<unknown> {
+  data: Req<`${typeof MODULE_ID}.getChatLog`>
+): Answer<`${typeof MODULE_ID}.getChatLog`> {
   return ctx.withGmGate('Failed to get chat log', async () => {
     return await ctx.dataAccess.getChatLog(data || {});
   });
 }
 
-async function getCombatPlayByPlay(ctx: QueryContext): Promise<unknown> {
+async function getCombatPlayByPlay(
+  ctx: QueryContext
+): Answer<`${typeof MODULE_ID}.getCombatPlayByPlay`> {
   return ctx.withGmGate('Failed to get combat play-by-play', async () => {
     return await ctx.dataAccess.getCombatPlayByPlay();
   });
@@ -48,14 +47,8 @@ async function getCombatPlayByPlay(ctx: QueryContext): Promise<unknown> {
 
 async function sendChatMessage(
   ctx: QueryContext,
-  data: {
-    message: string;
-    speakerActorId?: string;
-    speakerActorName?: string;
-    messageType?: string;
-    whisperTargets?: string[];
-  }
-): Promise<unknown> {
+  data: Req<`${typeof MODULE_ID}.sendChatMessage`>
+): Answer<`${typeof MODULE_ID}.sendChatMessage`> {
   return ctx.withGmGate('Failed to send chat message', async () => {
     if (!data?.message) {
       throw new Error('message is required');
@@ -69,17 +62,8 @@ async function sendChatMessage(
  */
 async function requestPlayerRolls(
   ctx: QueryContext,
-  data: {
-    rollType: string;
-    rollTarget: string;
-    targetPlayer: string;
-    isPublic: boolean;
-    rollModifier: string;
-    flavor: string;
-    dc?: number;
-    advantage?: 'advantage' | 'disadvantage';
-  }
-): Promise<unknown> {
+  data: Req<`${typeof MODULE_ID}.request-player-rolls`>
+): Answer<`${typeof MODULE_ID}.request-player-rolls`> {
   return ctx.withGmGate('Failed to request player rolls', async () => {
     if (!data.rollType || !data.rollTarget || !data.targetPlayer) {
       throw new Error('rollType, rollTarget, and targetPlayer are required');
@@ -91,14 +75,8 @@ async function requestPlayerRolls(
 
 async function rollNpcCheck(
   ctx: QueryContext,
-  data: {
-    actorName: string;
-    rollType: string;
-    rollTarget: string;
-    isPublic: boolean;
-    advantage?: 'advantage' | 'disadvantage';
-  }
-): Promise<unknown> {
+  data: Req<`${typeof MODULE_ID}.rollNpcCheck`>
+): Answer<`${typeof MODULE_ID}.rollNpcCheck`> {
   return ctx.withGmGate('Failed to roll NPC check', async () => {
     if (!data?.actorName) throw new Error('actorName is required');
     if (!data?.rollType) throw new Error('rollType is required');

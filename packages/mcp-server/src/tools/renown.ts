@@ -132,8 +132,7 @@ export class RenownTools {
 
   private async readState(): Promise<RenownState> {
     const response: unknown = await this.options.foundryClient.query(
-      `foundry-mcp-bridge.${RENOWN_STATE_QUERY}`,
-      {}
+      `foundry-mcp-bridge.${RENOWN_STATE_QUERY}`
     );
     return unwrap<RenownState>(response, 'Could not read renown');
   }

@@ -1,3 +1,4 @@
+import type { GetChatLogRequest, SendChatMessageRequest } from '@gnuminator/shared';
 import * as shared from './shared.js';
 import { eventTracker, type ChatLogEntry } from '../session-events.js';
 
@@ -155,12 +156,9 @@ export class ChatDataAccess {
    * EventTracker distinguish "caller did not mention limit" from "caller passed
    * limit: undefined".
    */
-  async getChatLog(data: {
-    limit?: number;
-    speakerName?: string;
-    messageType?: string;
-    sinceTimestamp?: string;
-  }): Promise<{ success: true; count: number; messages: ChatLogEntry[] }> {
+  async getChatLog(
+    data: GetChatLogRequest
+  ): Promise<{ success: true; count: number; messages: ChatLogEntry[] }> {
     shared.validateFoundryState();
 
     // Build the filters object by hand, omitting any key that is undefined.
@@ -194,13 +192,7 @@ export class ChatDataAccess {
    * `/w` command does), not a `messageMode`/`rollMode`, so it stays whispered. An unknown mode
    * name would fall back to the user's default (public) mode, which is why none is passed.
    */
-  async sendChatMessage(data: {
-    message: string;
-    speakerActorId?: string;
-    speakerActorName?: string;
-    messageType?: string;
-    whisperTargets?: string[];
-  }): Promise<SendChatMessageResult> {
+  async sendChatMessage(data: SendChatMessageRequest): Promise<SendChatMessageResult> {
     shared.validateFoundryState();
 
     // Validate early, empty string is also invalid.

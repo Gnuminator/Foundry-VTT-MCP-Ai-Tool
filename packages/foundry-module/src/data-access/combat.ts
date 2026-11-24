@@ -1,3 +1,10 @@
+import type {
+  AdvanceCombatTurnRequest,
+  CombatantSnapshot,
+  ManageRestRequest,
+  RollInitiativeForNpcsRequest,
+  RollSavingThrowsRequest,
+} from '@gnuminator/shared';
 import * as shared from './shared.js';
 import { changeJournal } from '../change-journal.js';
 import { resolveCombat } from '../combat-resolve.js';
@@ -6,9 +13,9 @@ import { eventTracker } from '../session-events.js';
 /** The roll-shape fields `rollSavingThrows` forwards to the dnd5e roll dispatch. */
 interface SaveRollRequest {
   rollType: 'save' | 'check' | 'skill';
-  ability?: string;
-  skill?: string;
-  dc?: number;
+  ability?: string | undefined;
+  skill?: string | undefined;
+  dc?: number | undefined;
 }
 
 /**
@@ -78,36 +85,6 @@ interface Dnd5eV3Roller {
 interface Dnd5eRester {
   shortRest(config: object): Promise<unknown>;
   longRest(config: object): Promise<unknown>;
-}
-
-/** One combatant of the tracker snapshot (`getCombatState`). */
-export interface CombatantSnapshot {
-  id: string;
-  name: string;
-  initiative: number | null;
-  isCurrentTurn: boolean;
-  actedThisRound: boolean;
-  tokenId: string | null;
-  actorId: string | null;
-  sceneId: string | null;
-  /** The token's uuid (`Scene.x.Token.y`): what the dashboard's ribbon pans to. */
-  tokenUuid: string | null;
-  /**
-   * The combatant's image as the tracker shows it (an override, else the token texture, never a
-   * video), a Foundry path without an origin: the dashboard server adds Foundry's address.
-   */
-  img: string | null;
-  hp: { value: number | null; max: number | null; temp: number } | null;
-  conditions: string[];
-  /** Rounds left on the timed conditions, by condition name (0 = the time is up). */
-  timed: Record<string, number>;
-  statuses: string[];
-  isPC: boolean;
-  category: 'pc' | 'enemy' | 'npc';
-  defeated: boolean;
-  deathSaves: { successes: number; failures: number } | null;
-  hidden: boolean;
-  boss: BossResources | null;
 }
 
 /** `getCombatState`: either "no encounter" or the full snapshot. */
@@ -317,9 +294,9 @@ export class CombatDataAccess {
    * (matched by combatant name or actor id); otherwise step to the next turn and
    * let Foundry handle round rollover.
    */
-  async advanceCombatTurn(data: {
-    skipTo?: string;
-  }): Promise<{ success: true; round: number; turn: number; current: string | null }> {
+  async advanceCombatTurn(
+    data: AdvanceCombatTurnRequest
+  ): Promise<{ success: true; round: number; turn: number; current: string | null }> {
     shared.validateFoundryState();
     const combat = this.requireActiveCombat();
 
@@ -379,10 +356,7 @@ export class CombatDataAccess {
    *  - 'all': everyone (Combat#rollAll)
    *  - 'missing': only combatants without an initiative value
    */
-  async rollInitiativeForNpcs(data: {
-    scope?: 'npcs' | 'all' | 'missing';
-    combatantIds?: string[];
-  }): Promise<{
+  async rollInitiativeForNpcs(data: RollInitiativeForNpcsRequest): Promise<{
     success: true;
     scope: string;
     round: number;
@@ -441,14 +415,7 @@ export class CombatDataAccess {
    * Handles dnd5e v3 (positional id + flat options, single roll, no isSuccess)
    * and v4/v5 (three config objects, array return, roll.isSuccess).
    */
-  async rollSavingThrows(data: {
-    targets: string[];
-    rollType: 'save' | 'check' | 'skill';
-    ability?: string;
-    skill?: string;
-    dc?: number;
-    isPublic?: boolean;
-  }): Promise<{
+  async rollSavingThrows(data: RollSavingThrowsRequest): Promise<{
     success: true;
     rollType: 'save' | 'check' | 'skill';
     dc: number | null;
@@ -495,11 +462,7 @@ export class CombatDataAccess {
    * Run a short or long rest for one or more characters (HP, hit dice, spell
    * slots, limited-use features) without opening dialogs.
    */
-  async manageRest(data: {
-    targets: string[];
-    restType: 'short' | 'long';
-    newDay?: boolean;
-  }): Promise<{
+  async manageRest(data: ManageRestRequest): Promise<{
     success: true;
     restType: 'short' | 'long';
     results: (

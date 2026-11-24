@@ -147,7 +147,7 @@ newest restic copy on this PC, and timed it. It runs in an ARM64 Debian 13 conta
 never contacts the Pi:
 
 ```powershell
-.\scripts\pi\rebuild-drill.ps1          # about 10 minutes, mostly stage 5's build
+.\scripts\pi\rebuild-drill.ps1          # about 13 minutes, mostly stage 5's build
 ```
 
 The script reads the newest snapshot from `E:\PiBackup\restic` into `E:\Restore\<date>-drill` (so it
@@ -164,6 +164,27 @@ is written to `E:\PiBackup`. Every name starts with `pi-drill-`; it never touche
 Docker's first image pull. A real Pi has no emulation but a slower disk and CPU; the download and
 build in stage 5 dominate either way. Add the work no script does: flashing the card (Part A),
 Tailscale's login (stage 4), the licence zip and the SSH steps below, each with your OK.
+
+**Measured again on 2026-11-24** (same setup, tool `v0.32.0`, snapshot of 2026-11-24 04:30 with
+3.865 GiB, all checks passed): PC restic restore 103 s, stage 1 92 s, stage 2 15 s, stage 3 14 s,
+restore in the container 111 s, stage 5 314 s, stage 6 4 s, stage 7 21 s, stage 8 29 s, the later
+stages below 1 to 5 s each (16 to 35 s in all), start and check 38 s; 790 s in all. The snapshot is 27
+times bigger than in October, yet the restore still takes under two minutes.
+
+**Later stages the drill runs** (after stage 8, in the container): 16 (board status), 20 (vault
+sync), 21 (player vault), 27 (bot status), 29 (game-night watch), 30 (player connector), 31 (GM
+vault peers), 32 (crash guard), 33 (Obsidian plugin) and 35 (who uses what). Syncthing is started
+first (20, 21 and 31 need it), and the helper files that 29 and 35 expect in `/root` are copied in.
+With no systemd the stages write their files and units and start nothing.
+
+**Stages a real rebuild needs that the drill cannot run:** 4 (Tailscale login) and 9 (a second SSH
+connection) need a person; 12, 17 and 26 need tokens (Cloudflare, GitHub runner, Discord server);
+15 (SSH keys only) and 18 (time sync) need sshd and systemd; 23 and 24 (Docker, compose) need a
+Docker daemon inside the container; 22, 28, 34, 36 and 37 need a running world with the Assistant
+GM browser (Chromium crashes under emulation) or the Pi's GM scripts; 25 needs the module archive
+on the Pi; 11, 13 and 14 install or trial worlds and systems that the restore already brings. 10
+(space check) and the helper scripts (`switch-world`, `kit-session` and the like) are run by hand
+when needed.
 
 **What it proves** (`scripts/pi/drill/check.sh` runs the checks): stages 1 to 3 and 5 to 8 run in order on a fresh Debian 13 ARM64 system; the
 snapshot comes back with the worlds, the dnd5e system, the module, `/etc/foundry-ai-tool` and the

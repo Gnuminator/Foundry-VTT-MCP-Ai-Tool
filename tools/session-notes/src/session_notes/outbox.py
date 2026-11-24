@@ -593,7 +593,7 @@ def render_pc(lang: str, name: str, data: dict[str, Any], when: str, medium: str
         for head in ("threads", "known", "todos"):
             if rows[head]:
                 out += [f"#### {lab[head]}", *[f"- {r}" for r in rows[head]], ""]
-        out += [f"*{lab['foot']}*"]
+        # No draft footer: a personal note is approved before it goes out. The Table keeps its own.
         return "\n".join(out).strip()
 
     while len(plain(build_text())) > cap:

@@ -295,3 +295,10 @@ def test_diary_text_has_no_markdown_marks_and_gm_note_stays_out_of_the_player_fo
     assert all("gm-decisions" not in p.name for p in written)
     gm = outbox.write_obsidian(session, folder, gm_folder=tmp_path / "gm")
     assert any("gm-decisions" in p.name and p.parent.name == "gm" for p in gm)
+
+
+def test_player_notes_have_no_draft_footer_but_the_table_keeps_it(tmp_path: Path) -> None:
+    session = make_session(tmp_path)
+    data = outbox.build(session, runner=fake_runner([]))
+    assert "Danni decides" not in outbox.find(data, "pc-ebbe-en")["text"]
+    assert "Danni decides" in outbox.find(data, "table-en")["text"]

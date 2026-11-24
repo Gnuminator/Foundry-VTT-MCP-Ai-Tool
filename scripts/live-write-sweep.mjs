@@ -1,8 +1,8 @@
 /**
  * Live write sweep (I-016): runs the direct-write tools once against the local TEST world
- * and puts the world back. Talks ONLY to the local TEST dashboard (http://127.0.0.1:3100,
- * see scripts/test-env) and refuses every other port, in particular the live bridge ports
- * 31414-31416. Complements `npm run live:roundtrip` (one guarded write and its undo).
+ * and puts the world back. Talks ONLY to the local TEST dashboard (--server A|B|C, default A =
+ * 127.0.0.1:3100) and refuses every other port, in particular the live bridge ports 31414-31416.
+ * Complements `npm run live:roundtrip` (one guarded write and its undo).
  *
  *   node scripts/live-write-sweep.mjs            (or: npm run live:sweep)
  *   node scripts/live-write-sweep.mjs --help
@@ -1219,7 +1219,12 @@ async function newerPlanSteps() {
       action: 'music',
       playlist: fixture.name,
       mode: 'play',
-    });
+    }).catch(e =>
+      // Audio locked: the darkness half above passed and was undone; the product's refusal stands.
+      /not unlocked audio/.test(e?.message)
+        ? skip('darkness ok, music: audio locked')
+        : Promise.reject(e)
+    );
     let started = false;
     for (let i = 0; i < 10 && !started; i++) {
       started = await playing();
@@ -1287,8 +1292,8 @@ async function newerPlanSteps() {
     const id = 'dnd5e.allowSummoning';
     const valueOf = async () => {
       const r = await tool('plan-foundry-setup', { mode: 'read', area: 'setting', target: id });
-      const row = ((r && r.settings) || []).find(s => s.id === id);
-      assert(row && typeof row.value === 'boolean', `no boolean setting ${id}: ${brief(r)}`);
+      const row = ((r && r.settings) || []).find(s => s.id === id) ?? skip(`no ${id} (no dnd5e)`);
+      assert(typeof row.value === 'boolean', `${id} is not boolean: ${brief(r)}`);
       return row.value;
     };
     const before = await valueOf();

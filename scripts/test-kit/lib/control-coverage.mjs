@@ -14,6 +14,29 @@ const WRITE_FLOWS = 'scripts/test-kit/scenarios/dashboard-write-flows.scenario.m
 
 /** @type {Record<string, Coverage>} */
 export const CONTROL_COVERAGE = {
+  // The My character page (/me): checked by hand on the test server (item me-usage-tracking).
+  ...Object.fromEntries(
+    [
+      'view.at-table',
+      'view.paper-2024',
+      'view.paper-2014',
+      'view.night',
+      'character.switch',
+      'turn-card.toggle',
+      'print',
+      'diary.open',
+      'diary.save',
+      'diary.edit',
+      'diary.delete',
+      'downtime.save',
+      'downtime.edit',
+      'downtime.delete',
+      'connector.copy',
+      'connector.show',
+      'connector.download',
+      'connector.retry',
+    ].map(n => [`me.${n}`, /** @type {const} */ ('by hand')])
+  ),
   'dash.header.paper': 'by hand',
   'dash.strip.reload': 'by hand',
   'dash.crash.reload': 'by hand',
@@ -134,7 +157,10 @@ export const CONTROL_COVERAGE = {
   'dash.toast.undo': 'none',
   'dash.modal.cancel': 'none',
   'dash.modal.confirm': 'none',
-  'dash.modal.destructive-check': { file: `${E2E}live-strip-scheme.spec.ts`, mention: 'destructive-check' },
+  'dash.modal.destructive-check': {
+    file: `${E2E}live-strip-scheme.spec.ts`,
+    mention: 'destructive-check',
+  },
   'dash.undo.apply': 'none',
   'dash.shortcut.escape-modal': 'none',
   'dash.omens.approve': 'none',

@@ -80,9 +80,12 @@ export async function run(t) {
   });
 
   await t.step('guide', 'The guides: what is on, and when to turn the rest on', async () => {
-    // The Pre-flight drawer covers the header: close it first.
-    await page.keyboard.press('Escape');
-    await page.locator('#preflight-drawer').waitFor({ state: 'hidden' });
+    // An overlay Pre-flight drawer covers the header: close it first. A docked one (the
+    // default layout) stays on screen and does not cover anything.
+    if (!(await page.locator('#preflight-drawer.docked').count())) {
+      await page.keyboard.press('Escape');
+      await page.locator('#preflight-drawer').waitFor({ state: 'hidden' });
+    }
     await humanClick(page.locator('#btn-advanced'));
     await humanClick(page.locator('#btn-guides'));
     await page.locator('#pane-help').waitFor({ state: 'visible' });

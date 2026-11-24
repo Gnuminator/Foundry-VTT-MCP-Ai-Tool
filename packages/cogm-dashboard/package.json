@@ -1,6 +1,6 @@
 {
   "name": "@gnuminator/cogm-dashboard",
-  "version": "0.31.0",
+  "version": "0.32.0",
   "author": "Gnuminator <gnuminator@users.noreply.github.com>",
   "description": "Standalone live AI \"Co-GM\" dashboard that pulls the Foundry VTT MCP bridge feed and shows it in a browser.",
   "type": "module",
@@ -16,6 +16,7 @@
     "test:e2e": "playwright test -c web",
     "test:visual": "node scripts/visual-docker.mjs",
     "test:visual:ci": "playwright test -c web/playwright.visual.config.ts",
+    "docs:pictures": "playwright test -c web/playwright.guides.config.ts",
     "bundle:budget": "node scripts/bundle-budget.mjs",
     "storybook": "storybook dev -c web/.storybook -p 6006",
     "build-storybook": "storybook build -c web/.storybook -o storybook-static",

@@ -1162,6 +1162,9 @@ interface JournalBuilt {
 function textOptedIn(ctx: Context, c: Candidate): boolean {
   return (
     dig(c.doc, 'flags', MODULE_ID, 'sessionNotes') === true ||
+    // A campaign journal (flag `campaign`, put there by plan-campaign-merge, D-151): GM-only, and
+    // mirrored with its text so the vault gets the Campaign folders.
+    (dig(c.doc, 'flags', MODULE_ID, 'campaign') ?? null) !== null ||
     ctx.request.textJournalIds.has(c.id) ||
     inFolders(folderInfoFor(ctx, c.doc), ctx.request.textFolderIds)
   );

@@ -52,6 +52,7 @@ import {
   type HubMember,
   type LooseSectionType,
 } from './adventure-hubs.js';
+import { pageHtmlToMarkdown } from './campaign-mirror.js';
 import { htmlToMarkdown, markdownPageText } from './html-to-md.js';
 import {
   MIRROR_NOTE_TYPES,
@@ -59,6 +60,7 @@ import {
   MIRROR_STATUS_PATH,
   openUrl,
   propertyWikilink,
+  timingLines,
   relativeLinkTarget,
   type LinkContext,
   type LinkTarget,
@@ -79,7 +81,7 @@ type PropValue = string | number | boolean | null | readonly string[];
 type Props = Record<string, PropValue | undefined>;
 
 /** Banner on every mirror note: where it comes from and what an edit does (section 3.5). */
-export const MIRROR_BANNER =
+const MIRROR_BANNER =
   '> [!info] Mirrored from Foundry by the AI Tool\n' +
   '> The AI Tool rewrites this note when the document changes in Foundry. If you edit it here, ' +
   'the tool stops updating it and lists it in `AI Tool/Foundry/_status.md`. Write your own ' +
@@ -878,7 +880,7 @@ function renderJournalPage(
     const link = linkContext(ctx, page.uuid, pagePath, null, journal.actorLinks ?? []);
     const converted =
       text.format === 'html'
-        ? htmlToMarkdown(text.content, link)
+        ? pageHtmlToMarkdown(text.content, h => htmlToMarkdown(h, link))
         : markdownPageText(text.content, link);
     lines.push(
       converted.trim() === '' ? '(This page has no text.)' : converted.replace(/\s+$/, '')
@@ -1031,7 +1033,7 @@ export function sameMirrorContent(existingText: string, nextText: string): boole
 // ---------------------------------------------------------------------------
 
 /** Banner on an adventure hub: what it is and what an edit does. */
-export const ADVENTURE_HUB_BANNER =
+const ADVENTURE_HUB_BANNER =
   '> [!info] Adventure hub from the AI Tool\n' +
   "> Links every mirror note in this adventure's Foundry folders, so the graph shows the " +
   'adventure as one cluster. The AI Tool rewrites this note; if you edit it here, the tool ' +
@@ -1428,8 +1430,8 @@ function licensedStatusLines(status: MirrorStatus): string[] {
 
 /**
  * `AI Tool/Foundry/_status.md`: how many notes the mirror keeps, and what it left alone or could
- * not do. Only lasting facts (no times, no per-cycle counts of work), so it is not rewritten on
- * every cycle.
+ * not do. Only lasting facts (no per-cycle counts of work; the full check's duration changes only
+ * at a full check), so it is not rewritten on every cycle, only once per full check.
  */
 export function renderMirrorStatusNote(worldId: string, status: MirrorStatus): RenderedNote {
   assertWorldId(worldId);
@@ -1468,6 +1470,7 @@ export function renderMirrorStatusNote(worldId: string, status: MirrorStatus): R
       '| --- | --- |',
       ...MIRROR_NOTE_TYPES.map(type => `| ${TYPE_LABELS[type]} | ${count(status.counts[type])} |`),
       '',
+      ...timingLines(status),
       ...licensedStatusLines(status),
       '## Skipped (edited in Obsidian, or foreign)',
       '',

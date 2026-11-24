@@ -159,10 +159,9 @@ buttons to chat cards, etc.) lives in `data-access.ts`. Every handler routes thr
 `validateGMAccess()` check that **silently fails** for non-GM users, which is defense in depth on
 top of the `ready`-hook gate.
 
-One handler stands alone: `foundry-mcp-bridge.addActorsToScene` (`addActorsToScene` in
-`queries/scenes.ts`, `addActorsToScene` in `data-access/actor-creation.ts`) puts actors on the
-current scene directly, with no plan step. It is a write, so its kind in the registration table
-is `write`, like every other direct write.
+Every registered handler has a caller: `bridge-callers.contract.test.ts` reads the backend,
+dashboard and shared sources and fails on a handler nothing sends, or a full wire name with no
+handler.
 
 ---
 

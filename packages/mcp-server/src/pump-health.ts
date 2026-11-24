@@ -116,14 +116,14 @@ export function clockWithDay(ms: number, now: number = Date.now()): string {
 }
 
 /** `HH:MM` in the host's local time. */
-export function clock(ms: number): string {
+function clock(ms: number): string {
   const d = new Date(ms);
   const p = (n: number): string => String(n).padStart(2, '0');
   return `${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
 /** The plain words a gap carries in the log and in recaps. */
-export function gapDescription(pump: string, gap: PumpGap): string {
+function gapDescription(pump: string, gap: PumpGap): string {
   const lost = gap.lost === null ? '' : ` (${gap.lost} lost)`;
   const window = `about ${clock(gap.fromMs)} to ${clock(gap.toMs)}`;
   if (gap.reason === 'link-down') {

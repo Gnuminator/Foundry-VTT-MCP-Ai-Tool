@@ -44,16 +44,14 @@ export interface LibraryCategory {
 const PHYSICAL = new Set(['weapon', 'equipment', 'consumable', 'tool', 'loot', 'container']);
 
 /** The book folder of entries without a source book. */
-export const NO_BOOK_FOLDER = 'Other';
+const NO_BOOK_FOLDER = 'Other';
 
 /** The fields of a row (or document) that place its note. */
 export type LibraryPlacement = Pick<LibraryIndexRow, 'type' | 'subtype' | 'group'> &
   Partial<Pick<LibraryIndexRow, 'book' | 'bookTitle'>> & { uuid?: string };
 
 /** The book an entry comes from as its notes show it (the full title, else the code), or null. */
-export function libraryBook(
-  row: Partial<Pick<LibraryIndexRow, 'book' | 'bookTitle'>>
-): string | null {
+function libraryBook(row: Partial<Pick<LibraryIndexRow, 'book' | 'bookTitle'>>): string | null {
   const title = (row.bookTitle ?? row.book ?? '').replace(/\s+/g, ' ').trim();
   return title || null;
 }
@@ -269,7 +267,7 @@ export function bookBasePaths(titles: Iterable<string>): Map<string, string> {
 }
 
 /** The note type of a book's hub note. */
-export const LIBRARY_BOOK_TYPE = 'library-book';
+const LIBRARY_BOOK_TYPE = 'library-book';
 
 /** A book's hub note sits next to its base: `Library/Books/<title>.md`. */
 export function bookNotePath(basePath: string): string {
@@ -314,7 +312,7 @@ export function isBookNoteText(text: string): boolean {
 }
 
 /** The note type of the note that gathers the Library notes without a book (I-120 c). */
-export const LIBRARY_NO_BOOK_TYPE = 'library-no-book';
+const LIBRARY_NO_BOOK_TYPE = 'library-no-book';
 
 /** Where that note goes, next to the book hubs (a book with this title takes the path first). */
 export const NO_BOOK_NOTE_PATH = `${LIBRARY_BOOKS_FOLDER}/Without a book.md`;
@@ -466,7 +464,7 @@ function linksSection(
   return out;
 }
 
-export const LIBRARY_BANNER_LINES = (packLabel: string): string[] => [
+const LIBRARY_BANNER_LINES = (packLabel: string): string[] => [
   '> [!info] Library note from Foundry',
   `> From the compendium "${escapeText(packLabel, 120)}". The AI Tool rewrites this note when the entry changes in Foundry; if you edit it, the tool stops updating it. Licensed content: this folder is kept out of git.`,
 ];

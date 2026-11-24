@@ -85,7 +85,7 @@ beforeEach(() => {
 describe('get-party', () => {
   it('returns the module state from getPartyState', async () => {
     await expect(tools.handleGetParty({})).resolves.toEqual(state());
-    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getPartyState', {});
+    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getPartyState');
   });
 
   it('turns a module refusal into an error', async () => {

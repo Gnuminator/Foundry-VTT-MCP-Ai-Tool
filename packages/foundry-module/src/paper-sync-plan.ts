@@ -79,7 +79,7 @@ export const FIELDS: readonly string[] = [
  * The conditions of a paper sheet's "exact set": the 5e conditions. Other status effects
  * (concentration, dead, cover, bloodied) are not on a sheet and stay as they are.
  */
-export const SHEET_CONDITIONS: readonly string[] = [
+const SHEET_CONDITIONS: readonly string[] = [
   'blinded',
   'charmed',
   'deafened',

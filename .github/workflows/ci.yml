@@ -73,7 +73,7 @@ jobs:
       - name: Pi scripts
         run: node scripts/checks.mjs --run pi
 
-      - name: Tools (skills, extension, recorder)
+      - name: Tools (GM coach, prep ritual, tool tests)
         run: node scripts/checks.mjs --run tools
 
       - name: Keep the GM coach zip

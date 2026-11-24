@@ -621,6 +621,8 @@ test('risky categories: every category has patterns and the real paths match', (
   assert.deepEqual(category('packages/mcp-server/src/handouts/strip-secrets.ts'), ['security']);
   assert.deepEqual(category('packages/mcp-server/src/obsidian/licensed-guard.ts'), ['security']);
   assert.deepEqual(category('.claude/hooks/guard-remote-commands.mjs'), ['security']);
+  assert.deepEqual(category('plugin/foundry-lane-kit/hooks/guard-remote-commands.mjs'), ['security']);
+  assert.deepEqual(category('.claude-plugin/marketplace.json'), ['security']);
   assert.deepEqual(category('scripts/pi/remote/5-tool.sh'), ['Pi scripts']);
   assert.deepEqual(category('scripts/plan-b/start.ps1'), ['Pi scripts']);
   assert.deepEqual(category('deploy/Dockerfile'), ['Pi scripts']);
@@ -719,9 +721,11 @@ const NOT_CONTRACT = [
   'npc-turn',
   'ownership',
   'paper-sync',
+  'character-diary',
   'party',
   'pc-creation',
   'play-log',
+  'play-queries',
   'player-portrait',
   'player-view',
   'preflight',
@@ -733,6 +737,7 @@ const NOT_CONTRACT = [
   'scene-change',
   'scene-mood',
   'scene-restore',
+  'session-folder',
   'sessions-dir',
   'space-status',
   'switch-off',
@@ -792,6 +797,7 @@ test('feature switch ids are pinned: they form the module setting keys, so a ren
     .sort();
   assert.deepEqual(found, [
     'ACTOR_IMAGE_FEATURE_ID=actor-image',
+    'CHARACTER_DIARY_FEATURE_ID=character-diary',
     'FOUNDRY_SETUP_FEATURE_ID=foundry-setup',
     'LIVE_PLAY_FEATURE_ID=live-play',
     'MACRO_FORGE_FEATURE_ID=macro-forge',

@@ -80,7 +80,7 @@ export class MovementTools {
 
   async handleGetTargets(_args: unknown): Promise<MovementReply | undefined> {
     try {
-      const response = (await this.foundryClient.query('foundry-mcp-bridge.getTargets', {})) as
+      const response = (await this.foundryClient.query('foundry-mcp-bridge.getTargets')) as
         | MovementReply
         | undefined;
       if (response?.success === false) {

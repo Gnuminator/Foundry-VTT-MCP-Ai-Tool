@@ -22,13 +22,13 @@ export const UPLOAD_PLAYER_PORTRAIT_QUERY = 'uploadPlayerPortrait';
 const PLAYER_PORTRAIT_FEATURE_ID = 'player-portrait';
 
 /** Most placed tokens one picture change reaches, so a plan stays readable. */
-export const MAX_PLACED_TOKENS = 100;
+const MAX_PLACED_TOKENS = 100;
 
 /** The same cap as shared's PORTRAIT_MAX_BYTES. */
 export const PORTRAIT_MAX_BYTES = 5 * 1024 * 1024;
 
 /** The folder every player folder sits in, relative to the Foundry Data folder. */
-export const PLAYERS_FOLDER = 'assets/players';
+const PLAYERS_FOLDER = 'assets/players';
 
 const TYPES = { png: 'image/png', jpg: 'image/jpeg', webp: 'image/webp' } as const;
 type PortraitType = keyof typeof TYPES;
@@ -120,6 +120,8 @@ export interface PortraitEnv {
   featureEnabled(): boolean;
   /** Uuids (`Scene.<id>.Token.<id>`) of the tokens already placed on scenes for this actor. */
   placedTokens(actorId: string): string[];
+  /** All placed tokens of the actor, before the cap of `placedTokens`. */
+  placedTotal(actorId: string): number;
   now(): Date;
   random(): string;
 }
@@ -136,6 +138,17 @@ function liveEnv(): PortraitEnv {
     };
     foundry?: { applications?: { apps?: { FilePicker?: { implementation?: PortraitPicker } } } };
   };
+  const placedOf = (actorId: string): string[] => {
+    const out: string[] = [];
+    for (const scene of g.game?.scenes ?? []) {
+      for (const token of scene.tokens ?? []) {
+        if (token.actorId === actorId && scene.id && token.id) {
+          out.push(`Scene.${scene.id}.Token.${token.id}`);
+        }
+      }
+    }
+    return out;
+  };
   return {
     user: id => g.game?.users?.get?.(id),
     actor: id => g.game?.actors?.get?.(id),
@@ -145,17 +158,8 @@ function liveEnv(): PortraitEnv {
       return picker;
     },
     featureEnabled: () => isFeatureEnabled(PLAYER_PORTRAIT_FEATURE_ID),
-    placedTokens: (actorId): string[] => {
-      const out: string[] = [];
-      for (const scene of g.game?.scenes ?? []) {
-        for (const token of scene.tokens ?? []) {
-          if (token.actorId === actorId && scene.id && token.id) {
-            out.push(`Scene.${scene.id}.Token.${token.id}`);
-          }
-        }
-      }
-      return out.slice(0, MAX_PLACED_TOKENS);
-    },
+    placedTokens: (actorId): string[] => placedOf(actorId).slice(0, MAX_PLACED_TOKENS),
+    placedTotal: (actorId): number => placedOf(actorId).length,
     now: () => new Date(),
     random: () => Math.random().toString(36).slice(2, 10).padEnd(8, '0'),
   };
@@ -258,5 +262,6 @@ export async function uploadPlayerPortrait(
     actorName: String(actor.name ?? ''),
     userName: String(user.name ?? ''),
     placedTokens: env.placedTokens(actorId),
+    placedTotal: env.placedTotal(actorId),
   };
 }

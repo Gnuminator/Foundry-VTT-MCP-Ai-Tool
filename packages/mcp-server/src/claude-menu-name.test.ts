@@ -14,7 +14,7 @@ import { CLAUDE_CONNECTOR_MENU, toolSetInstructions } from './tool-sets.js';
 const root = join(__dirname, '..', '..', '..');
 const SKIP =
   /^(docs\/history\/|CHANGELOG\.md|changelog\.d\/|packages\/mcp-server\/src\/(claude-menu-name\.test|skill-guides\.generated)\.)/;
-const TEXT = /\.(md|txt|nsi|ts|json)$/;
+const TEXT = /\.(md|txt|nsi|ts|json|html|mjs)$/;
 const OLD_SPELLINGS: Array<[string, RegExp]> = [
   ['Search and tools', /search and tools/i],
   ['+ menu then Connectors', /\*\*\+\*\*[^.\n]{0,60}\*\*Connectors\*\*/],
@@ -27,16 +27,19 @@ describe('Claude Desktop connector menu name', () => {
   });
 
   it('no tracked doc, stub or installer text uses another spelling', () => {
-    const files = execFileSync('git', ['ls-files'], { cwd: root, encoding: 'utf8' })
-      .split('\n')
-      .filter(f => f && TEXT.test(f) && !SKIP.test(f));
+    // -z keeps unusual file names whole; a failing git throws, so the test cannot skip silently.
+    const listed = execFileSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8' });
+    const files = listed.split('\0').filter(f => f && TEXT.test(f) && !SKIP.test(f));
+    expect(files.length).toBeGreaterThan(100);
     const hits: string[] = [];
     for (const f of files) {
       let text: string;
       try {
         text = readFileSync(join(root, f), 'utf8');
-      } catch {
-        continue;
+      } catch (e) {
+        // a tracked file deleted in the working tree is not a hit; anything else is a real error
+        if ((e as NodeJS.ErrnoException).code === 'ENOENT') continue;
+        throw e;
       }
       for (const [label, re] of OLD_SPELLINGS) if (re.test(text)) hits.push(`${f}: ${label}`);
     }

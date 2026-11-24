@@ -29,16 +29,6 @@ export function at(value: unknown, ...path: string[]): unknown {
   return current;
 }
 
-/** `value` when it is a string, else undefined. */
-export function str(value: unknown): string | undefined {
-  return typeof value === 'string' ? value : undefined;
-}
-
-/** `value` when it is a finite number, else undefined. */
-export function num(value: unknown): number | undefined {
-  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
-}
-
 /** Text for a message: primitives as a template would print them, anything else through JSON. */
 export function text(value: unknown): string {
   if (typeof value === 'string') return value;

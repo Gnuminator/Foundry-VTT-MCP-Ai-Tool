@@ -69,16 +69,32 @@ jobs:
       # out without it. The failure is not silent, though: a red annotation and a line in the job
       # summary name the step that failed. It is added after the Starlight build, so the
       # wiki's own link check never sees it.
+      # The root lockfile is written by npm 11 (Node 24); npm 10 on Node 22 reads it as out of sync
+      # ("Missing: typescript from lock file") and the install fails, which left /storybook/ 404.
+      # So the Storybook steps run on Node 24, like the rest of the repo.
+      - name: Storybook, use Node 24
+        id: storybook-node
+        continue-on-error: true
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+
       - name: Storybook, install the dashboard's dependencies
         id: storybook-install
+        if: steps.storybook-node.outcome == 'success'
         continue-on-error: true
-        run: npm ci --ignore-scripts --no-audit --no-fund -w @gnuminator/cogm-dashboard
+        # The whole repo, not just the dashboard workspace: building shared needs the root's typescript7.
+        run: npm ci --ignore-scripts --no-audit --no-fund
 
+      # The stories import @gnuminator/shared/browser, which resolves to shared/dist: build it first
+      # (without it the Storybook build fails with "failed to resolve import").
       - name: Storybook, build
         id: storybook-build
         if: steps.storybook-install.outcome == 'success'
         continue-on-error: true
-        run: npm run build-storybook -w @gnuminator/cogm-dashboard
+        run: |
+          npm run build:shared
+          npm run build-storybook -w @gnuminator/cogm-dashboard
 
       # Only a build that succeeded is copied: a failed build can leave a partial storybook-static.
       - name: Storybook, add it to the site

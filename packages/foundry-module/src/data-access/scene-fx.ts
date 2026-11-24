@@ -1,3 +1,4 @@
+import type { PlayPlaylistRequest } from '@gnuminator/shared';
 import * as shared from './shared.js';
 
 /**
@@ -12,10 +13,7 @@ export class SceneFxDataAccess {
    * human-readable status string, or a "not found" message when the name
    * doesn't resolve.
    */
-  async playPlaylist(data: {
-    playlistName?: string;
-    action?: 'play' | 'stop';
-  }): Promise<{ success: true; playlist: string }> {
+  async playPlaylist(data: PlayPlaylistRequest): Promise<{ success: true; playlist: string }> {
     shared.validateFoundryState();
     const playlistName = data.playlistName;
     if (!playlistName) {

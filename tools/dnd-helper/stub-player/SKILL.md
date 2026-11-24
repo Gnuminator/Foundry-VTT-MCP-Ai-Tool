@@ -27,6 +27,6 @@ words.
 ## If the tool is missing or fails
 
 - No such tool: the player connector is not installed or switched on in this chat. Tell the
-  player to check Settings, Extensions (or Connectors).
+  player to check Settings, Plugins.
 - The server does not answer: say so. Do not recall rules or features from memory as if they came
   from the table's books; label anything else "from general knowledge, check the book".

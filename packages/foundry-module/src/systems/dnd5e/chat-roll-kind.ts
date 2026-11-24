@@ -173,23 +173,3 @@ export function dnd5eRestType(message: ChatMessage): 'short' | 'long' | undefine
   if (fromFlags === 'short' || fromFlags === 'long') return fromFlags;
   return undefined;
 }
-
-/** Target descriptors (`{ac, actor, name, token}`) a roll or usage message stored, when any. */
-export function dnd5eMessageTargets(
-  message: ChatMessage
-): Array<{ ac: number | null; actor: string | null; name: string | null }> {
-  const system = systemOf(message);
-  const raw = system?.targets;
-  if (!Array.isArray(raw)) return [];
-  // `Array.isArray` narrows to `any[]` (its lib.d.ts signature takes `arg: any`),
-  // so re-annotate as `unknown[]` before reading into it.
-  const targets: unknown[] = raw;
-  return targets.map(entry => {
-    const target = entry && typeof entry === 'object' ? (entry as Record<string, unknown>) : {};
-    return {
-      ac: typeof target.ac === 'number' ? target.ac : null,
-      actor: typeof target.actor === 'string' ? target.actor : null,
-      name: typeof target.name === 'string' ? target.name : null,
-    };
-  });
-}

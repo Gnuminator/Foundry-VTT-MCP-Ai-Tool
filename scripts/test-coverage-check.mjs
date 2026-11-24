@@ -38,8 +38,6 @@ export const RUNNERS = {
   // vitest with its default include (any *.test or *.spec file outside node_modules and dist)
   'packages/mcp-server/src/**': 'vitest default include in packages/mcp-server',
   'packages/foundry-module/src/**': 'vitest default include in packages/foundry-module',
-  'tools/livekit/recorder/test/**':
-    'vitest default include in tools/livekit/recorder (the Livekit recorder tests step)',
   // vitest with an explicit include list
   'shared/src/**/*.test.ts':
     'vitest include in shared/vitest.config.ts (the shared unit-test check in scripts/checks.mjs: npm test -w @gnuminator/shared)',

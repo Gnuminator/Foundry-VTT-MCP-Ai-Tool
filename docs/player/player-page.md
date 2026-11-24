@@ -15,6 +15,8 @@ The player page is live behind the email-code login. The GM sends you its addres
 
 ## Pick your name on the player page
 
+![The player page after you pick your name: your character and a roll request from the GM](../images/dashboard/player-page.png)
+
 - **Do:** the first time you open the player page, click your name at the top. It then says
   "Playing as ...". Clicked the wrong one? Click **Not you? Change** and pick again.
 - **Why:** handouts meant only for you show only after you pick your name. The pick also tells the

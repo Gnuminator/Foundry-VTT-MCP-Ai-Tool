@@ -11,7 +11,7 @@ import type { GuardedOpResult, GuardedRisk, PathValue, RulesVersion } from '@gnu
 import type { VaultStore } from './store.js';
 
 export const AUDIT_FILE = 'audit.json';
-export const AUDIT_SCHEMA = 1;
+const AUDIT_SCHEMA = 1;
 export const AUDIT_RING_SIZE = 500;
 /** Deleted-document snapshots above this size (JSON chars, per entry) go to backups/. */
 export const AUDIT_INLINE_DELETED_LIMIT = 16_384;

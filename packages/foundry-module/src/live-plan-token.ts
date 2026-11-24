@@ -423,9 +423,9 @@ export const SIZE_FEET: Record<string, number> = {
 };
 
 /** The smallest token edge, in grid squares. 0.25 of a 100 px square is 25 px: still clickable. */
-export const FIT_FLOOR_SQUARES = 0.25;
+const FIT_FLOOR_SQUARES = 0.25;
 /** ... and in pixels, so a 50 px grid does not get 12 px tokens. */
-export const FIT_FLOOR_PIXELS = 24;
+const FIT_FLOOR_PIXELS = 24;
 
 /** The scene's grid units are feet (or unset, which Foundry reads as feet). */
 export function isFeetUnit(units: string): boolean {

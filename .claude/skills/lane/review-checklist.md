@@ -35,3 +35,4 @@ Use before calling work done and in reviews. Incident notes: vault `Dev/Foundry 
 15. Stage scripts: a bare `rm -rf "$var"` fails the guard test; use `${var:?}`. Run
     `node --test .claude/hooks/guard-remote-commands.test.mjs` before pushing one.
 16. Severity: A missing or bypassed guard, a wrong condition, or two sides of a contract that disagree about what is written, refused, shown or undone is at least Medium, however small the diff. Low stays for wording, style, text-only mismatches and hardening.
+17. Lows: file one only if a user would notice it or it can give a wrong result, and name its file in the line.

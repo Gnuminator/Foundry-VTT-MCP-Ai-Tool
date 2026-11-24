@@ -43,6 +43,35 @@ describe('buildSpotlight', () => {
     ]);
   });
 
+  it('matches on actor id, so a first-word match never folds another character in', () => {
+    const rows = buildSpotlight(
+      {
+        players: [
+          { name: 'Ebbe', actions: 4, actorId: 'a2' },
+          { name: 'Ebbe', actions: 3, actorId: 'a1' },
+        ],
+      },
+      [
+        { name: 'Ebbe Stonefist', actorId: 'a1' },
+        { name: 'Ebbe Twin', actorId: 'a2' },
+      ],
+      []
+    );
+    expect(rows.map(r => [r.name, r.actions])).toEqual([
+      ['Ebbe Twin', 4],
+      ['Ebbe Stonefist', 3],
+    ]);
+  });
+
+  it('folds a transformed actor with a new id into its character by name', () => {
+    const rows = buildSpotlight(
+      { players: [{ name: 'Ebbe Stonefist (Brown Bear)', actions: 2, actorId: 'zz' }] },
+      [{ name: 'Ebbe Stonefist', actorId: 'a1' }],
+      []
+    );
+    expect(rows.map(r => [r.name, r.actions])).toEqual([['Ebbe Stonefist', 2]]);
+  });
+
   it('matches speakers by name or first word and leaves the GM out', () => {
     const rows = buildSpotlight(
       { players: [{ name: 'Ebbe Stonefist', actions: 2 }] },

@@ -4,7 +4,7 @@
  */
 
 /** Names, labels, folder path segments (mirror of `EXPORT_INDEX_LIMITS.nameChars`). */
-export const NAME_CHARS = 200;
+const NAME_CHARS = 200;
 
 export type Rec = Record<string, unknown>;
 

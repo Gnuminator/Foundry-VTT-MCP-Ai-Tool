@@ -25,7 +25,10 @@ import { stubToolRouterDeps } from './test-support/stub-tool-deps.js';
 import { renderToolReference } from './tool-reference.js';
 import { collectToolDefinitions } from './tool-router.js';
 
-const REFERENCE_DIR = fileURLToPath(new URL('../../../docs/reference/', import.meta.url));
+// TOOL_REFERENCE_DIR lets scripts/docs-tools.test.mjs run against a copy of the pages.
+const REFERENCE_DIR =
+  process.env.TOOL_REFERENCE_DIR ??
+  fileURLToPath(new URL('../../../docs/reference/', import.meta.url));
 const EM_DASH = String.fromCharCode(0x2014);
 const UPDATE = process.env.UPDATE_TOOL_REFERENCE === '1';
 

@@ -153,15 +153,15 @@ import { baseOwnershipCheck, checkMarkdownOwnership, type OwnershipResult } from
 import { EMPTY_SEEN_INDEX, parseSeenIndex, SEEN_INDEX_FILE, type SeenIndex } from './seen-in.js';
 
 /** Wire name of the module query (`foundry-mcp-bridge.getExportIndex`). */
-export const EXPORT_INDEX_METHOD = `${MODULE_ID}.${EXPORT_INDEX_QUERY}`;
+const EXPORT_INDEX_METHOD = `${MODULE_ID}.${EXPORT_INDEX_QUERY}`;
 /** A cycle that runs longer is abandoned (checked between pages and between note writes). */
-export const MIRROR_CYCLE_LIMIT_MS = 60_000;
+const MIRROR_CYCLE_LIMIT_MS = 60_000;
 /** Reconciles run at most this often, except right after a settings change. */
 export const RECONCILE_MIN_INTERVAL_MS = 60_000;
 /** A reconcile runs at least this often. */
 export const RECONCILE_EVERY_MS = 10 * 60_000;
 /** Incremental overlap below the watermark (equal timestamps; renders are idempotent). */
-export const WATERMARK_OVERLAP_MS = 2_000;
+const WATERMARK_OVERLAP_MS = 2_000;
 
 const BASES_FOLDER = 'AI Tool/Bases';
 const FENCE_PREFIX = `${MIRROR_ROOT}/`;
@@ -588,6 +588,10 @@ interface Cycle {
   libraryTried: boolean;
   /** Notes moved to their new folder this cycle (their links elsewhere need a re-render). */
   moved: number;
+  /** When the cycle opened (`now()` ms). */
+  startedAt: number;
+  /** How long this cycle's reconcile took, or null when it ran none to its end. */
+  reconcileMs: number | null;
 }
 
 type WriteOutcome = 'written' | 'unchanged' | 'skipped' | 'error';
@@ -833,6 +837,8 @@ export class ObsidianMirrorPump {
       reconciled: false,
       libraryTried: false,
       moved: 0,
+      startedAt: this.now(),
+      reconcileMs: null,
     };
     // Fences before anything else: a link or junction must not lead a write
     // or a trash move out of the vault.
@@ -1097,7 +1103,8 @@ export class ObsidianMirrorPump {
 
   private async reconcile(cycle: Cycle): Promise<void> {
     const state = cycle.state;
-    state.lastReconcileAttemptAt = this.now();
+    const reconcileStart = this.now();
+    state.lastReconcileAttemptAt = reconcileStart;
     state.bypassThrottle = false;
     const forceAll = state.forceAll;
 
@@ -1166,6 +1173,7 @@ export class ObsidianMirrorPump {
     // An incomplete scan is retried at the next allowed reconcile.
     state.reconcileDue = !complete;
     this.current.lastReconcileAt = new Date(state.lastReconcileAt).toISOString();
+    cycle.reconcileMs = Math.max(0, state.lastReconcileAt - reconcileStart);
     cycle.reconciled = complete;
   }
 
@@ -2009,6 +2017,8 @@ export class ObsidianMirrorPump {
     const status = this.freshStatus(state.worldId, true);
     status.lastCycleAt = this.current.lastCycleAt;
     status.lastReconcileAt = this.current.lastReconcileAt;
+    status.lastReconcileMs = this.current.lastReconcileMs;
+    status.lastReconcileCycleMs = this.current.lastReconcileCycleMs;
     for (const note of state.notes.values()) {
       if (note.insideFence && isMirrorNoteType(note.type)) status.counts[note.type] += 1;
     }
@@ -2064,7 +2074,14 @@ export class ObsidianMirrorPump {
       return;
     }
     this.current = this.buildStatus(cycle);
-    if (!error) this.current.lastCycleAt = new Date(this.now()).toISOString();
+    const endedAt = this.now();
+    const cycleMs = Math.max(0, endedAt - cycle.startedAt);
+    if (!error) this.current.lastCycleAt = new Date(endedAt).toISOString();
+    if (cycle.reconcileMs !== null) {
+      // They change only at a reconcile, so `_status.md` gets one small rewrite per full check.
+      this.current.lastReconcileMs = cycle.reconcileMs;
+      this.current.lastReconcileCycleMs = cycleMs;
+    }
 
     if (!abort?.noStatus) {
       // `_status.md` holds only lasting facts: rendered when a note changed,
@@ -2111,6 +2128,8 @@ export class ObsidianMirrorPump {
         created: cycle.created,
         moved,
         trashed,
+        cycleMs,
+        reconcileMs: cycle.reconcileMs,
       });
     }
     const problems = JSON.stringify([this.current.skipped, this.current.errors]);

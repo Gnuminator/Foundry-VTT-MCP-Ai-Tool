@@ -69,7 +69,7 @@ export function findActivityData(activities: unknown, id: string | undefined): R
 }
 
 /** Whether a spell is ready to cast (the module's `spellPrepared` rule, for the sanitized system data). */
-export function spellPrepared(system: Rec, level: unknown): boolean {
+function spellPrepared(system: Rec, level: unknown): boolean {
   if (typeof level !== 'number' || level === 0) return true;
   const method = text(system.method);
   if (method && method !== 'spell' && method !== 'pact') return true;
@@ -391,7 +391,7 @@ export class RulesCheckTools {
   /** The running encounter as the bridge reports it; null when none runs or it cannot be read. */
   private async combatState(): Promise<Rec | null> {
     try {
-      const state = rec(await this.foundryClient.query('foundry-mcp-bridge.getCombatState', {}));
+      const state = rec(await this.foundryClient.query('foundry-mcp-bridge.getCombatState'));
       return state.success === false || state.active !== true ? null : state;
     } catch (error) {
       this.logger.warn('Rules check: combat state unavailable', error);

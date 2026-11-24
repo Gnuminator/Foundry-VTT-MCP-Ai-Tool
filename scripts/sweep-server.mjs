@@ -16,7 +16,7 @@ const SERVER_PORTS = {
 export function parseServerArg(argv) {
   const i = argv.findIndex(a => a === '--server' || a.startsWith('--server='));
   const name = i < 0 ? 'A' : ((argv[i].includes('=') ? argv[i].split('=')[1] : argv[i + 1]) ?? '');
-  if (!(name in SERVER_PORTS)) {
+  if (!Object.hasOwn(SERVER_PORTS, name)) {
     throw new Error(
       `--server must be one of ${Object.keys(SERVER_PORTS).join(', ')} (got "${name}")`
     );

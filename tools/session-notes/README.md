@@ -95,29 +95,58 @@ folder, run `pwsh tools/session-notes/auto.ps1 -DryRun` and move test recordings
 folder whose speakers all have a yes is processed. A blocked session shows as "waiting" with the reason in `notes/status.json`, so the After view says
 why nothing happened.
 
+## The roster (who plays whom, who is GM)
+
+One hand-kept file, `<sessions>\roster.json` (on the PC, never in the repo), applies to every
+recording; the key is the Discord user id, the same one `consent.json` uses:
+
+```json
+{
+  "gm": "<discord user id>",
+  "players": {
+    "<discord user id>": { "name": "Anna", "character": "Ilvara", "pronouns": "she/her" }
+  }
+}
+```
+
+`raw/session.json` lists each track with its user id, so the notes run gives Claude the GM line and the
+character names without a `speakers.json` edit. A `character` in a session's own `speakers.json`
+still wins for that session; the roster's `name` replaces the Discord display name the recorder wrote
+there. A broken `roster.json` stops the run with the reason (it is never ignored). `python -m session_notes roster check <session>` lists the speakers
+the roster does not know (and says if no GM is named); exit 1 when something is missing.
+Changing the roster rewrites the scenes on the next run.
+
 ## What it writes
 
 In `<session>/notes/`, for `da` and `en` each:
 
-| File                     | Layer | What                                                                                                                                              |
-| ------------------------ | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `transcript.<lang>.md`   | L1    | cleaned transcript by scene; each line has a block anchor `^u000123`; out-of-character talk in italics                                            |
-| `scenes.<lang>.md`       | L2    | per scene: summary, events, decisions, NPCs, loot, open threads, dice, quotes, and a "GM only" section; every entry links to its transcript lines |
-| `summary.<lang>.md`      | L3    | session summary and "what changed", for the GM                                                                                                    |
-| `recap.player.<lang>.md` | L3    | the players' "previously on" recap, marked as a draft until the GM approves it                                                                    |
+| File                     | Layer | What                                                                                                                                                                                                           |
+| ------------------------ | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `transcript.<lang>.md`   | L1    | cleaned transcript by scene; each line has a block anchor `^u000123`; out-of-character talk in italics                                                                                                         |
+| `index.<lang>.md`        |       | start page: title, date, GM, who plays whom, five lines, links to every page and to the other language                                                                                                         |
+| `scenes.<lang>.md`       | L2    | per scene the same headings in the same order (What happened, Decisions, NPCs met, Open threads, Quotes, GM only), "None" when empty; a scene wholly at the table is a short stub; one timestamp link per line |
+| `table.<lang>.md`        | L2    | everything said at the table, not in the game: house rules, proposed, play style, absence, planning, open                                                                                                      |
+| `raw.<lang>.md`          |       | the recogniser's text as it came (the same text in both files; no Claude call)                                                                                                                                 |
+| `summary.<lang>.md`      | L3    | session summary and "what changed", for the GM                                                                                                                                                                 |
+| `recap.player.<lang>.md` | L3    | the players' "previously on" recap, marked as a draft until the GM approves it                                                                                                                                 |
 
 Plus `notes.json` (everything, for later steps) and `audit.jsonl` (calls, checks, fixes, pauses).
 
+The layout is fixed (design "Session notes format", 2026-11-23). Quotes stay in the spoken
+language and the English file adds the translation in brackets; name variants are not in the
+notes (the names check page has them). With `--layers` the character pages (titled "X, played by Y",
+with In the story, Player wishes and GM only) and the worth-remembering page are written in both
+languages too.
+
 ### The three Danish layers (I-066)
 
-With `--layers`, a run also writes, in Danish only:
+With `--layers`, a run also writes the in-depth notes in Danish only (`raw` is written without
+`--layers` now):
 
-| File            | Layer    | What                                                                                                                                                     |
-| --------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `raw.da.md`     | raw      | the recogniser's text exactly as it came, by scene and time, words it was unsure about as `[ord?]`; no Claude call (word times stay in `timeline.jsonl`) |
-| `depth.da.md`   | in-depth | per scene a detailed account in beats (who said and did what, rulings, names, numbers said aloud), each beat linked to transcript lines; GM only         |
-| `summary.da.md` | summary  | the existing summary                                                                                                                                     |
-| `index.da.md`   |          | links the three layers, with the cleaned transcript and scene notes between them                                                                         |
+| File            | Layer    | What                                                                                                                                             |
+| --------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `depth.da.md`   | in-depth | per scene a detailed account in beats (who said and did what, rulings, names, numbers said aloud), each beat linked to transcript lines; GM only |
+| `summary.da.md` | summary  | the existing summary                                                                                                                             |
 
 The in-depth layer is one more Claude call per scene (`--depth-model`, `--depth-effort`, default
 Sonnet at medium), checked (at least one beat, citations of real lines only, not too thin for a
@@ -164,6 +193,31 @@ is not on the list is named in the audit log, not applied), puts new names first
 fixes them too), rewrites the transcript lines before Claude sees them and writes again only the scenes where
 a line changed. The filled entries stay on the page with a `Status:` line. The character name in a speaker
 label is not rewritten, only the text.
+
+## Campaign merge plan (D-151)
+
+`python -m session_notes campaign <session>` runs after a notes run with `--layers` (`auto.ps1` does it
+once the notes are done; a failure never holds back the publish). One Claude call on the subscription reads
+the worth-remembering layer, the cleaned transcript lines it cites and, when `chat-log.json` is in the
+session folder (the Foundry chat log, a list of `{time, who, text}`; `--chat-log` names another file), the
+chat log. It proposes pages per NPC, creature, place, thread, the session and the table. The code then
+applies the ownership table of the design, so the rules do not depend on the model:
+
+| Kind of fact                   | What the plan does                                                                                                                                                                                                                                              |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Spelling of a name             | A page for a name that is not on the confirmed list (`names.txt`, the answers on the check page, the roster's characters) is **held**: it goes to the check page as a name with its transcript links, and the next `campaign` run adds it once someone answers. |
+| Stats, items, level, ownership | Never written. With `foundry-facts.json` (`{"Ilvara": {"level": "4"}}`, `--foundry-facts`) a claim from the talk is compared; a difference goes to the check page and the page keeps Foundry's version. Without it the claim stays a hint in the plan.          |
+| What happened                  | Timeline lines link to the transcript line (`transcript.en#^u000556`) or carry a chat time. A line citing nothing real is dropped.                                                                                                                              |
+| Rulings and house rules        | Every `Table` line is written as _Proposed (Danni confirms)_.                                                                                                                                                                                                   |
+| Plans and secrets              | Not an input; never a timeline line.                                                                                                                                                                                                                            |
+
+Output: `notes/campaign-merge.json` (`entries` go straight into `plan-campaign-merge`; `held`, `checks`,
+`hints` and `next` explain the rest), `notes/Campaign merge plan.en.md` for a person, and
+`campaign-checks.json`, which `check` adds to the check page. Only additions are planned: nothing rewrites or
+removes text, merges or renames a page. `plan-campaign-merge` applies additions at once only when the GM's
+"apply additions without confirming" switch is on in Foundry (`--switch on` records that in the plan);
+otherwise the whole merge is a plan to confirm. The Claude call is cached in `notes/.work/campaign.json`, so
+answering a name costs no new call. Exit 75 means a usage limit or a logged-out Claude; run it again.
 
 ## Into Foundry (D-087)
 

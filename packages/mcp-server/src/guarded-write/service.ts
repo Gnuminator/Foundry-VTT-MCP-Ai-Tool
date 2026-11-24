@@ -58,8 +58,7 @@ import { isLostAnswerMessage } from '../direct-write-timeout.js';
 import type { FoundryClient } from '../foundry-client.js';
 import type { Logger } from '../logger.js';
 import { removedRiderLines, riderUndoOps, type BatchRiderSource } from './rider-undo.js';
-import { mergeChangeHistory } from '../obsidian/audit-merge.js';
-import { changeNoteNames, changeNoteParts } from '../obsidian/change-note-parts.js';
+import { changeNoteLookup } from '../obsidian/change-note-parts.js';
 import type { AuditEntry, AuditLog, VaultOpRecord } from '../vault/audit.js';
 import { AUDIT_FILE, AUDIT_HISTORY_FILE, AUDIT_RING_SIZE } from '../vault/audit.js';
 import { assertFileName } from '../vault/paths.js';
@@ -77,24 +76,24 @@ import {
 } from './values.js';
 
 export const PLAN_TTL_MS = 15 * 60 * 1000;
-export const MAX_PLANS = 100;
+const MAX_PLANS = 100;
 export const MAX_OPS = 200;
 /** A Foundry apply may take long (big batches); the default 10 s query timeout is too short. */
 export const APPLY_TIMEOUT_MS = 120_000;
 /** After a lost answer, ask the module how the apply went this often (PB-04) ... */
-export const OUTCOME_POLL_INTERVAL_MS = 5_000;
+const OUTCOME_POLL_INTERVAL_MS = 5_000;
 /** ... and give up after this long. */
-export const OUTCOME_DEADLINE_MS = 120_000;
+const OUTCOME_DEADLINE_MS = 120_000;
 /** The longest an apply or undo waits for its recorded-change listeners before it answers. */
-export const LISTENER_WAIT_MS = 5_000;
+const LISTENER_WAIT_MS = 5_000;
 /** Most players a plan's "show it now" may name. */
-export const MAX_SHOW_USERS = 50;
+const MAX_SHOW_USERS = 50;
 /** Start of the diff text of a "show it now" line; an undo's diff leaves such lines out. */
-export const SHOW_DIFF_PREFIX = 'Show it now:';
+const SHOW_DIFF_PREFIX = 'Show it now:';
 /** How long "show it now" waits for Foundry (it runs inside the guarded-write lock). */
-export const SHOW_TIMEOUT_MS = 15_000;
+const SHOW_TIMEOUT_MS = 15_000;
 /** Start of the diff text of a chat notice line; an undo's diff leaves such lines out. */
-export const NOTICE_DIFF_PREFIX = 'Chat notice:';
+const NOTICE_DIFF_PREFIX = 'Chat notice:';
 
 const FEATURE_ID = /^[a-z][a-z0-9-]{1,40}$/;
 /** Vault files features may not write through vault ops. */
@@ -263,6 +262,8 @@ export interface RecentChange extends AppliedChange {
   ownData?: boolean;
   /** The Obsidian Changes/ note (file name without .md) that holds this change: `2026-10`, `2026-10-p2`, ... */
   notePart?: string;
+  /** With `notePart`: whether the last export wrote it (false right after a month tips into a new part). */
+  notePartWritten?: boolean;
 }
 
 export interface GuardedWriteServiceOptions {
@@ -907,23 +908,14 @@ export class GuardedWriteService {
     const shown = ring.slice(-Math.min(Math.max(limit, 1), AUDIT_RING_SIZE)).reverse();
     // Which Changes/ note the Obsidian export files each change in (a long month rolls over to
     // -p2, -p3): the same split as the export, over the full history. Best effort.
-    let noteNames = new Map<string, string>();
-    if (options.noteParts) {
-      try {
-        const jsonl = await this.store.readLines(worldId, 'gm', AUDIT_HISTORY_FILE);
-        noteNames = changeNoteNames(changeNoteParts(mergeChangeHistory(ring, jsonl)));
-      } catch (error) {
-        this.logger.warn('Changes note parts unavailable; links open the month note', {
-          error: errorMessage(error),
-        });
-      }
-    }
+    const noteFields = options.noteParts
+      ? await changeNoteLookup(this.store, worldId, ring, this.logger)
+      : (): Record<string, never> => ({});
     return shown.map(e => {
       const undone = state.get(e.changeId);
-      const notePart = noteNames.get(e.changeId);
       return {
         ...this.appliedView(e),
-        ...(notePart ? { notePart } : {}),
+        ...noteFields(e.changeId),
         ...(undone ? { undoneBy: undone.undoneBy, undoneAt: undone.undoneAt } : {}),
         canUndo: !undone && ((e.results?.length ?? 0) > 0 || (e.vaultOps?.length ?? 0) > 0),
         ...((e.vaultOps?.length ?? 0) > 0 ? { ownData: true } : {}),

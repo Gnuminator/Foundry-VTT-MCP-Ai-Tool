@@ -34,7 +34,7 @@ export interface CliIo {
  * A live bridge backend holds a lock file in the temp directory
  * (`foundry-mcp-backend.lock`, or `-<port>.lock` for another control port).
  */
-export function bridgeBackendRunning(): boolean {
+function bridgeBackendRunning(): boolean {
   let names: string[];
   try {
     names = fs.readdirSync(os.tmpdir()).filter(n => /^foundry-mcp-backend(-\d+)?\.lock$/.test(n));

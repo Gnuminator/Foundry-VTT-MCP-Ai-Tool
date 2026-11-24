@@ -30,8 +30,17 @@ from .layers import (
 )
 from .model import Line, Roster, Scene, apply_speakers, load_roster, load_timeline
 from .prompts import SCENE_RULES, SCENE_SCHEMA, SESSION_RULES, SESSION_SCHEMA, roster_block, scene_prompt, session_prompt
+from .roster import for_speakers as roster_for_speakers
 from .scenes import split_scenes
-from .validate import check_lines, combine, raw_fallback, repair
+from .validate import (
+    check_lines,
+    check_session,
+    check_summaries,
+    combine,
+    raw_fallback,
+    repair,
+    repair_session,
+)
 
 MIN_SPLIT_LINES = 6
 # A scene that fell back to raw text is tried again on the next runs (a sleeping PC or a dropped
@@ -68,6 +77,9 @@ class RunResult:
     pending: int = 0  # raw fallback scenes that the next run tries again
     depth_missing: int = 0  # scenes without in-depth notes yet (layers only); the next run tries
     extras_missing: int = 0  # character / worth-remembering layers not written yet; next run tries
+    summary_failed: bool = False  # the session summary call failed (not a pause); notes have no summary
+    summary_tries: int = 0  # counted failed runs of the summary (like a raw scene)
+    summary_given_up: bool = False  # MAX_FALLBACK_RUNS counted runs: no more calls until the notes change
     audit: list[dict[str, Any]] = field(default_factory=list)
 
 
@@ -83,6 +95,9 @@ class Writer:
         self.rules_key = ""  # scene rules, schema and pronouns: a change reruns cached scenes
         self.session_pause: str | None = None  # the limit or login message from the summary call
         self.login_needed = False  # a pause came from a logged-out claude, not a usage limit
+        self.summary_failed = False
+        self.summary_tries = 0
+        self.summary_given_up = False
 
     # --- one scene ---------------------------------------------------------------------------
 
@@ -101,7 +116,7 @@ class Writer:
         except ClaudeError as exc:
             self._log("scene_error", scene=scene.index, lines=len(scene.lines), error=str(exc))
             return None
-        problems = check_lines(result, scene)
+        problems = check_lines(result, scene) + check_summaries(result)
         if problems:
             self._log("scene_invalid", scene=scene.index, lines=len(scene.lines), problems=problems)
             return None
@@ -156,6 +171,8 @@ class Writer:
         lines, changed = check.apply_answers(self.session, lines)
         roster = load_roster(self.session, lines)
         self.pron_key = json.dumps(roster.pronouns, ensure_ascii=False, sort_keys=True)
+        if roster_for_speakers(self.session):  # a roster change rewrites the scenes that used the old names
+            self.pron_key += json.dumps(roster.players, ensure_ascii=False, sort_keys=True)
         self.rules_key = hashlib.sha256(
             (SCENE_RULES + json.dumps(SCENE_SCHEMA, sort_keys=True) + self.pron_key).encode("utf-8")
         ).hexdigest()
@@ -238,6 +255,7 @@ class Writer:
             session_notes = self._session_notes(notes, roster)
             if session_notes is None:
                 paused_reason = self.session_pause
+                self.summary_failed = paused_reason is None
         depth: dict[int, dict[str, Any]] | None = None
         depth_missing = 0
         extra: dict[str, dict[str, Any] | None] = {}
@@ -263,6 +281,9 @@ class Writer:
             paused=paused_reason,
             login_needed=self.login_needed,
             pending=len(retry),
+            summary_failed=self.summary_failed,
+            summary_tries=self.summary_tries,
+            summary_given_up=self.summary_given_up,
             depth_missing=depth_missing,
             extras_missing=extras_missing,
             audit=self.audit,
@@ -523,6 +544,16 @@ class Writer:
         self._log("scene_fallback_run", scene=scene.index, tries=tries)
         return tries >= MAX_FALLBACK_RUNS
 
+    @staticmethod
+    def _summary_failures(marker: Path, digest: str) -> tuple[int, float]:
+        try:
+            data = json.loads(marker.read_text(encoding="utf-8"))
+            if data.get("digest") == digest:
+                return int(data.get("tries", 0)), float(data.get("at", 0))
+        except (ValueError, OSError, AttributeError, TypeError):
+            pass
+        return 0, 0.0
+
     def _session_notes(self, notes: list[dict[str, Any]], roster: Roster) -> dict[str, Any] | None:
         cached = self.work / "session.json"
         key = [n["index"] for n in notes]
@@ -539,15 +570,39 @@ class Writer:
             data = json.loads(cached.read_text(encoding="utf-8"))
             if data.get("scenes") == key and data.get("digest") == digest:
                 return data["notes"]
+        marker = self.work / "session.fail.json"
+        tries, last = self._summary_failures(marker, digest)
+        self.summary_tries = tries
+        if tries >= MAX_FALLBACK_RUNS:
+            # Like a raw scene accepted after three runs, but there is no raw summary to accept:
+            # the calls stop (the notes are published only once they change or the marker goes).
+            self.summary_given_up = True
+            self._log("session_given_up", tries=tries)
+            return None
         out: dict[str, Any] | None = None
+        hint = ""
         for _attempt in range(2):  # seen once: error_max_structured_output_retries on a test clip
             try:
-                out = self.runner(
-                    session_prompt(notes, roster),
+                got = self.runner(
+                    session_prompt(notes, roster) + hint,
                     SESSION_SCHEMA,
                     self.opts.session_model,
                     self.opts.session_effort,
                 )
+                fixes = repair_session(got)
+                problems = check_session(got)
+                if problems:
+                    self._log("session_invalid", problems=problems)
+                    hint = (
+                        "\n\nYour previous answer was rejected: "
+                        + "; ".join(problems)
+                        + ". Fix this."
+                    )
+                    out = got  # kept when the second try fails as well: better than no summary
+                    continue
+                if fixes:
+                    self._log("session_repaired", fixes=fixes)
+                out = got
                 break
             except UsageLimitError as exc:
                 self._log("paused", scene="session", reason=str(exc))
@@ -557,7 +612,21 @@ class Writer:
             except ClaudeError as exc:
                 self._log("session_error", error=str(exc))
         if out is None:
+            now = time.time()
+            if tries == 0 or now - last >= self.opts.fallback_gap_s:
+                tries += 1
+                marker.write_text(
+                    json.dumps({"digest": digest, "tries": tries, "at": now}), encoding="utf-8"
+                )
+            self.summary_tries = tries
+            self.summary_given_up = tries >= MAX_FALLBACK_RUNS
+            self._log("session_failed_run", tries=tries)
             return None
+        marker.unlink(missing_ok=True)
+        if check_session(out):
+            # Good enough to render, but not kept: the next run asks Claude again.
+            self._log("session_not_cached", problems=check_session(out))
+            return out
         cached.write_text(
             json.dumps({"scenes": key, "digest": digest, "notes": out}, ensure_ascii=False),
             encoding="utf-8",

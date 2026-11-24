@@ -247,3 +247,18 @@ def test_a_run_rewrites_only_the_scenes_an_answer_touched(tmp_path: Path) -> Non
     Writer(session, second, Options(scene_gap=90, fallback_gap_s=0)).run()
     prompts = [p for k, p in second.calls if k == "scene"]
     assert len(prompts) == 1 and "Brannick" in prompts[0] and "Botte" not in prompts[0]
+
+
+def test_a_note_kept_with_an_answer_shows_on_both_pages(tmp_path: Path) -> None:
+    session = _session(tmp_path)
+    check.sync(session)
+    _answer(session, "en", "Botte", "Brannick")
+    check.sync(session)
+    stored = _stored(session)
+    stored["Botte"]["note_en"] = "not confirmed by the GM"
+    check._save_answers(session, stored)
+    check.sync(session)
+    for lang in ("en", "da"):
+        text = check.page_path(session, lang).read_text(encoding="utf-8")
+        assert "not confirmed by the GM" in text
+    assert _stored(session)["Botte"]["note_en"] == "not confirmed by the GM"

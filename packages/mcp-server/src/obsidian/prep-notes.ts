@@ -48,7 +48,7 @@ import { errorCode, errorMessage } from './note-writer.js';
 import { PREP_TEMPLATES_DIR } from './prep-templates.js';
 
 /** A note is read up to this many bytes; the rest counts as truncated. */
-export const PREP_NOTE_READ_BYTES = 65_536;
+const PREP_NOTE_READ_BYTES = 65_536;
 /** How much of a prep note is read to find an fvtt_uuid the scan's parser skipped. */
 const UUID_READ_BYTES = 16_384;
 
@@ -125,7 +125,7 @@ export function normalizeUuid(raw: string): string {
  * `Scene.S.Token.T.Actor.A` (its synthetic actor): that also matches the token
  * and the base actor, so a note for one goblin covers every goblin token.
  */
-export function matchKeys(uuid: string): string[] {
+function matchKeys(uuid: string): string[] {
   const synthetic = /^(Scene\.[^.]+\.Token\.[^.]+)\.Actor\.([^.]+)$/.exec(uuid);
   return synthetic?.[1] && synthetic[2] ? [uuid, synthetic[1], `Actor.${synthetic[2]}`] : [uuid];
 }

@@ -1,0 +1,211 @@
+<title>{{TITLE}} Names Check</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one narrow column of entry cards under a sticky progress bar; answers save on click */
+:root {
+  --bg: #f4f5f7; --panel: #ffffff; --fg: #1b1e24; --muted: #5d6573; --line: #dde1e7;
+  --accent: #3a5a8c; --accent-soft: #e3eaf5; --ok: #2f7a4f; --ok-soft: #e2f1e8; --warn: #9a6a12;
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #14171c; --panel: #1c2027; --fg: #e6e8ec; --muted: #9aa3b2; --line: #2d333d;
+  --accent: #8fb0e3; --accent-soft: #243247; --ok: #79c99a; --ok-soft: #1d3327; --warn: #e0b35c; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #14171c; --panel: #1c2027; --fg: #e6e8ec; --muted: #9aa3b2; --line: #2d333d;
+  --accent: #8fb0e3; --accent-soft: #243247; --ok: #79c99a; --ok-soft: #1d3327; --warn: #e0b35c; color-scheme: dark }
+body { background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 760px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 20px 60px; }
+h1 { font-size: 1.5rem; margin: 0 0 4px; text-wrap: balance; font-weight: 600; }
+.lead { color: var(--muted); margin: 0 0 16px; max-width: 62ch; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding-block: 10px; border-bottom: 1px solid var(--line); margin-bottom: 16px; display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
+.meter { flex: 1 1 200px; height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; }
+.meter i { display: block; height: 100%; background: var(--ok); width: 0; transition: width .2s; }
+.count { font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: .85rem; color: var(--muted); }
+.bar label { font-size: .9rem; color: var(--muted); display: flex; gap: 6px; align-items: center; }
+#status { font-size: .85rem; color: var(--warn); min-height: 1.2em; }
+.list { display: grid; gap: 12px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; display: grid; gap: 10px; min-width: 0; }
+.card.done { border-color: var(--ok); }
+.head { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; }
+.word { font-family: var(--mono); font-size: 1.15rem; font-weight: 500; }
+.meta { color: var(--muted); font-size: .85rem; }
+.tag { font-size: .75rem; letter-spacing: .04em; text-transform: uppercase; padding: 1px 8px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); }
+.tag.ok { background: var(--ok-soft); color: var(--ok); }
+.ctx { display: grid; gap: 6px; }
+.ctx div { border-left: 3px solid var(--line); padding-left: 10px; font-size: .9rem; min-width: 0; overflow-wrap: anywhere; }
+.ctx .t { font-family: var(--mono); font-size: .78rem; color: var(--muted); }
+.ctx .en { color: var(--muted); font-size: .85rem; }
+.ctx mark { background: var(--accent-soft); color: var(--fg); font-weight: 600; padding: 0 2px; border-radius: 3px; }
+.note { font-size: .9rem; color: var(--muted); }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+button { font: inherit; font-size: .9rem; border: 1px solid var(--line); background: var(--panel); color: var(--fg); border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button.on { background: var(--accent); border-color: var(--accent); color: var(--panel); }
+button.guess { border-style: dashed; color: var(--accent); }
+input[type=text] { font: inherit; font-size: .9rem; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); min-width: 0; flex: 1 1 160px; }
+.empty { color: var(--muted); padding: 24px; text-align: center; border: 1px dashed var(--line); border-radius: 8px; }
+@media (prefers-reduced-motion: reduce) { .meter i { transition: none; } }
+</style>
+
+<div class="wrap">
+  <h1>{{TITLE}} names check</h1>
+  <p class="lead">Words the transcriber was unsure about, with the lines they came from (Danish as spoken, English below). Pick an answer for the ones you know; skip the rest. Answers save as you click. Tell Claude when you are done and the notes get rerun with them.</p>
+  <div class="bar">
+    <div class="meter" aria-hidden="true"><i id="meter"></i></div>
+    <span class="count" id="count">0 of 0 answered</span>
+    <label><input type="checkbox" id="only-open"> Unanswered only</label>
+    <span id="status" role="status"></span>
+  </div>
+  <div class="list" id="list"><div class="empty">Loading the entries...</div></div>
+</div>
+
+<datalist id="known">
+  {{OPTIONS}}
+</datalist>
+
+<script>
+(function () {
+  const list = document.getElementById('list');
+  const statusEl = document.getElementById('status');
+  let entries = [], answers = {}, drafts = {}, db = null, onlyOpen = false;
+  try { onlyOpen = localStorage.getItem('only-open') === '1'; } catch (e) {}
+  document.getElementById('only-open').checked = onlyOpen;
+  document.getElementById('only-open').addEventListener('change', function (e) {
+    onlyOpen = e.target.checked;
+    try { localStorage.setItem('only-open', onlyOpen ? '1' : '0'); } catch (err) {}
+    render();
+  });
+
+  function el(tag, cls, text) { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
+  function label(a) {
+    if (!a) return '';
+    if (a.type === 'spelling') return 'Spelled ' + a.value;
+    if (a.type === 'same') return 'Same as ' + a.value;
+    if (a.type === 'notname') return 'Not a name';
+    if (a.type === 'skip') return 'Don’t know';
+    return '';
+  }
+
+  async function save(id, data) {
+    if (!db) { statusEl.textContent = 'Saving is not available in this view.'; return; }
+    answers[id] = data; delete drafts[id]; render();
+    try {
+      if (data) await db.doc('answers/' + id).set(Object.assign({}, data, { at: Date.now() }));
+      else await db.doc('answers/' + id).delete();
+      statusEl.textContent = '';
+    } catch (e) { statusEl.textContent = 'Could not save "' + id + '". Try again.'; }
+  }
+
+  function card(en) {
+    const a = answers[en.id];
+    const c = el('article', 'card' + (a ? ' done' : ''));
+    const h = el('div', 'head');
+    h.append(el('span', 'word', en.word));
+    if (en.kind === 'fact') h.append(el('span', 'tag', 'fact'));
+    const bits = [];
+    if (en.heard) bits.push('heard ' + en.heard + 'x');
+    if (en.also) bits.push('also as ' + en.also);
+    if (bits.length) h.append(el('span', 'meta', bits.join(', ')));
+    if (a) h.append(el('span', 'tag ok', label(a)));
+    c.append(h);
+    if (en.note) c.append(el('div', 'note', en.note));
+    if (en.context && en.context.length) {
+      const x = el('div', 'ctx');
+      en.context.forEach(function (k) {
+        const d = el('div');
+        d.append(el('div', 't', k.time + '  ' + k.speaker));
+        if (k.hit != null) {
+          const line = el('div');
+          line.append(document.createTextNode(k.before || ''));
+          line.append(el('mark', '', k.hit));
+          line.append(document.createTextNode(k.after || ''));
+          d.append(line);
+          if (k.audio && /^\/_blob\/|^https:\/\//.test(k.audio)) {
+            const au = document.createElement('audio'); au.controls = true; au.preload = 'none'; au.src = k.audio;
+            au.setAttribute('aria-label', 'Play the recording around ' + k.time);
+            au.style.cssText = 'width:100%;max-width:420px;height:34px;margin-top:4px';
+            d.append(au);
+          }
+          if (k.clean) d.append(el('div', 'en', 'The cleaner made this of it (' + k.clean.time + '): ' + k.clean.text));
+          else d.append(el('div', 'en', 'No cleaned line within 40 seconds.'));
+        } else {
+          d.append(el('div', '', k.da));
+          if (k.en && k.en !== k.da) d.append(el('div', 'en', k.en));
+        }
+        x.append(d);
+      });
+      c.append(x);
+    }
+    const act = el('div', 'actions');
+    const g = en.guess || (en.suggestion ? { type: 'spelling', value: en.suggestion } : null);
+    if (g && !a) {
+      const b = el('button', 'guess', (g.from === 'cleaner' ? 'Cleaner’s spelling: ' : 'Claude’s guess: ') + label(g));
+      b.addEventListener('click', function () { save(en.id, { type: g.type, value: g.value || '' }); });
+      act.append(b);
+    }
+    const inp = el('input'); inp.type = 'text'; inp.id = 'in-' + en.id; inp.setAttribute('list', 'known');
+    inp.placeholder = 'Right spelling, or a name it is the same as';
+    inp.setAttribute('aria-label', 'Answer for ' + en.word);
+    if (drafts[en.id] != null) inp.value = drafts[en.id];
+    else if (a && (a.type === 'spelling' || a.type === 'same')) inp.value = a.value;
+    inp.addEventListener('input', function () { drafts[en.id] = inp.value; });
+    act.append(inp);
+    [['spelling', 'Use spelling'], ['same', 'Same as'], ['notname', 'Not a name'], ['skip', 'Don’t know']].forEach(function (p) {
+      const b = el('button', a && a.type === p[0] ? 'on' : '', p[1]);
+      b.addEventListener('click', function () {
+        if (p[0] === 'spelling' || p[0] === 'same') {
+          const v = inp.value.trim();
+          if (!v) { inp.focus(); statusEl.textContent = 'Type the name first.'; return; }
+          save(en.id, { type: p[0], value: v });
+        } else save(en.id, { type: p[0], value: '' });
+      });
+      act.append(b);
+    });
+    if (a) { const u = el('button', '', 'Clear'); u.addEventListener('click', function () { save(en.id, null); }); act.append(u); }
+    c.append(act);
+    return c;
+  }
+
+  function render() {
+    const done = entries.filter(function (e) { return answers[e.id]; }).length;
+    document.getElementById('count').textContent = done + ' of ' + entries.length + ' answered';
+    document.getElementById('meter').style.width = entries.length ? (100 * done / entries.length) + '%' : '0';
+    const shown = entries.filter(function (e) { return !onlyOpen || !answers[e.id]; });
+    const ae = document.activeElement;
+    const keep = ae && list.contains(ae) ? { id: ae.id, label: ae.tagName === 'BUTTON' ? ae.textContent : null, card: ae.closest('article') && ae.closest('article').querySelector('input') && ae.closest('article').querySelector('input').id, s: ae.selectionStart, e: ae.selectionEnd } : null;
+    list.replaceChildren();
+    if (!entries.length) { list.append(el('div', 'empty', db ? 'No entries yet. Claude adds them from the notes run.' : 'Open this page in claude.ai while signed in to see and save the entries.')); return; }
+    if (!shown.length) { list.append(el('div', 'empty', 'All answered. Tell Claude to rerun the notes.')); return; }
+    shown.forEach(function (e) { list.append(card(e)); });
+    if (keep) {
+      let t = keep.id ? document.getElementById(keep.id) : null;
+      if (!t && keep.card) {
+        const ci = document.getElementById(keep.card), art = ci && ci.closest('article');
+        if (art) t = Array.from(art.querySelectorAll('button')).find(function (b) { return b.textContent === keep.label; }) || ci;
+      }
+      if (t) { t.focus({ preventScroll: true }); if (keep.id && keep.s != null && t.setSelectionRange) { try { t.setSelectionRange(keep.s, keep.e); } catch (x) {} } }
+    }
+  }
+
+  const timer = setTimeout(function () { if (!db) { statusEl.textContent = 'Could not reach the saved entries.'; render(); } }, 10000);
+  (async function () {
+    if (!window.claude || !window.claude.use) { clearTimeout(timer); render(); return; }
+    db = await window.claude.use('db');
+    clearTimeout(timer);
+    if (!db) { render(); return; }
+    db.collection('entries').onSnapshot(function (snap) {
+      entries = snap.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); }).sort(function (a, b) { return a.order - b.order; });
+      render();
+    }, function () { statusEl.textContent = 'Could not load the entries.'; });
+    db.collection('answers').onSnapshot(function (snap) {
+      const next = {};
+      snap.docs.forEach(function (d) { next[d.id] = d.data(); });
+      answers = next; render();
+    }, function () {});
+  })();
+})();
+</script>

@@ -102,7 +102,7 @@ export function isDeniedPack(pack: PackLike): boolean {
 }
 
 /** The packs this user may read: journals and items, not denied, and OBSERVER on the pack. */
-export function playerPacks(user: unknown): PackLike[] {
+function playerPacks(user: unknown): PackLike[] {
   const out: PackLike[] = [];
   for (const pack of getGame()?.packs ?? []) {
     const type = packType(pack);

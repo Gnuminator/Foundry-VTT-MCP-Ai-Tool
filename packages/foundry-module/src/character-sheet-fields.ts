@@ -43,7 +43,7 @@ export function keysOf(value: unknown): string[] {
 }
 
 /** Localize when Foundry is there (tests pass plain text through). */
-export function localize(text: string): string {
+function localize(text: string): string {
   const i18n = (globalThis as { game?: { i18n?: { localize?: (k: string) => string } } }).game
     ?.i18n;
   return typeof i18n?.localize === 'function' ? i18n.localize(text) : text;

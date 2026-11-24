@@ -76,7 +76,7 @@ export const MIRROR_STATUS_PATH = `${MIRROR_ROOT}/_status.md`;
  * world NPC that stands for them (source first, then a unique name); 10: NPC and scene notes
  * list the sessions they were seen in (R4) and carry `last_seen`.
  */
-export const MIRROR_RENDER_VERSION = 10;
+const MIRROR_RENDER_VERSION = 10;
 
 /**
  * A module signature as the notes store it: with the renderer version and, optionally, a short
@@ -231,6 +231,10 @@ export interface MirrorStatus {
   openBase: string;
   lastCycleAt: string | null;
   lastReconcileAt: string | null;
+  /** How long the last completed reconcile took (ms), or null before the first. */
+  lastReconcileMs: number | null;
+  /** How long the whole cycle that ran that reconcile took (ms), or null before the first. */
+  lastReconcileCycleMs: number | null;
   lastError: string | null;
   /** Mirror notes managed, per note type. */
   counts: Record<MirrorNoteType, number>;
@@ -282,6 +286,8 @@ export function emptyMirrorStatus(
     ...init,
     lastCycleAt: null,
     lastReconcileAt: null,
+    lastReconcileMs: null,
+    lastReconcileCycleMs: null,
     lastError: null,
     counts: { pc: 0, npc: 0, scene: 0, journal: 0, 'journal-page': 0, 'story-item': 0 },
     skipped: [],
@@ -336,4 +342,23 @@ export function propertyWikilink(worldId: string, notePath: string, label: strin
   const target = `Campaigns/${worldId}/${notePath.replace(/\.md$/, '')}`;
   const alias = wikilinkLabel(label);
   return alias ? `[[${target}|${alias}]]` : `[[${target}]]`;
+}
+
+// ---------------------------------------------------------------------------
+// Timing lines of the status note
+// ---------------------------------------------------------------------------
+
+function seconds(ms: number): string {
+  const tenths = Math.round(ms / 100) / 10;
+  return `${tenths < 10 ? tenths.toFixed(1) : Math.round(tenths)} s`;
+}
+
+/** How long the last full check took; empty before the first one. */
+export function timingLines(status: MirrorStatus): string[] {
+  const { lastReconcileMs: check, lastReconcileCycleMs: cycle } = status;
+  if (check === null || cycle === null) return [];
+  return [
+    `Last full check: ${seconds(check)} to compare the vault with Foundry, ${seconds(cycle)} for the whole cycle.`,
+    '',
+  ];
 }

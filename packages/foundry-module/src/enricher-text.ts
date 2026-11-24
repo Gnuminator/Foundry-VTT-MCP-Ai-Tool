@@ -13,7 +13,7 @@ const unquote = (v: string): string => v.replace(/^(["'])(.*)\1$/, '$2');
  * names its value, "Spell Scroll" keeps its words, "Prone=1" (a level or count) is named by
  * its key as a last resort.
  */
-export function referenceName(inner: string): string {
+function referenceName(inner: string): string {
   const tokens = inner.match(/[^\s"'=]+=(?:"[^"]*"|'[^']*'|\S*)|"[^"]*"|'[^']*'|\S+/g) ?? [];
   const positional: string[] = [];
   const valued: string[] = [];

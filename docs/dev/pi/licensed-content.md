@@ -9,7 +9,8 @@ Part of [PI-SETUP](../PI-SETUP.md).
 
 ## Licensed content (the books and Curse of Strahd)
 
-D&D Beyond imports stay a job for this PC: DDB Importer calls its proxy from the GM's browser, and the
+D&D Beyond imports stay a job for this PC (DDB Importer is dropped since 2026-11-20, see "DDB Importer switched off" below; a future import
+means installing it again on the PC only): DDB Importer calls its proxy from the GM's browser, and the
 proxy holds your D&D Beyond login cookie, so it must never be reachable through Cloudflare or from
 another machine. Import on the PC (the proxy and Adventure Muncher against the PC's Foundry). Then two
 scripts move the result to the Pi, in two steps so that you can look in between:
@@ -33,8 +34,7 @@ scripts move the result to the Pi, in two steps so that you can look in between:
    (`scripts/pi/world-refs.mjs`, which reads copies of the databases and never touches a running
    Foundry), and stops when anything is wrong: a missing file or one whose letter case differs from
    the real name (Windows ignores case, the Pi does not), a module that is not in the bundle, a module
-   that is switched on in the world but not shipped (turn it off in the world first, as ddb-importer
-   must be), a setting that looks like a secret, or a GM user that has a password (the hash Foundry 14
+   that is switched on in the world but not shipped (turn it off in the world first), a setting that looks like a secret, or a GM user that has a password (the hash Foundry 14
    stores for a user with no password does not count). Then it checks the
    free space on this PC and on the Pi (below 20 % free it warns, below 5 % it stops), builds one
    `.tar` with a checksum for every file, and uploads it to `/var/lib/foundry-import/` on the Pi. It
@@ -190,7 +190,7 @@ Build each bundle while the PC's Foundry does not have the world open; the bundl
 checked even though the kept world is not replaced from it.
 
 Because the world is kept, anything changed in it during a call stays for the next one. To start over,
-add `REPLACE_WORLD=1` to the command of step 3. Build the bundle with `-NewerThanSnapshot` naming a time older than the PC copy's newest file (the Pi backup from before the call works), and add `REPLACE_NEWER=1` with the user's OK, because dropping what the call changed on the Pi is the point; the Pi's old copy is kept in `prev-<time>`.
+add `REPLACE_WORLD=1` to the command of step 3. Build the bundle with `-NewerThanSnapshot` naming a time older than the PC copy's newest file. `push-world.ps1` refuses a copy whose newest file is not newer than that time, so the Pi backup from before the call only works when the PC copy was opened after it; an untouched copy needs a time just before its newest file (`(Get-ChildItem <PC data>\worlds\frostmaiden-training -Recurse -File | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1).LastWriteTimeUtc`, minus a minute, as ISO UTC). Add `REPLACE_NEWER=1` with the user's OK, because dropping what the call changed on the Pi is the point; the Pi's old copy is kept in `prev-<time>`.
 
 If a proxy ever has to run elsewhere, it is our patched copy (it reads the cookie from a file and
 keeps it out of its logs), bound to `127.0.0.1`, never the upstream one (which logs the cookie).
@@ -316,7 +316,7 @@ The player-facing content is cut to the seven kept books (PHB 2024, DMG 2024, Co
   them, and goes back to the module packs when they are hidden).
   - **Pi sitting:** snapshot (`/boot/dietpi/dietpi-backup 1`), the user's OK, `scp` the three scripts, trim if not done
     (`MODE=trim`), then `MODE=baseline` (dry run: read `COUNT`, `JOURNAL PAGES`, `REFRESH`, `ORPHANS`, `SOURCE PACK MISSING`,
-    `NAME-FORM LINKS`, `LINKS TO KEPT PACKS WITH NO ENTRY`; `SOURCE PACK MISSING` means a module pack is gone and its copies are kept, so stop and look and note
+    `NAME-FORM LINKS`, `LINKS TO KEPT PACKS WITH NO ENTRY` (dead before the run), `LINKS TO SUPERSEDED 2014 SPECIES` (not copied, so dead for players after it); `SOURCE PACK MISSING` means a module pack is gone and its copies are kept, so stop and look and note
     that the check fails on it; `NAME-FORM LINKS` are `@Compendium[pack.Name]` links, which are not rewritten and are only counted; the baseline refuses to run, dry run and real run, when the legacy pack is missing and no
     `world.player-*` pack exists, i.e. before the trim),
     `MODE=baseline APPLY=1 OTHER_WORLDS_OK=1` (the baseline rewrites the journal pages of the shared module packs
@@ -385,3 +385,38 @@ licensed material and stay on the PC: `node scripts/pi/map-upscale/prepare.mjs -
 - Tests: `scripts/pi/map-upscale-stage.test.mjs` (the stage as text, the GM script against a fake world, `prepare.mjs`; with
   `PI_STAGE34_CONTAINER=1` the scenarios in a Debian 13 ARM64 container). The GM script was also run for real on test server B's
   `strahd-kit`: scale, switch, repeat, revert, a 2x texture loads.
+
+## DDB Importer switched off (stage 36)
+
+DDB Importer is dropped (the user, 2026-11-20: everything is imported, no more imports are planned, and its proxy fails on
+dnd5e 6.1.1). It left the Strahd module list and the `modules-all` kit profile. A read-only look at the Pi on 2026-11-23 found its
+files in `Data/modules/ddb-importer` and the module switched on in `curse-of-strahd`; nothing listens on port 31517, because the
+proxy only ever ran on the PC. Stage 36 (`scripts/pi/remote/36-drop-ddb-importer.sh`) switches the module off in the live world
+and nothing else: its files stay, nothing is deleted, no unit is touched, and it only reports a listener on port 31517 if one
+turns up (it never kills a process).
+
+- **Run it** (never on a game night; after G0): `scp scripts/pi/remote/module-switch.mjs foundry-pi:/root/`, then
+  `cat lib.sh 36-drop-ddb-importer.sh | ssh foundry-pi 'bash -s'` (a dry run: checks only), `CHECK=1` (joins as the GM and prints the
+  module's state; it changes no setting, its only write is copying the driver file), then, after a `dietpi-backup 1` snapshot and the user's OK, the same with `APPLY=1`. `UNDO=1` switches it on
+  again. It needs the world running with nobody online and no recording (`FORCE=1` skips only that check).
+- The stage joins as the GM with the login in `/etc/foundry-ai-tool/world-<world>.env`, sets `core.moduleConfiguration` for the one
+  module, reloads and reads the value back from the server. The Assistant GM browser keeps the module in memory until its next
+  reload; a new login no longer loads it. It is best run before the dnd5e 6.1.1 update.
+- Tests: `scripts/pi/drop-ddb-importer.test.mjs` (the in-browser part against a fake `game`, the stage as text).
+
+## World switches without a bundle (stage 37)
+
+Stage 11 needs a world bundle from `push-world.ps1`, even to set one setting in a kept world. For the live
+`curse-of-strahd` that is the wrong route: `push-world.ps1` refuses the PC copy (the Pi's copy is the truth, and the
+PC copy has `racooze-map-library` active, which the Pi does not have, with its map files outside the bundle roots).
+Stage 37 (`scripts/pi/remote/37-world-switches.sh`) sets world switches in the running world from the Pi itself: it
+joins as the GM with the login in `/etc/foundry-ai-tool/world-<world>.env` and uses the same driver as stage 11
+(`world-switches.mjs`), narrowed to the named entries. Nothing else changes: no world files, modules or units.
+The default is `item-piles.enableTrading` (Request Trade); `SWITCHES=a.b,c.d` names others from the table above.
+
+- **Run it** (never on a game night; the world running, nobody online, no recording; `FORCE=1` skips only that check):
+  `scp scripts/pi/remote/world-switches.mjs foundry-pi:/root/`, then
+  `cat lib.sh 37-world-switches.sh | ssh foundry-pi 'bash -s'` (a dry run: checks only), `CHECK=1` (joins as the GM and
+  prints the named switches; sets nothing), then, after a `dietpi-backup 1` snapshot and the user's OK, the same with
+  `APPLY=1`. A second run changes nothing. Racooze stays on the PC copy and is not touched.
+- Tests: `scripts/pi/stage37-world-switches.test.mjs` (the narrowing, the stage as text).

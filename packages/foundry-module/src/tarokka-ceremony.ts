@@ -11,7 +11,7 @@ import { MODULE_ID } from './constants.js';
 import { renderCeremonyHtml, safeImage, type Ceremony } from './tarokka-table-model.js';
 
 /** World setting: an optional audio file played when a card turns over. */
-export const FLIP_SOUND_SETTING = 'tarokkaFlipSound';
+const FLIP_SOUND_SETTING = 'tarokkaFlipSound';
 
 /** Total time on screen: the turn takes 3.2 s, the line fades in after it, then all fades out. */
 const HOLD_MS = 11000;
@@ -154,7 +154,7 @@ export function addCeremonyLine(cardId: string, line: string): void {
 }
 
 /** Remove the overlay now (a click, a newer flip, or the end of the show). */
-export function endCeremony(): void {
+function endCeremony(): void {
   if (!current) return;
   const { el, timer } = current;
   current = null;

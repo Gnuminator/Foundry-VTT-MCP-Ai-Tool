@@ -104,7 +104,7 @@ export interface UsageModel {
   unknown: UsageUnknownRow[];
 }
 
-export const USAGE_MOST_USED_LIMIT = 20;
+const USAGE_MOST_USED_LIMIT = 20;
 
 const SURFACES: readonly UsageSurface[] = ['dashboard', 'player', 'module'];
 

@@ -1,6 +1,6 @@
 ---
 source: gm/game-night-runbook.md
-sourceHash: dfe40f023bcb
+sourceHash: a3ec49a159bb
 title: Spilaftenens runbook
 description: Én side til selve aftenen. Hvad du gør, når Foundry, en spiller, Claude, dashboardet eller hjemmeserveren fejler, og hvornår du råber om hjælp.
 ---
@@ -68,7 +68,7 @@ Bliv ved med at spille: lav ændringen i hånden i Foundry.
 - **Hvert værktøjskald fejler:** Claude har mistet forbindelsen til spillet. I pausen lukker du Claude
   Desktop helt og starter det igen. Hjælper det ikke, så råb om hjælp efter sessionen.
 
-> **Usikker? Spørg Claude.** Spørg GM coach: "Claude holdt op med at svare under spillet. Hvad kan jeg stadig gøre, og hvad gør jeg ved det i pausen?" ([sådan tilføjer du GM coach](gm-coach.md)) Coachen har kun brug for Claude selv, ikke for spillet. Hvis dens tools fejler, har den stadig denne runbook og fejlfindingssiden indbygget og siger det.
+> **Usikker? Spørg Claude.** Spørg GM coach: "Claude holdt op med at svare under spillet. Hvad kan jeg stadig gøre, og hvad gør jeg ved det i pausen?" ([sådan tilføjer du GM coach](gm-coach.md)) Coachen svarer, også når spillet ikke gør: dens fulde sider kommer fra serveren, men fejler den, har coachen stadig denne runbook og fejlfindingssiden indbygget og siger det.
 
 ## Dashboardet vil ikke indlæse eller mister forbindelsen
 

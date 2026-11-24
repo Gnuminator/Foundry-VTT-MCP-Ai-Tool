@@ -4,7 +4,7 @@
 
 /** What the server tallied from the log (src/spotlight.ts). */
 interface SpotlightSnapshot {
-  players: { name: string; actions: number }[];
+  players: { name: string; actions: number; actorId?: string }[];
   /** True when the counts are for a play session (they start at its start). */
   session: boolean;
 }
@@ -35,7 +35,8 @@ export function readSpotlight(raw: unknown): SpotlightSnapshot {
   for (const p of list as unknown[]) {
     const o = (p ?? {}) as Record<string, unknown>;
     if (typeof o['name'] === 'string' && typeof o['actions'] === 'number') {
-      players.push({ name: o['name'], actions: o['actions'] });
+      const actorId = typeof o['actorId'] === 'string' && o['actorId'] !== '' ? o['actorId'] : null;
+      players.push({ name: o['name'], actions: o['actions'], ...(actorId ? { actorId } : {}) });
     }
   }
   return { players, session: (raw as { session?: unknown }).session === true };
@@ -63,27 +64,47 @@ function speakerFor(name: string, speakers: readonly SpeakerTime[]): SpeakerTime
   );
 }
 
-/** The roster name a log name stands for: equal, else the same first word when only one fits. */
-function rosterName(name: string, roster: readonly string[]): string {
-  const full = norm(name);
-  const exact = roster.find(r => norm(r) === full);
+/** One party member: the actor's name and, when the party read has it, the actor id. */
+export interface RosterMember {
+  name: string;
+  actorId?: string;
+}
+
+/**
+ * The roster name a log entry stands for: the same actor id first (exact, never folds another
+ * character in); an entry without a matching id falls back to equal names, else the same first
+ * word when only one roster name fits.
+ */
+function rosterName(
+  entry: { name: string; actorId?: string },
+  roster: readonly RosterMember[]
+): string {
+  if (entry.actorId) {
+    const byId = roster.find(r => r.actorId === entry.actorId);
+    if (byId) return byId.name;
+  }
+  // No id match (a transformed actor such as a Wild Shape form has its own id): by name.
+  const names = roster.map(r => r.name);
+  const full = norm(entry.name);
+  const exact = names.find(r => norm(r) === full);
   if (exact) return exact;
   const first = full.split(/\s+/)[0];
-  const same = roster.filter(r => norm(r).split(/\s+/)[0] === first);
-  return same.length === 1 ? same[0] : name;
+  const same = names.filter(r => norm(r).split(/\s+/)[0] === first);
+  return same.length === 1 ? same[0] : entry.name;
 }
 
 /** One row per character: the party roster plus anyone the log counted; busiest first. */
 export function buildSpotlight(
   snapshot: Pick<SpotlightSnapshot, 'players'>,
-  roster: readonly string[],
+  roster: readonly (string | RosterMember)[],
   speakers: readonly SpeakerTime[]
 ): SpotlightRow[] {
+  const members: RosterMember[] = roster.map(r => (typeof r === 'string' ? { name: r } : r));
   const actions = new Map<string, number>();
-  for (const name of roster) actions.set(name, 0);
+  for (const m of members) actions.set(m.name, 0);
   for (const p of snapshot.players) {
     // The log names the chat speaker ("Ebbe"), the roster the actor ("Ebbe Stonefist"): one row.
-    const name = rosterName(p.name, roster);
+    const name = rosterName(p, members);
     actions.set(name, (actions.get(name) ?? 0) + p.actions);
   }
   const used = new Set<SpeakerTime>();

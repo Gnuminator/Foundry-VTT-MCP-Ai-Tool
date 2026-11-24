@@ -188,8 +188,10 @@ bad checks in a row post once, the first good one posts "synchronized again".
 **A missed nightly backup is announced too** (backlog `backup-miss-alert`). When stage 6's `foundry-backup.service` exists,
 the stage adds `foundry-backup.service.d/10-backup-alert.conf` (`OnFailure=` only: the backup is a oneshot, no start limit).
 The 04:30 restic backup exits 1 both when it fails and when it skips the night (players still online after the waits,
-critical disk space), so either one posts "last night's backup failed or was skipped" to #gm-bot the same morning (the
-last wait ends about 07:30). Run stage 32 again after stage 6 if the backup unit was not there the first time. The
+critical disk space), and also when it ends with Foundry still down (the backup stops Foundry and could not start it
+again), so any of the three posts "last night's backup failed, was skipped, or left Foundry down afterwards" to #gm-bot the
+same morning (the last wait ends about 07:30). The line names the first look (`journalctl -u foundry-backup -n 50`), the
+fix when Foundry is down (`systemctl start foundry.service`) and the rerun when it is quiet. Run stage 32 again after stage 6 if the backup unit was not there the first time. The
 dietpi-backup snapshot at 01:25 is not covered, and a night where the timer never fires (the Pi was off at 04:30; the timer has `Persistent=false`) posts nothing; the PC's pull record (PB-06) and the bot watch the copies.
 
 **A tripped unit stays down.** Before this stage a Foundry fault of a few minutes cleared by itself; now, after the limit,

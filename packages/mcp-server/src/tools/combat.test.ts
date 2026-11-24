@@ -70,14 +70,14 @@ describe('CombatTools.handleGetCombatState', () => {
     const payload = { success: true, active: true, round: 2 };
     const { tools, query } = makeTools(CombatTools, () => payload);
     const result = await tools.handleGetCombatState(undefined);
-    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getCombatState', {});
+    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getCombatState');
     expect(result).toBe(payload);
   });
 
   it('always passes an empty object as params regardless of args', async () => {
     const { tools, query } = makeTools(CombatTools);
     await tools.handleGetCombatState({ unexpected: 'arg' });
-    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getCombatState', {});
+    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getCombatState');
   });
 
   it('throws when Foundry reports a failure with an error message', async () => {

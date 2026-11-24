@@ -203,7 +203,7 @@ function bookOf(source: unknown): {
  * Player's Handbook module stores no book per entry; dnd5e fills it in only when a document is
  * prepared, so the raw pack index lacks it).
  */
-export function packageBookOf(pack: Rec): string | null {
+function packageBookOf(pack: Rec): string | null {
   const metadata = rec(pack.metadata) ?? {};
   const name = str(metadata.packageName);
   const type = str(metadata.packageType);

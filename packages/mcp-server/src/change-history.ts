@@ -72,7 +72,7 @@ export const CHANGE_HISTORY_DAYS = CHANGE_JOURNAL_RETENTION_DAYS;
  * (about bytes): the pump's cap on its files. A bulk delete (every deleted actor's data in its
  * record) can fill one day's file far past it.
  */
-export const DEFAULT_CHANGE_HISTORY_MAX_CHARS = DEFAULT_CHANGE_JOURNAL_MAX_BYTES;
+const DEFAULT_CHANGE_HISTORY_MAX_CHARS = DEFAULT_CHANGE_JOURNAL_MAX_BYTES;
 /** Most readable lines an action carries (the last one says how many more there were). */
 export const MAX_ACTION_LINES = 8;
 /**
@@ -551,7 +551,7 @@ export function describeRecord(r: ChangeRecord, users?: UserNames): string[] {
 }
 
 /** One sentence for the whole action, and at most MAX_ACTION_LINES lines. */
-export function summarizeLines(all: string[]): { summary: string; lines: string[] } {
+function summarizeLines(all: string[]): { summary: string; lines: string[] } {
   const first = all[0] ?? 'Changed something';
   const more = all.length - 1;
   const summary = more > 0 ? `${first} and ${more} more change${more === 1 ? '' : 's'}` : first;

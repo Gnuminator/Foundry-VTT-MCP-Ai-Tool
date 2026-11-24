@@ -105,7 +105,7 @@ export interface ChangesView {
 export const FIRST_PAGE_LIMIT = 20;
 export const MORE_LIMIT = 100;
 export const FILTER_ALL = 'all';
-export const FILTER_AI = 'ai';
+const FILTER_AI = 'ai';
 const FILTER_USER_PREFIX = 'user:';
 
 /** Escape a value for HTML text and quoted attributes (Foundry's helper when it exists). */

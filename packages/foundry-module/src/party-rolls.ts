@@ -64,7 +64,7 @@ interface OptionGroup {
 }
 
 /** The select's options, grouped: checks, saves, skills. */
-export function rollOptions(): OptionGroup[] {
+function rollOptions(): OptionGroup[] {
   return [
     {
       group: 'Ability check',
@@ -81,7 +81,7 @@ export function rollOptions(): OptionGroup[] {
 const KNOWN = new Set(rollOptions().flatMap(g => g.options.map(o => o.value)));
 
 /** The label of a pick for the button and the results: "Dexterity save", "Perception". */
-export function pickLabel(pick: RollPick): string {
+function pickLabel(pick: RollPick): string {
   for (const g of rollOptions()) {
     const o = g.options.find(x => x.value === pick.what);
     if (o) return o.label;
@@ -98,7 +98,7 @@ export function pickDc(pick: RollPick): number | null {
 }
 
 /** Whether a pick is a saving throw (the "Group save" wording). */
-export function isSave(pick: RollPick): boolean {
+function isSave(pick: RollPick): boolean {
   return pick.what.startsWith('save:');
 }
 
@@ -199,7 +199,7 @@ export interface RollExpect {
 }
 
 /** What roll the pick asks for, in dnd5e's own words. */
-export function pickExpect(pick: RollPick): RollExpect {
+function pickExpect(pick: RollPick): RollExpect {
   const sep = pick.what.indexOf(':');
   const kind = pick.what.slice(0, sep);
   const id = pick.what.slice(sep + 1);

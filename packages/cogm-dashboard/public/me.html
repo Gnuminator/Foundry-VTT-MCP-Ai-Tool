@@ -18,10 +18,28 @@
         <span class="me-sub" id="me-sub"></span>
       </div>
       <nav class="me-views" aria-label="View">
-        <button type="button" data-view="fancy" aria-pressed="true">At the table</button>
-        <button type="button" data-view="paper2024" aria-pressed="false">Paper 2024</button>
-        <button type="button" data-view="paper2014" aria-pressed="false">Paper 2014</button>
-        <button type="button" data-view="night" aria-pressed="false">Paper night</button>
+        <button type="button" data-view="fancy" data-track="me.view.at-table" aria-pressed="true">
+          At the table
+        </button>
+        <button
+          type="button"
+          data-view="paper2024"
+          data-track="me.view.paper-2024"
+          aria-pressed="false"
+        >
+          Paper 2024
+        </button>
+        <button
+          type="button"
+          data-view="paper2014"
+          data-track="me.view.paper-2014"
+          aria-pressed="false"
+        >
+          Paper 2014
+        </button>
+        <button type="button" data-view="night" data-track="me.view.night" aria-pressed="false">
+          Paper night
+        </button>
       </nav>
     </header>
     <div class="me-update no-print" id="me-update" role="status" hidden>
@@ -42,7 +60,7 @@
       <p class="muted" id="md-memory" hidden>
         This table keeps diaries in memory only: they are lost when the dashboard restarts.
       </p>
-      <form id="md-form">
+      <form id="md-form" data-track="me.diary.save">
         <label for="md-char">Character</label>
         <input id="md-char" maxlength="80" placeholder="Character" />
         <label for="md-text">Diary entry</label>
@@ -71,17 +89,19 @@
       </p>
       <div id="mc-error" class="mc-error" role="alert" hidden>
         <span id="mc-error-text"></span>
-        <button type="button" id="mc-retry">Try again</button>
+        <button type="button" id="mc-retry" data-track="me.connector.retry">Try again</button>
       </div>
       <div id="mc-remote" hidden>
         <p>
           <strong>The simple way:</strong> in Claude (the website or the app) open Settings,
-          Connectors, Add custom connector, paste this address and press Connect. Sign in with your
+          Plugins, Add custom connector, paste this address and press Connect. Sign in with your
           own email: Cloudflare mails you a code. Nothing to download, no password.
         </p>
         <p>
           <input id="mc-remote-url" readonly aria-label="Connector address" />
-          <button type="button" data-copy="mc-remote-url">Copy</button>
+          <button type="button" data-track="me.connector.copy" data-copy="mc-remote-url">
+            Copy
+          </button>
         </p>
       </div>
       <div id="mc-fields">
@@ -89,7 +109,9 @@
           No endpoint address is set yet. Ask whoever runs the table for it.
         </p>
         <p id="mc-download-row">
-          <button type="button" id="mc-download">Download my helper</button>
+          <button type="button" id="mc-download" data-track="me.connector.download">
+            Download my helper
+          </button>
           Open the file on a PC with Claude Desktop, then restart Desktop. The file holds your
           login: do not share it.
         </p>
@@ -98,18 +120,22 @@
           <dt>Endpoint address</dt>
           <dd>
             <input id="mc-endpoint" readonly aria-label="Endpoint address" />
-            <button type="button" data-copy="mc-endpoint">Copy</button>
+            <button type="button" data-track="me.connector.copy" data-copy="mc-endpoint">
+              Copy
+            </button>
           </dd>
           <dt>Client ID</dt>
           <dd>
             <input id="mc-id" readonly aria-label="Client ID" />
-            <button type="button" data-copy="mc-id">Copy</button>
+            <button type="button" data-track="me.connector.copy" data-copy="mc-id">Copy</button>
           </dd>
           <dt>Client Secret</dt>
           <dd>
             <input id="mc-secret" type="password" readonly aria-label="Client Secret" />
-            <button type="button" id="mc-show" aria-pressed="false">Show</button>
-            <button type="button" data-copy="mc-secret">Copy</button>
+            <button type="button" id="mc-show" data-track="me.connector.show" aria-pressed="false">
+              Show
+            </button>
+            <button type="button" data-track="me.connector.copy" data-copy="mc-secret">Copy</button>
           </dd>
         </dl>
       </div>
@@ -117,8 +143,15 @@
     </details>
     <footer class="me-foot no-print">
       <span id="me-updated"></span>
-      <button type="button" id="me-print">Print</button>
+      <button type="button" id="me-print" data-track="me.print">Print</button>
     </footer>
+    <script
+      src="usage.js"
+      data-usage-endpoint="/api/me/usage"
+      data-usage-surface="player"
+      data-usage-token-key="cogm_me_key"
+      data-usage-key-header="X-CoGM-Me"
+    ></script>
     <script type="module" src="./me.js"></script>
   </body>
 </html>

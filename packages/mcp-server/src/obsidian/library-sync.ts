@@ -80,10 +80,10 @@ import {
 } from './note-writer.js';
 import { baseOwnershipCheck, checkMarkdownOwnership, GENERATED_BY } from './ownership.js';
 
-export const LIBRARY_INDEX_METHOD = `${MODULE_ID}.${LIBRARY_INDEX_QUERY}`;
-export const LIBRARY_DOCUMENTS_METHOD = `${MODULE_ID}.${LIBRARY_DOCUMENTS_QUERY}`;
+const LIBRARY_INDEX_METHOD = `${MODULE_ID}.${LIBRARY_INDEX_QUERY}`;
+const LIBRARY_DOCUMENTS_METHOD = `${MODULE_ID}.${LIBRARY_DOCUMENTS_QUERY}`;
 /** A refresh runs at least this often. */
-export const LIBRARY_REFRESH_EVERY_MS = 30 * 60_000;
+const LIBRARY_REFRESH_EVERY_MS = 30 * 60_000;
 const QUERY_TIMEOUT_MS = 60_000;
 /** A query needs at least this much time left before the deadline to start. */
 const MIN_QUERY_MS = 2_000;
@@ -99,7 +99,7 @@ const BOOKS_PREFIX = `${LIBRARY_BOOKS_FOLDER}/`;
 /** Notes checked for ownership (moves) between two deadline checks. */
 const MOVE_CHECKS_PER_STEP = 50;
 /** What a restart needs (membership, lookups per note, queue); a dot file Obsidian ignores. */
-export const LIBRARY_STATE_PATH = `${LIBRARY_ROOT}/.ai-tool-library.json`;
+const LIBRARY_STATE_PATH = `${LIBRARY_ROOT}/.ai-tool-library.json`;
 
 export interface LibraryStatus {
   /** Packs named in the settings. */

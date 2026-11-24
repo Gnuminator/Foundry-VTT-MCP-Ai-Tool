@@ -12,10 +12,13 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { PREP_PREVIOUSLY_MAX_CHARS, type PrepPreviously } from '@gnuminator/shared';
+import {
+  isSessionFolderName,
+  newestSessionFirst,
+  PREP_PREVIOUSLY_MAX_CHARS,
+  type PrepPreviously,
+} from '@gnuminator/shared';
 
-/** Session folders the recorder makes end in this. */
-const SESSION_FOLDER = /-discord(?:-\d+)?$/;
 /** A summary file larger than this is skipped unread (a real one is a few KB). */
 const MAX_SUMMARY_BYTES = 64 * 1024;
 /** The digest is English: English first, then Danish when only that one was written. */
@@ -69,21 +72,6 @@ function cap(text: string, max: number): { text: string; truncated: boolean } {
   return { text: (end > max / 2 ? cut.slice(0, end) : cut).trimEnd(), truncated: true };
 }
 
-/**
- * Newest first: the folder name starts with the date and time, then a restart in the same minute
- * adds `-N`, which is compared as a number (`-discord-10` is newer than `-discord-9`).
- */
-function newestFirst(a: string, b: string): number {
-  const split = (name: string): [string, number] => {
-    const m = /^(.*-discord)(?:-(\d+))?$/.exec(name);
-    return m ? [m[1], m[2] ? Number(m[2]) : 0] : [name, 0];
-  };
-  const [baseA, restartA] = split(a);
-  const [baseB, restartB] = split(b);
-  if (baseA !== baseB) return baseA < baseB ? 1 : -1;
-  return restartB - restartA;
-}
-
 function errorCode(error: unknown): string | undefined {
   const code = (error as { code?: unknown } | null)?.code;
   return typeof code === 'string' ? code : undefined;
@@ -97,9 +85,9 @@ export async function readPreviously(sessionsDir: string): Promise<PrepPreviousl
   let names: string[];
   try {
     names = (await readdir(sessionsDir, { withFileTypes: true }))
-      .filter(e => e.isDirectory() && SESSION_FOLDER.test(e.name))
+      .filter(e => e.isDirectory() && isSessionFolderName(e.name))
       .map(e => e.name)
-      .sort(newestFirst);
+      .sort(newestSessionFirst);
   } catch (error) {
     const code = errorCode(error);
     const why =

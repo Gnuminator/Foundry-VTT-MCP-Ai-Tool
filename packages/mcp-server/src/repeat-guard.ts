@@ -18,7 +18,7 @@
  * Pure: no SDK, no I/O; the clock is injectable.
  */
 /** Window in which the same call is a repeat (the live-repeat-guard item). */
-export const REPEAT_WINDOW_MS = 3000;
+const REPEAT_WINDOW_MS = 3000;
 
 /**
  * The guarded tools: the ones a double click hits (the Apply and Undo buttons, the Session

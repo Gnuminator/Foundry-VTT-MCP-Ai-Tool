@@ -1,6 +1,6 @@
 ---
 source: player/player-page.md
-sourceHash: 759ffe3e2e17
+sourceHash: 43fea263b39f
 title: Brug player page
 description: Korte how-tos om den valgfri player page ved siden af Foundry, med at vælge dit navn, følge combaten, handouts til dig, roll-knapper og hvordan du spørger GM'en om det, værktøjet ved.
 ---
@@ -16,6 +16,8 @@ D&D-hjælperen (planlæg en karakter, level op, regler)? Se
 Player page er live bag login med e-mailkode. GM'en sender dig adressen.
 
 ## Vælg dit navn på player page
+
+![Player page, efter du har valgt dit navn: din karakter og en roll-anmodning fra GM'en](../../images/dashboard/player-page.png)
 
 - **Gør:** første gang du åbner player page, så klik på dit navn øverst. Så står der
   "Playing as ...". Klikkede du på det forkerte? Klik på **Not you? Change** og vælg igen.

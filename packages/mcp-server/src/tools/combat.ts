@@ -96,7 +96,7 @@ export class CombatTools {
 
   async handleGetCombatState(_args?: unknown): Promise<CombatToolResult> {
     try {
-      const response = (await this.foundryClient.query('foundry-mcp-bridge.getCombatState', {})) as
+      const response = (await this.foundryClient.query('foundry-mcp-bridge.getCombatState')) as
         | CombatBridgeReply
         | undefined;
       if (response?.success === false) {

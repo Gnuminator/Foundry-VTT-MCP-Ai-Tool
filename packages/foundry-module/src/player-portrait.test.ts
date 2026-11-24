@@ -58,6 +58,7 @@ function env(): {
     featureEnabled: () => switchOn,
     placedTokens: actorId =>
       actorId === MINE ? [`Scene.scene00000000001.Token.tok0000000001`] : [],
+    placedTotal: actorId => (actorId === MINE ? 1 : 0),
     now: () => new Date('2026-11-04T19:46:05Z'),
     random: () => 'abc12345',
   };
@@ -106,6 +107,7 @@ describe('uploadPlayerPortrait', () => {
       actorName: 'Brenna',
       userName: 'Test Player 1',
       placedTokens: ['Scene.scene00000000001.Token.tok0000000001'],
+      placedTotal: 1,
     });
     expect(dirs).toEqual(['assets', 'assets/players', `assets/players/test-player-1-${USER}`]);
     expect(uploads).toEqual([

@@ -25,11 +25,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ERROR_MESSAGES } from './constants.js';
 import { createTestWorld, makeActor, type TestWorld } from './test-support/foundry-mock/index.js';
 import { FoundryDataAccess } from './data-access.js';
+import type { SceneTokenPlacement } from './data-access/types.js';
 import { WRITES_DISABLED_MESSAGE } from './write-gate.js';
 
 let world: TestWorld;
 let restore: () => void;
 let da: FoundryDataAccess;
+
+/** The facade no longer forwards `addActorsToScene` (no bridge handler calls it); the domain still does. */
+const addActorsToScene = (placement: SceneTokenPlacement): Promise<any> =>
+  (
+    da as unknown as { actorCreation: { addActorsToScene(p: unknown): Promise<any> } }
+  ).actorCreation.addActorsToScene(placement);
 
 beforeEach(() => {
   vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -417,14 +424,14 @@ describe('FoundryDataAccess: addActorItems', () => {
 describe('FoundryDataAccess: addActorsToScene: guards', () => {
   it('throws the writes-disabled refusal when writes are off', async () => {
     await expect(
-      da.addActorsToScene({ actorIds: ['a1'], placement: 'grid', hidden: false })
+      addActorsToScene({ actorIds: ['a1'], placement: 'grid', hidden: false })
     ).rejects.toThrow(WRITES_DISABLED_MESSAGE);
   });
 
   it('throws "No active scene found" when there is no current scene', async () => {
     world.enableWrites();
     await expect(
-      da.addActorsToScene({ actorIds: ['a1'], placement: 'grid', hidden: false })
+      addActorsToScene({ actorIds: ['a1'], placement: 'grid', hidden: false })
     ).rejects.toThrow('No active scene found');
   });
 });
@@ -452,7 +459,7 @@ describe('FoundryDataAccess: addActorsToScene: placement', () => {
     const scene = activeScene();
     addActorWithProtoToken({ id: 'a1', name: 'Goblin', type: 'npc' });
 
-    const result = await da.addActorsToScene({
+    const result = await addActorsToScene({
       actorIds: ['a1'],
       placement: 'grid',
       hidden: false,
@@ -474,7 +481,7 @@ describe('FoundryDataAccess: addActorsToScene: placement', () => {
     addActorWithProtoToken({ id: 'a1', name: 'A', type: 'npc' });
     addActorWithProtoToken({ id: 'a2', name: 'B', type: 'npc' });
 
-    await da.addActorsToScene({ actorIds: ['a1', 'a2'], placement: 'grid', hidden: false });
+    await addActorsToScene({ actorIds: ['a1', 'a2'], placement: 'grid', hidden: false });
 
     const tokens = scene.tokens.contents;
     // index 0: cols=ceil(sqrt(1))=1, row=0, col=0 → (100,100)
@@ -488,7 +495,7 @@ describe('FoundryDataAccess: addActorsToScene: placement', () => {
     const scene = activeScene();
     addActorWithProtoToken({ id: 'a1', name: 'A', type: 'npc' });
 
-    await da.addActorsToScene({ actorIds: ['a1'], placement: 'center', hidden: false });
+    await addActorsToScene({ actorIds: ['a1'], placement: 'center', hidden: false });
 
     const token = scene.tokens.contents[0];
     // index 0: x = width/2 + 0 = 500, y = height/2 = 400
@@ -500,7 +507,7 @@ describe('FoundryDataAccess: addActorsToScene: placement', () => {
     const scene = activeScene();
     addActorWithProtoToken({ id: 'a1', name: 'A', type: 'npc' });
 
-    await da.addActorsToScene({
+    await addActorsToScene({
       actorIds: ['a1'],
       placement: 'coordinates',
       hidden: false,
@@ -516,7 +523,7 @@ describe('FoundryDataAccess: addActorsToScene: placement', () => {
     const scene = activeScene();
     addActorWithProtoToken({ id: 'a1', name: 'A', type: 'npc' });
 
-    await da.addActorsToScene({ actorIds: ['a1'], placement: 'grid', hidden: true });
+    await addActorsToScene({ actorIds: ['a1'], placement: 'grid', hidden: true });
 
     expect(scene.tokens.contents[0].hidden).toBe(true);
   });
@@ -526,7 +533,7 @@ describe('FoundryDataAccess: addActorsToScene: placement', () => {
     const scene = activeScene();
     addActorWithProtoToken({ id: 'a1', name: 'A', type: 'npc' });
 
-    const result = await da.addActorsToScene({
+    const result = await addActorsToScene({
       actorIds: ['ghost', 'a1'],
       placement: 'grid',
       hidden: false,
@@ -546,7 +553,7 @@ describe('FoundryDataAccess: addActorsToScene: placement', () => {
       { name: 'Tok', texture: { src: 'https://cdn/remote.png' } }
     );
 
-    await da.addActorsToScene({ actorIds: ['a1'], placement: 'grid', hidden: false });
+    await addActorsToScene({ actorIds: ['a1'], placement: 'grid', hidden: false });
 
     expect(scene.tokens.contents[0].texture.src).toBeNull();
   });
@@ -555,7 +562,7 @@ describe('FoundryDataAccess: addActorsToScene: placement', () => {
     world.enableWrites();
     activeScene();
 
-    const result = await da.addActorsToScene({ actorIds: [], placement: 'grid', hidden: false });
+    const result = await addActorsToScene({ actorIds: [], placement: 'grid', hidden: false });
 
     expect(result.success).toBe(false);
     expect(result.tokensCreated).toBe(0);
@@ -572,7 +579,7 @@ describe('FoundryDataAccess: addActorsToScene: placement', () => {
     const scene = activeScene();
     addActorWithProtoToken({ id: 'a1', name: 'Goblin', type: 'npc' });
 
-    await da.addActorsToScene({ actorIds: ['a1'], placement: 'grid', hidden: false });
+    await addActorsToScene({ actorIds: ['a1'], placement: 'grid', hidden: false });
 
     expect(scene.tokens.contents[0].level).toBeUndefined();
     expect(Object.prototype.hasOwnProperty.call(scene.tokens.contents[0], 'level')).toBe(false);
@@ -590,7 +597,7 @@ describe('FoundryDataAccess: addActorsToScene: placement', () => {
     (globalThis as any).canvas = { scene: { id: scene.id }, level: { id: 'upperLevel000000' } };
     addActorWithProtoToken({ id: 'a1', name: 'Goblin', type: 'npc' });
 
-    await da.addActorsToScene({ actorIds: ['a1'], placement: 'grid', hidden: false });
+    await addActorsToScene({ actorIds: ['a1'], placement: 'grid', hidden: false });
 
     expect(scene.tokens.contents[0].level).toBe('upperLevel000000');
     delete (globalThis as any).canvas;
@@ -607,7 +614,7 @@ describe('FoundryDataAccess: addActorsToScene: placement', () => {
     scene.initialLevel = 'defaultLevel0000';
     addActorWithProtoToken({ id: 'a1', name: 'Goblin', type: 'npc' });
 
-    await da.addActorsToScene({ actorIds: ['a1'], placement: 'grid', hidden: false });
+    await addActorsToScene({ actorIds: ['a1'], placement: 'grid', hidden: false });
 
     expect(scene.tokens.contents[0].level).toBe('defaultLevel0000');
   });

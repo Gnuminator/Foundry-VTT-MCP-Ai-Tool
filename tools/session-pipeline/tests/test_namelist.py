@@ -187,3 +187,103 @@ def test_cli_names_dashboard_down_uses_the_extra_list(tmp_path, capsys):
     assert main(["names", "--out", str(out), "--dashboard", "http://127.0.0.1:9", "--extra", str(extra)]) == 0
     assert "warning" in capsys.readouterr().err
     assert "Grim Lantern" in out.read_text(encoding="utf-8")
+
+
+def test_parse_world_id_and_refusals():
+    from session_pipeline.namelist import parse_world_id, world_problem
+
+    assert parse_world_id({"ok": True, "result": {"id": "curse-of-strahd", "title": "x"}}) == "curse-of-strahd"
+    assert parse_world_id({"ok": True, "result": {"world": {"id": "w"}}}) == "w"
+    assert parse_world_id({"result": {}}) is None
+    with pytest.raises(ValueError):
+        parse_world_id({"ok": False})
+    assert world_problem("curse-of-strahd", "curse-of-strahd") is None
+    assert "ai-tool-test" in world_problem("ai-tool-test", "curse-of-strahd")
+    assert "did not say" in world_problem(None, "curse-of-strahd")
+
+
+def _serve(world_id):
+    import http.server
+    import threading
+
+    class H(http.server.BaseHTTPRequestHandler):
+        def do_POST(self):
+            n = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            if n["name"] == "get-world-info":
+                out = {"ok": True, "result": {"id": world_id}}
+            else:
+                rows = {"actor": ACTORS, "scene": [{"name": "Harbour Gate"}]}.get(n["args"]["kind"], [])
+                out = {"ok": True, "result": {"choices": rows}}
+            data = json.dumps(out).encode()
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+        def log_message(self, *a):
+            pass
+
+    srv = http.server.HTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv
+
+
+def test_names_command_refuses_a_test_world_and_caches_the_campaign(tmp_path, monkeypatch):
+    from session_pipeline.cli import main
+
+    monkeypatch.setenv("GM_DASHBOARD_TOKEN", "secret-token-value")
+    out, cache = tmp_path / "names.txt", tmp_path / "campaign-names.txt"
+    bad = _serve("ai-tool-test")
+    url = f"http://127.0.0.1:{bad.server_port}"
+    assert main(["names", "--out", str(out), "--dashboard", url, "--cache", str(cache)]) == 2
+    assert not out.exists() and not cache.exists()
+    assert main(["names", "--out", str(out), "--dashboard", url, "--any-world"]) == 0
+    assert "Vera Hollis" in out.read_text(encoding="utf-8")
+    good = _serve("curse-of-strahd")
+    url = f"http://127.0.0.1:{good.server_port}"
+    assert main(["names", "--out", str(out), "--dashboard", url, "--cache", str(cache)]) == 0
+    assert "Vera Hollis" in cache.read_text(encoding="utf-8")
+    out.unlink()
+    # the dashboard is gone: the saved campaign names are used
+    good.shutdown()
+    good.server_close()
+    assert main(["names", "--out", str(out), "--dashboard", url, "--cache", str(cache)]) == 0
+    assert "Vera Hollis" in out.read_text(encoding="utf-8")
+
+
+def test_not_ok_world_answer_uses_the_cache_and_empty_read_keeps_it(tmp_path, monkeypatch, capsys):
+    import http.server
+    import threading
+
+    from session_pipeline.cli import main
+
+    monkeypatch.setenv("GM_DASHBOARD_TOKEN", "secret-token-value")
+
+    class H(http.server.BaseHTTPRequestHandler):
+        def do_POST(self):
+            self.rfile.read(int(self.headers["Content-Length"]))
+            data = b'{"ok": false, "error": "not-connected"}'
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+        def log_message(self, *a):
+            pass
+
+    srv = http.server.HTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    cache, out = tmp_path / "c.txt", tmp_path / "n.txt"
+    cache.write_text("Vera Hollis\n", encoding="utf-8")
+    try:
+        url = f"http://127.0.0.1:{srv.server_port}"
+        assert main(["names", "--out", str(out), "--dashboard", url, "--cache", str(cache)]) == 0
+        assert "Vera Hollis" in out.read_text(encoding="utf-8")
+        out.unlink()
+        # --offline ignores the saved names
+        assert main(["names", "--out", str(out), "--dashboard", url, "--cache", str(cache), "--offline"]) == 2
+    finally:
+        srv.shutdown()
+        srv.server_close()
+    seen = capsys.readouterr()
+    assert "secret-token-value" not in seen.out + seen.err

@@ -29,9 +29,7 @@ export function registerActorHandlers(ctx: QueryContext, table: BridgeHandlerTab
   table.set(`${MODULE_ID}.findPlayers`, 'read', withCtx(ctx, findPlayers));
   table.set(`${MODULE_ID}.findActor`, 'read', withCtx(ctx, findActor));
 
-  // Tokens and conditions (camelCase and kebab-case names reach the same handler)
-  table.set(`${MODULE_ID}.getTokenDetails`, 'read', withCtx(ctx, getTokenDetails));
-  table.set(`${MODULE_ID}.getAvailableConditions`, 'read', () => getAvailableConditions(ctx));
+  // Tokens and conditions
   table.set(`${MODULE_ID}.get-token-details`, 'read', withCtx(ctx, getTokenDetails));
   table.set(`${MODULE_ID}.get-available-conditions`, 'read', () => getAvailableConditions(ctx));
 

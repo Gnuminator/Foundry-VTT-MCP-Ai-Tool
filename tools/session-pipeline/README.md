@@ -146,7 +146,14 @@ the first names when its budget runs out): extra list, player characters, party 
 items, journals. Names are cleaned ("Wolf 3" becomes "Wolf", brackets and commas dropped, generic
 names such as "New Scene" skipped). Items and journals are off by default because their names are
 mostly ordinary words. If the dashboard is down or refuses, the file is built from the extra list
-alone (a warning is printed); `--offline` skips the dashboard on purpose. Why here and not in the
+alone (a warning is printed); `--offline` skips the dashboard on purpose.
+
+The dashboard address is `--dashboard`, else the user variable `FVTT_NAMES_DASHBOARD` (set it to the
+Pi dashboard), else the local one. The command asks `get-world-info` first and refuses (exit 2, no
+file written) when the world is not the campaign (`curse-of-strahd`, or `FVTT_CAMPAIGN_WORLD`);
+`--any-world` takes a test world. With `--cache <file>` (`voice-stack.ps1` passes
+`<sessions>/campaign-names.txt`) a good read of the campaign is saved and used when the dashboard
+is down. Why here and not in the
 transcriber: it is plain stdlib Python with tests in this package, the same file feeds the
 transcriber (hotwords) and this merge (known names), and the transcriber image stays GPU-only.
 

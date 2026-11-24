@@ -66,7 +66,7 @@ Keep playing: do the change by hand in Foundry.
 - **Every tool call fails:** Claude has lost its link to the game. At the break, quit Claude Desktop
   fully and start it again. If that doesn't help, call for help after the session.
 
-> **Not sure? Ask Claude.** Ask the GM coach: "Claude stopped answering during play. What can I still do, and what do I do about it at the break?" ([how to add the GM coach](gm-coach.md)) The coach only needs Claude itself, not the game. If its tools fail it still has this runbook and the troubleshooting page built in, and says so.
+> **Not sure? Ask Claude.** Ask the GM coach: "Claude stopped answering during play. What can I still do, and what do I do about it at the break?" ([how to add the GM coach](gm-coach.md)) The coach answers even when the game does not: its full pages come from the server, but if that fails it still has this runbook and the troubleshooting page built in, and says so.
 
 ## The dashboard does not load or loses its connection
 

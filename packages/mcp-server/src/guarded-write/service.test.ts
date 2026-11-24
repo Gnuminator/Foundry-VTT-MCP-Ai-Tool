@@ -381,6 +381,16 @@ describe('applyPlan (Foundry ops)', () => {
     const rows = await service.listRecentChanges(20, { noteParts: true });
     expect(rows.find(r => r.changeId === 'big-400')?.notePart).toBe('2026-09-p2');
     expect(rows.find(r => r.changeId === 'big-0')?.notePart).toBe('2026-09');
+    // No export has recorded its notes yet: the written flag is left out.
+    expect(rows.find(r => r.changeId === 'big-400')?.notePartWritten).toBeUndefined();
+
+    // An export wrote the month note only: the -p2 part is not on disk yet.
+    await store.write('curse-of-strahd', 'gm', 'changes-notes-written.json', {
+      names: ['2026-09'],
+    });
+    const written = await service.listRecentChanges(20, { noteParts: true });
+    expect(written.find(r => r.changeId === 'big-400')?.notePartWritten).toBe(false);
+    expect(written.find(r => r.changeId === 'big-0')?.notePartWritten).toBe(true);
 
     vi.spyOn(store, 'readLines').mockRejectedValue(new Error('EACCES'));
     const again = await service.listRecentChanges(20, { noteParts: true });

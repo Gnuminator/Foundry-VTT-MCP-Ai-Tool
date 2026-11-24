@@ -1,11 +1,13 @@
 ---
 source: gm/dashboard.md
-sourceHash: 8bb346df64d5
+sourceHash: a77e8925fab4
 title: Dashboardet
 description: En rundtur i alle paneler og knapper på dashboardet, hvad de gør, og hvornår du bruger dem.
 ---
 
 # Dashboardet
+
+![During-skærmen i dashboardet: combat-strimlen, Party, Handouts og Recent Changes med Undo](../../images/dashboard/dashboard-during.png)
 
 Dashboardet er dit kontrolpanel under spillet. Denne side plejede at rumme hele rundturen; teksten ligger nu på disse sider (alle gamle sektionslinks lander stadig her og peger videre):
 

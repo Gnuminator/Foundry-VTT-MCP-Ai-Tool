@@ -72,7 +72,7 @@ describe('RenownTools', () => {
     const answer = await tools.handleGetRenown({});
     expect(answer.factions[0]?.identifier).toBe('harpers');
     expect(answer).not.toHaveProperty('creatures');
-    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getRenownState', {});
+    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getRenownState');
   });
 
   it('adjust updates the AI item the actor already has', async () => {

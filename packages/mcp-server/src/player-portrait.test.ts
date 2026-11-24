@@ -114,6 +114,23 @@ describe('handlePlayerPortrait', () => {
     expect(plan.summary).toContain('1 placed token');
   });
 
+  it('says "100 of N" in the plan when the module capped the placed tokens', async () => {
+    const tokens = Array.from({ length: 100 }, (_, i) => `Scene.scene00000000001.Token.tok${i}`);
+    const s = setup({
+      upload: {
+        success: true,
+        path: 'assets/players/p/portrait-1.png',
+        actorName: 'Brenna',
+        userName: 'Player',
+        placedTokens: tokens,
+        placedTotal: 130,
+      },
+    });
+    await run(s, { userId: USER, actorId: ACTOR, target: 'both', data: PNG.toString('base64') });
+    const plan = s.writes.createPlan.mock.calls[1][0] as { summary: string };
+    expect(plan.summary).toContain('100 of 130 placed tokens');
+  });
+
   it('still succeeds when the placed-token change fails', async () => {
     const s = setup({
       upload: {

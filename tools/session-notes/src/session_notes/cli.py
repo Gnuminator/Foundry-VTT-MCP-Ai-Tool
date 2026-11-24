@@ -20,13 +20,15 @@ from .inbox import pending as inbox_pending
 from .inbox import sync as inbox_sync
 from .model import clock, load_timeline
 from .publish import publish
+from .report import send_report
 from .retention import approve, cleanup
-from .run import Options, Writer
+from .run import MAX_FALLBACK_RUNS, Options, Writer
 from .scenes import split_scenes
 from .status import write_status
 
 EXIT_PAUSED = 75
 EXIT_INCOMPLETE = 76
+EXIT_SUMMARY_FAILED = 78  # the scenes are written, the session summary is not (77 is no consent)
 
 
 def data_folder(name: str) -> Path:
@@ -119,6 +121,23 @@ def main(argv: list[str] | None = None) -> int:
         help="write the 'Names and facts to check' pages and read the answers on them (no Claude call)",
     )
     chk.add_argument("session")
+    camp = sub.add_parser(
+        "campaign",
+        help="build the campaign merge plan from the notes (calls claude -p); writes "
+        "notes/campaign-merge.json for plan-campaign-merge",
+    )
+    camp.add_argument("session")
+    camp.add_argument("--model", default="sonnet")
+    camp.add_argument("--effort", default="medium", help="low, medium, high, xhigh or max")
+    camp.add_argument("--label", help='the session block name on the pages (default "Session NN" from the folder)')
+    camp.add_argument("--chat-log", type=Path, help="Foundry chat log (default <session>/chat-log.json)")
+    camp.add_argument("--foundry-facts", type=Path, help="Foundry stats, items, level, ownership (default <session>/foundry-facts.json)")
+    camp.add_argument(
+        "--switch",
+        choices=["on", "off"],
+        default="off",
+        help="the GM's 'apply additions without confirming' switch in Foundry (recorded in the plan)",
+    )
     ok = sub.add_parser("approve", help="mark the notes approved (audio is kept, D-097)")
     ok.add_argument("session")
     ok.add_argument("--by", default="GM")
@@ -129,6 +148,12 @@ def main(argv: list[str] | None = None) -> int:
     pub.add_argument("--port", type=int, help="bridge control port (default 31414; test 31514)")
     pub.add_argument("--world", help="Foundry world id, needed while Foundry is closed")
     pub.add_argument("--restage", action="store_true", help="stage again (only while staged)")
+    rep = sub.add_parser(
+        "report",
+        help="send the newest run status and the approved recap to the bridge (best effort)",
+    )
+    rep.add_argument("--port", type=int, help="bridge control port (as for publish)")
+    rep.add_argument("--world", help="Foundry world id, needed while Foundry is closed")
     clean = sub.add_parser(
         "cleanup",
         help="manual: delete audio of sessions approved at least --days ago (audio is kept by "
@@ -154,6 +179,10 @@ def main(argv: list[str] | None = None) -> int:
     con_check.add_argument(
         "--write-status", action="store_true", help="when blocked, say so in notes/status.json"
     )
+    ros = sub.add_parser("roster", help="roster.json: Discord user id to character, and who is GM")
+    ros_sub = ros.add_subparsers(dest="roster_cmd", required=True)
+    ros_check = ros_sub.add_parser("check", help="list the speakers of a session that the roster does not know")
+    ros_check.add_argument("session")
     inb = sub.add_parser(
         "inbox", help="recap inbox for a cloud routine (I-132); needs FVTT_RECAP_INBOX"
     )
@@ -164,6 +193,12 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "consent":
         return run_consent(args)
+    if args.cmd == "roster":
+        from . import roster
+
+        result = roster.check(resolve_session(args.session), sessions_root())
+        print(result.message)
+        return 0 if result.ok else 1
     if args.cmd == "inbox":
         raw = os.environ.get("FVTT_RECAP_INBOX")
         if not raw or not Path(raw).is_dir():
@@ -179,6 +214,9 @@ def main(argv: list[str] | None = None) -> int:
             print(exc, file=sys.stderr)
             return 1
         print("\n".join(report.lines()))
+        return 0
+    if args.cmd == "report":
+        print(send_report(sessions_root(), port=args.port, world=args.world))
         return 0
     if args.cmd == "cleanup":
         items = cleanup(sessions_root(), days=args.days, apply=args.yes)
@@ -229,6 +267,33 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Conflict (English page used): {line}")
         print(f"Pages: {check.page_path(session, 'en')} and {check.page_path(session, 'da')}")
         return 0
+    if args.cmd == "campaign":
+        from . import campaign
+
+        try:
+            done = campaign.run(
+                session,
+                ClaudeCli(),
+                model=args.model,
+                effort=args.effort,
+                label=args.label,
+                chat=args.chat_log,
+                facts=args.foundry_facts,
+                switch=args.switch == "on",
+            )
+        except (FileNotFoundError, ClaudeError, ValueError) as exc:
+            print(exc, file=sys.stderr)
+            return 1
+        if done.paused:
+            print(f"Paused: {done.paused}\nRun the same command again later.")
+            return EXIT_PAUSED
+        plan = done.plan
+        print(
+            f"Campaign merge plan for {plan['label']}: {len(plan['entries'])} entr(ies) to merge, "
+            f"{len(plan['held'])} held for a confirmed name, {len(plan['checks']['facts'])} fact(s) "
+            f"to check, {len(plan['hints'])} hint(s). Plan: {session / 'notes' / campaign.PLAN_FILE}"
+        )
+        return 0
     if args.cmd == "scenes":
         lines = load_timeline(session / "timeline" / "timeline.jsonl")
         for scene in split_scenes(lines, gap=args.scene_gap):
@@ -277,6 +342,20 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{why}{result.paused}\nRun the same command again later.")
         write_status(session, "paused", f"{why}{result.paused}", **counts)
         return EXIT_PAUSED
+    if result.summary_failed:
+        if result.summary_given_up:
+            msg = (
+                f"The session summary could not be written after {result.summary_tries} runs; "
+                "the scene notes are done. It is tried again only when the notes change."
+            )
+        else:
+            msg = (
+                f"The session summary could not be written (run {result.summary_tries} of "
+                f"{MAX_FALLBACK_RUNS}); the scene notes are done. The next pass tries again."
+            )
+        print(msg)
+        write_status(session, "failed", msg, reason="summary", **counts)
+        return EXIT_SUMMARY_FAILED
     if result.pending or result.depth_missing or result.extras_missing:
         parts = []
         if result.pending:

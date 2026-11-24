@@ -29,7 +29,7 @@ import { viewedScene as viewedSceneOf } from './viewed-scene.js';
 export const PARTY_PLACE_QUERY = 'planPartyPlacement';
 
 /** How many rings of squares around the spot are searched for room. */
-export const MAX_RINGS = 12;
+const MAX_RINGS = 12;
 
 /** The smallest step, in squares, when small tokens are packed by their own size. */
 const MIN_STEP_SQUARES = 0.05;

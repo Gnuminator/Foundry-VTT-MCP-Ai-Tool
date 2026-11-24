@@ -798,6 +798,7 @@ test('feature switch ids are pinned: they form the module setting keys, so a ren
   assert.deepEqual(found, [
     'ACTOR_IMAGE_FEATURE_ID=actor-image',
     'CHARACTER_DIARY_FEATURE_ID=character-diary',
+    'COMBAT_MOOD_FEATURE_ID=combat-mood',
     'FOUNDRY_SETUP_FEATURE_ID=foundry-setup',
     'LIVE_PLAY_FEATURE_ID=live-play',
     'MACRO_FORGE_FEATURE_ID=macro-forge',

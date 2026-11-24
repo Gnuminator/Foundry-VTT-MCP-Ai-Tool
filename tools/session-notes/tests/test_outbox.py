@@ -302,3 +302,22 @@ def test_player_notes_have_no_draft_footer_but_the_table_keeps_it(tmp_path: Path
     data = outbox.build(session, runner=fake_runner([]))
     assert "Danni decides" not in outbox.find(data, "pc-ebbe-en")["text"]
     assert "Danni decides" in outbox.find(data, "table-en")["text"]
+
+
+def test_rebuild_keeps_the_sent_record_even_when_the_source_changed(tmp_path: Path) -> None:
+    session = make_session(tmp_path)
+    outbox.build(session)
+    outbox.mark_sent(session, "pc-ebbe-en", "discordDm")
+    data = outbox.load(session)
+    outbox.find(data, "pc-ebbe-en")["text"] = "# Old source text"  # the source text now differs
+    outbox.write(session, data)
+    rebuilt = outbox.build(session)
+    assert outbox.find(rebuilt, "pc-ebbe-en")["sent"]["discordDm"]["done"] is True
+
+
+def test_two_players_with_one_discord_id_cannot_be_built(tmp_path: Path) -> None:
+    session = make_session(tmp_path)
+    chars = session / "notes" / "characters.en.md"
+    chars.write_text(chars.read_text(encoding="utf-8").replace("played by David", "played by Christian"), encoding="utf-8")
+    with pytest.raises(ValueError):
+        outbox.build(session)

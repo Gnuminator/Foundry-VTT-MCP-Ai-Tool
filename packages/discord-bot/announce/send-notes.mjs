@@ -9,7 +9,7 @@
  * - Only items with `status: "approved"` go out. A draft is never sent, whatever else is set.
  * - Each Discord channel of an item goes out once: `sent.discordDm` / `sent.discordGroup` is
  *   written to the file after each message part, so a rerun carries on where it stopped and never
- *   repeats a part that was delivered.
+ *   repeats a part whose delivery was saved (a part whose answer was lost may repeat).
  * - `--dry-run` sends nothing and writes nothing; it prints per recipient what would go out.
  * - No message mentions anyone (allowed_mentions parse is empty).
  * - The group channel is DISCORD_SESSION_NOTES_CHANNEL_ID, else DISCORD_SESSION_POST_CHANNEL_ID
@@ -18,6 +18,7 @@
  * - DISCORD_API_BASE points the calls at a fake Discord for tests (default the real API).
  * The token is never printed.
  */
+import { createHash } from 'node:crypto';
 import { readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
@@ -37,6 +38,9 @@ export function groupChannel(env = process.env, envFile = defaultEnvFile(env)) {
   }
   return '';
 }
+
+/** Fingerprint of the Discord text, kept with a partial send so an edit cannot mix old and new parts. */
+const textHash = messages => createHash('sha256').update(JSON.stringify(messages)).digest('hex').slice(0, 16);
 
 /** One authorised JSON call to Discord; returns the parsed body or throws without the token. */
 async function discord(fetchImpl, base, token, method, path, body) {
@@ -69,6 +73,8 @@ export function plan(outbox, { group = '', only } = {}) {
     let skip;
     if (item.status !== 'approved') skip = 'not approved';
     else if (item.sent?.[key]?.done) skip = 'already sent';
+    else if (item.sent?.[key]?.parts && item.sent[key].textHash !== textHash(item.discord))
+      skip = 'text changed after some parts went out; clear sent.' + key + ' in the outbox to resend all';
     else if (dm && !item.to.discordId) skip = 'no Discord id for this player';
     else if (grp && !group) skip = 'no session notes channel set (DISCORD_SESSION_NOTES_CHANNEL_ID)';
     out.push({ id: item.id, to, kind, messages: item.discord, ...(skip ? { skip } : {}) });
@@ -100,6 +106,11 @@ export async function runCli(argv, o = {}) {
     return 2;
   }
   const outbox = JSON.parse(readFileSync(file, 'utf8'));
+  const ids = outbox.items.map(i => i.id);
+  if (new Set(ids).size !== ids.length) {
+    log('send-notes: the outbox has two notes with the same id; nothing sent');
+    return 1;
+  }
   const settings = loadSettings(env, o.envFile);
   const group = groupChannel(env, o.envFile);
   const todo = plan(outbox, { group, ...(only ? { only } : {}) });
@@ -127,6 +138,7 @@ export async function runCli(argv, o = {}) {
     const key = p.kind === 'dm' ? 'discordDm' : 'discordGroup';
     item.sent ??= {};
     const rec = (item.sent[key] ??= { parts: 0, done: false });
+    rec.textHash = textHash(p.messages);
     try {
       let channelId = group;
       if (p.kind === 'dm') {
@@ -146,6 +158,7 @@ export async function runCli(argv, o = {}) {
         save(file, outbox);
       }
       rec.done = true;
+      delete rec.error;
       rec.at = new Date().toISOString();
       save(file, outbox);
       log(`sent ${p.id} -> ${p.kind} ${p.to}: ${p.messages.length} message(s)`);
@@ -164,7 +177,8 @@ if (isEntry(process.argv[1], fileURLToPath(import.meta.url))) {
     code => {
       process.exitCode = code;
     },
-    () => {
+    e => {
+      console.log(`send-notes: stopped: ${e instanceof Error ? e.message : String(e)} (a part may have been delivered but not saved; check sent.* in the outbox before a rerun)`);
       process.exitCode = 1;
     }
   );

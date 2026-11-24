@@ -217,7 +217,7 @@ export const config: Config = {
   pollIntervalMs,
   combatPollIntervalMs: readNumber('COMBAT_POLL_INTERVAL_MS', pollIntervalMs),
   maxEvents: readNumber('COGM_MAX_EVENTS', 80),
-  errorPollIntervalMs: readNumber('ERROR_POLL_INTERVAL_MS', 6000),
+  errorPollIntervalMs: readNumber('ERROR_POLL_INTERVAL_MS', 15000),
   maxErrors: readNumber('COGM_MAX_ERRORS', 100),
   controlRequestTimeoutMs: readNumber('MCP_REQUEST_TIMEOUT_MS', 15000),
   controlConnectTimeoutMs: readNumber('MCP_CONNECT_TIMEOUT_MS', 5000),

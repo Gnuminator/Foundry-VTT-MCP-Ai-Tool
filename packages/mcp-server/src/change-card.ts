@@ -8,14 +8,8 @@
  * The stdio wrapper answers `resources/list` and `resources/read` itself (static HTML, no control
  * round trip), like the prompts.
  */
-import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { ProtocolError, ProtocolErrorCode, type Server } from '@modelcontextprotocol/server';
 import { toolSetOf } from './tool-sets.js';
-import {
-  ErrorCode,
-  ListResourcesRequestSchema,
-  McpError,
-  ReadResourceRequestSchema,
-} from '@modelcontextprotocol/sdk/types.js';
 
 /** Merge into the server's capabilities so clients ask for resources at all. */
 export const RESOURCES_CAPABILITY = { resources: {} } as const;
@@ -180,7 +174,7 @@ export const CHANGE_CARD_HTML = `<!doctype html>
 
 /** `resources/list` and `resources/read` for the card. */
 export function registerChangeCardHandlers(server: Server): void {
-  server.setRequestHandler(ListResourcesRequestSchema, () => ({
+  server.setRequestHandler('resources/list', () => ({
     resources: [
       {
         uri: CHANGE_CARD_URI,
@@ -191,9 +185,12 @@ export function registerChangeCardHandlers(server: Server): void {
     ],
   }));
 
-  server.setRequestHandler(ReadResourceRequestSchema, request => {
+  server.setRequestHandler('resources/read', request => {
     if (request.params.uri !== CHANGE_CARD_URI) {
-      throw new McpError(ErrorCode.InvalidParams, `Unknown resource: ${request.params.uri}`);
+      throw new ProtocolError(
+        ProtocolErrorCode.InvalidParams,
+        `Unknown resource: ${request.params.uri}`
+      );
     }
     return {
       contents: [{ uri: CHANGE_CARD_URI, mimeType: CHANGE_CARD_MIME, text: CHANGE_CARD_HTML }],

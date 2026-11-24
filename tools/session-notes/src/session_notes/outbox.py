@@ -22,6 +22,7 @@ The folder lives in the session's ``notes`` folder on the PC (never in the repo)
 from __future__ import annotations
 
 import json
+import os
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -85,7 +86,6 @@ def plain(text: str) -> str:
         if line.startswith(">"):  # draft banners and quote marks are not for players
             continue
         out.append(line.rstrip())
-    joined = "\n".join(out)
     return re.sub(r"\n{3,}", "\n\n", "\n".join(out)).strip()
 
 
@@ -704,6 +704,17 @@ def build(session: Path, runner: Any = None, model: str = "sonnet") -> dict[str,
                                render_gm(lang, table_data[lang]),
                                {"type": "player", "player": "Danni", "character": "GM", "discordId": ids["danni"]},
                                ["discord-dm", "obsidian"]))
+    seen_ids: set[str] = set()
+    seen_to: set[tuple[str, str]] = set()
+    for item in items:
+        if item["id"] in seen_ids:
+            raise ValueError(f"two notes share the id {item['id']}; rename one character")
+        seen_ids.add(item["id"])
+        did = item["to"].get("discordId")
+        if item["kind"] == "pc-note" and did:
+            if (item["lang"], did) in seen_to:
+                raise ValueError(f"two players resolve to Discord id {did}; their notes would go to one person")
+            seen_to.add((item["lang"], did))
     for item in items:
         item["linkNames"] = link_list
         refresh(item)
@@ -714,6 +725,9 @@ def build(session: Path, runner: Any = None, model: str = "sonnet") -> dict[str,
             was = prev.get(item["id"])
             if was is None:
                 continue
+            if was.get("sent"):
+                # Never forget what already went out, even when the text changed (never re-send).
+                item["sent"] = was["sent"]
             if was["text"] == item["text"] or was.get("edited"):
                 # Same source, or the approver's own edit: keep it and its status.
                 item.update({k: was[k] for k in ("text", "status", "approvedAt", "sent", "edited") if k in was})
@@ -735,7 +749,9 @@ def load(session: Path) -> dict[str, Any] | None:
 def write(session: Path, data: dict[str, Any]) -> Path:
     path = outbox_path(session)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    tmp = path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    os.replace(tmp, path)
     return path
 
 

@@ -1,0 +1,143 @@
+// An old (2025-11-25, SDK v1) client and a new (2026-07-28, SDK v2) client both list and call tools
+// on the built stdio wrapper (dist/index.js), against a fake control bridge (I-138). The clients
+// are the real SDK clients on their own stdio transports, so this is what Claude Desktop (old) and
+// a modern host (new) do on connect. It needs the build (`npm run build`).
+import * as fs from 'node:fs';
+import * as net from 'node:net';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { Client as ModernClient } from '@modelcontextprotocol/client';
+import { StdioClientTransport as ModernStdio } from '@modelcontextprotocol/client/stdio';
+import { Client as LegacyClient } from '@modelcontextprotocol/sdk/client/index.js';
+import { StdioClientTransport as LegacyStdio } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+
+import {
+  FAKE_TOOLS,
+  recordedClients,
+  startFakeBridge,
+} from './test-support/fake-control-bridge.js';
+
+/** The record_client calls that named this client (the bridge's "which Claude app" view, D-146). */
+async function recordedAs(name: string): Promise<Record<string, unknown>[]> {
+  const deadline = Date.now() + 5_000;
+  while (Date.now() < deadline && !recordedClients.some(p => p.name === name)) {
+    await new Promise<void>(resolve => setTimeout(resolve, 50));
+  }
+  return recordedClients.filter(p => p.name === name);
+}
+
+vi.setConfig({ testTimeout: 30_000 });
+
+const distIndex = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '..',
+  'dist',
+  'index.js'
+);
+
+let bridge: { server: net.Server; port: number } | undefined;
+let tmpDir = '';
+
+// Without a build the suite is skipped (the drift check's merged worktree never builds); CI
+// always builds, so a missing dist there is an error, not a skip.
+const built = fs.existsSync(distIndex);
+// (The drift check sets CI itself, so GitHub's own variable is the signal.)
+const skipUnbuilt = !built && !process.env['GITHUB_ACTIONS'];
+
+beforeAll(async () => {
+  if (skipUnbuilt) return;
+  if (!built) {
+    throw new Error(`${distIndex} not found. Run "npm run build" first (npm run green does).`);
+  }
+  bridge = await startFakeBridge();
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-dual-era-'));
+});
+
+afterAll(() => {
+  bridge?.server.close();
+  if (tmpDir) fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+function serverParams(): { command: string; args: string[]; env: Record<string, string> } {
+  const env: Record<string, string> = {};
+  for (const [k, v] of Object.entries(process.env)) if (v !== undefined) env[k] = v;
+  return {
+    command: process.execPath,
+    args: [distIndex],
+    env: {
+      ...env,
+      MCP_CONTROL_HOST: '127.0.0.1',
+      MCP_CONTROL_PORT: String(bridge?.port),
+      MCP_NO_SPAWN: '1',
+      FOUNDRY_AI_TOOL_SETS: '',
+      // Keep these runs out of the live connectors' wrapper.log.
+      TEMP: tmpDir,
+      TMP: tmpDir,
+      TMPDIR: tmpDir,
+    },
+  };
+}
+
+describe.skipIf(skipUnbuilt)('old and new MCP clients on the stdio wrapper', () => {
+  it('a 2025-11-25 client (SDK v1) lists and calls tools', async () => {
+    const client = new LegacyClient({ name: 'legacy-client', version: '0.0.0' });
+    await client.connect(new LegacyStdio(serverParams()));
+    try {
+      expect(client.getServerVersion()?.name).toBe('foundry-mcp-server');
+      expect(client.getInstructions()).toContain('Foundry AI Tool');
+      const { tools } = await client.listTools();
+      expect(tools.map(t => t.name)).toEqual(FAKE_TOOLS.map(t => t.name));
+      const result = await client.callTool({ name: 'get-world-info', arguments: {} });
+      expect(JSON.stringify(result.content)).toContain('fake result');
+      const { prompts } = await client.listPrompts();
+      expect(prompts.length).toBeGreaterThan(0);
+      expect(await recordedAs('legacy-client')).toHaveLength(1);
+    } finally {
+      await client.close();
+    }
+  });
+
+  it('a 2026-07-28 client (SDK v2, discover pinned) lists and calls tools', async () => {
+    const client = new ModernClient(
+      { name: 'modern-client', version: '0.0.0' },
+      { versionNegotiation: { mode: { pin: '2026-07-28' } } }
+    );
+    await client.connect(new ModernStdio(serverParams()));
+    try {
+      expect(client.getDiscoverResult()?.supportedVersions).toContain('2026-07-28');
+      const { tools } = await client.listTools();
+      expect(tools.map(t => t.name)).toEqual(FAKE_TOOLS.map(t => t.name));
+      const result = await client.callTool({ name: 'get-world-info', arguments: {} });
+      expect(JSON.stringify(result.content)).toContain('fake result');
+      const { prompts } = await client.listPrompts();
+      expect(prompts.length).toBeGreaterThan(0);
+      expect(await recordedAs('modern-client')).toHaveLength(1);
+    } finally {
+      await client.close();
+    }
+  });
+
+  it('a dual-era client (SDK v2, auto) settles on the 2026-07-28 era', async () => {
+    const client = new ModernClient(
+      { name: 'dual-client', version: '0.0.0' },
+      // The probe runs on a sibling process, and a probe that gets no answer in time counts as a
+      // legacy server on stdio. A cold node start on a loaded Windows PC (the local gate runs many
+      // test files at once) can be that slow, so the probe gets time and a re-send before the verdict.
+      { versionNegotiation: { mode: 'auto', probe: { timeoutMs: 20_000, maxRetries: 2 } } }
+    );
+    await client.connect(new ModernStdio(serverParams()));
+    try {
+      expect(
+        client.getDiscoverResult(),
+        'auto negotiation fell back to the 2025 era'
+      ).toBeDefined();
+      const { tools } = await client.listTools();
+      expect(tools.map(t => t.name)).toEqual(FAKE_TOOLS.map(t => t.name));
+    } finally {
+      await client.close();
+    }
+  });
+});

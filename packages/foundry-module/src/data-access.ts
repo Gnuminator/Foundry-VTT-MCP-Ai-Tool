@@ -1,3 +1,16 @@
+import type {
+  AdvanceCombatTurnRequest,
+  GetChatLogRequest,
+  ListScenesRequest,
+  ManageRestRequest,
+  PlayPlaylistRequest,
+  RequestPlayerRollsRequest,
+  RollInitiativeForNpcsRequest,
+  RollNpcCheckRequest,
+  RollSavingThrowsRequest,
+  SendChatMessageRequest,
+  SwitchSceneRequest,
+} from '@gnuminator/shared';
 import { MODULE_ID } from './constants.js';
 import { PersistentCreatureIndex } from './data-access/creature-index.js';
 import * as shared from './data-access/shared.js';
@@ -349,16 +362,9 @@ export class FoundryDataAccess {
     return this.compendium.getCompendiumDocumentFull(packId, documentId);
   }
 
-  async requestPlayerRolls(data: {
-    rollType: string;
-    rollTarget: string;
-    targetPlayer: string;
-    isPublic: boolean;
-    rollModifier: string;
-    flavor: string;
-    dc?: number;
-    advantage?: 'advantage' | 'disadvantage';
-  }): Promise<{ success: boolean; message: string; error?: string }> {
+  async requestPlayerRolls(
+    data: RequestPlayerRollsRequest
+  ): Promise<{ success: boolean; message: string; error?: string }> {
     return this.playerRolls.requestPlayerRolls(data);
   }
 
@@ -458,15 +464,14 @@ export class FoundryDataAccess {
   }
 
   async listScenes(
-    options: { filter?: string; include_active_only?: boolean } = {}
-  ): Promise<unknown[]> {
+    options: ListScenesRequest = {}
+  ): ReturnType<ScenesTokensDataAccess['listScenes']> {
     return this.scenesTokens.listScenes(options);
   }
 
-  async switchScene(options: {
-    scene_identifier: string;
-    optimize_view?: boolean;
-  }): Promise<unknown> {
+  async switchScene(
+    options: SwitchSceneRequest
+  ): ReturnType<ScenesTokensDataAccess['switchScene']> {
     return this.scenesTokens.switchScene(options);
   }
 
@@ -579,26 +584,17 @@ export class FoundryDataAccess {
   // 3A: Chat log / combat play-by-play / in-character chat
   // ===========================================================================
 
-  async getChatLog(data: {
-    limit?: number;
-    speakerName?: string;
-    messageType?: string;
-    sinceTimestamp?: string;
-  }): Promise<unknown> {
+  async getChatLog(data: GetChatLogRequest): ReturnType<ChatDataAccess['getChatLog']> {
     return this.chat.getChatLog(data);
   }
 
-  async getCombatPlayByPlay(): Promise<unknown> {
+  async getCombatPlayByPlay(): ReturnType<CombatDataAccess['getCombatPlayByPlay']> {
     return this.combat.getCombatPlayByPlay();
   }
 
-  async sendChatMessage(data: {
-    message: string;
-    speakerActorId?: string;
-    speakerActorName?: string;
-    messageType?: string;
-    whisperTargets?: string[];
-  }): Promise<unknown> {
+  async sendChatMessage(
+    data: SendChatMessageRequest
+  ): ReturnType<ChatDataAccess['sendChatMessage']> {
     return this.chat.sendChatMessage(data);
   }
 
@@ -622,15 +618,20 @@ export class FoundryDataAccess {
   // 3E: Combat tracker (read + manage)
   // ===========================================================================
 
-  async getCombatState(): Promise<unknown> {
+  async getCombatState(): ReturnType<CombatDataAccess['getCombatState']> {
     return this.combat.getCombatState();
   }
 
-  async advanceCombatTurn(data: { skipTo?: string }): Promise<unknown> {
+  async advanceCombatTurn(
+    data: AdvanceCombatTurnRequest
+  ): ReturnType<CombatDataAccess['advanceCombatTurn']> {
     return this.combat.advanceCombatTurn(data);
   }
 
-  async setInitiative(data: { combatantName: string; initiative: number }): Promise<unknown> {
+  async setInitiative(data: {
+    combatantName: string;
+    initiative: number;
+  }): ReturnType<CombatDataAccess['setInitiative']> {
     return this.combat.setInitiative(data);
   }
 
@@ -638,11 +639,16 @@ export class FoundryDataAccess {
   // 3F: Movement and token positioning
   // ===========================================================================
 
-  async getTokenPositions(data: { sceneId?: string }): Promise<unknown> {
+  async getTokenPositions(data: {
+    sceneId?: string | undefined;
+  }): ReturnType<ScenesTokensDataAccess['getTokenPositions']> {
     return this.scenesTokens.getTokenPositions(data);
   }
 
-  async measureDistance(data: { fromTokenName: string; toTokenName: string }): Promise<unknown> {
+  async measureDistance(data: {
+    fromTokenName: string;
+    toTokenName: string;
+  }): ReturnType<ScenesTokensDataAccess['measureDistance']> {
     return this.scenesTokens.measureDistance(data);
   }
 
@@ -650,13 +656,7 @@ export class FoundryDataAccess {
   // 3G: Extended roll requests / NPC rolls
   // ===========================================================================
 
-  async rollNpcCheck(data: {
-    actorName: string;
-    rollType: string;
-    rollTarget: string;
-    isPublic: boolean;
-    advantage?: 'advantage' | 'disadvantage';
-  }): Promise<unknown> {
+  async rollNpcCheck(data: RollNpcCheckRequest): ReturnType<PlayerRollsDataAccess['rollNpcCheck']> {
     return this.playerRolls.rollNpcCheck(data);
   }
 
@@ -684,18 +684,15 @@ export class FoundryDataAccess {
   // Combat resolution: initiative
   // ===========================================================================
 
-  async rollInitiativeForNpcs(data: { scope?: 'npcs' | 'all' | 'missing' }): Promise<unknown> {
+  async rollInitiativeForNpcs(
+    data: RollInitiativeForNpcsRequest
+  ): ReturnType<CombatDataAccess['rollInitiativeForNpcs']> {
     return this.combat.rollInitiativeForNpcs(data);
   }
 
-  async rollSavingThrows(data: {
-    targets: string[];
-    rollType: 'save' | 'check' | 'skill';
-    ability?: string;
-    skill?: string;
-    dc?: number;
-    isPublic?: boolean;
-  }): Promise<unknown> {
+  async rollSavingThrows(
+    data: RollSavingThrowsRequest
+  ): ReturnType<CombatDataAccess['rollSavingThrows']> {
     return this.combat.rollSavingThrows(data);
   }
 
@@ -703,11 +700,7 @@ export class FoundryDataAccess {
     return this.actorBuilder.useNpcActivity(data);
   }
 
-  async manageRest(data: {
-    targets: string[];
-    restType: 'short' | 'long';
-    newDay?: boolean;
-  }): Promise<unknown> {
+  async manageRest(data: ManageRestRequest): ReturnType<CombatDataAccess['manageRest']> {
     return this.combat.manageRest(data);
   }
 
@@ -722,7 +715,7 @@ export class FoundryDataAccess {
     return this.combat.suggestBalancedEncounter(data);
   }
 
-  async playPlaylist(data: { playlistName?: string; action?: 'play' | 'stop' }): Promise<unknown> {
+  async playPlaylist(data: PlayPlaylistRequest): ReturnType<SceneFxDataAccess['playPlaylist']> {
     return this.sceneFx.playPlaylist(data);
   }
 
@@ -730,7 +723,7 @@ export class FoundryDataAccess {
   // Cleanup & targeting helpers
   // ===========================================================================
 
-  async getTargets(): Promise<unknown> {
+  async getTargets(): ReturnType<ScenesTokensDataAccess['getTargets']> {
     return this.scenesTokens.getTargets();
   }
 

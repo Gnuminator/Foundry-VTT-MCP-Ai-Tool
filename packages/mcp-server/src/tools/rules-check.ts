@@ -391,7 +391,7 @@ export class RulesCheckTools {
   /** The running encounter as the bridge reports it; null when none runs or it cannot be read. */
   private async combatState(): Promise<Rec | null> {
     try {
-      const state = rec(await this.foundryClient.query('foundry-mcp-bridge.getCombatState', {}));
+      const state = rec(await this.foundryClient.query('foundry-mcp-bridge.getCombatState'));
       return state.success === false || state.active !== true ? null : state;
     } catch (error) {
       this.logger.warn('Rules check: combat state unavailable', error);

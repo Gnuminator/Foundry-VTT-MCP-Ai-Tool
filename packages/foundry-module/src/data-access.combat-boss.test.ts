@@ -5,7 +5,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FoundryDataAccess } from './data-access.js';
-import { bossResources } from './data-access/combat.js';
+import { bossResources, type CombatStateResult } from './data-access/combat.js';
 import {
   createTestWorld,
   makeActor,
@@ -124,9 +124,9 @@ describe('getCombatState: boss', () => {
       started: true,
     });
 
-    const result = await da.getCombatState();
+    const result = (await da.getCombatState()) as Extract<CombatStateResult, { round: number }>;
     const [a, w, h] = result.combatants;
-    expect(a.boss.legendary).toEqual({ max: 3, spent: 1, remaining: 2 });
+    expect(a.boss?.legendary).toEqual({ max: 3, spent: 1, remaining: 2 });
     expect(w.boss).toBeNull();
     expect(h.boss).toBeNull();
   });

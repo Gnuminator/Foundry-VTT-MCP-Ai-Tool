@@ -93,7 +93,7 @@ describe('MovementTools.handleGetTargets', () => {
     const payload = { success: true, targets: [] };
     const { tools, query } = makeTools(MovementTools, () => payload);
     const result = await tools.handleGetTargets({});
-    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getTargets', {});
+    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getTargets');
     expect(result).toBe(payload);
     consoleErr.mockRestore();
   });

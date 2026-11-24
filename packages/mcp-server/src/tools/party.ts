@@ -147,8 +147,7 @@ export class PartyTools {
 
   private async readState(): Promise<PartyState> {
     const response: unknown = await this.options.foundryClient.query(
-      `foundry-mcp-bridge.${PARTY_STATE_QUERY}`,
-      {}
+      `foundry-mcp-bridge.${PARTY_STATE_QUERY}`
     );
     return unwrap<PartyState>(response, 'Could not read the party');
   }

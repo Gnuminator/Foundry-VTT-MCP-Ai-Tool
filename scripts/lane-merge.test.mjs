@@ -725,6 +725,7 @@ const NOT_CONTRACT = [
   'party',
   'pc-creation',
   'play-log',
+  'play-queries',
   'player-portrait',
   'player-view',
   'preflight',

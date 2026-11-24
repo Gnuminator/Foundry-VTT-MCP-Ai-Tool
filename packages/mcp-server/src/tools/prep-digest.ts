@@ -409,7 +409,7 @@ export class PrepDigestTools {
   private async currentScene(): Promise<SceneForPrep | Error> {
     try {
       const raw = unwrap<Partial<SceneInfo> | null>(
-        await this.options.foundryClient.query('foundry-mcp-bridge.getActiveScene', {}),
+        await this.options.foundryClient.query('foundry-mcp-bridge.getActiveScene'),
         'The scene query was refused'
       );
       if (!raw || typeof raw.id !== 'string') throw new Error('Foundry sent no scene');

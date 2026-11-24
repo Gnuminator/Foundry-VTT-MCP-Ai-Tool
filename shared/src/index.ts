@@ -54,6 +54,7 @@ export * from './space-status.js';
 export * from './change-journal.js';
 export * from './character-entity.js';
 export * from './bridge-queries.js';
+export * from './play-queries.js';
 export * from './session-folder.js';
 export * from './sessions-dir.js';
 export * from './root-folders.js';

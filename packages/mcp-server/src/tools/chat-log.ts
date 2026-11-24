@@ -135,8 +135,7 @@ export class ChatLogTools {
   async handleGetCombatPlayByPlay(_args?: unknown): Promise<ChatLogBridgeReply | undefined> {
     try {
       const response = (await this.foundryClient.query(
-        'foundry-mcp-bridge.getCombatPlayByPlay',
-        {}
+        'foundry-mcp-bridge.getCombatPlayByPlay'
       )) as ChatLogBridgeReply | undefined;
       if (response?.success === false) {
         throw new Error(response.error || 'Failed to get combat play-by-play');

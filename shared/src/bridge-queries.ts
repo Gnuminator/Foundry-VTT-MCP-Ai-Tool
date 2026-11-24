@@ -14,6 +14,13 @@
  * `FoundryClient.query` and the module's untyped `bridgeHandlers.set`.
  */
 
+import type { CombatChangePlan, CombatChangeRequest } from './combat-change.js';
+import type { LiveChangePlan, LiveChangeRequest } from './live-play.js';
+import type { PartyPlaceRequest, PartyPlacement, PartyState } from './party.js';
+import type * as Play from './play-queries.js';
+import type { RenownState } from './renown.js';
+import type { SceneChangePlan, SceneChangeRequest } from './scene-change.js';
+import type { SceneInfo } from './types.js';
 import type { ChangeJournalResponse } from './change-journal.js';
 import type { CharacterEntityResult } from './character-entity.js';
 import type {
@@ -228,6 +235,80 @@ export interface BridgeQueryMap {
     request: { characterIdentifier: string; entityIdentifier: string };
     reply: CharacterEntityResult;
   };
+  // The play set: combat, chat and rolls, scenes and tokens, music (shapes in play-queries.ts).
+  'foundry-mcp-bridge.getCombatState': { request: undefined; reply: Play.CombatStateReply };
+  'foundry-mcp-bridge.advanceCombatTurn': {
+    request: Play.AdvanceCombatTurnRequest;
+    reply: Play.AdvanceCombatTurnReply;
+  };
+  'foundry-mcp-bridge.setInitiative': {
+    request: Play.SetInitiativeRequest;
+    reply: Play.SetInitiativeReply;
+  };
+  'foundry-mcp-bridge.rollInitiativeForNpcs': {
+    request: Play.RollInitiativeForNpcsRequest;
+    reply: Play.RollInitiativeForNpcsReply;
+  };
+  'foundry-mcp-bridge.rollSavingThrows': {
+    request: Play.RollSavingThrowsRequest;
+    reply: Play.RollSavingThrowsReply;
+  };
+  'foundry-mcp-bridge.useNpcActivity': {
+    request: Play.UseNpcActivityRequest;
+    reply: Play.UseNpcActivityReply;
+  };
+  'foundry-mcp-bridge.manageRest': { request: Play.ManageRestRequest; reply: Play.ManageRestReply };
+  'foundry-mcp-bridge.planLiveChange': { request: LiveChangeRequest; reply: LiveChangePlan };
+  'foundry-mcp-bridge.planCombatChange': {
+    request: CombatChangeRequest;
+    reply: CombatChangePlan;
+  };
+  'foundry-mcp-bridge.getChatLog': { request: Play.GetChatLogRequest; reply: Play.GetChatLogReply };
+  'foundry-mcp-bridge.getCombatPlayByPlay': {
+    request: undefined;
+    reply: Play.CombatPlayByPlayReply;
+  };
+  'foundry-mcp-bridge.sendChatMessage': {
+    request: Play.SendChatMessageRequest;
+    reply: Play.SendChatMessageReply;
+  };
+  'foundry-mcp-bridge.request-player-rolls': {
+    request: Play.RequestPlayerRollsRequest;
+    reply: Play.RequestPlayerRollsReply;
+  };
+  'foundry-mcp-bridge.rollNpcCheck': {
+    request: Play.RollNpcCheckRequest;
+    reply: Play.RollNpcCheckReply;
+  };
+  'foundry-mcp-bridge.getActiveScene': { request: undefined; reply: SceneInfo };
+  'foundry-mcp-bridge.list-scenes': {
+    request: Play.ListScenesRequest;
+    reply: Play.SceneSummaryReply[];
+  };
+  'foundry-mcp-bridge.switch-scene': {
+    request: Play.SwitchSceneRequest;
+    reply: Play.SwitchSceneReply;
+  };
+  'foundry-mcp-bridge.getTokenPositions': {
+    request: { sceneId?: string | undefined };
+    reply: Play.TokenPositionsReply;
+  };
+  'foundry-mcp-bridge.measureDistance': {
+    request: Play.MeasureDistanceRequest;
+    reply: Play.MeasureDistanceReply;
+  };
+  'foundry-mcp-bridge.getTargets': { request: undefined; reply: Play.TargetsReply };
+  'foundry-mcp-bridge.playPlaylist': {
+    request: Play.PlayPlaylistRequest;
+    reply: Play.PlayPlaylistReply;
+  };
+  'foundry-mcp-bridge.getPartyState': { request: undefined; reply: PartyState };
+  'foundry-mcp-bridge.getRenownState': { request: undefined; reply: RenownState };
+  'foundry-mcp-bridge.planPartyPlacement': {
+    request: PartyPlaceRequest;
+    reply: PartyPlacement;
+  };
+  'foundry-mcp-bridge.planSceneChange': { request: SceneChangeRequest; reply: SceneChangePlan };
 }
 
 /** A bridge method the contract types. */

@@ -123,20 +123,20 @@ describe('ChatLogTools.handleGetCombatPlayByPlay', () => {
     const payload = { success: true, rounds: [] };
     const { tools, query } = makeTools(ChatLogTools, () => payload);
     const result = await tools.handleGetCombatPlayByPlay({});
-    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getCombatPlayByPlay', {});
+    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getCombatPlayByPlay');
     expect(result).toBe(payload);
   });
 
   it('ignores extra args and dispatches empty params', async () => {
     const { tools, query } = makeTools(ChatLogTools);
     await tools.handleGetCombatPlayByPlay({ unexpected: 'arg' });
-    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getCombatPlayByPlay', {});
+    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getCombatPlayByPlay');
   });
 
   it('dispatches with empty params when args are undefined', async () => {
     const { tools, query } = makeTools(ChatLogTools);
     await tools.handleGetCombatPlayByPlay(undefined);
-    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getCombatPlayByPlay', {});
+    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getCombatPlayByPlay');
   });
 
   it('throws when Foundry reports a failure with an error message', async () => {

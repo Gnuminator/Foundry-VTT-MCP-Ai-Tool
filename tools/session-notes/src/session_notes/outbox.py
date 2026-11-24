@@ -354,7 +354,7 @@ def link_names(text: str, names: list[str]) -> str:
 
 def refresh(item: dict[str, Any]) -> None:
     """Recompute what depends on ``text``: what goes out in each medium and the Foundry fit."""
-    item["discord"] = discord_parts(item["text"])
+    item["discord"] = discord_parts(item.get("short") or item["text"])
     item["foundry"] = foundry_html(item["text"])
     item["obsidian"] = obsidian_md(item)
     # Only the player's own note goes through the diary tool, which refuses text over 2000 characters.
@@ -368,63 +368,251 @@ def refresh(item: dict[str, Any]) -> None:
         item["warnings"].append("A Discord message is over 2000 characters.")
 
 
-TODO_SCHEMA = {
+# ---------------------------------------------------------------------------
+# The structure of the notes (Design/Player notes structure 2026-11-24): English is written once
+# from the notes, Danish is a translation of that same data, and the renderer owns headings, order,
+# counts and lengths. Claude only fills fields; an item with no quoted source is dropped.
+PC_CAPS = {"discord": 900, "foundry": 1500}
+TABLE_CAPS = {"changed": 3, "agreed": 10, "call": 5, "open": 6, "logistics": 5}
+STRUCT_LABELS = {
+    "en": {
+        "session": "Session 1",
+        "unconfirmed": "not confirmed",
+        "confirmed": "confirmed",
+        "so_far": "You so far",
+        "threads": "Your threads",
+        "known": "What the table knows",
+        "todos": "Before session 1",
+        "foot": "Draft from the recording. Danni decides.",
+        "changed": "What changed for you",
+        "agreed": "Agreed",
+        "call": "Danni's call",
+        "open": "Open (decide by session 1)",
+        "logistics": "Logistics",
+    },
+    "da": {
+        "session": "Session 1",
+        "unconfirmed": "ikke bekræftet",
+        "confirmed": "bekræftet",
+        "so_far": "Du indtil nu",
+        "threads": "Dine tråde",
+        "known": "Det bordet ved om dig",
+        "todos": "Før session 1",
+        "foot": "Udkast fra optagelsen. Danni bestemmer.",
+        "changed": "Hvad der ændrer sig for dig",
+        "agreed": "Aftalt",
+        "call": "Dannis afgørelse",
+        "open": "Åbent (afgøres inden session 1)",
+        "logistics": "Praktisk",
+    },
+}
+_STR = {"type": "string"}
+_QUOTED = {
     "type": "object",
     "additionalProperties": False,
-    "required": ["da", "en"],
+    "required": ["text", "source"],
+    "properties": {"text": _STR, "source": _STR},
+}
+PC_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["so_far", "threads", "known", "todos"],
     "properties": {
-        "da": {"type": "array", "items": {"type": "string"}},
-        "en": {"type": "array", "items": {"type": "string"}},
+        "so_far": _STR,
+        "threads": {"type": "array", "items": _QUOTED},
+        "known": {"type": "array", "items": _QUOTED},
+        "todos": {"type": "array", "items": _QUOTED},
+    },
+}
+TABLE_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["session_when", "confirmed", "changed", "agreed", "call", "open", "logistics"],
+    "properties": {
+        "session_when": _STR,
+        "confirmed": {"type": "boolean"},
+        "changed": {"type": "array", "items": _STR},
+        "agreed": {"type": "array", "items": _STR},
+        "call": {"type": "array", "items": _STR},
+        "open": {"type": "array", "items": _STR},
+        "logistics": {"type": "array", "items": _STR},
     },
 }
 
-TODO_PROMPT = """\
-Below is the Table page of a Dungeons & Dragons session 0 (house rules, plans, open questions).
-Write the to-dos for ONE player: {player}, who plays {character}.
+PC_PROMPT = """\
+You write one short note for ONE player of a Dungeons & Dragons group, about their character
+{character} (player {player}), after session 0. Use only the text below. Invent no facts, hooks,
+enemies or to-dos. Second person ("you"), plain words, no em dashes, no timestamps.
 
-A to-do is something this player must do, decide, bring or confirm before the next session. Each
-is one self-contained sentence that says WHAT, with the concrete detail (date, time, place, who
-it is with, what exactly to confirm), so it makes sense without the Table page. Examples of the
-right level: "Confirm with Danni whether the first live session is on 19 December at 12 at
-Christian's place." "Send David the brief for the journeyman's test."
-Leave out: observations of what someone said or noted, technical talk about screens and sound,
-things that are the GM's or another player's job, and anything that is only table chatter. Use at
-most 5. An empty list is fine. Use only what the page says; never invent.
-Write the same to-dos in Danish (`da`) and English (`en`). Game terms stay English in the Danish
-text. Never use em dashes.
+Fields:
+- so_far: one or two sentences about what is now true of {character}, built only from the
+  Revealed and Ties lines. Not a retelling of the recap.
+- threads: at most 3 open questions for the player, each reworded from one line under Hooks and
+  quoted in `source`. Skip a hook the recap already resolved. Never add a hook that is not in the
+  Hooks lines. If a Hooks line says something was told or read aloud by mistake or is private, make
+  it a plain line that the player should talk to Danni about it, and never repeat the secret.
+- known: always an empty list.
+- todos: at most 3 things THIS player must do before session 1. Each needs a line on the Table
+  page that names this player or {character} and says they will, must or should do something, or
+  an agreed rule that obliges them to prepare something; quote that line in `source`. A proposal
+  that was not settled, a wish, a generic expectation for everyone, an observation about what
+  someone said, and the date of the first session (it is shown separately) are NOT to-dos. Start
+  with a verb, one object, concrete. Fewer is better; an empty list is fine.
+
+CHARACTER LINES ({character}, in the story):
+{story}
+
+TABLE PAGE:
+{table}
+
+RECAP:
+{recap}
+"""
+
+TABLE_PROMPT = """\
+Below is the Table page of a Dungeons & Dragons session 0. Rewrite it as ONE short page for the
+players. Use only what it says; invent nothing. Plain words, no em dashes, no timestamps, no names
+of who was late or distracted, no gossip, no play-style observations about people.
+
+Fields:
+- session_when: when and where the first live session is planned (for example "19 December at
+  12, at Christian's place"), or an empty string.
+- confirmed: true only if the page says it is settled.
+- changed: at most 3 short lines, the biggest things that change how the players prepare or play.
+- agreed: house rules and agreements that the page shows several people backed, one imperative
+  line each ("Potion: bonus action rolls the heal, action gives the maximum.").
+- call: things only Danni (the GM) can decide, one line each, including a proposal he was open to.
+- open: proposals and questions still not settled, one line each with who proposed it.
+- logistics: session length, scheduling, sickness and absence policy, who writes the notes.
+Every fact goes in ONE field only (no rule in both agreed and logistics, nothing from changed
+repeated verbatim). Counts: changed 3, agreed 10, call 5, open 6, logistics 5, so choose the
+most important. Leave out one player's private story or backstory (never put it on this page),
+individual players' calendars (only the group's chosen date matters), jokes and equipment chatter.
 
 TABLE PAGE:
 {table}
 """
 
+TRANSLATE_PROMPT = """\
+Translate the values of this JSON from English to Danish. Keep the keys, the structure, booleans
+and the number of items. Keep the English game terms (attack, saving throw, hit points, token,
+spell names). Keep names. Natural, plain Danish; never an em dash. Return JSON in the same shape.
 
-def ai_todos(
-    session: Path, runner: Any, model: str, table_en: str, player: str, character: str
-) -> dict[str, list[str]]:
-    """To-dos for one player written by Claude from the Table page; cached by input so a rebuild
-    does not call again."""
+{data}
+"""
+
+
+def _cached(session: Path, runner: Any, model: str, prompt: str, schema: dict[str, Any]) -> dict[str, Any]:
+    """One Claude call, cached by its input in ``structure.json`` so a rebuild does not call again."""
     import hashlib
 
-    prompt = TODO_PROMPT.format(player=player, character=character, table=table_en)
     key = hashlib.sha256(f"{model}\n{prompt}".encode()).hexdigest()[:16]
-    cache_path = session / "notes" / OUTBOX_DIR / "todos.json"
-    cache = json.loads(cache_path.read_text(encoding="utf-8")) if cache_path.exists() else {}
+    path = session / "notes" / OUTBOX_DIR / "structure.json"
+    cache = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
     if key not in cache:
-        got = runner(prompt, TODO_SCHEMA, model, "medium")
-        cache[key] = {
-            "da": [str(x).strip() for x in got.get("da", []) if str(x).strip()],
-            "en": [str(x).strip() for x in got.get("en", []) if str(x).strip()],
-        }
-        cache_path.parent.mkdir(parents=True, exist_ok=True)
-        cache_path.write_text(json.dumps(cache, ensure_ascii=False, indent=2), encoding="utf-8")
+        cache[key] = runner(prompt, schema, model, "medium")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(cache, ensure_ascii=False, indent=2), encoding="utf-8")
     return cache[key]
+
+
+def _clean_quoted(rows: Any) -> list[dict[str, str]]:
+    out = []
+    for r in rows or []:
+        if isinstance(r, dict) and str(r.get("text", "")).strip() and str(r.get("source", "")).strip():
+            out.append({"text": str(r["text"]).strip(), "source": str(r["source"]).strip()})
+    return out
+
+
+def _fix_pc(data: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "so_far": str(data.get("so_far", "")).strip(),
+        "threads": _clean_quoted(data.get("threads"))[:3],
+        "known": [],  # only lines said to the whole table may ever go here; none for session 0
+        "todos": _clean_quoted(data.get("todos"))[:3],
+    }
+
+
+def ai_table(session: Path, runner: Any, model: str, table_en: str) -> dict[str, dict[str, Any]]:
+    en = _cached(session, runner, model, TABLE_PROMPT.format(table=plain(table_en)), TABLE_SCHEMA)
+    da = _cached(session, runner, model, TRANSLATE_PROMPT.format(data=json.dumps(en, ensure_ascii=False)), TABLE_SCHEMA)
+    return {"en": en, "da": da}
+
+
+def ai_pc(
+    session: Path, runner: Any, model: str, ch: Character, player: str, table_en: str, recap_en: str
+) -> dict[str, dict[str, Any]]:
+    story = "\n".join(f"{h}: " + " | ".join(ch.story.get(h, []) or ["none"]) for h in STORY["en"])
+    prompt = PC_PROMPT.format(
+        character=ch.name, player=player, story=story, table=plain(table_en), recap=plain(recap_en)
+    )
+    en = _fix_pc(_cached(session, runner, model, prompt, PC_SCHEMA))
+    da_raw = _cached(
+        session, runner, model, TRANSLATE_PROMPT.format(data=json.dumps(en, ensure_ascii=False)), PC_SCHEMA
+    )
+    return {"en": en, "da": _fix_pc(da_raw)}
+
+
+def date_line(lang: str, table: dict[str, Any] | None) -> str:
+    when = str((table or {}).get("session_when", "")).strip()
+    if not when:
+        return ""
+    lab = STRUCT_LABELS[lang]
+    state = lab["confirmed"] if table and table.get("confirmed") else lab["unconfirmed"]
+    return f"**{lab['session']}:** {when} ({state})"
+
+
+def render_pc(lang: str, name: str, data: dict[str, Any], when: str, medium: str = "foundry") -> str:
+    """The note in its fixed order. Over the cap, whole bullets go (known, threads, then to-dos from
+    the end); the date line and ``so_far`` always stay."""
+    lab, base = STRUCT_LABELS[lang], LABELS[lang]
+    cap = PC_CAPS["discord" if medium == "discord" else "foundry"]
+    rows = {k: [r["text"] for r in data.get(k, [])] for k in ("threads", "known", "todos")}
+
+    def build_text() -> str:
+        out = [f"# {base['title']}: {name}", ""]
+        if when:
+            out += [when, ""]
+        if data.get("so_far"):
+            out += [f"#### {lab['so_far']}", data["so_far"], ""]
+        for head in ("threads", "known", "todos"):
+            if rows[head]:
+                out += [f"#### {lab[head]}", *[f"- {r}" for r in rows[head]], ""]
+        out += [f"*{lab['foot']}*"]
+        return "\n".join(out).strip()
+
+    while len(plain(build_text())) > cap:
+        if rows["known"]:
+            rows["known"].pop()
+        elif rows["threads"]:
+            rows["threads"].pop()
+        elif len(rows["todos"]) > 1:
+            rows["todos"].pop()
+        else:
+            break
+    return build_text()
+
+
+def render_table(lang: str, title: str, data: dict[str, Any]) -> str:
+    lab = STRUCT_LABELS[lang]
+    out = [f"# {title}", ""]
+    line = date_line(lang, data)
+    if line:
+        out += [line, ""]
+    for key in ("changed", "agreed", "call", "open", "logistics"):
+        rows = [str(r).strip() for r in data.get(key, []) if str(r).strip()][: TABLE_CAPS[key]]
+        if rows:
+            out += [f"## {lab[key]}", *[f"- {r}" for r in rows], ""]
+    out += [f"*{lab['foot']}*"]
+    return "\n".join(out).strip()
 
 
 def build(session: Path, runner: Any = None, model: str = "sonnet") -> dict[str, Any]:
     """Make ``outbox.json``. Items already approved or sent keep their status and text when the
     source is unchanged; an item whose text changed in the notes goes back to draft. With a
-    ``runner`` (Claude) the to-dos are written from the Table page; without one they are the
-    Table lines that start with the player and say something to do."""
+    ``runner`` (Claude) the notes follow the structure in the design note (one English call
+    per character and for the Table page, Danish translated from it); without one the older
+    deterministic notes are made."""
     notes = session / "notes"
     ids = _discord_ids(session)
     items: list[dict[str, Any]] = []
@@ -438,9 +626,14 @@ def build(session: Path, runner: Any = None, model: str = "sonnet") -> dict[str,
         people.update(p.strip().lower() for p in re.findall(r"\(([^)]+)\)", str(key)))
     link_list = [n for n in names if isinstance(n, str) and n.lower() not in people]
     table_en = _read(notes / "table.en.md")
+    recap_en = _read(notes / "recap.player.en.md")
+    structured = runner is not None and bool(table_en)
+    parse_en = {c.name: c for c in parse_characters(_read(notes / "characters.en.md"), "en")}
+    table_data = ai_table(session, runner, model, table_en) if structured else {}
     for lang in LANGS:
-        chars = parse_characters(_read(notes / f"characters.{lang}.md"), lang)
-        table = _read(notes / f"table.{lang}.md")
+        # Structured notes are written in English and translated, so they need only the English files.
+        chars = list(parse_en.values()) if structured else parse_characters(_read(notes / f"characters.{lang}.md"), lang)
+        table = _read(notes / f"table.{lang}.md") or (table_en if structured else "")
         for ch in chars:
             player = re.sub(r"\s+", " ", ch.player).strip()
             first = player.split(" ")[0]
@@ -450,23 +643,33 @@ def build(session: Path, runner: Any = None, model: str = "sonnet") -> dict[str,
                 "character": ch.name,
                 "discordId": ids.get(first.lower()),
             }
-            if runner is not None and table_en:
-                todos = ai_todos(session, runner, model, table_en, first, ch.name)[lang]
+            slug = re.sub(r"[^a-z0-9]+", "-", ch.name.lower()).strip("-")
+            title = f"{LABELS[lang]['title']}: {ch.name}"
+            if structured:
+                pc = ai_pc(session, runner, model, parse_en[ch.name], first, table_en, recap_en)[lang]
+                when = date_line(lang, table_data[lang])
+                item = _item(session.name, "pc-note", lang, f"pc-{slug}", title,
+                             render_pc(lang, ch.name, pc, when, "foundry"), to,
+                             ["discord-dm", "foundry-page", "obsidian"])
+                item["short"] = render_pc(lang, ch.name, pc, when, "discord")
+                refresh(item)
+                items.append(item)
             else:
                 todos = todos_for(table, lang, [first, ch.name])
-            slug = re.sub(r"[^a-z0-9]+", "-", ch.name.lower()).strip("-")
-            items.append(
-                _item(session.name, "pc-note", lang, f"pc-{slug}", f"{LABELS[lang]['title']}: {ch.name}",
-                      pc_note(lang, ch, todos), to, ["discord-dm", "foundry-page", "obsidian"])
-            )
+                items.append(
+                    _item(session.name, "pc-note", lang, f"pc-{slug}", title, pc_note(lang, ch, todos), to,
+                          ["discord-dm", "foundry-page", "obsidian"])
+                )
         recap = _read(notes / f"recap.player.{lang}.md")
         if recap:
             items.append(_item(session.name, "recap", lang, "recap", recap.splitlines()[0].lstrip("# ").strip(),
                                "\n".join(recap.splitlines()), {"type": "group"},
                                ["discord-group", "foundry-recap", "obsidian"]))
         if table:
-            items.append(_item(session.name, "table", lang, "table", table.splitlines()[0].lstrip("# ").strip(),
-                               table, {"type": "group"}, ["discord-group", "foundry-page", "obsidian"]))
+            title = table.splitlines()[0].lstrip("# ").strip()
+            body = render_table(lang, title, table_data[lang]) if structured else table
+            items.append(_item(session.name, "table", lang, "table", title,
+                               body, {"type": "group"}, ["discord-group", "foundry-page", "obsidian"]))
     for item in items:
         item["linkNames"] = link_list
         refresh(item)
@@ -480,6 +683,8 @@ def build(session: Path, runner: Any = None, model: str = "sonnet") -> dict[str,
             if was["text"] == item["text"] or was.get("edited"):
                 # Same source, or the approver's own edit: keep it and its status.
                 item.update({k: was[k] for k in ("text", "status", "approvedAt", "sent", "edited") if k in was})
+                if was.get("edited"):
+                    item.pop("short", None)
                 refresh(item)
     data = {"session": session.name, "built": _now(), "items": items}
     write(session, data)
@@ -527,6 +732,7 @@ def edit(session: Path, item_id: str, text: str) -> dict[str, Any]:
     data = load(session) or build(session)
     item = find(data, item_id)
     item["text"] = text.strip()
+    item.pop("short", None)
     item["edited"] = True
     item["status"] = "draft"
     item["approvedAt"] = None
@@ -545,6 +751,7 @@ def apply_review(session: Path, review: dict[str, Any], by: str = "Christian") -
         text = str(entry.get("text", item["text"])).strip()
         if text and text != item["text"]:
             item["text"] = text
+            item.pop("short", None)
             item["edited"] = True
             refresh(item)
             result[item_id] = "edited"

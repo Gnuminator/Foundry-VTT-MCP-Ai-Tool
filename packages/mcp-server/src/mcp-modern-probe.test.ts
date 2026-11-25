@@ -21,6 +21,7 @@ import {
   startFakeBridge,
 } from './test-support/fake-control-bridge.js';
 import { rmTmp } from './test-support/rm-tmp.js';
+import { skipReasonOutsideCi } from './test-support/stale-build.js';
 
 const distIndex = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -168,7 +169,13 @@ class Wrapper {
   }
 }
 
-describe('MCP 2026-07-28 probe against dist/index.js', () => {
+const probeSkip = skipReasonOutsideCi(
+  distIndex,
+  path.resolve(path.dirname(distIndex), '..', 'src')
+);
+if (probeSkip) console.warn(`mcp-modern-probe skipped: ${probeSkip}`);
+
+describe.skipIf(probeSkip !== undefined)('MCP 2026-07-28 probe against dist/index.js', () => {
   let bridge: { server: net.Server; port: number } | undefined;
   let tmpDir = '';
   const running: Wrapper[] = [];

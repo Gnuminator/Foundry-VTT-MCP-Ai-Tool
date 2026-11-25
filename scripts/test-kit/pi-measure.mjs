@@ -109,13 +109,17 @@ async function timed(/** @type {() => Promise<unknown>} */ fn) {
 /** First load of the dashboard page without a browser: the page, then every script and stylesheet it names. */
 async function coldLoad(/** @type {string} */ base, /** @type {Record<string, string>} */ headers) {
   const t0 = performance.now();
-  const res = await fetch(base + '/', { headers });
+  const res = await fetch(base + '/', { headers, redirect: 'manual' });
   const html = await res.text();
   const urls = new Set();
   const origin = new URL(base).origin;
   // Same origin only: the token must never go to another host named in the page.
   for (const m of html.matchAll(/(?:src|href)="([^"#]+\.(?:js|css|mjs)[^"]*)"/g)) {
-    if (new URL(m[1], base + '/').origin === origin) urls.add(m[1]);
+    try {
+      if (new URL(m[1], base + '/').origin === origin) urls.add(m[1]);
+    } catch {
+      /* a malformed URL in the page: skip it */
+    }
   }
   let bytes = Buffer.byteLength(html);
   const queue = [...urls];
@@ -124,7 +128,7 @@ async function coldLoad(/** @type {string} */ base, /** @type {Record<string, st
     Array.from({ length: 6 }, async () => {
       for (let u = queue.shift(); u; u = queue.shift()) {
         try {
-          const r = await fetch(new URL(u, base + '/').href, { headers });
+          const r = await fetch(new URL(u, base + '/').href, { headers, redirect: 'manual' });
           bytes += (await r.arrayBuffer()).byteLength;
           if (!r.ok) errors.push(`${u} ${r.status}`);
         } catch (e) {
@@ -214,6 +218,16 @@ async function main() {
     tools: ['get-world-info', 'get-prep-digest', 'get-preflight', 'get-party', 'plan-party-change'],
   });
 
+  // The guard skips its own world check for get-world-info, so compare the id here.
+  const assertKitWorld = async () => {
+    const info = await guarded.tool('get-world-info', {});
+    if (info?.id !== target.world) {
+      throw new EnvError(
+        `REFUSED: the Pi's bridge reports the world "${info?.id ?? '(none)'}", not ${target.world}. No further call was made.`
+      );
+    }
+  };
+
   /** @type {Record<string, any>} */
   const result = {
     label,
@@ -249,7 +263,7 @@ async function main() {
   };
   const idle = await sample();
   result.idleSample = idle;
-  await guarded.tool('get-world-info', {}); // still the kit world?
+  await assertKitWorld(); // still the kit world?
 
   const series = /** @type {Record<string, number[]>} */ ({});
   const add = (/** @type {string} */ k, /** @type {number} */ ms) => (series[k] ??= []).push(ms);
@@ -279,12 +293,12 @@ async function main() {
     }
   }
   result.calls = Object.fromEntries(Object.entries(series).map(([k, v]) => [k, stats(v)]));
-  await guarded.tool('get-world-info', {}); // the page loads below must still be the kit world
+  await assertKitWorld(); // the page loads below must still be the kit world
   result.coldLoad = await coldLoad(target.dashboard, headers);
   result.browserLoad = await browserLoad(target.dashboard, headers);
 
   // Second process sample, now that the dashboard has been used and a browser has loaded it.
-  await guarded.tool('get-world-info', {});
+  await assertKitWorld();
   result.afterSample = await sample();
 
   const fmt = (/** @type {any} */ s) => `${s.min} / ${s.median} / ${s.max}`;

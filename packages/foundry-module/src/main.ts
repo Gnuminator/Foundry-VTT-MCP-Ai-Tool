@@ -20,7 +20,7 @@ import { registerGuardedFeature } from './guarded-features.js';
 import { LIVE_PLAY_FEATURE_ID } from './live-plan.js';
 import { OWNERSHIP_FEATURE_ID } from './data-access/ownership-players.js';
 import { SETUP_FEATURE_ID } from './data-access/virtual-targets.js';
-import { SCENE_MOOD_FEATURE_ID } from './scene-mood.js';
+import { COMBAT_MOOD_FEATURE_ID, SCENE_MOOD_FEATURE_ID } from './scene-mood.js';
 import { ACTOR_IMAGE_FEATURE_ID } from './actor-image.js';
 import { TOKEN_RINGS_FEATURE_ID } from './token-rings.js';
 import { SCENE_RESTORE_FEATURE_ID } from './scene-state.js';
@@ -32,6 +32,7 @@ import { ROOM_SETUP_FEATURE_ID } from './room-setup.js';
 import { RULES_CHECK_FEATURE_ID } from './rules-check.js';
 import { PARTY_FEATURE_ID, WHO_NOTICES_FEATURE_ID } from './party-scan.js';
 import { registerGmWindowsSetting } from './gm-windows.js';
+import { registerRunModeHooks, registerRunModeSetting } from './run-mode.js';
 import { registerLiveWindowSettings, restoreLiveWindow } from './live-window.js';
 import { registerPartyAuto, registerPartyAutoSettings } from './party-auto.js';
 import { registerSessionSwitchSettings } from './session-switches.js';
@@ -141,6 +142,8 @@ class FoundryMCPBridge {
       registerSettingsUsageHooks();
       registerSessionSwitchSettings();
       registerGmWindowsSetting();
+      registerRunModeSetting();
+      registerRunModeHooks();
       registerLiveWindowSettings();
       // Player characters go into the dnd5e party by themselves (active GM's client only).
       registerPartyAutoSettings();
@@ -256,6 +259,11 @@ class FoundryMCPBridge {
         id: SCENE_MOOD_FEATURE_ID,
         name: 'AI Tool: Scene mood and music (writes)',
         hint: "Lets the AI set a scene's darkness, light, weather and playlists, after you confirm.",
+      });
+      registerGuardedFeature({
+        id: COMBAT_MOOD_FEATURE_ID,
+        name: 'AI Tool: Combat mood (writes)',
+        hint: 'When a fight starts, the scene switches by itself to its mood preset named "Combat" (darkness, light, weather, music); when the fight ends the earlier look and music come back. Each change shows in Changes with an Undo.',
       });
       registerGuardedFeature({
         id: TOKEN_RINGS_FEATURE_ID,

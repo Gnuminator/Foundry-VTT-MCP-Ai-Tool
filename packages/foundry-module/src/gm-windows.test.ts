@@ -14,6 +14,7 @@ import {
 } from './combat-window.js';
 import {
   GM_WINDOWS_SETTING,
+  GM_WINDOWS_POPOUT_SETTING,
   PANEL_REFRESH_DEBOUNCE_MS,
   gmWindowsEnabled,
   registerGmWindowsSetting,
@@ -222,6 +223,22 @@ describe('the switch, the buttons and the windows', () => {
     expect(render).toHaveBeenCalledWith({ reset: true });
   });
 
+  it('shows the Detach button only while the pop-out switch is on (default off)', async () => {
+    install(true, true);
+    const popOut = registered.mock.calls[1];
+    expect(popOut[1]).toBe(GM_WINDOWS_POPOUT_SETTING);
+    expect(popOut[2]).toMatchObject({ scope: 'world', config: true, default: false });
+    await openCombatWindow();
+    const win = rendered[0];
+    expect(win._canDetach()).toBe(false);
+    world.settings.set(`${MODULE_ID}.${GM_WINDOWS_POPOUT_SETTING}`, true);
+    expect(win._canDetach()).toBe(true);
+    g.game.settings.get = (): never => {
+      throw new Error('not registered');
+    };
+    expect(win._canDetach()).toBe(false);
+  });
+
   it('is off when the switch is off: no Combat or Party buttons, and the windows refuse to open', async () => {
     install(true, false);
     expect(gmWindowsEnabled()).toBe(false);
@@ -232,6 +249,7 @@ describe('the switch, the buttons and the windows', () => {
       'handouts',
       'tarokka',
       'tarokkaTable',
+      'runMode',
     ]);
     expect(await openCombatWindow()).toBe(false);
     expect(await openPartyWindow()).toBe(false);
@@ -252,6 +270,7 @@ describe('the switch, the buttons and the windows', () => {
       'session',
       'scene',
       'loot',
+      'runMode',
     ]);
     expect(controls[AI_TOOL_CONTROL].tools.party).toMatchObject({ order: 6, button: true });
     restore();

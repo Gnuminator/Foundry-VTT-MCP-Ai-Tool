@@ -24,6 +24,7 @@ const digest = (answer: Reply): { dashboard: { api: FakeApi } } => ({
     api: {
       tools: { 'get-prep-digest': answer },
       routes: {
+        'GET /api/drafts': reply({ drafts: [] }),
         'GET /api/omens': reply({ omens: [], players: {} }),
         'GET /api/player/names': reply([]),
       },

@@ -14,6 +14,7 @@ import { Button, EmptyState, ErrorState, LoadingState } from '../ui';
 import { PREFLIGHT_ICONS, type CheckStatus } from './Preflight';
 
 // The omens list loads from its own chunk, only once the Prep drawer is open (bundle budget).
+const DraftsSection = lazy(() => import('./Drafts').then(m => ({ default: m.DraftsSection })));
 const OmensSection = lazy(() => import('./Omens').then(m => ({ default: m.OmensSection })));
 
 type PrepAction = 'summary' | 'last-session';
@@ -620,6 +621,8 @@ export function PrepDrawer({
       <h3 className="preflight-h">Recent changes</h3>
       <div>{d && <Changes rc={d.recentChanges} />}</div>
       <div>{d?.tarokka?.hasReading && <p className="pf-detail">A Tarokka reading exists.</p>}</div>
+      <h3 className="preflight-h">Draft tray</h3>
+      <Suspense fallback={null}>{open && <DraftsSection open={open} />}</Suspense>
       <h3 className="preflight-h">Omens by post</h3>
       <Suspense fallback={null}>{open && <OmensSection open={open} />}</Suspense>
     </Drawer>

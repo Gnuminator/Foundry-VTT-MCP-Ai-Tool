@@ -231,12 +231,13 @@ test('the summary job is one check: green when every shard passed or was skipped
 });
 
 test('build-test no longer runs the browser tests (they would run twice)', () => {
-  const steps = doc.jobs['build-test'].steps;
-  for (const s of steps) {
-    assert.ok(
-      !String(s.run ?? '').includes('test:e2e'),
-      `build-test still runs test:e2e in "${s.name}"`
-    );
+  for (const id of ['static', 'scripts', 'pi', 'build-test-steps']) {
+    for (const s of doc.jobs[id].steps) {
+      assert.ok(
+        !String(s.run ?? '').includes('test:e2e'),
+        `${id} still runs test:e2e in "${s.name}"`
+      );
+    }
   }
-  assert.equal(doc.jobs['build-test']['timeout-minutes'], 25);
+  assert.equal(doc.jobs['build-test-steps']['timeout-minutes'], 25);
 });

@@ -41,6 +41,7 @@ import {
   handlePlayerTool,
   readExtraDenyTerms,
 } from './tools/player.js';
+import { CombatMoodService } from './combat-mood.js';
 import { GameEventHub } from './game-event-hub.js';
 import { WrapperRegistry } from './wrapper-registry.js';
 import {
@@ -57,6 +58,8 @@ import { ClientsFile, handleWhoUsesWhat } from './who-uses-what.js';
 import { TarokkaService } from './tarokka/service.js';
 import { handleDowntime } from './downtime/store.js';
 import { HandoutsService, handleRecordHandoutSeen } from './handouts/service.js';
+import { DIRECT_WRITE_TIMEOUT_MS, queryTimeoutContext } from './direct-write-timeout.js';
+import { createDraftsStore, draftsControlReply } from './drafts/store.js';
 import { createOmensStore, omensControlReply } from './omens/store.js';
 import { SecretTermsService } from './secret-terms.js';
 import { isBatchRider } from './guarded-write/rider-undo.js';
@@ -275,6 +278,20 @@ async function startBackend(): Promise<void> {
     foundryClient,
   });
   const omens = createOmensStore(vaultStore, worldIds, secretTerms);
+  // Draft tray (I-069): publishing posts to Foundry chat through the existing chat bridge query.
+  const drafts = createDraftsStore(vaultStore, worldIds, secretTerms, async post => {
+    // Longer wait like other direct writes; a lost answer keeps the draft out of "publish again".
+    const reply = (await queryTimeoutContext.run({ timeoutMs: DIRECT_WRITE_TIMEOUT_MS }, () =>
+      foundryClient.query('foundry-mcp-bridge.sendChatMessage', {
+        message: post.message,
+        messageType: post.whisperTargets ? 'whisper' : 'ic',
+        ...(post.whisperTargets ? { whisperTargets: post.whisperTargets } : {}),
+      })
+    )) as { success?: boolean; error?: string; warning?: string } | undefined;
+    if (reply?.success === false) throw new Error(reply.error || 'Failed to send chat message');
+    // A whisper target that matches no Foundry user goes to the GMs only: not delivered.
+    if (reply?.warning) throw new Error(`Not delivered: ${reply.warning}`);
+  });
   // Session notes into Foundry (recap lane, D-087): staged by the pipeline, put automatically.
   const sessionNotes = new SessionNotesService({
     foundryClient,
@@ -285,6 +302,8 @@ async function startBackend(): Promise<void> {
     handouts,
     logger,
   });
+  // Combat mood (idea 1.14): a fight starting or ending switches the scene's "Combat" mood.
+  const combatMood = new CombatMoodService({ foundryClient, guardedWrites, logger });
   const wrapperRegistry = new WrapperRegistry();
   // Filled when the pumps start below; get-preflight reads their health through it.
   const pumpHealthSources: Array<() => PumpHealthSnapshot> = [];
@@ -316,6 +335,7 @@ async function startBackend(): Promise<void> {
     secretTerms,
     handouts,
     omens,
+    drafts,
     onPlaySessionMarked: renderObsidian,
     wrapperStatus: () => wrapperRegistry.status(),
     pumpHealth: (): PumpHealthSnapshot[] => pumpHealthSources.map(source => source()),
@@ -393,7 +413,10 @@ async function startBackend(): Promise<void> {
         logger,
         intervalMs: pumpSettings.intervalMs,
         onAppended: renderObsidian,
-        onEvents: (_worldId, events): void => gameEventHub.publishSessionEvents(events),
+        onEvents: (_worldId, events): void => {
+          gameEventHub.publishSessionEvents(events);
+          combatMood.onEvents(events);
+        },
       });
       const pump = eventPump;
       pumpHealthSources.push(() => pump.health.snapshot());
@@ -706,6 +729,13 @@ async function startBackend(): Promise<void> {
               socket.write(`${JSON.stringify({ id: msg.id, error: { message } })}\n`);
             }
 
+            continue;
+          }
+
+          if (msg.method === 'drafts') {
+            socket.write(
+              `${JSON.stringify(await draftsControlReply(drafts, msg.id, msg.params))}\n`
+            );
             continue;
           }
 

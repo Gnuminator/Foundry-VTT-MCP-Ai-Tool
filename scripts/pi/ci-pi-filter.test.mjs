@@ -123,7 +123,7 @@ test('the job shape: needs pi-changes, parallel, not fail-fast, timeouts, requir
   assert.match(step.run, /node scripts\/checks\.mjs --matrix pi/);
   assert.equal(job.strategy['fail-fast'], false);
   assert.equal(job['timeout-minutes'], 20);
-  assert.equal(doc.jobs['build-test']['timeout-minutes'], 25);
+  assert.equal(doc.jobs['build-test-steps']['timeout-minutes'], 25);
   assert.equal(doc.jobs['build-test-arm']['timeout-minutes'], 25);
   const summary = doc.jobs['build-test-arm-summary'];
   assert.match(summary.name, /^build-test \(ARM, Node 24\)/, 'the required check name changed');

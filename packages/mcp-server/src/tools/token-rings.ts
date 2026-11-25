@@ -3,6 +3,7 @@ import {
   TOKEN_RINGS_ACTIONS,
   TOKEN_RINGS_ACTOR_TYPES,
   TOKEN_RINGS_FEATURE_ID,
+  TOKEN_RINGS_LOOKS,
   TOKEN_RINGS_TARGETS,
   freeText,
   unwrapBridgeReply,
@@ -23,6 +24,7 @@ export interface TokenRingsToolsOptions {
 const planParams = z.object({
   action: z.enum(TOKEN_RINGS_ACTIONS),
   tokens: z.enum(TOKEN_RINGS_TARGETS).optional(),
+  look: z.enum(TOKEN_RINGS_LOOKS).optional(),
   scenes: z.array(z.string().min(1)).max(100).optional(),
   actorType: z.enum(TOKEN_RINGS_ACTOR_TYPES).optional(),
   names: z.array(z.string().min(1)).max(100).optional(),
@@ -66,6 +68,12 @@ export class TokenRingsTools {
               enum: [...TOKEN_RINGS_TARGETS],
               description:
                 'actors (default): the default token of each actor. placed: the tokens already placed on scenes.',
+            },
+            look: {
+              type: 'string',
+              enum: [...TOKEN_RINGS_LOOKS],
+              description:
+                'With enable: steel also sets the table look (steel ring, dark background, subject scale 0.8). Also plans rings that are on without it. Undo restores the old look.',
             },
             scenes: {
               type: 'array',
@@ -123,6 +131,11 @@ export class TokenRingsTools {
     if (params.tokens === 'placed' && built.unmatched === undefined) {
       throw new Error(
         'This Foundry module is too old to plan placed tokens: update the module, then ask again.'
+      );
+    }
+    if (params.look && !built.summary.includes('steel look')) {
+      throw new Error(
+        'This Foundry module is too old to plan the ring look: update the module, then ask again.'
       );
     }
     const plan = await this.guardedWrites.createPlan({

@@ -1,6 +1,6 @@
 ---
 source: gm/gm-windows.md
-sourceHash: a090da8baae8
+sourceHash: 5ddeaf626809
 title: GM-vinduerne
 description: Fem små vinduer i Foundry (Combat, Party, Session, Scene, Loot), der holder det, du ser mest på under spillet, ved siden af kortet, hvor de bor, og hvad hvert af dem er til.
 ---
@@ -28,6 +28,13 @@ kan indstillingen stadig være slået fra, og du kan selv slå den fra, hvis du 
 ![Indstillingen til GM-vinduerne i Game Settings](../../images/guides/gm-windows-setting.png)
 
 Knapperne dukker op med det samme, uden genindlæsning. Fjerner du fluebenet, lukkes alle åbne vinduer.
+
+## Læg et vindue på en anden skærm
+
+Sæt kryds ved **AI Tool: GM window pop-out** i de samme modulindstillinger (den er slået fra til
+at begynde med), så får hvert vindue en menuknap (tre prikker) i titellinjen med **Detach Window**.
+Den flytter vinduet over i sit eget browservindue, for eksempel på en anden skærm eller en tablet,
+og det bliver ved med at opdatere dér. Din browser kan spørge om lov til pop-ups første gang.
 
 ## Hvor knapperne er
 

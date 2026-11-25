@@ -199,6 +199,21 @@ Parameters:
 - `text` (string): add or edit: the text.
 - `id` (string)
 
+## draft-player-text
+
+Direct write. GM ONLY. Put text meant for players in the GM's draft tray (read-aloud, NPC line, letter, recap), up to 4000 characters. Only writes the tray; the GM edits, publishes to chat or discards it in the dashboard, with the secret-terms check shown. Use instead of send-chat-message for anything players will read. No spoilers.
+
+Kind: changes something. Title: Draft text for players.
+
+Parameters:
+
+- `action` (string, required): One of: `add`, `edit`, `remove`, `list`.
+- `kind` (string): add: the kind. One of: `read-aloud`, `npc-line`, `letter`, `recap`.
+- `text` (string): add or edit: the text.
+- `speaker` (string): NPC line: the speaker. Letter: who it is from.
+- `whisperTo` (string): Foundry user name (not a character); without it, posts to all.
+- `id` (string)
+
 ## get-play-stats
 
 GM ONLY. Derived play statistics for the connected world (the same numbers as the AI Tool/Stats/ Obsidian notes): campaign totals, dice, one play session's stats (default the latest) and one PC's or every PC's totals (damage, healing, downs, kills, rolls, spells, resources, loot, currency, XP). Built fresh from the bridge vault's session and play logs; never returns raw play records. A session has a mode ("live", or "paper" for a night played on paper). Changes written by a paper sync are not counted as damage, healing or rolls: a paper night shows them as paperNet (HP lost and regained, slots, resources, coins, XP, items gained and lost per character), and the campaign has the sum. Works with Foundry closed (the last world this bridge saw).

@@ -1,4 +1,4 @@
-import { startedOnCreate } from './combat-plan.js';
+import { combatEventDetails, startedOnCreate } from './combat-plan.js';
 import { MODULE_ID } from './constants.js';
 import {
   chatRollKind,
@@ -793,7 +793,7 @@ export class EventTracker {
       'combat-start',
       `Combat started with ${text(combatantCount)} combatant${combatantCount === 1 ? '' : 's'}`,
       {
-        details: { combatId: dig(combat, 'id'), round: dig(combat, 'round') ?? 1, combatantCount },
+        details: combatEventDetails(combat, { round: dig(combat, 'round') ?? 1, combatantCount }),
         visibility: NO_SUBJECT_VISIBILITY,
       }
     );
@@ -807,7 +807,7 @@ export class EventTracker {
       'combat-end',
       `Combat ended after ${text(rounds)} round${rounds === 1 ? '' : 's'}`,
       {
-        details: { combatId: dig(combat, 'id'), rounds },
+        details: combatEventDetails(combat, { rounds }),
         visibility: NO_SUBJECT_VISIBILITY,
       }
     );

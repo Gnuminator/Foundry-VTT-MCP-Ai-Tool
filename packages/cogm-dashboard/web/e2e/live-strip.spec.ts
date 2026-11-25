@@ -389,6 +389,40 @@ test('Undo offers only the newest change and asks first', async ({ page }) => {
     .toMatchObject({ args: { changeId: 'c2' }, confirm: true });
 });
 
+test('live keys: N is Next turn, U asks before undo, ? opens the sheet, typing is left alone', async ({
+  page,
+}) => {
+  const newest = { changeId: 'c2', summary: 'Goblin 1: 5 fire damage', canUndo: true };
+  const calls = await setup(page, FIGHT, { changes: [newest] });
+  await load(page);
+  await expect(page.locator('#live-undo')).toContainText('Goblin 1');
+
+  await page.keyboard.press('?');
+  await expect(page.locator('#live-keys-sheet')).toContainText('Next turn');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#live-keys-sheet')).toHaveCount(0);
+
+  await page.keyboard.press('n');
+  await expect.poll(() => calls.map(c => c.name)).toContain('advance-combat-turn');
+
+  // Undo waits while the turn write runs; once it is back the key works.
+  await expect(page.locator('#live-undo')).not.toHaveAttribute('aria-disabled', 'true');
+  await page.keyboard.press('u');
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toContainText('Undo Goblin 1: 5 fire damage?');
+  expect(calls.some(c => c.name === 'undo-change')).toBe(false);
+  await dialog.getByRole('button', { name: 'Cancel' }).click();
+  expect(calls.some(c => c.name === 'undo-change')).toBe(false);
+
+  // Picking a creature opens the amount field; D focuses it, and typing "n" there is just text.
+  await page.locator('[data-id="g1"] button[class*="pick"]').click();
+  await page.keyboard.press('d');
+  await expect(page.locator('#damage-amount')).toBeFocused();
+  const before = calls.filter(c => c.name === 'advance-combat-turn').length;
+  await page.keyboard.type('n');
+  expect(calls.filter(c => c.name === 'advance-combat-turn').length).toBe(before);
+});
+
 test('a change with no summary still has a button label and title', async ({ page }) => {
   await setup(page, FIGHT, { changes: [{ changeId: 'c9', summary: '  ', canUndo: true }] });
   await load(page);

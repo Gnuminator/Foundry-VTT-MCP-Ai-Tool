@@ -48,7 +48,13 @@ describe('the AI Tool scene-controls group', () => {
     expect(group).toMatchObject({ name: 'aiTool', title: 'AI Tool', visible: true });
     expect(group.layer).toBeUndefined();
     expect(group.order).toBeGreaterThan(10);
-    expect(Object.keys(group.tools)).toEqual(['aiChanges', 'handouts', 'tarokka', 'tarokkaTable']);
+    expect(Object.keys(group.tools)).toEqual([
+      'aiChanges',
+      'handouts',
+      'tarokka',
+      'tarokkaTable',
+      'runMode',
+    ]);
     expect(group.tools.aiChanges).toMatchObject({
       name: 'aiChanges',
       title: 'Changes',
@@ -93,9 +99,10 @@ describe('the AI Tool scene-controls group', () => {
       'handouts',
       'tarokka',
       'tarokkaTable',
+      'runMode',
       'later',
     ]);
-    expect(controls.aiTool.tools.later).toMatchObject({ order: 5, button: true });
+    expect(controls.aiTool.tools.later).toMatchObject({ order: 6, button: true });
   });
 
   it('a click runs the button and reports a failure as a notification', async () => {

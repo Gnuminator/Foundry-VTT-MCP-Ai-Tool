@@ -96,6 +96,16 @@
         ]
       },
       {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/tool-added.mjs\"",
+            "timeout": 8
+          }
+        ]
+      },
+      {
         "matcher": "*",
         "hooks": [
           {

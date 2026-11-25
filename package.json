@@ -69,6 +69,7 @@
     "usage:catalog:check": "node scripts/usage-catalog.mjs --check",
     "usage:week": "node scripts/dev/usage-week.mjs",
     "ci:health": "node scripts/ci-health.mjs",
+    "ci:evidence": "node scripts/ci-evidence.mjs",
     "usage:now": "node scripts/dev/usage-now.mjs",
     "usage:calls": "node scripts/dev/usage-calls.mjs",
     "live:roundtrip": "node scripts/live-roundtrip.mjs",

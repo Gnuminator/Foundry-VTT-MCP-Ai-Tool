@@ -9,8 +9,10 @@
  *     file on its own and falls back to the branch's copy when it imports another repo file
  *     (lane-merge.mjs, driftCheck), so it must not import this module. `green.test.mjs` compares
  *     that copy with `driftChecks()` below, so the two cannot drift apart.
- *   - CI runs the job `build-test` as one step per group in CI_GROUPS: `node scripts/checks.mjs --run
- *     <group>`. `green.test.mjs` parses `.github/workflows/ci.yml` (scripts/ci-yaml.mjs) and fails
+ *   - CI runs each group in CI_GROUPS as one step `node scripts/checks.mjs --run <group>`, in the
+ *     jobs `static`, `scripts`, `pi` and `build-test-steps` (a group that needs the build goes in
+ *     `build-test-steps`; the job `build-test` is only the summary of those four).
+ *     `green.test.mjs` parses `.github/workflows/ci.yml` (scripts/ci-yaml.mjs) and fails
  *     when a test command stands in ci.yml outside such a call, or a group is not called.
  *
  * Adding a script test (`*.test.mjs` under .claude/hooks, scripts, deploy, installer or tools) needs no
@@ -329,7 +331,7 @@ export const CHECKS = [
   },
 ];
 
-/** The steps of the CI job `build-test` that `npm run green` runs, in the order of CHECKS. @type {Step[]} */
+/** The steps of the CI build-test jobs that `npm run green` runs, in the order of CHECKS. @type {Step[]} */
 export const STEPS = CHECKS.filter(c => c.steps !== false).map(({ name, cmd, args, env }) => ({
   name,
   cmd,
@@ -354,7 +356,7 @@ export function driftChecks() {
 }
 
 /**
- * The groups the CI job `build-test` calls, in order, each as one step `node scripts/checks.mjs
+ * The groups the CI jobs `static`, `scripts`, `pi` and `build-test-steps` call, each as one step `node scripts/checks.mjs
  * --run <name>`. A CI group is one or more `group` families of CHECKS; its checks run in CHECKS
  * order. The order is the order of dependence: `build` before `kit`, `unit` and `smoke`. The `e2e`
  * family is not here: it runs in the sharded job dashboard-e2e-shard. Adding a test is one line in

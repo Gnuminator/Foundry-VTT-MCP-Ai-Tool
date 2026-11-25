@@ -37,13 +37,58 @@ permissions:
   contents: read
 
 jobs:
-  build-test:
+  # build-test used to be one job of eight steps (7.3 min). Its groups that need no build now run
+  # as their own jobs in parallel (static, scripts, pi) next to build-test-steps, and the job
+  # `build-test` further down keeps the required check name: green only when all four passed.
+  # One step per group of scripts/checks.mjs (CI_GROUPS): `node scripts/checks.mjs --run <group>`.
+  # A group runs every check in it even after a red one, names each failure with an ::error line
+  # and writes a table of checks and seconds to the job summary. Adding a test is one line in
+  # checks.mjs; scripts/green.test.mjs fails on a test command written here instead.
+  static:
+    # Typecheck, ratchets, version, catalogue, changelog, docs. Needs no build.
     runs-on: ubuntu-latest
-    # Node 24 is the floor (decision 45): the release build, the installer, the Orange Pi and
-    # Foundry 14 all run it. This is the one full x64 job, so the bundle budget, the zip upload
-    # and the browser tests live here.
-    name: build-test (Node 24)${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
-    timeout-minutes: 25
+    name: static (checks and docs)${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Static checks and docs (typecheck, ratchets, version, catalogue, changelog, docs)
+        run: node scripts/checks.mjs --run static
+
+  scripts:
+    # Script tests, hooks and the merge gate. Needs no build.
+    runs-on: ubuntu-latest
+    name: scripts (hooks and merge gate)${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Scripts, hooks and the merge gate
+        run: node scripts/checks.mjs --run scripts
+
+  pi:
+    # On a pull request that touches no Pi input the step skips itself with a summary line and
+    # exits 0 (piGroupApplies in checks.mjs), so the job stays green. Push to main, merge_group
+    # and dispatch runs always run it (drift:check has no Pi guard of its own). Needs no build.
+    runs-on: ubuntu-latest
+    name: pi (scripts)${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -57,21 +102,26 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # One step per group of scripts/checks.mjs (CI_GROUPS), in order of dependence. A group runs
-      # every check in it even after a red one, names each failure with an ::error line and writes
-      # a table of checks and seconds to the job summary. Adding a test is one line in checks.mjs;
-      # scripts/green.test.mjs fails on a test command written here instead.
-      - name: Static checks and docs (typecheck, ratchets, version, catalogue, changelog, docs)
-        run: node scripts/checks.mjs --run static
-
-      - name: Scripts, hooks and the merge gate
-        run: node scripts/checks.mjs --run scripts
-
-      # On a pull request that touches no Pi input this step skips itself with a summary line and
-      # exits 0 (piGroupApplies in checks.mjs), so build-test and ci-all-green stay green. Push to
-      # main, merge_group and dispatch runs always run it (drift:check has no Pi guard of its own).
       - name: Pi scripts
         run: node scripts/checks.mjs --run pi
+
+  build-test-steps:
+    # Node 24 is the floor (decision 45): the release build, the installer, the Orange Pi and
+    # Foundry 14 all run it. The groups that need the build live here: the bundle budget, the zip
+    # upload, the test kit, the unit tests and the smoke tests.
+    runs-on: ubuntu-latest
+    name: build-test (steps)${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Tools (GM coach, prep ritual, tool tests)
         run: node scripts/checks.mjs --run tools
@@ -104,6 +154,29 @@ jobs:
       # (dashboard-e2e-changes, dashboard-e2e-shard, dashboard-e2e).
       - name: Smoke tests and manifest
         run: node scripts/checks.mjs --run smoke
+
+  build-test:
+    # The required check keeps its old name, `build-test (Node 24)` (the ruleset names it): green
+    # when static, scripts, pi and build-test-steps all passed, red when any failed or was
+    # cancelled. !cancelled() so it still runs, and fails, after a red job. Same shape as
+    # dashboard-visual.
+    needs: [static, scripts, pi, build-test-steps]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    name: build-test (Node 24)${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
+    timeout-minutes: 5
+    steps:
+      - name: Every build-test job passed
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "results: $RESULTS"
+          for r in $RESULTS; do
+            if [ "$r" != "success" ]; then
+              echo "A build-test job did not pass ($r): see static, scripts, pi and build-test (steps)."
+              exit 1
+            fi
+          done
 
   studio-pin:
     # Downloads the Actor Studio release that Pi stage 13 pins and compares its sha256 with PINNED_SHA256, so a

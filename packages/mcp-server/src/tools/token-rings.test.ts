@@ -67,6 +67,32 @@ describe('plan-token-rings', () => {
     });
   });
 
+  it('passes the look and refuses a module that did not plan it', async () => {
+    await expect(
+      tools.handleToolCall('plan-token-rings', { action: 'enable', look: 'steel' })
+    ).rejects.toThrow(/too old/);
+    expect(createPlan).not.toHaveBeenCalled();
+    query.mockImplementation((method: string) =>
+      Promise.resolve(
+        method === 'foundry-mcp-bridge.listGuardedFeatures'
+          ? [{ id: TOKEN_RINGS_FEATURE_ID, enabled }]
+          : {
+              summary: 'Rings on with the steel look',
+              ops: OPS,
+              count: 1,
+              remaining: 0,
+              alreadyDone: 0,
+            }
+      )
+    );
+    await tools.handleToolCall('plan-token-rings', { action: 'enable', look: 'steel' });
+    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.planTokenRings', {
+      action: 'enable',
+      look: 'steel',
+    });
+    expect(createPlan).toHaveBeenCalledTimes(1);
+  });
+
   it('refuses when the switch is off, without planning', async () => {
     enabled = false;
     await expect(tools.handleToolCall('plan-token-rings', { action: 'enable' })).rejects.toThrow(

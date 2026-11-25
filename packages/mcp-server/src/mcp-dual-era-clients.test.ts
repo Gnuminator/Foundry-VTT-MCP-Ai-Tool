@@ -19,6 +19,7 @@ import {
   recordedClients,
   startFakeBridge,
 } from './test-support/fake-control-bridge.js';
+import { skipReasonOutsideCi } from './test-support/stale-build.js';
 
 /** The record_client calls that named this client (the bridge's "which Claude app" view, D-146). */
 async function recordedAs(name: string): Promise<Record<string, unknown>[]> {
@@ -41,11 +42,17 @@ const distIndex = path.resolve(
 let bridge: { server: net.Server; port: number } | undefined;
 let tmpDir = '';
 
-// Without a build the suite is skipped (the drift check's merged worktree never builds); CI
-// always builds, so a missing dist there is an error, not a skip.
+// Without a current build the suite is skipped (the drift check's merged worktree never builds, and a
+// gate worktree can hold a dist from before the source changed); CI always builds, so there a
+// missing dist is an error, not a skip. (The drift check sets CI itself, so GitHub's own variable
+// is the signal.)
 const built = fs.existsSync(distIndex);
-// (The drift check sets CI itself, so GitHub's own variable is the signal.)
-const skipUnbuilt = !built && !process.env['GITHUB_ACTIONS'];
+const skipReason = skipReasonOutsideCi(
+  distIndex,
+  path.resolve(path.dirname(distIndex), '..', 'src')
+);
+const skipUnbuilt = skipReason !== undefined;
+if (skipReason) console.warn(`mcp-dual-era-clients skipped: ${skipReason}`);
 
 beforeAll(async () => {
   if (skipUnbuilt) return;

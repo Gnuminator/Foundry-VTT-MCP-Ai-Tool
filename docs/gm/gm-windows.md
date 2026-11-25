@@ -27,6 +27,13 @@ may still have the switch off, and you can turn it off yourself if you do not wa
 
 The buttons appear at once, without reloading. Unticking the switch closes every open window.
 
+## Put a window on a second screen
+
+Tick **AI Tool: GM window pop-out** in the same module settings (it is off to begin with) and each
+window gets a menu button (three dots) in its title bar with **Detach Window**. That moves the
+window into its own browser window, for example on a second monitor or a tablet, and it keeps
+updating there. Your browser may ask to allow pop-ups the first time.
+
 ## Where the buttons are
 
 On the left edge of the map, the scene controls have a group called **AI Tool** (the wand icon at the

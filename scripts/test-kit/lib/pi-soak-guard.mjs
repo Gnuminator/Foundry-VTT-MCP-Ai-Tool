@@ -95,14 +95,26 @@ export function createPiSoakGuard(
       if (plan.risk === 'destructive') refuse('the plan is destructive; the soak applies none');
       await assertWorldNow();
       const t1 = now();
-      const change = await dashboard.tool(
-        'apply-planned-change',
-        { planId: plan.planId },
-        { confirm: true }
-      );
+      let change;
+      try {
+        change = await dashboard.tool(
+          'apply-planned-change',
+          { planId: plan.planId },
+          { confirm: true }
+        );
+      } catch (e) {
+        // The request went out: the change may be applied with nobody to undo it.
+        stranded.push(`possibly applied, plan ${plan.planId} (check list-changes)`);
+        throw new EnvError(
+          `REFUSED: pi soak write: the apply of plan ${plan.planId} failed in transit (${String(e)}); it may be applied, check list-changes`
+        );
+      }
       const applyMs = now() - t1;
       const changeId = change && typeof change.changeId === 'string' ? change.changeId : '';
-      if (!changeId) refuse('the apply gave no changeId, so there is nothing to undo');
+      if (!changeId) {
+        stranded.push(`possibly applied, plan ${plan.planId} (check list-changes)`);
+        refuse('the apply gave no changeId, so there is nothing to undo');
+      }
       let undoMs;
       try {
         await assertWorldNow();

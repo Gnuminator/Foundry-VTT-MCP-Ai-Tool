@@ -12,7 +12,7 @@ import {
 import { parseArgs, playerNames } from '../pi-soak.mjs';
 
 /** A fake dashboard: records every call; `world` is what get-world-info answers. */
-function fake({ world = 'strahd-kit', risk = 'safe', undoFails = false } = {}) {
+function fake({ world = 'strahd-kit', risk = 'safe', undoFails = false, applyFails = false } = {}) {
   const calls = [];
   const state = { world };
   const dashboard = {
@@ -25,7 +25,10 @@ function fake({ world = 'strahd-kit', risk = 'safe', undoFails = false } = {}) {
       calls.push({ name, args, flags });
       if (name === 'get-world-info') return { id: state.world };
       if (name === 'plan-actor-change') return { planId: 'p1', risk };
-      if (name === 'apply-planned-change') return { changeId: 'c1' };
+      if (name === 'apply-planned-change') {
+        if (applyFails) throw new Error('POST /api/tool timed out');
+        return { changeId: 'c1' };
+      }
       if (name === 'undo-change') {
         if (undoFails) throw new Error('undo broke');
         return { undoOf: 'c1' };
@@ -129,6 +132,27 @@ test('soak guard: an undo that fails is recorded as stranded and ends the run', 
     /undo failed/
   );
   assert.deepEqual(g.stranded, ['c1']);
+});
+
+test('soak guard: an apply that fails in transit is reported as possibly applied and ends the run', async () => {
+  const { dashboard } = fake({ applyFails: true });
+  const g = createPiSoakGuard(dashboard, { world: 'strahd-kit', allowWrites: true });
+  await assert.rejects(
+    g.damageRoundTrip({ target: 'G', action: 'damage', amount: 1 }),
+    /failed in transit/
+  );
+  assert.equal(g.stranded.length, 1);
+  assert.match(g.stranded[0], /possibly applied, plan p1/);
+});
+
+test('evaluate: writes asked for but none measured fail the write bar', () => {
+  const v = evaluate({
+    records: [rec({})],
+    linkDrops: 0,
+    writeToDashboardMs: [],
+    writesRequested: true,
+  });
+  assert.equal(v.pass, false);
 });
 
 test('soak guard: the write limit ends the writes', async () => {

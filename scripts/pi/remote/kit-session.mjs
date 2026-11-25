@@ -925,6 +925,13 @@ async function main() {
       if (!kit && !gm && !soak.length) return;
       // Everything that can refuse is checked before the first delete.
       const { mine, older } = splitOwnedActors(before.ownedActors, sinceMs);
+      // An actor several kit players own is deleted once, with the first of them, so a later
+      // deleteKit never refuses an actor that is already gone.
+      const claimed = new Set(kit ? mine.map(a => a.id) : []);
+      for (const s of soak) {
+        s.mine = s.mine.filter(a => !claimed.has(a.id));
+        for (const a of s.mine) claimed.add(a.id);
+      }
       const bad = [
         ...teardownProblems({ ...before, ownedActors: mine }, maxDelete),
         ...soak.flatMap(s =>

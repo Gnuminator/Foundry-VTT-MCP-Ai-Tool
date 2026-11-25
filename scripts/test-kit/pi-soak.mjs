@@ -107,7 +107,17 @@ async function main() {
   const token = readDashboardToken(target) ?? '';
   const dash = createDashboardClient({ base: target.dashboard, token });
   await dash.health();
-  const guard = createPiSoakGuard(dash, { world: target.world, allowWrites: args.writes });
+  const guard = createPiSoakGuard(dash, {
+    world: target.world,
+    allowWrites: args.writes,
+    // About 1.5 writes a minute (a round trip each minute, a roll every second minute).
+    maxWrites: Math.ceil(args.durationMin * 1.5) + 20,
+  });
+  // A run that dies before the report still names any change left applied.
+  process.on('exit', () => {
+    if (guard.stranded.length)
+      console.error(`CHANGES LEFT APPLIED (undo them by hand): ${guard.stranded.join(', ')}`);
+  });
   const reads = guard.forSoak([
     'get-world-info',
     'get-prep-digest',
@@ -398,11 +408,17 @@ async function main() {
     'Foundry CPU is the whole foundry.service cgroup over one window; a spike inside a window shows only as its share of it.'
   );
   notes.push(
-    '"AI write to dashboard" is plan plus apply as the dashboard timed them (the change is logged when the apply returns).'
+    '"AI write to dashboard" is plan plus apply as seen from this PC, network hop to the Pi included (the change is logged when the apply returns).'
   );
 
   const endedAt = new Date();
-  const verdict = evaluate({ records, linkDrops, writeToDashboardMs, samplingGaps });
+  const verdict = evaluate({
+    records,
+    linkDrops,
+    writeToDashboardMs,
+    samplingGaps,
+    writesRequested: args.writes,
+  });
   if (state.reason.startsWith('REFUSED')) verdict.pass = false;
   const unitSeries = /** @type {Record<string, number[]>} */ ({});
   for (const r of records)

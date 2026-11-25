@@ -165,10 +165,17 @@ export function summarize(xs) {
  *   linkDrops: number,
  *   writeToDashboardMs: number[],
  *   samplingGaps?: number,
+ *   writesRequested?: boolean,
  * }} run
  * @returns {{pass: boolean, checks: {name: string, pass: boolean | null, detail: string}[]}}
  */
-export function evaluate({ records, linkDrops, writeToDashboardMs, samplingGaps = 0 }) {
+export function evaluate({
+  records,
+  linkDrops,
+  writeToDashboardMs,
+  samplingGaps = 0,
+  writesRequested = false,
+}) {
   const over = records.filter(
     r =>
       r.foundryCpu !== null &&
@@ -215,7 +222,11 @@ export function evaluate({ records, linkDrops, writeToDashboardMs, samplingGaps 
     },
     {
       name: `AI write to dashboard under ${PASS_BAR.writeToDashboardMs / 1000} s`,
-      pass: w.length ? Math.max(...w) < PASS_BAR.writeToDashboardMs : null,
+      pass: w.length
+        ? Math.max(...w) < PASS_BAR.writeToDashboardMs
+        : writesRequested
+          ? false
+          : null,
       detail: w.length
         ? `${w.length} writes, p95 ${percentile(w, 95)} ms, max ${Math.max(...w)} ms (plan to dashboard log)`
         : 'no writes measured (writes were off, or none ran)',

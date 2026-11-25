@@ -22,7 +22,7 @@
     "packages/mcp-server/src/tools/compendium.ts": 1079,
     "packages/mcp-server/src/tools/dnd5e/add-feature.ts": 1123,
     "packages/mcp-server/src/tools/quest-creation.ts": 1346,
-    "scripts/backlog.mjs": 1028,
+    "scripts/backlog.mjs": 1031,
     "scripts/green.mjs": 1199,
     "scripts/live-write-sweep.mjs": 1855,
     "scripts/merge-runner.mjs": 1069,
@@ -208,6 +208,12 @@
       "lines": 1024,
       "reason": "tool permissions wiring (control method and the connector check) took the file from 999 to 1024; the logic lives in tool-permissions.ts",
       "pr": "1365"
+    },
+    {
+      "file": "scripts/backlog.mjs",
+      "lines": 1031,
+      "reason": "claim prints the conflict scout: wiring and its type, the logic lives in conflict-scout.mjs",
+      "pr": ""
     }
   ]
 }

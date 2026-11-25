@@ -224,7 +224,7 @@ test('parser: only whole lines are headings; a bare claimed: line counts', () =>
 test('claim refuses a claimed, merged or blocked item and notes open dependencies', () => {
   const c = (/** @type {string} */ id) => claimEdit(FIXTURE, { id, title: 't', date: D });
   assert.throws(() => c('first'), /already claimed: First lane/);
-  assert.throws(() => c('fourth'), /merged or fixed/);
+  assert.throws(() => c('fourth'), /says it is merged/);
   assert.throws(() => c('third'), /blocked by open item\(s\): second/);
   assert.throws(() => c('nope'), /no item with id nope/);
   const r = c('fifth'); // blocked by an item that left the Backlog: free
@@ -317,6 +317,33 @@ test('done keeps a private marker and refuses a PR that is not a number', () => 
     () => doneEdit(FIXTURE, DONE_FIXTURE, { id: 'fifth', pr: 'soon', date: D }),
     /must be a number/
   );
+});
+
+test('done --no-pr writes an honest line without a merged PR and needs a summary', () => {
+  const r = doneEdit(FIXTURE, DONE_FIXTURE, {
+    id: 'fifth',
+    noPr: true,
+    date: D,
+    summary: 'read back against the card',
+    by: 'lane',
+  });
+  assert.equal(
+    r.line,
+    '- 2026-11-12 fifth: done without a PR; read back against the card (lane) | Docs | private'
+  );
+  assert.doesNotMatch(r.line, /merged/);
+  assert.throws(
+    () => doneEdit(FIXTURE, DONE_FIXTURE, { id: 'fifth', noPr: true, date: D }),
+    /--summary/
+  );
+});
+
+test('claim reads only a merged line: the word fixed alone does not refuse', () => {
+  const text = FIXTURE.replace(
+    '- progress: 2026-11-10 PR #5 merged at abc',
+    '- progress: 2026-11-10 Delivery gaps fixed'
+  );
+  assert.doesNotThrow(() => claimEdit(text, { id: 'fourth', title: 't', date: D }));
 });
 
 test('done writes Unsorted, not the area field, when an item has no board line', () => {

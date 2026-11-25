@@ -16,22 +16,68 @@ export const TOKEN_RINGS_PLAN_QUERY = 'planTokenRings';
 export const TOKEN_RINGS_FEATURE_ID = 'token-rings';
 export const TOKEN_RINGS_BATCH = 150;
 
-const RING_PATH = 'prototypeToken.ring.enabled';
-const TOKEN_RING_PATH = 'ring.enabled';
+const RING_PATH = 'prototypeToken.ring';
+const TOKEN_RING_PATH = 'ring';
+
+/** The steel look; mirrors `TOKEN_RINGS_STEEL` in shared (pinned by the test). */
+const STEEL = { ring: '#8a8d99', background: '#15151b', scale: 0.8 } as const;
+
+interface RingLike {
+  enabled?: boolean;
+  colors?: { ring?: unknown; background?: unknown } | null;
+  subject?: { scale?: number } | null;
+}
 
 interface ActorLike {
   id: string;
   uuid: string;
   name: string;
   type: string;
-  prototypeToken?: { ring?: { enabled?: boolean } };
+  prototypeToken?: { ring?: RingLike };
 }
 
 interface TokenLike {
   uuid: string;
   name?: string;
   actor?: { name?: string; type?: string } | null;
-  ring?: { enabled?: boolean };
+  ring?: RingLike;
+}
+
+function colorIs(value: unknown, hex: string): boolean {
+  // A Foundry Color prints as its hex string; a plain stored value is already one.
+  const text = typeof value === 'string' ? value : (value as { css?: string } | null)?.css;
+  return typeof text === 'string' && text.toLowerCase() === hex;
+}
+
+/** Does this ring already have the wanted state (on or off, and with a look the steel look)? */
+function ringDone(ring: RingLike | undefined, wantOn: boolean, steel: boolean): boolean {
+  if (Boolean(ring?.enabled) !== wantOn) return false;
+  if (!steel) return true;
+  return (
+    colorIs(ring?.colors?.ring, STEEL.ring) &&
+    colorIs(ring?.colors?.background, STEEL.background) &&
+    ring?.subject?.scale === STEEL.scale
+  );
+}
+
+/** The changes for one ring: `enabled`, and with the steel look its colours and subject scale. */
+function ringChanges(path: string, wantOn: boolean, steel: boolean): Record<string, unknown> {
+  const changes: Record<string, unknown> = { [`${path}.enabled`]: wantOn };
+  if (steel) {
+    changes[`${path}.colors.ring`] = STEEL.ring;
+    changes[`${path}.colors.background`] = STEEL.background;
+    changes[`${path}.subject.scale`] = STEEL.scale;
+  }
+  return changes;
+}
+
+function wantsSteel(req: TokenRingsPlanRequest, wantOn: boolean): boolean {
+  const look = (req as { look?: unknown }).look;
+  if (look === undefined) return false;
+  if (look !== 'steel')
+    throw new Error(`Unknown token ring look: ${typeof look === 'string' ? look : 'invalid'}`);
+  if (!wantOn) throw new Error('A ring look only applies with action "enable".');
+  return true;
 }
 
 interface SceneLike {
@@ -90,6 +136,7 @@ function scopeOf(count: number, req: TokenRingsPlanRequest, named: boolean, noun
 /** Summary line shared by both targets. */
 function buildPlan(
   wantOn: boolean,
+  steel: boolean,
   matchingCount: number,
   ops: GuardedOp[],
   todoCount: number,
@@ -100,7 +147,7 @@ function buildPlan(
   const miss =
     unmatched.length > 0 ? `; no match for ${unmatched.map(n => `"${n}"`).join(', ')}` : '';
   return {
-    summary: `Turn the dynamic token ring ${wantOn ? 'on' : 'off'} for ${scope}${remaining > 0 ? ` (${remaining} more need another plan)` : ''}${miss}`,
+    summary: `Turn the dynamic token ring ${wantOn ? 'on' : 'off'}${steel ? ' with the steel look' : ''} for ${scope}${remaining > 0 ? ` (${remaining} more need another plan)` : ''}${miss}`,
     ops,
     count: ops.length,
     remaining,
@@ -110,7 +157,11 @@ function buildPlan(
 }
 
 /** Tokens already placed on scenes (tokens `placed`): one `ring.enabled` update per token. */
-function planPlacedRings(req: TokenRingsPlanRequest, wantOn: boolean): TokenRingsPlan {
+function planPlacedRings(
+  req: TokenRingsPlanRequest,
+  wantOn: boolean,
+  steel: boolean
+): TokenRingsPlan {
   const names = lowerSet(req.names);
   const sceneNames = lowerSet(req.scenes);
   const seenNames = new Set<string>();
@@ -145,7 +196,7 @@ function planPlacedRings(req: TokenRingsPlanRequest, wantOn: boolean): TokenRing
         : 'No character or NPC tokens are placed on any scene.'
     );
   }
-  const todo = matching.filter(t => Boolean(t.ring?.enabled) !== wantOn);
+  const todo = matching.filter(t => !ringDone(t.ring, wantOn, steel));
   if (todo.length === 0) {
     throw new Error(
       `All ${matching.length} matching placed tokens already have their token ring ${wantOn ? 'on' : 'off'}.`
@@ -154,10 +205,10 @@ function planPlacedRings(req: TokenRingsPlanRequest, wantOn: boolean): TokenRing
   const ops: GuardedOp[] = todo.slice(0, TOKEN_RINGS_BATCH).map(t => ({
     kind: 'update',
     uuid: t.uuid,
-    changes: { [TOKEN_RING_PATH]: wantOn },
+    changes: ringChanges(TOKEN_RING_PATH, wantOn, steel),
   }));
   const scope = scopeOf(ops.length, req, names.size > 0, 'placed token');
-  return buildPlan(wantOn, matching.length, ops, todo.length, scope, unmatched);
+  return buildPlan(wantOn, steel, matching.length, ops, todo.length, scope, unmatched);
 }
 
 /** `planTokenRings`: one request into one plan of at most `TOKEN_RINGS_BATCH` ops. Writes nothing. */
@@ -177,7 +228,8 @@ export function planTokenRings(request: unknown): TokenRingsPlan {
     throw new Error('Scenes only apply to tokens placed on scenes: set tokens to "placed".');
   }
   const wantOn = req.action === 'enable';
-  if (target === 'placed') return planPlacedRings(req, wantOn);
+  const steel = wantsSteel(req, wantOn);
+  if (target === 'placed') return planPlacedRings(req, wantOn, steel);
 
   const names = lowerSet(req.names);
   const matching = actors().filter(a => matches(a, req, names));
@@ -188,7 +240,7 @@ export function planTokenRings(request: unknown): TokenRingsPlan {
         : 'The world has no characters or NPCs of that kind.'
     );
   }
-  const todo = matching.filter(a => Boolean(a.prototypeToken?.ring?.enabled) !== wantOn);
+  const todo = matching.filter(a => !ringDone(a.prototypeToken?.ring, wantOn, steel));
   if (todo.length === 0) {
     throw new Error(
       `All ${matching.length} matching actors already have their token ring ${wantOn ? 'on' : 'off'}.`
@@ -197,9 +249,9 @@ export function planTokenRings(request: unknown): TokenRingsPlan {
   const ops: GuardedOp[] = todo.slice(0, TOKEN_RINGS_BATCH).map(a => ({
     kind: 'update',
     uuid: a.uuid,
-    changes: { [RING_PATH]: wantOn },
+    changes: ringChanges(RING_PATH, wantOn, steel),
   }));
   const unmatched = unmatchedNames(req.names, new Set(matching.map(a => a.name.toLowerCase())));
   const scope = scopeOf(ops.length, req, names.size > 0, 'actor');
-  return buildPlan(wantOn, matching.length, ops, todo.length, scope, unmatched);
+  return buildPlan(wantOn, steel, matching.length, ops, todo.length, scope, unmatched);
 }

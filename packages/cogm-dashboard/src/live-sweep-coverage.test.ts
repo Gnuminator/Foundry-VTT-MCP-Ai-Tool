@@ -33,6 +33,8 @@ const RECORDED_SKIPS: Record<string, string> = {
     'ships off (feature character-diary, I-183 route B); covered by unit tests with the real guarded-write service (plan, apply, undo, ownership map); the live check on a test server (apply, a second player cannot open the journal, undo) is still owed, see the PR',
   'draft-omens':
     'writes only the bridge vault omens list and never Foundry (I-181); the draft, approve, send and undo-free flow is covered by the omens store tests and checked by hand on a test server with a second Discord account, see the PR',
+  'draft-player-text':
+    'writes only the bridge vault draft tray and never Foundry (I-069); publishing is a dashboard control method, not a tool; covered by the drafts store tests and checked by hand on a test server (draft, edit, publish to chat, discard), see the PR',
 };
 
 /**

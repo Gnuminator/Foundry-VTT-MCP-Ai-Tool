@@ -14,6 +14,7 @@ import type { GuardedWriteService } from '../guarded-write/service.js';
 import type { UndoPlanner } from '../guarded-write/undo-planner.js';
 import type { ChangeHistory } from '../change-history.js';
 import type { HandoutsService } from '../handouts/service.js';
+import type { DraftsStore } from '../drafts/store.js';
 import type { OmensStore } from '../omens/store.js';
 import type { Logger } from '../logger.js';
 import type { SecretTermsService } from '../secret-terms.js';
@@ -47,6 +48,7 @@ export interface ToolServices {
   secretTerms: SecretTermsService;
   handouts: HandoutsService;
   omens: OmensStore;
+  drafts: DraftsStore;
   /** Called after mark-play-session records a marker (re-renders the Obsidian notes). */
   onPlaySessionMarked: NonNullable<PlaySessionToolsOptions['onMarked']>;
   wrapperStatus: NonNullable<PreflightToolsOptions['wrapperStatus']>;

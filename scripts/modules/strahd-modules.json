@@ -68,6 +68,11 @@
       "note": "the free pack; a premium (Patreon) pack would be licensed"
     },
     { "id": "nice-more-dice", "verdict": "keep" },
+    {
+      "id": "racooze-map-library",
+      "verdict": "optional",
+      "note": "back on the list for the castle floors (castle-lane-2, the user 2026-11-20: keep for G1); the free castle needs no Patreon key"
+    },
     { "id": "racoozes-free-battlemaps", "verdict": "optional" },
     { "id": "share-media", "verdict": "keep" },
     { "id": "travel-pace", "verdict": "keep" },
@@ -79,7 +84,6 @@
     "scaleGrid",
     "tarokka-reading",
     "healthEstimate",
-    "racooze-map-library",
     "combat-spell-timer",
     "monks-player-settings",
     "quick-insert",

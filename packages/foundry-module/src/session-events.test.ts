@@ -732,6 +732,19 @@ describe('EventTracker session events: visibility stamp (M2)', () => {
     expect(t.getSessionLog({ eventType: 'journal-updated' })[0].visibility).toEqual(noSubject);
   });
 
+  it('combat-start/combat-end carry the scene id (combat mood)', () => {
+    const t = new EventTracker();
+    t.registerHooks();
+    fire('combatStart', { id: 'c1', round: 1, combatants: { size: 1 }, scene: { id: 's1' } });
+    fire('deleteCombat', { id: 'c1', round: 2, sceneId: 's2' });
+    fire('combatStart', { id: 'c2', round: 1, combatants: { size: 1 } });
+
+    const starts = t.getSessionLog({ eventType: 'combat-start' });
+    expect(starts[0].details.sceneId).toBe('s1');
+    expect(starts[1].details.sceneId).toBeNull();
+    expect(t.getSessionLog({ eventType: 'combat-end' })[0].details.sceneId).toBe('s2');
+  });
+
   it('roll: stamps visibility from the resolved speaker actor', () => {
     const t = new EventTracker();
     t.registerHooks();

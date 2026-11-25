@@ -75,6 +75,16 @@ export function startedOnCreate(combat: unknown, options: unknown): boolean {
   return ns?.changeMode !== 'undo' && ns?.changeMode !== 'rollback';
 }
 
+/** The details of a combat-start or combat-end event: the combat and its scene (combat mood), plus `extra`. */
+export function combatEventDetails(
+  combat: unknown,
+  extra: Record<string, unknown>
+): Record<string, unknown> {
+  const c = combat as { id?: unknown; scene?: { id?: unknown }; sceneId?: unknown } | null;
+  const scene = c?.scene?.id ?? c?.sceneId;
+  return { combatId: c?.id, sceneId: typeof scene === 'string' && scene ? scene : null, ...extra };
+}
+
 /** The tokens a fight starts with when the caller names none: player characters and Hostiles. */
 function isDefaultCombatToken(token: TokenLike): boolean {
   const actor = token.actor;

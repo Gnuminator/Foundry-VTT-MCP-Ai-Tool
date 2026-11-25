@@ -200,6 +200,13 @@ export class McpControlClient extends EventEmitter {
     };
   }
 
+  /** Draft tray (I-069). An old backend answers "Unknown method" (a ChannelError). */
+  async drafts(action: string, params: Record<string, unknown> = {}): Promise<unknown> {
+    // Publish waits on Foundry for up to 30 s in the backend; wait longer here, so the backend
+    // is the one that times out (a shorter wait here would tear the channel down mid-post).
+    return this.send('drafts', { ...params, action }, action === 'publish' ? 40_000 : undefined);
+  }
+
   /** Omens by post (I-181). An old backend answers "Unknown method" (a ChannelError). */
   async omens(action: string, params: Record<string, unknown> = {}): Promise<unknown> {
     return this.send('omens', { ...params, action });

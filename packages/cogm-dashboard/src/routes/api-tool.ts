@@ -4,6 +4,7 @@ import { ToolError, TimeoutError } from '../feed/mcp-control-client.js';
 import { gmOnly } from '../redact.js';
 import { CACHED_READ_TOOLS } from '../read-cache.js';
 import { classifyTool, toolArgs, type ToolKind } from '../tool-policy.js';
+import { mountApiDraftsRoutes } from './api-drafts.js';
 import { mountApiOmensRoutes } from './api-omens.js';
 import type { RouteContext } from './context.js';
 import { asRecord, readStr } from './util.js';
@@ -200,4 +201,5 @@ export function mountApiToolRoutes(app: Express, ctx: RouteContext): void {
 
   // Omens by post (I-181): the GM list and the bot's send steps (also GM only).
   mountApiOmensRoutes(app, ctx);
+  mountApiDraftsRoutes(app, ctx);
 }

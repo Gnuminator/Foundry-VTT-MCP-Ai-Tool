@@ -31,6 +31,8 @@ export interface DashboardClient {
   recordHandoutSeen?(pageId: string, userId: string, name: string): Promise<{ recorded: boolean }>;
   /** Omens by post (I-181): list, decide and send steps; absent on fakes and old backends. */
   omens?(action: string, params?: Record<string, unknown>): Promise<unknown>;
+  /** Draft tray (I-069): list, edit, discard, reopen and publish; absent on fakes and old backends. */
+  drafts?(action: string, params?: Record<string, unknown>): Promise<unknown>;
   /** The live write sweep's helper (I-016; test world only); absent on fakes. */
   liveSweep?(request: Record<string, unknown>): Promise<unknown>;
   /** Turn on for tonight (D3): read, turn on or turn back off tonight's switches; absent on fakes. */

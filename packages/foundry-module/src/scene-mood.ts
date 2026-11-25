@@ -54,6 +54,7 @@ export const SCENE_MOOD_PLAN_QUERY = 'planSceneMood';
 export const SCENE_MOODS_QUERY = 'getSceneMoods';
 export const SCENE_MOOD_FEATURE_ID = 'scene-mood';
 export const SCENE_MOOD_FLAG = 'moods';
+export const COMBAT_MOOD_FEATURE_ID = 'combat-mood';
 
 const SETTING_KEYS = ['darkness', 'globalLight', 'weather', 'playlist'] as const;
 

@@ -6,6 +6,7 @@
 // The words and small rules are in lib/live-strip.ts.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  Fragment,
   lazy,
   Suspense,
   useCallback,
@@ -39,6 +40,7 @@ import {
   turnText,
   undoLabel,
 } from '../lib/live-strip';
+import { LIVE_KEYS, LIVE_KEY_TARGET, liveKeyAction } from '../lib/live-keys';
 import { initialsOf } from '../lib/ribbon';
 import { sideOf } from '../lib/combat';
 import {
@@ -232,6 +234,35 @@ export function LiveStrip(): JSX.Element {
   const roll = useQuickRoll();
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
   const [lastAsked, setLastAsked] = useState<string[]>([]);
+  const [keysOpen, setKeysOpen] = useState(false);
+  // Live keys: a letter presses the strip's own button, so the guards and confirms are the button's own.
+  useEffect(() => {
+    const onKey = (event: globalThis.KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        setKeysOpen(false);
+        return;
+      }
+      if (event.defaultPrevented) return;
+      const dialogOpen =
+        document.querySelector(
+          '[role="dialog"], [role="alertdialog"], [aria-modal="true"], [role="menu"], [role="listbox"]'
+        ) !== null;
+      const action = liveKeyAction(event, event.target, dialogOpen);
+      if (!action) return;
+      event.preventDefault();
+      if (action === 'help') {
+        setKeysOpen(open => !open);
+      } else if (action === 'damage') {
+        const field =
+          document.getElementById('damage-amount') ?? document.getElementById('live-pick');
+        field?.focus();
+      } else {
+        document.getElementById(LIVE_KEY_TARGET[action])?.click();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return (): void => window.removeEventListener('keydown', onKey);
+  }, []);
   // False when idle; true while a write runs; a key when the write came from a header button that
   // then says what it is doing.
   const [busyState, setBusy] = useState<false | true | BusyKey>(false);
@@ -502,7 +533,49 @@ export function LiveStrip(): JSX.Element {
             {changes.isPending ? 'Loading changes' : undoLabel(undoable)}
           </Button>
         )}
+        <Button
+          type="button"
+          variant="quiet"
+          size="sm"
+          id="live-keys-btn"
+          className={styles['keysBtn']}
+          aria-label="? Keys"
+          aria-keyshortcuts="?"
+          aria-expanded={keysOpen}
+          aria-controls="live-keys-sheet"
+          title="Keyboard keys (press ?)"
+          onClick={() => setKeysOpen(open => !open)}
+        >
+          ?
+        </Button>
       </div>
+      {keysOpen && (
+        <div className={styles['sheet']} id="live-keys-sheet" role="region" aria-label="Live keys">
+          <h3>Live keys</h3>
+          <dl>
+            {LIVE_KEYS.map(k => (
+              <Fragment key={k.key}>
+                <dt>{k.key}</dt>
+                <dd>{k.text}</dd>
+              </Fragment>
+            ))}
+          </dl>
+          <p className={styles['hint']}>
+            Keys press the buttons, so the same rules apply: Undo and handouts ask first, Next turn
+            and Ask the party go straight away. Keys are off while you type.
+          </p>
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => {
+              setKeysOpen(false);
+              document.getElementById('live-keys-btn')?.focus();
+            }}
+          >
+            Close
+          </Button>
+        </div>
+      )}
       <p className={styles['away']} id="live-away" role="status">
         {stale ? AWAY_TEXT : ''}
       </p>

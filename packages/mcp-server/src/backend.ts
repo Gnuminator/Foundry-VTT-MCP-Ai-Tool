@@ -14,6 +14,8 @@ import {
 
 import { buildToolRouter, collectToolDefinitions, DETACHED_TOOLS } from './tool-router.js';
 import { RepeatGuard } from './repeat-guard.js';
+import { ToolPermissions, handleToolPermissions } from './tool-permissions.js';
+import { RENAMED_TOOLS } from './param-aliases.js';
 import { createAiChangesAnnouncer, createModuleRequestHandler } from './module-requests.js';
 
 import { config } from './config.js';
@@ -359,6 +361,7 @@ async function startBackend(): Promise<void> {
   const toolRouter = buildToolRouter(toolDeps);
   // The same write twice within 3 s (a double click) answers with the first result (repeat-guard.ts).
   const repeatGuard = new RepeatGuard();
+  const toolPermissions = new ToolPermissions(vaultStore.dataDir);
   // Dashboard-only routes (O6): callable through call_tool by the dashboard's GM proxy, but not
   // MCP tools (no definition, in no tool set), so buildToolRouter's one-route-per-tool test and
   // the tool-set size budgets stay as they are. They are not listed to Claude, but not walled off
@@ -568,6 +571,21 @@ async function startBackend(): Promise<void> {
             continue;
           }
 
+          // The GM's per-tool permissions (allow, ask, deny): the dashboard reads and changes them.
+          // A control method, never a tool, and the stdio wrapper never forwards it, so Claude
+          // cannot change or approve its own permissions.
+          if (msg.method === 'tool_permissions') {
+            try {
+              const result = await handleToolPermissions(toolPermissions, allToolNames, msg.params);
+              socket.write(`${JSON.stringify({ id: msg.id, result })}\n`);
+            } catch (e: unknown) {
+              const message = e instanceof Error ? e.message : 'Permissions failed';
+              socket.write(`${JSON.stringify({ id: msg.id, error: { message } })}\n`);
+            }
+
+            continue;
+          }
+
           if (msg.method === 'list_tools') {
             socket.write(`${JSON.stringify({ id: msg.id, result: { tools: allTools } })}\n`);
 
@@ -606,6 +624,11 @@ async function startBackend(): Promise<void> {
                     : undefined;
                 if (typeof route !== 'function') {
                   throw new Error(unknownToolMessage(String(name)));
+                }
+                // The GM's per-tool permissions bind Claude, never the dashboard's own buttons.
+                if (caller.via === 'connector') {
+                  const allowed = toolPermissions.check(RENAMED_TOOLS[name]?.to ?? name);
+                  if (!allowed.ok) throw new Error(allowed.message);
                 }
                 // The dashboard says who asked (a GM's undo there is theirs, not the AI's).
                 const requester =
@@ -837,6 +860,8 @@ async function startBackend(): Promise<void> {
                       if (typeof route !== 'function') {
                         throw new Error(unknownToolMessage(n));
                       }
+                      const allowed = toolPermissions.check(RENAMED_TOOLS[n]?.to ?? n);
+                      if (!allowed.ok) throw new Error(allowed.message);
                       return route(a, { signal: socketAbort.signal });
                     }),
                   record: (tool, startedAt, r) =>

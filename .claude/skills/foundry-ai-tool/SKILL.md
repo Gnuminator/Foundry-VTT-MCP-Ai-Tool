@@ -1,6 +1,6 @@
 ---
 name: foundry-ai-tool
-description: Use and test this repo's own product on the local test server - the MCP bridge tools (calling them through the co-GM dashboard API), guarded writes (plan / apply / undo, feature switches, conflicts), the co-GM dashboard (Tool Runner with pickers, Recent Changes, Tarokka drawer, /player view, player/GM split), the bridge vault and the session log - and run the M0+M1 smoke checklist, the M2 player-view checks and the Obsidian O4 mirror checks (notes, links, /open route). Use before calling an AI Tool feature done, when reproducing a tool bug, or when checking what players can see. Needs the environment from foundry-test-env; Foundry's own UI is in foundry-core-ui.
+description: Test this repo's product on the local test server - bridge tools, guarded writes, co-GM dashboard, player view and what players can see, Obsidian mirror, session log, smoke checklists; needs foundry-test-env. Use before calling a feature done or reproducing a tool bug.
 ---
 
 # Foundry AI Tool: tools, dashboard, smoke test

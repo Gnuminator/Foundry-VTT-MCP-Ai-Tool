@@ -1,6 +1,6 @@
 ---
 name: planner
-description: The on-demand planner for Foundry AI Tool - answering "what's next", keeping the vault Backlog and Waiting notes, starting and checking lanes, recording decisions and holds, the merge train, session cleanup and the weekly usage check. Use when the user asks what to do next, wants lanes started or stopped, makes a scope decision, or asks for the state of the project.
+description: The on-demand planner - Backlog and Waiting notes, starting lanes, merges, decisions, usage check. Use when asked what is next or to start or stop lanes.
 ---
 
 # Planner

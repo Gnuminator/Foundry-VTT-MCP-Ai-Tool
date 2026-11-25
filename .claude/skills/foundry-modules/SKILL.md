@@ -1,6 +1,6 @@
 ---
 name: foundry-modules
-description: What each Foundry module in the Curse of Strahd world and the test kit does, where its UI is, the settings we use and why, how it interacts with the AI Tool, its Foundry 14 / dnd5e 6 gotchas and the keep-or-drop verdict. Use when a task touches a third-party module (changing its settings, adding or dropping it, writing a guide or kit scenario that names it, debugging a module error, deciding what to install for Danni), or when writing a new module reference page.
+description: What each third-party Foundry module does, its settings, gotchas and keep-or-drop verdict. Use when a task touches a module, such as adding or dropping one, module errors, a guide or kit scenario that names one.
 ---
 
 # Foundry modules: one verified page per module

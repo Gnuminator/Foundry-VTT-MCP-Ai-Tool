@@ -57,6 +57,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { waitingEdit } from './backlog-waiting.mjs';
+import { claimAdvice } from './conflict-scout.mjs';
 import { pidAlive, sleepSync } from './heavy-lock.mjs';
 import { ghJson, plannerSections, REPO } from './planner-state.mjs';
 import {
@@ -736,7 +737,8 @@ const today = () => new Date().toLocaleDateString('sv-SE');
  * Run one command. Returns the exit code; prints to `out` and `err`.
  * @param {string[]} argv
  * @param {{ vault?: string, git?: Git, gh?: (a: string[]) => any, beforePush?: (attempt: number) => void,
- *   out?: (s: string) => void, err?: (s: string) => void, lockWaitMs?: number }} [env]
+ *   out?: (s: string) => void, err?: (s: string) => void, lockWaitMs?: number,
+ *   scout?: (id: string, vault: string) => string }} [env]
  */
 export function run(argv, env = {}) {
   const out = env.out ?? (s => console.log(s));
@@ -1016,6 +1018,7 @@ export function run(argv, env = {}) {
     });
     for (const n of notes) out(n);
     out(r.changed ? `backlog: ${job.message} (pushed)` : 'backlog: nothing to change');
+    if (cmd === 'claim' && r.changed && env.scout) out(env.scout(id, vault));
     return 0;
   } catch (e) {
     err(`backlog: ${e instanceof Error ? e.message : e}`);
@@ -1025,4 +1028,4 @@ export function run(argv, env = {}) {
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]))
-  process.exitCode = run(process.argv.slice(2));
+  process.exitCode = run(process.argv.slice(2), { scout: claimAdvice });

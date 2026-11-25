@@ -168,6 +168,10 @@ links and My character" below.
 More entries under **Advanced ▾**, Tools:
 
 - **🩺 Module diagnostics** shows or hides the Module Diagnostics panel (see below).
+- **🔒 Tool permissions** chooses which tools Claude may use. Each tool, or a whole set, is Allow
+  (the default), Ask me first or Deny. When Claude tries a tool that is on Ask, it is refused and a
+  card appears here; press **Allow once** and Claude's next try goes through. The dashboard's own
+  buttons are never affected.
 - **Version tracker: on / off** is on by default. While it is on, a **📦 Versions** entry appears
   in the same menu; turn it off to hide it and stop the online lookups. It opens a table of what is installed (Foundry, the game system and the
   modules) next to the newest release, with a status for each. It only tells you what is out of

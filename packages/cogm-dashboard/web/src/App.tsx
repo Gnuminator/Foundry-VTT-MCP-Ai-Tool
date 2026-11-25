@@ -84,6 +84,9 @@ const linksChunk = panelChunk(() =>
 const diagChunk = panelChunk(() =>
   import('./panels/ModuleDiagnostics').then(m => ({ default: m.ModuleDiagnosticsPane }))
 );
+const permsChunk = panelChunk(() =>
+  import('./panels/ToolPermissions').then(m => ({ default: m.ToolPermissionsPane }))
+);
 const versionsChunk = panelChunk(() =>
   import('./panels/Versions').then(m => ({ default: m.VersionsPane }))
 );
@@ -278,6 +281,7 @@ function Dashboard(): JSX.Element {
   const openHelp = useHelp();
   const [linksOpen, setLinksOpen] = useState(false);
   const [diagOpen, setDiagOpen] = useState(false);
+  const [permsOpen, setPermsOpen] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
   const versionTrackerOn = during.prefs?.versionTracker === true;
   // Switching the tracker off closes its panel for good: it does not come back when it is on again.
@@ -447,6 +451,20 @@ function Dashboard(): JSX.Element {
             </AdvancedItem>
             <AdvancedItem
               onSelect={() => {
+                setPermsOpen(!permsOpen);
+                return !permsOpen;
+              }}
+            >
+              <Button
+                id="btn-show-perms"
+                data-track="dash.header.tool-permissions"
+                title="Choose which tools Claude may use: allow, ask first or deny"
+              >
+                🔒 Tool permissions
+              </Button>
+            </AdvancedItem>
+            <AdvancedItem
+              onSelect={() => {
                 setLinksOpen(!linksOpen);
                 return !linksOpen;
               }}
@@ -530,6 +548,7 @@ function Dashboard(): JSX.Element {
       <LayoutTourGuide during={during} />
       <LazyPanel chunk={linksChunk} show={linksOpen} open={linksOpen} onOpenChange={setLinksOpen} />
       <LazyPanel chunk={diagChunk} show={diagOpen} open={diagOpen} onOpenChange={setDiagOpen} />
+      <LazyPanel chunk={permsChunk} show={permsOpen} open={permsOpen} onOpenChange={setPermsOpen} />
       <LazyPanel
         chunk={versionsChunk}
         show={versionsOpen && versionTrackerOn}

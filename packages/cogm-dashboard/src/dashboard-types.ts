@@ -39,6 +39,8 @@ export interface DashboardClient {
   sessionSwitches?(action: SessionSwitchAction): Promise<unknown>;
   /** The feature cards (I-064): every feature switch, read-only; absent on fakes. */
   featureSwitches?(): Promise<unknown>;
+  /** Per-tool AI permissions (allow, ask, deny): read, set, approve or dismiss; absent on fakes. */
+  toolPermissions?(params: Record<string, unknown>): Promise<unknown>;
   /** My character (I-096): one player's character sheets; absent on fakes. */
   characterSheet?(userId: string): Promise<unknown>;
   /** The downtime inbox (I-180): the player's own entries; absent on fakes and old backends. */

@@ -1,6 +1,6 @@
 ---
 source: gm/dashboard-header.md
-sourceHash: 102346264892
+sourceHash: 5376d332cb6b
 title: 'Dashboardet: visninger og header'
 description: 'De tre visninger og headeren: forbindelsesmærke, Pre-flight, theme, session-knapper, GM Actions og Advanced-menuen.'
 ---
@@ -174,6 +174,10 @@ og My character" nedenfor.
 Flere punkter under **Advanced ▾**, Tools:
 
 - **🩺 Module diagnostics** viser eller skjuler panelet Module Diagnostics (se nedenfor).
+- **🔒 Tool permissions** vælger, hvilke værktøjer Claude må bruge. Hvert værktøj, eller et helt
+  sæt, er Allow (standard), Ask me first eller Deny. Når Claude prøver et værktøj på Ask, bliver det
+  afvist, og et kort dukker op her; tryk **Allow once**, så går Claudes næste forsøg igennem.
+  Dashboardets egne knapper bliver aldrig påvirket.
 - **Version tracker: on / off** er slået til som standard. Mens den er til, dukker et punkt
   **📦 Versions** op i samme menu; slå den fra for at skjule det og stoppe opslagene online. Det
   åbner en tabel over, hvad der er installeret (Foundry, spilsystemet og modulerne), ved siden af den

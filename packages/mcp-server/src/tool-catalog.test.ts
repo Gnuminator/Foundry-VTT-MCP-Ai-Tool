@@ -50,6 +50,7 @@ describe('tool catalog', () => {
       'record_usage',
       'session_switches',
       'feature_switches',
+      'tool_permissions',
       'character_sheet',
     ]) {
       expect(tools.map(t => t.name)).not.toContain(method);

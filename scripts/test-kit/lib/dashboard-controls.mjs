@@ -183,6 +183,12 @@ export const DASHBOARD_CONTROLS = [
   { name: 'dash.header.tools', how: 'open', reach: [ADV], expect: '#tools-drawer' },
   { name: 'dash.header.show-diagnostics', how: 'open', reach: [ADV], expect: '#pane-diagnostics' },
   {
+    name: 'dash.header.tool-permissions',
+    how: 'open',
+    reach: [ADV],
+    expect: '#pane-tool-permissions',
+  },
+  {
     name: 'dash.header.player-links',
     how: 'open',
     reach: [ADV],

@@ -6,4 +6,10 @@ export const OMENS_CONTROLS = [
   { name: 'dash.omens.reopen', how: 'write', why: 'puts an omen back to draft' },
   { name: 'dash.omens.link', how: 'write', why: 'links a player to a Discord user id' },
   { name: 'dash.omens.unlink', how: 'write', why: 'removes the Discord user id of a player' },
+  // Draft tray (I-069), the next list in the same Prep drawer.
+  { name: 'dash.drafts.publish', how: 'write', why: 'posts a drafted text for players to chat' },
+  { name: 'dash.drafts.edit', how: 'write', why: 'opens a drafted text for editing' },
+  { name: 'dash.drafts.save', how: 'write', why: 'saves the edited text and whisper target' },
+  { name: 'dash.drafts.discard', how: 'write', why: 'throws a drafted text away' },
+  { name: 'dash.drafts.reopen', how: 'write', why: 'puts a discarded or stuck draft back' },
 ];

@@ -35,6 +35,7 @@ export function stubToolServices(): ToolServices {
     secretTerms: { findSecretTermsInMany: vi.fn(() => Promise.resolve([])) } as any,
     handouts: {} as any,
     omens: {} as any,
+    drafts: {} as any,
     onPlaySessionMarked: (): void => {},
     wrapperStatus: (): WrapperStatus => ({
       current: '0.0.0',

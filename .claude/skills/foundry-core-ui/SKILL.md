@@ -1,6 +1,6 @@
 ---
 name: foundry-core-ui
-description: Drive the Foundry v14 web client and dnd5e 6 sheets by hand in the browser pane. Use when a task needs clicking through Foundry's own UI or docs naming its UI elements.
+description: Drive the Foundry v14 web client and dnd5e 6 sheets by hand in the browser pane. Use when a task needs clicking through Foundry's own UI, checking what a player or GM sees, finding a button or setting, or docs naming its UI elements.
 ---
 
 # Foundry v14 + dnd5e 6: driving the client

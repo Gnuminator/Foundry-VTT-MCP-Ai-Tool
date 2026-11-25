@@ -1,6 +1,6 @@
 ---
 name: foundry-test-env
-description: Start, use and stop the local Foundry test server (localhost:30001, test bridge 31514/31515, dashboard 3100). Use before any live check; never touches live ports.
+description: Start, use and stop the local Foundry test server (localhost:30001, test bridge 31514/31515, dashboard 3100), join as GM or Player, sync the module, install packages, troubleshoot. Use before any live check; never touches live ports.
 ---
 
 # Foundry test environment

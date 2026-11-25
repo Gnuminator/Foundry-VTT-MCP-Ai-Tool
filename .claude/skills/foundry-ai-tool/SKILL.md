@@ -1,6 +1,6 @@
 ---
 name: foundry-ai-tool
-description: Test this repo's product on the local test server: bridge tools, guarded writes, co-GM dashboard, player view, smoke checklists. Use before calling a feature done or reproducing a tool bug.
+description: Test this repo's product on the local test server - bridge tools, guarded writes, co-GM dashboard, player view and what players can see, Obsidian mirror, session log, smoke checklists; needs foundry-test-env. Use before calling a feature done or reproducing a tool bug.
 ---
 
 # Foundry AI Tool: tools, dashboard, smoke test

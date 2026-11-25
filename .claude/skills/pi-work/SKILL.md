@@ -1,6 +1,6 @@
 ---
 name: pi-work
-description: Rules for any work on the Orange Pi or a Linux host: stage scripts, backups, deployed checks, Plan B. Use before any ssh or Pi script work.
+description: Rules for any work on the Orange Pi or a Linux host - stage scripts, backups, deployed checks, Plan B. Use before any ssh or Pi script work.
 ---
 
 # Pi work

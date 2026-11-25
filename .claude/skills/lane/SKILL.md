@@ -1,6 +1,6 @@
 ---
 name: lane
-description: How a coding lane works from claim to merge: Backlog, branch, checks, PR, review note, merge gate, handover. Use at the start of any lane session and before a PR or handover.
+description: How a coding lane works from claim to merge - Backlog, branch, checks, PR, review note, merge gate, handover. Use at the start of any lane session and before a PR or handover.
 ---
 
 # Lane

@@ -1,6 +1,6 @@
 ---
 name: planner
-description: The on-demand planner: Backlog and Waiting notes, starting lanes, merges, decisions, usage check. Use when asked what is next or to start or stop lanes.
+description: The on-demand planner - Backlog and Waiting notes, starting lanes, merges, decisions, usage check. Use when asked what is next or to start or stop lanes.
 ---
 
 # Planner

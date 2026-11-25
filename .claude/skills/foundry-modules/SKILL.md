@@ -1,6 +1,6 @@
 ---
 name: foundry-modules
-description: What each third-party Foundry module does, its settings, gotchas and keep-or-drop verdict. Use when a task touches a module.
+description: What each third-party Foundry module does, its settings, gotchas and keep-or-drop verdict. Use when a task touches a module, such as adding or dropping one, module errors, a guide or kit scenario that names one.
 ---
 
 # Foundry modules: one verified page per module

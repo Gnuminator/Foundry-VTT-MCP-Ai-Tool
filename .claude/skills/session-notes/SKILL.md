@@ -1,6 +1,6 @@
 ---
 name: session-notes
-description: Write notes for a recorded play session (transcript, scenes, GM summary, recap, Danish and English) from a voice-pipeline folder, and the campaign page merge plan.
+description: Write notes for a recorded play session (transcript, scenes, GM summary, recap, Danish and English) from a voice-pipeline folder, and the campaign page merge plan. Use after a recording when the automatic run did not happen or paused, or for a recap, transcript clean-up or pasted Discord text.
 ---
 
 # Session notes (manual run)

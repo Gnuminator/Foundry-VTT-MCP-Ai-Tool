@@ -12,7 +12,9 @@
 # Env: MODE (required: up or down; anything else stops before anything changes), FORCE (1 goes on even when people
 #   are online or /api/status cannot be read; default 0 refuses), SESSION_DRIVER (the uploaded .mjs, default
 #   /root/kit-session.mjs), MAX_DELETE (down only: more than 5 actors owned by Kit Player and made after "up" are
-#   refused; this raises the limit). The world (strahd-kit) and the player (Kit Player) are fixed in this script and in the driver.
+#   refused; this raises the limit), SOAK_PLAYERS (up only, 0 to 5, default 0: the number of players in all; 2 to 5 also makes the
+#   passwordless Players "Kit Player 2" to "Kit Player n" for the Pi soak, one session per user; MODE=down always removes them and
+#   the actors they own that were made after "up", under the same rules as Kit Player). The world (strahd-kit) and the player (Kit Player) are fixed in this script and in the driver.
 # What MODE=up does:
 #   Before anything stops: the world, its GM login (/etc/foundry-ai-tool/world-strahd-kit.env, never printed), the
 #   tool's build, the Assistant GM driver (stage 5: /opt/foundry-ai-tool/gm-browser/assistant-gm.mjs) and the bridge
@@ -86,6 +88,7 @@ KIT_GM_IMAGE=foundry-ai-tool-pi/gm-browser:local # the image compose.yml builds 
 FORCE="${FORCE:-0}"
 SESSION_DRIVER="${SESSION_DRIVER:-/root/kit-session.mjs}"
 MAX_DELETE="${MAX_DELETE:-}"
+SOAK_PLAYERS="${SOAK_PLAYERS:-}"
 have_orig_bridge=0 # down: the state file names the bridge user to put back
 orig_bridge=""
 IMPORT=/var/lib/foundry-import
@@ -111,6 +114,8 @@ say "checking the request ($MODE)"
 case "$SESSION_DRIVER" in /root/*.mjs) ;; *) die "SESSION_DRIVER must be a .mjs file under /root/ (got $SESSION_DRIVER)" ;; esac
 case "$SESSION_DRIVER" in */../* | */..) die "SESSION_DRIVER must not hold .." ;; esac
 [ -z "$MAX_DELETE" ] || [[ "$MAX_DELETE" =~ ^[1-9][0-9]{0,3}$ ]] || die "MAX_DELETE must be a whole number from 1 (got '$MAX_DELETE')"
+[ -z "$SOAK_PLAYERS" ] || [[ "$SOAK_PLAYERS" =~ ^[0-5]$ ]] || die "SOAK_PLAYERS must be a whole number from 0 to 5 (got '$SOAK_PLAYERS')"
+[ -z "$SOAK_PLAYERS" ] || [ "$MODE" = up ] || die "SOAK_PLAYERS belongs to MODE=up (MODE=down removes the soak players without it)"
 id "$FOUNDRY_USER" >/dev/null 2>&1 || die "no user $FOUNDRY_USER: run stage 1 first"
 [ -f "$options" ] || die "no $options: has Foundry started once (stage 3)?"
 [ -x "$NODE_DIR/bin/node" ] || die "no Node at $NODE_DIR: run stage 2 first"
@@ -244,7 +249,7 @@ run_driver() { # $1 setup or teardown
       # the bridge user it replaced.
       runuser -u "$FOUNDRY_USER" -- env HOME="$TOOL_DATA" TOOL_APP="$TOOL_DIR/app" \
         FOUNDRY_URL=http://127.0.0.1:30000 CHROMIUM=/usr/bin/chromium \
-        ACTION="$1" MAX_DELETE="$MAX_DELETE" \
+        ACTION="$1" MAX_DELETE="$MAX_DELETE" SOAK_PLAYERS="$SOAK_PLAYERS" \
         node "$driver" 2>&1 | tee -a "$driver_log"
     else
       runuser -u "$FOUNDRY_USER" -- env HOME="$TOOL_DATA" TOOL_APP="$TOOL_DIR/app" \
@@ -609,6 +614,7 @@ if [ "$MODE" = up ]; then
   echo "    The kit session is up. Foundry runs $KIT_WORLD (it launched ${orig_world:-no world} before)."
   echo "    Join:  http://foundry-pi:30000/join"
   echo "    User:  $PLAYER_NAME (no password)"
+  if [ "${SOAK_PLAYERS:-0}" -ge 2 ]; then echo "    Soak players: $PLAYER_NAME 2 to $PLAYER_NAME $SOAK_PLAYERS (no password)"; fi
   echo "    GM for the test kit: $KIT_GM_USER (Game Master, the module's bridge user); its browser ($KIT_GM_UNIT) holds the bridge link."
   echo "    Its password is in $KIT_GM_ENV (root only, mode 600): the PC reads it with a file read over ssh; it is never printed here."
   echo "    The Assistant GM browser is stopped until MODE=down (it would join $KIT_WORLD and move the bridge link to the test world)."

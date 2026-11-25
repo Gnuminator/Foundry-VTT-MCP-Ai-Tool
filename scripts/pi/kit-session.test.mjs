@@ -52,6 +52,10 @@ import {
   parseSinceEpoch,
   parseSinceStamp,
   parseMaxDelete,
+  parseSoakPlayers,
+  soakNames,
+  soakMismatches,
+  SOAK_MAX,
   parseOrigBridgeUser,
   playerUserProblems,
   provisionKitGm,
@@ -1437,7 +1441,10 @@ const noDockerInCi = Boolean(process.env.CI) && containerReason === 'no Docker h
 
 // About 10 minutes under QEMU emulation on a PC (every node start is slow), well under a minute on an ARM runner.
 function runContainer() {
-  const res = runStageContainer('kit-session-scenarios.sh', { timeout: 45 * 60_000, maxBuffer: 16 * 1024 * 1024 });
+  const res = runStageContainer('kit-session-scenarios.sh', {
+    timeout: 45 * 60_000,
+    maxBuffer: 16 * 1024 * 1024,
+  });
   return `${res.stdout ?? ''}\n${res.stderr ?? ''}${res.error ? `\n${res.error.message}` : ''}`;
 }
 
@@ -2224,6 +2231,27 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     assert.deepEqual(kit(r), KIT_UP, 'refused before the Kit GM browser was touched');
   });
 
+  test('up with SOAK_PLAYERS hands it to the driver, and says which soak players it made', () => {
+    const r = run('up-soak');
+    assert.equal(r.exit, 0, r.output);
+    assert.match(r.output, /DRIVER_SOAK ACTION=setup SOAK_PLAYERS=4/);
+    assert.match(r.output, /Soak players: Kit Player 2 to Kit Player 4 \(no password\)/);
+    const plain = run('up-ok');
+    assert.doesNotMatch(plain.output, /DRIVER_SOAK/);
+    assert.doesNotMatch(plain.output, /Soak players:/);
+  });
+
+  test('SOAK_PLAYERS above 5 stops before anything changes, and down refuses the variable', () => {
+    const bad = run('up-bad-soak');
+    untouched(bad, 'curse-of-strahd');
+    assert.match(bad.output, /SOAK_PLAYERS must be a whole number from 0 to 5/);
+    assert.deepEqual(bad.calls, []);
+    const down = run('down-soak-var');
+    assert.notEqual(down.exit, 0);
+    assert.match(down.output, /SOAK_PLAYERS belongs to MODE=up/);
+    assert.deepEqual(down.calls, []);
+  });
+
   test('down passes MAX_DELETE on to the driver, and refuses one that is not a number', () => {
     const r = run('down-max-delete');
     assert.equal(r.exit, 0, r.output);
@@ -2360,10 +2388,14 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
   // are the containers of compose project foundry-ai-tool-pi, every unit is off. The units scenarios above are unchanged.
   const KIT_NAME = 'foundry-ai-tool-kit-gm-browser';
   const RM_KIT = `docker rm -f ${KIT_NAME}`;
-  const dockerActions = r => r.calls.filter(c => /^docker (stop|start|restart|run|rm|kill|compose)\b/.test(c));
+  const dockerActions = r =>
+    r.calls.filter(c => /^docker (stop|start|restart|run|rm|kill|compose)\b/.test(c));
   const runLine = r => r.calls.find(c => c.startsWith('docker run '));
   // Never a systemctl start, restart, stop, enable or reset-failed, never systemd-run or a unit file look-up.
-  const unitCalls = r => r.calls.filter(c => /^(start|restart|stop|enable|disable|reset-failed|cat|systemd-run)\b/.test(c));
+  const unitCalls = r =>
+    r.calls.filter(c =>
+      /^(start|restart|stop|enable|disable|reset-failed|cat|systemd-run)\b/.test(c)
+    );
   const RUN_COMMON =
     /^docker run -d --name foundry-ai-tool-kit-gm-browser --network host --user \d+:\d+ --init --shm-size 512m --cpu-shares 20 --security-opt no-new-privileges:true --restart unless-stopped --env-file \/etc\/foundry-ai-tool\/kit-gm\.env -v \/var\/lib\/foundry-ai-tool:\/var\/lib\/foundry-ai-tool -e HOME=\/var\/lib\/foundry-ai-tool -e TOOL_APP=\/opt\/gm -e FOUNDRY_URL=http:\/\/127\.0\.0\.1:(\d+) -e CHROMIUM=\/usr\/local\/bin\/chromium-nosandbox -e MCP_CONTROL_PORT=(\d+) -e GM_BROWSER_PROFILE=\/var\/lib\/foundry-ai-tool\/kit-gm-browser -e ASSISTANT_GM_USER=Kit GM foundry-ai-tool-pi\/gm-browser:local$/;
   const CUT_NAMES = () => [...runs.keys()].filter(n => n.startsWith('cut-'));
@@ -2388,17 +2420,22 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
   test('cutover up: docker stops the browser and Foundry, starts Foundry on strahd-kit, then runs the Kit GM browser container', () => {
     const r = run('cut-up-ok');
     assert.equal(r.exit, 0, r.output);
-    assert.deepEqual(dockerActions(r).map(c => (c.startsWith('docker run ') ? 'docker run' : c)), [
-      RM_KIT, // the leftover check always stops it (harmless when absent)
-      'docker stop cid-gm-browser',
-      'docker stop cid-foundry',
-      'docker start cid-foundry',
-      RM_KIT, // start_kit_gm_container clears the name before docker run
-      'docker run',
-    ]);
+    assert.deepEqual(
+      dockerActions(r).map(c => (c.startsWith('docker run ') ? 'docker run' : c)),
+      [
+        RM_KIT, // the leftover check always stops it (harmless when absent)
+        'docker stop cid-gm-browser',
+        'docker stop cid-foundry',
+        'docker start cid-foundry',
+        RM_KIT, // start_kit_gm_container clears the name before docker run
+        'docker run',
+      ]
+    );
     // The image and the bridge are checked before anything stops.
     const firstStop = r.calls.indexOf('docker stop cid-gm-browser');
-    assert.ok(r.calls.indexOf('docker image inspect foundry-ai-tool-pi/gm-browser:local') < firstStop);
+    assert.ok(
+      r.calls.indexOf('docker image inspect foundry-ai-tool-pi/gm-browser:local') < firstStop
+    );
     assert.match(runLine(r), RUN_COMMON);
     assert.equal(runLine(r).match(RUN_COMMON)[1], '30000');
     assert.equal(runLine(r).match(RUN_COMMON)[2], '31414');
@@ -2407,7 +2444,10 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     assert.deepEqual(kit(r), KIT_UP);
     // The password file was there, mode 600, when the container started, and its content is on no command line.
     assert.ok(r.kitgm.includes('env-seen-by-unit mode 600'), r.kitgm.join('\n'));
-    assert.match(r.output, /DRIVER ACTION=setup WORLD=strahd-kit HOME=\/var\/lib\/foundry-ai-tool TOOL_APP=\/opt\/foundry-ai-tool\/app/);
+    assert.match(
+      r.output,
+      /DRIVER ACTION=setup WORLD=strahd-kit HOME=\/var\/lib\/foundry-ai-tool TOOL_APP=\/opt\/foundry-ai-tool\/app/
+    );
     assert.match(r.output, /joined world strahd-kit as Kit GM/);
     assert.match(r.output, /started the container foundry-ai-tool-kit-gm-browser/);
     assert.match(r.output, /The Assistant GM browser is stopped/);
@@ -2458,9 +2498,20 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     ]) {
       const r = run(name);
       assert.equal(r.exit, 0, r.output);
-      assert.match(r.output, new RegExp(`removed what an earlier kit session left behind.*the container ${KIT_NAME} \\(${state}\\)`));
+      assert.match(
+        r.output,
+        new RegExp(
+          `removed what an earlier kit session left behind.*the container ${KIT_NAME} \\(${state}\\)`
+        )
+      );
       assert.equal(dockerActions(r)[0], RM_KIT);
-      assert.equal(count(r.calls.filter(c => c.startsWith('docker run ')), runLine(r)), 1);
+      assert.equal(
+        count(
+          r.calls.filter(c => c.startsWith('docker run ')),
+          runLine(r)
+        ),
+        1
+      );
       assert.deepEqual(kit(r), KIT_UP);
     }
     noLeak(run('cut-up-leftover'));
@@ -2492,20 +2543,29 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     assert.equal(r.exit, 1, r.output);
     rolledBackCut(r);
     assert.equal(dockerActions(r).at(-1), 'docker start cid-gm-browser');
-    assert.ok(!r.calls.some(c => c.startsWith('docker run ')), 'the Kit GM container never started');
+    assert.ok(
+      !r.calls.some(c => c.startsWith('docker run ')),
+      'the Kit GM container never started'
+    );
     // The Kit GM password file existed by then: the rollback removed the container name and the file.
     assert.equal(count(r.calls, RM_KIT), 2);
     const off = run('cut-up-driver-fails-gm-off');
     assert.equal(off.exit, 1, off.output);
     rolledBackCut(off);
-    assert.ok(!off.calls.includes('docker start cid-gm-browser'), 'a browser that was off stays off');
+    assert.ok(
+      !off.calls.includes('docker start cid-gm-browser'),
+      'a browser that was off stays off'
+    );
     noLeak(r);
   });
 
   test('cutover up whose Kit GM container does not join, or does not start, removes it and puts everything back', () => {
     const nojoin = run('cut-up-kit-not-joined');
     assert.equal(nojoin.exit, 1, nojoin.output);
-    assert.match(nojoin.output, /did not join strahd-kit as Kit GM within 2 minutes \(see: docker logs --tail 30 foundry-ai-tool-kit-gm-browser\)/);
+    assert.match(
+      nojoin.output,
+      /did not join strahd-kit as Kit GM within 2 minutes \(see: docker logs --tail 30 foundry-ai-tool-kit-gm-browser\)/
+    );
     assert.equal(count(nojoin.calls, `docker logs ${KIT_NAME}`), 60);
     assert.ok(nojoin.calls.some(c => c.startsWith('docker run ')));
     rolledBackCut(nojoin);
@@ -2523,7 +2583,10 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
   test('cutover up without a bridge link is a warning with the docker logs commands', () => {
     const r = run('cut-up-no-bridge-link');
     assert.equal(r.exit, 0, r.output);
-    assert.match(r.output, /no established connection on the bridge's port 31415 yet; see: docker logs --tail 30 foundry-ai-tool-kit-gm-browser and docker logs --tail 50 \$\(docker ps -aq/);
+    assert.match(
+      r.output,
+      /no established connection on the bridge's port 31415 yet; see: docker logs --tail 30 foundry-ai-tool-kit-gm-browser and docker logs --tail 50 \$\(docker ps -aq/
+    );
     assert.equal(r.world, 'strahd-kit');
   });
 
@@ -2552,7 +2615,10 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     assert.match(r.output, /DRIVER ACTION=teardown WORLD=strahd-kit/);
     assert.match(r.output, /the Assistant GM browser joined the world/);
     assert.match(r.output, /The Kit GM browser is stopped, Kit GM is deleted/);
-    assert.ok(r.calls.some(c => /^docker logs --since \d+ cid-gm-browser$/.test(c)), r.calls.join('\n'));
+    assert.ok(
+      r.calls.some(c => /^docker logs --since \d+ cid-gm-browser$/.test(c)),
+      r.calls.join('\n')
+    );
     assert.deepEqual(r.driver, ['upload removed', 'installed yes']);
   });
 
@@ -2564,7 +2630,11 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     const old = run('cut-down-old-state');
     assert.equal(old.exit, 0, old.output);
     assert.ok(!old.calls.includes(RM_KIT), 'no Kit GM, no container to remove');
-    assert.deepEqual(dockerActions(old), ['docker stop cid-foundry', 'docker start cid-foundry', 'docker restart cid-gm-browser']);
+    assert.deepEqual(dockerActions(old), [
+      'docker stop cid-foundry',
+      'docker start cid-foundry',
+      'docker restart cid-gm-browser',
+    ]);
   });
 
   test('cutover down that fails in the teardown changes nothing else: the container is gone, Foundry runs strahd-kit', () => {
@@ -2587,7 +2657,10 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     assert.equal(counts.exit, 0, counts.output);
     const stuck = run('cut-down-kit-stop-fails');
     untouched(stuck, 'strahd-kit');
-    assert.match(stuck.output, /the Kit GM browser \(foundry-ai-tool-kit-gm-browser\) did not stop: see docker logs --tail 30 foundry-ai-tool-kit-gm-browser/);
+    assert.match(
+      stuck.output,
+      /the Kit GM browser \(foundry-ai-tool-kit-gm-browser\) did not stop: see docker logs --tail 30 foundry-ai-tool-kit-gm-browser/
+    );
     assert.doesNotMatch(stuck.output, /see docker inspect foundry-ai-tool-kit-gm-browser\b(?! \()/);
     assert.deepEqual(dockerActions(stuck), [RM_KIT]);
     assert.ok(!stuck.output.includes('DRIVER'));
@@ -2597,7 +2670,10 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
   test('cutover down refuses when the Foundry container is not running: nothing is touched', () => {
     const r = run('cut-down-foundry-off');
     untouched(r, 'strahd-kit');
-    assert.match(r.output, /Foundry is not running: start it \(docker start the foundry container of foundry-ai-tool-pi\)/);
+    assert.match(
+      r.output,
+      /Foundry is not running: start it \(docker start the foundry container of foundry-ai-tool-pi\)/
+    );
     assert.deepEqual(dockerActions(r), []);
     assert.deepEqual(r.state, ['mode 600 owner root', ...STATE_UP]);
   });
@@ -2606,9 +2682,71 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     const r = run('cut-down-world-not-back');
     assert.equal(r.exit, 1, r.output);
     assert.match(r.output, /curse-of-strahd is not running on port 30000/);
-    assert.match(r.output, /Foundry did not come back on 'curse-of-strahd' \(see: docker logs --tail 50/);
+    assert.match(
+      r.output,
+      /Foundry did not come back on 'curse-of-strahd' \(see: docker logs --tail 50/
+    );
     assert.equal(r.world, 'curse-of-strahd');
     assert.deepEqual(r.state, ['absent']);
     assert.equal(dockerActions(r).at(-1), 'docker start cid-gm-browser');
+  });
+});
+
+describe('kit-session.mjs, the soak players', () => {
+  test('SOAK_PLAYERS is empty or 0 to 5', () => {
+    assert.equal(parseSoakPlayers(undefined), 0);
+    assert.equal(parseSoakPlayers(''), 0);
+    assert.equal(parseSoakPlayers('5'), 5);
+    for (const bad of ['6', '-1', 'x', '10', '2.5', ' 3'])
+      assert.throws(() => parseSoakPlayers(bad), /SOAK_PLAYERS must be/, bad);
+  });
+  test('the names run from Kit Player 2 to n, none for 0 or 1', () => {
+    assert.deepEqual(soakNames(0), []);
+    assert.deepEqual(soakNames(1), []);
+    assert.deepEqual(soakNames(3), ['Kit Player 2', 'Kit Player 3']);
+    assert.equal(soakNames(99).length, SOAK_MAX - 1);
+    assert.ok(soakNames(5).every(n => n.startsWith(PLAYER_NAME + ' ')));
+  });
+  test('the read-back wants each soak player once, as a Player', () => {
+    const ok = { users: [{ id: 'u', name: 'Kit Player 2', role: 1 }] };
+    assert.deepEqual(soakMismatches([{ name: 'Kit Player 2', state: ok }]), []);
+    const bad = soakMismatches([
+      { name: 'Kit Player 2', state: { users: [] } },
+      { name: 'Kit Player 3', state: { users: [{ role: 2 }] } },
+    ]);
+    assert.equal(bad.length, 2);
+  });
+  test('a soak player with a password or the wrong role is refused, by name', () => {
+    assert.deepEqual(playerUserProblems({ role: 1 }, true, 'Kit Player 2'), []);
+    assert.match(
+      playerUserProblems({ role: 2 }, false, 'Kit Player 2').join(),
+      /Kit Player 2 has role 2/
+    );
+    assert.match(
+      playerUserProblems({ role: 1 }, false, 'Kit Player 4').join(),
+      /Kit Player 4 could not join/
+    );
+  });
+  test('the teardown limits and read-back name the soak player', () => {
+    const state = {
+      users: [{ id: 'u', name: 'Kit Player 3', role: 1 }],
+      ownedActors: [
+        { id: 'a', name: 'X' },
+        { id: 'b', name: 'Y' },
+      ],
+    };
+    assert.match(teardownProblems(state, 1, 'Kit Player 3').join(), /Kit Player 3 owns 2 actors/);
+    assert.match(
+      teardownProblems(
+        { ...state, users: [{ ...state.users[0], role: 2 }], ownedActors: [] },
+        5,
+        'Kit Player 3'
+      ).join(),
+      /Kit Player 3 has role 2/
+    );
+    assert.match(
+      teardownMismatches(state, { users: state.users, leftActors: [] }, 'Kit Player 3').join(),
+      /Kit Player 3 still exists/
+    );
   });
 });

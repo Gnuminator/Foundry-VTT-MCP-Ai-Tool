@@ -26,6 +26,7 @@
     "scripts/green.mjs": 1199,
     "scripts/live-write-sweep.mjs": 1855,
     "scripts/merge-runner.mjs": 1069,
+    "scripts/pi/remote/kit-session.mjs": 1039,
     "scripts/test-kit/lib/dashboard-controls.mjs": 1311,
     "scripts/test-kit/lib/fake/origins.mjs": 1051,
     "scripts/test-kit/lib/features.mjs": 1387,
@@ -213,6 +214,18 @@
       "file": "scripts/backlog.mjs",
       "lines": 1031,
       "reason": "claim prints the conflict scout: wiring and its type, the logic lives in conflict-scout.mjs",
+      "pr": ""
+    },
+    {
+      "file": "scripts/pi/remote/kit-session.mjs",
+      "lines": 1032,
+      "reason": "ships to the Pi as one uploaded file (scp), so the soak-player code cannot move to another module",
+      "pr": ""
+    },
+    {
+      "file": "scripts/pi/remote/kit-session.mjs",
+      "lines": 1039,
+      "reason": "ships to the Pi as one uploaded file (scp), so the soak-player code cannot move to another module",
       "pr": ""
     }
   ]

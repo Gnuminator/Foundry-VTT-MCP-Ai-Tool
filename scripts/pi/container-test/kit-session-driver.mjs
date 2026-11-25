@@ -23,6 +23,8 @@ console.log(
 console.log(
   `DRIVER_SEES options=${options.world} foundry_runs=${foundryRuns} kit_env=${kitEnvMode} since_stamp=${process.env.SINCE_STAMP ?? ''} since_epoch=${process.env.SINCE_EPOCH ?? ''} orig_bridge=${origBridge}`
 );
+if (process.env.SOAK_PLAYERS)
+  console.log(`DRIVER_SOAK ACTION=${process.env.ACTION} SOAK_PLAYERS=${process.env.SOAK_PLAYERS}`);
 if (existsSync('/tmp/driverfail')) {
   console.log('[kit-session] error: the fake driver was told to fail');
   process.exit(1);

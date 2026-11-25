@@ -56,6 +56,10 @@ export const PLAYER_NAME = 'Kit Player';
 export const PLAYER_ROLES = [1, 2];
 const PLAYER_ROLE = PLAYER_ROLES[0];
 export const DEFAULT_MAX_DELETE = 5;
+// The soak players (SOAK_PLAYERS=<n>, setup only): "Kit Player 2" to "Kit Player n", passwordless Players like Kit Player
+// itself, so five simulated players can each have their own session (Foundry allows one session per user). The teardown
+// always looks for all SOAK_MAX of them, whatever SOAK_PLAYERS said, so a "down" with no variable still cleans up.
+export const SOAK_MAX = 5;
 // The test kit's GM: CONST.USER_ROLES.GAMEMASTER, and the bridge module's own setting (settings.ts: ANY_GM_CHOICE is
 // the empty value, "Any GM").
 export const GM_NAME = 'Kit GM';
@@ -348,14 +352,14 @@ export function blockers(state, world, action) {
 
 // The existing Kit Player user, if any, must be a Player who joins without a password. joinsFree is the answer
 // of joinsWithoutPassword() (the client never sees a user's password, so the only way to know is to try).
-export function playerUserProblems(user, joinsFree) {
+export function playerUserProblems(user, joinsFree, name = PLAYER_NAME) {
   const problems = [];
   if (user.role !== PLAYER_ROLE) {
-    problems.push(`${PLAYER_NAME} has role ${user.role}, not Player (${PLAYER_ROLE})`);
+    problems.push(`${name} has role ${user.role}, not Player (${PLAYER_ROLE})`);
   }
   if (!joinsFree) {
     problems.push(
-      `${PLAYER_NAME} could not join without a password (it has one, or it is online right now)`
+      `${name} could not join without a password (it has one, or it is online right now)`
     );
   }
   return problems;
@@ -487,18 +491,19 @@ export function splitOwnedActors(actors, sinceMs) {
 
 // What stops the teardown: a user that is not a Player, or more actors than the sanity limit. Only the actors that
 // will be deleted count (state.ownedActors is the list of those; main() hands over the split).
-export function teardownProblems(state, maxDelete) {
+export function teardownProblems(state, maxDelete, name = PLAYER_NAME) {
   const problems = [];
   const [user] = state.users;
   if (!user) return problems;
   if (user.role !== PLAYER_ROLE) {
     problems.push(
-      `${PLAYER_NAME} has role ${user.role}, not Player (${PLAYER_ROLE}): refusing to delete it`
+      `${name} has role ${user.role}, not Player (${PLAYER_ROLE}): refusing to delete it`
     );
   }
+  if (state.users.length > 1) problems.push(`more than one user is named ${name}`);
   if (state.ownedActors.length > maxDelete) {
     problems.push(
-      `${PLAYER_NAME} owns ${state.ownedActors.length} actors, more than the limit of ${maxDelete} ` +
+      `${name} owns ${state.ownedActors.length} actors, more than the limit of ${maxDelete} ` +
         `(${state.ownedActors.map(a => a.name).join(', ')}): check them, then MAX_DELETE=<n> to allow more`
     );
   }
@@ -506,9 +511,9 @@ export function teardownProblems(state, maxDelete) {
 }
 
 // After the teardown neither the user nor an actor it owned may be left.
-export function teardownMismatches(before, after) {
+export function teardownMismatches(before, after, name = PLAYER_NAME) {
   const problems = [];
-  if (after.users.length) problems.push(`${PLAYER_NAME} still exists`);
+  if (after.users.length) problems.push(`${name} still exists`);
   // after must come from readState with the ids of before.ownedActors as actorIds.
   const left = after.leftActors ?? [];
   const wanted = new Set(before.ownedActors.map(a => a.id));
@@ -518,6 +523,35 @@ export function teardownMismatches(before, after) {
   }
   if (wanted.size && after.leftActors === undefined) {
     problems.push('the read-back did not look up the deleted actors');
+  }
+  return problems;
+}
+
+// SOAK_PLAYERS: empty or 0 to SOAK_MAX; the number of players in all, Kit Player included (so 1 adds none).
+export function parseSoakPlayers(value) {
+  if (value === undefined || value === '') return 0;
+  if (!/^[0-5]$/.test(value) || Number(value) > SOAK_MAX) {
+    throw new Error(`SOAK_PLAYERS must be a whole number from 0 to ${SOAK_MAX} (got "${value}")`);
+  }
+  return Number(value);
+}
+
+// The extra users for a total of n players: "Kit Player 2" up to "Kit Player n".
+export function soakNames(n) {
+  const names = [];
+  for (let i = 2; i <= Math.min(n, SOAK_MAX); i++) names.push(`${PLAYER_NAME} ${i}`);
+  return names;
+}
+
+// After setup every wanted soak player must exist exactly once, as a Player. states: [{name, state}] (readState per name).
+export function soakMismatches(states) {
+  const problems = [];
+  for (const { name, state } of states) {
+    if (state.users.length !== 1) {
+      problems.push(`${state.users.length} users are named ${name}, expected 1`);
+    } else if (state.users[0].role !== PLAYER_ROLE) {
+      problems.push(`${name} has role ${state.users[0].role}, not Player`);
+    }
   }
   return problems;
 }
@@ -702,6 +736,11 @@ async function main() {
       'SINCE_STAMP is not set (and no SINCE_EPOCH): the teardown deletes only actors made after the session started'
     );
   }
+  // The soak players: setup makes "Kit Player 2".."Kit Player n"; the teardown looks for all of them.
+  const soakWanted =
+    action === 'setup'
+      ? soakNames(parseSoakPlayers(process.env.SOAK_PLAYERS))
+      : soakNames(SOAK_MAX);
   const toolApp = env('TOOL_APP');
   // Checked before the browser is even loaded; the error never holds the value.
   const kitGmPassword = action === 'setup' ? parseKitGmPassword(process.env.KIT_GM_PASSWORD) : '';
@@ -789,11 +828,24 @@ async function main() {
         const bad = kitGmUserProblems(oldGm);
         if (bad.length) throw new Error(bad.join('; '));
       }
+      // The soak players: an existing one must be a Player with no password, like Kit Player; the rest are made.
+      const soakMake = [];
+      for (const name of soakWanted) {
+        const s = await page.evaluate(readState, { ...args, playerName: name });
+        if (s.users.length > 1) throw new Error(`more than one user is named ${name}`);
+        if (s.users.length === 1) {
+          const bad = playerUserProblems(s.users[0], await probeAs(name, ''), name);
+          if (bad.length) throw new Error(bad.join('; '));
+        } else {
+          soakMake.push(name);
+        }
+      }
       const changes = settingsDiff(before);
       const makeUser = before.users.length === 0;
       const plan = [
         ...changes.map(c => c.label),
         ...(makeUser ? [`create user ${PLAYER_NAME}`] : []),
+        ...soakMake.map(name => `create user ${name}`),
         ...(before.bridgeModuleActive ? [] : [`enable ${BRIDGE_MODULE}`]),
         `${oldGm ? 'update' : 'create'} user ${GM_NAME} (Game Master) as the bridge user`,
       ];
@@ -816,6 +868,7 @@ async function main() {
         await page.evaluate(applyChanges, { moduleId: MODULE_ID, changes });
       }
       if (makeUser) await page.evaluate(createPlayer, { playerName: PLAYER_NAME });
+      for (const name of soakMake) await page.evaluate(createPlayer, { playerName: name });
       await page.evaluate(provisionKitGm, {
         moduleId: BRIDGE_MODULE,
         gmName: GM_NAME,
@@ -828,11 +881,28 @@ async function main() {
       await ready();
       const after = await page.evaluate(readState, args);
       log(`after:  ${show(after)}`);
-      const wrong = [...mismatches(before, after), ...kitGmMismatches(after)];
+      const soakAfter = [];
+      for (const name of soakWanted) {
+        soakAfter.push({
+          name,
+          state: await page.evaluate(readState, { ...args, playerName: name }),
+        });
+      }
+      const wrong = [
+        ...mismatches(before, after),
+        ...kitGmMismatches(after),
+        ...soakMismatches(soakAfter),
+      ];
       if (wrong.length) throw new Error(`read-back does not match: ${wrong.join('; ')}`);
       if (makeUser && !(await probe())) {
         throw new Error(`the new user ${PLAYER_NAME} could not join without a password`);
       }
+      for (const name of soakMake) {
+        if (!(await probeAs(name, ''))) {
+          throw new Error(`the new user ${name} could not join without a password`);
+        }
+      }
+      if (soakWanted.length) log(`soak players ready: ${soakWanted.join(', ')}`);
       if (!(await probeAs(GM_NAME, kitGmPassword))) {
         throw new Error(`${GM_NAME} could not join with the password this run set`);
       }
@@ -843,11 +913,30 @@ async function main() {
       const [gm] = before.kitGm;
       if (!kit) log(`no user named ${PLAYER_NAME}: nothing to delete`);
       if (!gm) log(`no user named ${GM_NAME}: nothing to delete`);
-      if (!kit && !gm) return;
+      // The soak players (Kit Player 2 to 5) that exist; each is looked at like Kit Player.
+      const soak = [];
+      for (const name of soakWanted) {
+        const s = await page.evaluate(readState, { ...args, playerName: name });
+        if (!s.users.length) continue;
+        const split = splitOwnedActors(s.ownedActors, sinceMs);
+        soak.push({ name, state: s, ...split });
+      }
+      if (!soak.length) log(`no soak players (${PLAYER_NAME} 2 to ${SOAK_MAX}): nothing to delete`);
+      if (!kit && !gm && !soak.length) return;
       // Everything that can refuse is checked before the first delete.
       const { mine, older } = splitOwnedActors(before.ownedActors, sinceMs);
+      // An actor several kit players own is deleted once, with the first of them, so a later
+      // deleteKit never refuses an actor that is already gone.
+      const claimed = new Set(kit ? mine.map(a => a.id) : []);
+      for (const s of soak) {
+        s.mine = s.mine.filter(a => !claimed.has(a.id));
+        for (const a of s.mine) claimed.add(a.id);
+      }
       const bad = [
         ...teardownProblems({ ...before, ownedActors: mine }, maxDelete),
+        ...soak.flatMap(s =>
+          teardownProblems({ ...s.state, ownedActors: s.mine }, maxDelete, s.name)
+        ),
         ...kitGmTeardownProblems(before),
       ];
       if (bad.length) throw new Error(bad.join('; '));
@@ -864,6 +953,23 @@ async function main() {
         }
         log(`deleting user ${kit.name} (${kit.id})`);
         await page.evaluate(deleteKit, { playerName: PLAYER_NAME, userId: kit.id, actorIds });
+      }
+      for (const s of soak) {
+        for (const actor of s.older) {
+          log(
+            `keeping actor ${actor.name} (${actor.type}, ${actor.id}): not made after the session started`
+          );
+        }
+        for (const actor of s.mine) {
+          log(`deleting actor ${actor.name} (${actor.type}, ${actor.id})`);
+        }
+        const [user] = s.state.users;
+        log(`deleting user ${user.name} (${user.id})`);
+        await page.evaluate(deleteKit, {
+          playerName: s.name,
+          userId: user.id,
+          actorIds: s.mine.map(a => a.id),
+        });
       }
       if (gm) {
         bridgeTo = bridgeRestoreTarget(before, origBridge);
@@ -886,6 +992,21 @@ async function main() {
       log(`after:  ${show(after)}`);
       const wrong = [
         ...(kit ? teardownMismatches({ ...before, ownedActors: mine }, after) : []),
+        ...(
+          await Promise.all(
+            soak.map(async s =>
+              teardownMismatches(
+                { ...s.state, ownedActors: s.mine },
+                await page.evaluate(readState, {
+                  ...args,
+                  playerName: s.name,
+                  actorIds: s.mine.map(a => a.id),
+                }),
+                s.name
+              )
+            )
+          )
+        ).flat(),
         ...kitGmTeardownMismatches(before, after, bridgeTo),
       ];
       if (wrong.length) throw new Error(`read-back does not match: ${wrong.join('; ')}`);

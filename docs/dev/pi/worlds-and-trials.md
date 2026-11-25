@@ -294,6 +294,18 @@ scp scripts/pi/remote/kit-session.mjs foundry-pi:/root/ && cat scripts/pi/remote
   cat scripts/pi/remote/lib.sh scripts/pi/remote/kit-session.sh | ssh foundry-pi 'MODE=down bash -s'
   ```
 
+- **The soak (backlog `pi-soak`, G1).** `SOAK_PLAYERS=5` in front of `bash -s` on `MODE=up` also makes the
+  passwordless players `Kit Player 2` to `Kit Player 5` (`SOAK_PLAYERS=3` makes up to 3; 0 or unset makes
+  none), so five simulated players each get their own session. `MODE=down` always removes them, and any
+  actors they own that were made after `up`, with the same rules and limits as `Kit Player`. The PC half
+  is `node scripts/test-kit/pi-soak.mjs --not-game-night --label "<stack, version>" [--writes]`: five
+  headless browsers on this PC join the Pi's Foundry, roll, open sheets and change tabs for 3 hours (default)
+  while the Pi is sampled over read-only ssh every 10 s (CPU per unit, iowait, memory, temperature, clocks,
+  unit restarts) and the dashboard's response times are recorded. The report (Markdown and JSON, outside the
+  repo, `--vault-note` for the vault copy) decides against the I-098 pass bar. `--writes` adds a plan, apply
+  and undo of 1 HP on one `strahd-kit` actor every minute and a whispered NPC roll, through
+  `lib/pi-soak-guard.mjs`: the world is checked before every write and the net change is zero. The kit's own
+  `--target pi` stays tools-only.
 - **`MODE=down`** needs the state file, `strahd-kit` running and nobody online (`FORCE=1` goes on
   anyway). It stops the Kit GM browser first (it would count as online) and the Assistant GM browser
   too, because a reboot during the session starts that one on `strahd-kit`, where it would count as

@@ -324,6 +324,9 @@ only="$*"
 U0='{"active":true,"users":0}'
 scenario up-ok "$U0" 0 "" up
 scenario up-gm-was-off "$U0" 0 "gm" up
+scenario up-soak "$U0" 0 "" up SOAK_PLAYERS=4
+scenario up-bad-soak "$U0" 0 "" up SOAK_PLAYERS=9
+scenario down-soak-var "$U0" 0 "gm" down down-state SOAK_PLAYERS=3
 scenario up-foundry-was-off "$U0" 0 "foundry" up
 scenario up-state-exists "$U0" 0 "" up up-state
 scenario up-already-kit "$U0" 0 "" up on-kit

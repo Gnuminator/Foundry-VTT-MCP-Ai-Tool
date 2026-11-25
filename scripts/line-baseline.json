@@ -9,6 +9,7 @@
     "packages/foundry-module/src/npc-turn.ts": 1158,
     "packages/foundry-module/src/play-recorder.ts": 2127,
     "packages/foundry-module/src/session-events.ts": 1301,
+    "packages/mcp-server/src/backend.ts": 1024,
     "packages/mcp-server/src/change-history.ts": 1446,
     "packages/mcp-server/src/guarded-write/service.ts": 1540,
     "packages/mcp-server/src/handouts/service.ts": 1296,
@@ -201,6 +202,12 @@
       "lines": 1028,
       "reason": "backlog.mjs is the one Backlog writer; the no-pr done form adds 22 lines (backlog-done-no-pr)",
       "pr": ""
+    },
+    {
+      "file": "packages/mcp-server/src/backend.ts",
+      "lines": 1024,
+      "reason": "tool permissions wiring (control method and the connector check) took the file from 999 to 1024; the logic lives in tool-permissions.ts",
+      "pr": "1365"
     }
   ]
 }

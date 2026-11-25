@@ -103,7 +103,7 @@ export function createPiSoakGuard(
       const applyMs = now() - t1;
       const changeId = change && typeof change.changeId === 'string' ? change.changeId : '';
       if (!changeId) refuse('the apply gave no changeId, so there is nothing to undo');
-      let undoMs = 0;
+      let undoMs;
       try {
         await assertWorldNow();
         const t2 = now();

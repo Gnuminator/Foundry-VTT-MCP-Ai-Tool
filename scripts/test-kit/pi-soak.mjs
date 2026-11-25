@@ -427,7 +427,11 @@ async function main() {
   const md = renderReport(report);
   writeFileSync(
     `${base}.json`,
-    JSON.stringify({ ...report, records: records.map(({ counters, ...r }) => r) }, null, 2)
+    JSON.stringify(
+      { ...report, records: records.map(rec => ({ ...rec, counters: undefined })) },
+      null,
+      2
+    )
   );
   writeFileSync(`${base}.md`, md);
   if (args.vaultNote) writeFileSync(args.vaultNote, md);

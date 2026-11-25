@@ -1,6 +1,6 @@
 ---
 name: pi-work
-description: Rules and steps for any work on the Orange Pi (or any Linux host) that runs Foundry for the Foundry AI Tool campaign - what may run freely, what needs the user's OK, dietpi-backup snapshots, stage scripts in scripts/pi/remote, the ARM64 container test, deployed-file checks, backups and Plan B. Use before running anything over ssh on the Pi, writing or changing a stage script, deploying to the Pi, or briefing a session that will.
+description: Rules for any work on the Orange Pi or a Linux host - stage scripts, backups, deployed checks, Plan B. Use before any ssh or Pi script work.
 ---
 
 # Pi work

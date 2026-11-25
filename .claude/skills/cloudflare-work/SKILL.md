@@ -1,6 +1,6 @@
 ---
 name: cloudflare-work
-description: How to read and change the Cloudflare setup (Access applications, tunnel routes, DNS) through the Cloudflare connector for the Foundry AI Tool, with the user's approval enforced by the app. Use before any call to the connector's execute tool, when the user asks for a Cloudflare change, or when checking for drift.
+description: Read and change the Cloudflare setup (Access, tunnel routes, DNS) through the connector. Use before any Cloudflare execute call or drift check.
 ---
 
 # Cloudflare work

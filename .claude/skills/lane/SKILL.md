@@ -1,6 +1,6 @@
 ---
 name: lane
-description: How a Foundry AI Tool coding lane works from claim to merge - claiming a Backlog item, the worktree and branch, subagent models, keep-green checks, the test server, the PR and its review note, the merge gate, context limits and the handover. Use at the start of any lane session (a session that builds, fixes or tests something and ends in a PR), and again before opening a PR, merging or handing over.
+description: How a coding lane works from claim to merge - Backlog, branch, checks, PR, review note, merge gate, handover. Use at the start of any lane session and before a PR or handover.
 ---
 
 # Lane

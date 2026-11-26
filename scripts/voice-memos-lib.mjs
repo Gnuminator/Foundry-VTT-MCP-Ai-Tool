@@ -122,7 +122,11 @@ export function tagOf(name) {
 export function resolveCampaignDir(vaultDir, world) {
   const campaigns = join(vaultDir, 'Campaigns');
   if (!existsSync(campaigns)) return vaultDir;
-  if (world) return join(campaigns, world);
+  if (world) {
+    const dir = join(campaigns, world);
+    if (!existsSync(dir)) throw new Error(`No folder ${dir} (--world ${world}).`);
+    return dir;
+  }
   const worlds = readdirSync(campaigns, { withFileTypes: true })
     .filter(e => e.isDirectory())
     .map(e => e.name);

@@ -5,7 +5,7 @@
 //
 // The inbox is filled by the Discord bot (a voice message in a DM) or by dropping an audio file in
 // `<memos dir>/inbox`. Speech to text is the local transcriber (scripts/voice-stack.ps1 transcribe,
-// GPU lock included); nothing is sent anywhere. Notes land in `<vault>/Prep/Voice memos`.
+// GPU lock included); nothing is sent anywhere. Notes land in `Prep/Voice memos` of the campaign.
 //
 // Memos dir: --memos-dir, else FVTT_MEMOS_DIR, else FoundryMemos in FVTT_DATA_DIR, else Documents.
 // Vault: --vault, else FOUNDRY_AI_OBSIDIAN_DIR. World: --world <id>, else the only folder under

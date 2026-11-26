@@ -29,6 +29,7 @@ import type {
 } from '@gnuminator/shared';
 
 import { MODULE_ID } from './constants.js';
+import { cellBounds, parseGridLabels } from './grid-labels.js';
 import { newId } from './new-id.js';
 import { findSpots, type GridLike, type Rect } from './party-place.js';
 import { currentLevelId, sceneHasLevels } from './systems/core.js';
@@ -210,6 +211,54 @@ function areaRect(scene: SceneLike, area: RoomArea, label: string, warnings: str
   return rect;
 }
 
+/**
+ * Where a hazard, whisper or stairs Region goes: a rectangle (`area`) or grid labels
+ * (`squares`, "C4 to H9, without E6 to F7"). Labels become one Foundry 14 grid shape of exactly
+ * those squares (a hole is simply a square left out), so an L-shaped room is one Region.
+ * `rect` is the bounding box either way (what the edge check and the plan summary use).
+ */
+function resolvePlace(
+  request: { area?: RoomArea; squares?: string; scene?: string; level?: string },
+  warnings: string[]
+): { area: RoomArea; scene: SceneLike; rect: Rect; shapes?: Rec[] } {
+  if (request.squares === undefined) {
+    if (request.scene !== undefined || request.level !== undefined) {
+      throw new Error('scene and level go inside area (they are top level only with squares)');
+    }
+    const area = checkArea(request.area, 'area');
+    const scene = resolveScene(area.scene);
+    return { area, scene, rect: areaRect(scene, area, 'area', warnings) };
+  }
+  if (request.area !== undefined) throw new Error('Give either area or squares, not both');
+  const scene = resolveScene(request.scene);
+  const grid = sceneGrid(scene);
+  if (grid.isGridless === true) {
+    throw new Error(`${quoted(scene.name)} has no grid: grid squares need a square grid`);
+  }
+  const cells = parseGridLabels(request.squares);
+  const [x, y, width, height] = cellBounds(cells);
+  if (width > MAX_SQUARES || height > MAX_SQUARES) {
+    throw new Error(`The squares span more than ${MAX_SQUARES} columns or rows`);
+  }
+  const area: RoomArea = { x, y, width, height };
+  if (request.scene !== undefined) area.scene = request.scene;
+  if (request.level !== undefined) area.level = request.level;
+  const rect = areaRect(scene, area, 'squares', warnings);
+  // Foundry's grid offsets count from the padded canvas corner: shift by the map's own origin.
+  const sceneRect = scene.dimensions?.sceneRect;
+  const shiftJ = Math.round((sceneRect?.x ?? 0) / grid.size);
+  const shiftI = Math.round((sceneRect?.y ?? 0) / grid.size);
+  const shapes: Rec[] = [
+    {
+      type: 'grid',
+      hole: false,
+      offsets: cells.map(c => ({ i: c.i + shiftI, j: c.j + shiftJ })),
+      origin: null,
+    },
+  ];
+  return { area, scene, rect, shapes };
+}
+
 /** The Levels of a scene as plain records (empty on a world without Scene Levels). */
 function sceneLevels(
   scene: SceneLike
@@ -259,7 +308,7 @@ function regionData(
   scene: SceneLike,
   id: string,
   name: string,
-  rect: Rect,
+  where: Rect | Rec[],
   color: string,
   behaviors: Rec[],
   levelRef?: string,
@@ -269,9 +318,18 @@ function regionData(
     _id: id,
     name,
     color,
-    shapes: [
-      { type: 'rectangle', x: rect.x, y: rect.y, width: rect.w, height: rect.h, rotation: 0 },
-    ],
+    shapes: Array.isArray(where)
+      ? where
+      : [
+          {
+            type: 'rectangle',
+            x: where.x,
+            y: where.y,
+            width: where.w,
+            height: where.h,
+            rotation: 0,
+          },
+        ],
     elevation: { bottom: null, top: null },
     restriction: { enabled: false, type: 'move', priority: 0 },
     visibility: visibilityGm(),
@@ -581,13 +639,11 @@ function planLevels(request: RoomLevelsRequest): RoomSetupPlan {
 function planStairs(request: RoomStairsRequest): RoomSetupPlan {
   const name = (request.name ?? '').trim();
   if (!name) throw new Error('Stairs need a name');
-  const area = checkArea(request.area, 'area');
-  const scene = resolveScene(area.scene);
+  const warnings: string[] = [];
+  const { area, scene, rect, shapes } = resolvePlace(request, warnings);
   if (!sceneHasLevels(scene as unknown as Scene) || sceneLevels(scene).length < 2) {
     throw new Error(`${quoted(scene.name)} has fewer than two levels: plan the levels first`);
   }
-  const warnings: string[] = [];
-  const rect = areaRect(scene, area, 'area', warnings);
   const ids = request.levels?.length
     ? [...new Set(request.levels.map(ref => resolveLevel(scene, String(ref))))]
     : sceneLevels(scene).map(l => l.id);
@@ -620,7 +676,16 @@ function planStairs(request: RoomStairsRequest): RoomSetupPlan {
         kind: 'create',
         documentName: 'Region',
         parentUuid: String(scene.uuid),
-        data: regionData(scene, newId(), name, rect, '#aa66ff', [behavior], undefined, ids),
+        data: regionData(
+          scene,
+          newId(),
+          name,
+          shapes ?? rect,
+          '#aa66ff',
+          [behavior],
+          undefined,
+          ids
+        ),
         keepId: true,
       },
     ],
@@ -639,10 +704,8 @@ function planStairs(request: RoomStairsRequest): RoomSetupPlan {
 async function planHazard(request: RoomHazardRequest): Promise<RoomSetupPlan> {
   const name = (request.name ?? '').trim();
   if (!name) throw new Error('A hazard needs a name');
-  const area = checkArea(request.area, 'area');
-  const scene = resolveScene(area.scene);
   const warnings: string[] = [];
-  const rect = areaRect(scene, area, 'area', warnings);
+  const { area, scene, rect, shapes } = resolvePlace(request, warnings);
   // Options that belong to another kind are not used; say so instead of dropping them silently.
   const unused: string[] = [];
   if (request.kind !== 'difficult' && request.magical !== undefined) unused.push('magical');
@@ -722,7 +785,7 @@ async function planHazard(request: RoomHazardRequest): Promise<RoomSetupPlan> {
         kind: 'create',
         documentName: 'Region',
         parentUuid: String(scene.uuid),
-        data: regionData(scene, newId(), name, rect, '#dd4444', [behavior], area.level),
+        data: regionData(scene, newId(), name, shapes ?? rect, '#dd4444', [behavior], area.level),
         keepId: true,
       },
     ],
@@ -788,10 +851,8 @@ function planWhisper(request: RoomWhisperRequest): RoomSetupPlan {
   if (text.length > MAX_WHISPER_TEXT) {
     throw new Error(`The card text is ${text.length} characters: ${MAX_WHISPER_TEXT} at most`);
   }
-  const area = checkArea(request.area, 'area');
-  const scene = resolveScene(area.scene);
   const warnings: string[] = [];
-  const rect = areaRect(scene, area, 'area', warnings);
+  const { area, scene, rect, shapes } = resolvePlace(request, warnings);
   const once = request.once === true;
   const journalId = newId();
   const behavior: Rec = {
@@ -833,7 +894,7 @@ function planWhisper(request: RoomWhisperRequest): RoomSetupPlan {
         kind: 'create',
         documentName: 'Region',
         parentUuid: String(scene.uuid),
-        data: regionData(scene, newId(), name, rect, '#44aadd', [behavior], area.level),
+        data: regionData(scene, newId(), name, shapes ?? rect, '#44aadd', [behavior], area.level),
         keepId: true,
       },
     ],

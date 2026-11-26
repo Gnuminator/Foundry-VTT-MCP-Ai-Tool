@@ -489,6 +489,57 @@ describe('hazard', () => {
     delete (globalThis as any).fromUuid;
   });
 
+  it('grid labels make one Region with a grid shape and the hole left out', async () => {
+    world.setActiveScene(scene('a', 'Hall').id);
+    const plan = await planRoomSetup({
+      action: 'hazard',
+      kind: 'difficult',
+      name: 'Mud',
+      squares: 'C4 to H9, without E6 to F7',
+    });
+    expect(plan.ops).toHaveLength(1);
+    const shapes = (plan.ops[0] as any).data.shapes;
+    expect(shapes).toHaveLength(1);
+    expect(shapes[0]).toMatchObject({ type: 'grid', hole: false });
+    expect(shapes[0].offsets).toHaveLength(32);
+    expect(shapes[0].offsets).toContainEqual({ i: 3, j: 2 });
+    expect(shapes[0].offsets).not.toContainEqual({ i: 5, j: 4 });
+    expect(plan.regions[0].squares).toEqual([2, 3, 6, 6]);
+  });
+
+  it('grid label offsets move with the map origin and take scene and level at the top', async () => {
+    const levels = { contents: [lv('d', 'Ground', 0, 10), lv('u', 'Up', 10, 20)] };
+    world.setActiveScene(
+      scene('a', 'Tower', {
+        levels,
+        dimensions: { sceneRect: { x: 200, y: 300, width: 1800, height: 1700 } },
+      }).id
+    );
+    const plan = await planRoomSetup({
+      action: 'hazard',
+      kind: 'difficult',
+      name: 'Rubble',
+      squares: 'A1',
+      level: 'Up',
+    });
+    const data = (plan.ops[0] as any).data;
+    expect(data.shapes[0].offsets).toEqual([{ i: 3, j: 2 }]);
+    expect(data.levels).toEqual(['u']);
+  });
+
+  it('refuses squares together with an area, and scene at the top without squares', async () => {
+    world.setActiveScene(scene('a', 'Hall').id);
+    await expect(
+      planRoomSetup({ action: 'hazard', kind: 'difficult', name: 'Mud', area, squares: 'A1' })
+    ).rejects.toThrow(/either area or squares/);
+    await expect(
+      planRoomSetup({ action: 'hazard', kind: 'difficult', name: 'Mud', area, scene: 'Hall' })
+    ).rejects.toThrow(/inside area/);
+    await expect(
+      planRoomSetup({ action: 'hazard', kind: 'difficult', name: 'Mud', squares: 'nope' })
+    ).rejects.toThrow(/not a grid square/);
+  });
+
   it('an area level confines the Region to that level', async () => {
     world.setActiveScene(
       scene('a', 'Tower', {

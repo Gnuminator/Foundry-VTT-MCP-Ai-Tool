@@ -32,6 +32,14 @@ const area = z.object({
   level: z.string().min(1).optional(),
 });
 
+/** Rectangle `area` or grid labels `squares` (exactly one; the module checks which). */
+const place = {
+  area: area.optional(),
+  squares: z.string().min(1).max(400).optional(),
+  scene: z.string().min(1).optional(),
+  level: z.string().min(1).optional(),
+};
+
 const planParams = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('teleport'),
@@ -74,14 +82,14 @@ const planParams = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('stairs'),
     name: z.string().min(1),
-    area,
+    ...place,
     levels: z.array(z.string().min(1)).min(2).optional(),
     movementActions: z.array(z.string().min(1)).optional(),
   }),
   z.object({
     action: z.literal('hazard'),
     name: z.string().min(1),
-    area,
+    ...place,
     kind: z.enum(ROOM_HAZARD_KINDS),
     magical: z.boolean().optional(),
     darknessMode: z.enum(ROOM_DARKNESS_MODES).optional(),
@@ -91,7 +99,7 @@ const planParams = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('whisper'),
     name: z.string().min(1).max(120),
-    area,
+    ...place,
     text: z.string().min(1).max(2000),
     once: z.boolean().optional(),
   }),
@@ -110,7 +118,7 @@ export interface RoomSetupPlanResult extends PlanView {
 /** A rectangle in grid squares; `scene` is an id or name (default: the viewed scene). */
 const areaSchema = (what: string): Record<string, unknown> => ({
   type: 'object',
-  description: `${what}: grid squares, x/y top-left from 0; scene id or name (default viewed).`,
+  description: `${what}: grid squares, x/y top-left from 0; scene id or name.`,
   properties: {
     x: { type: 'integer' },
     y: { type: 'integer' },
@@ -147,29 +155,29 @@ export class RoomSetupTools {
       {
         name: 'plan-room-setup',
         description:
-          'Plan Region-based scene parts: "teleport" moves tokens entering one rectangle to another (same or other scene); "spawn" makes a room rectangle plus tokens from actors on free squares in it; "levels" adds Scene Levels; "stairs" joins levels; "hazard" makes difficult terrain, darkness or an existing effect; "whisper" whispers a room card to the GM only when a token enters the rectangle. Apply with apply-planned-change, undo with undo-change. Needs the module switch "Room setup" (off by default).',
+          'Plan Region-based scene parts: "teleport" moves tokens entering one rectangle to another (same or other scene); "spawn" makes a room rectangle plus tokens from actors on free squares; "levels" adds Scene Levels; "stairs" joins levels; "hazard" makes difficult terrain, darkness or an existing effect; "whisper" whispers a room card to the GM when a token enters. Apply with apply-planned-change, undo with undo-change. Needs the module switch "Room setup" (off by default).',
         inputSchema: {
           type: 'object',
           properties: {
             action: { type: 'string', enum: [...ROOM_SETUP_ACTIONS] },
             name: {
               type: 'string',
-              description: 'teleport: entry name (arrival "<name> (arrival)"). spawn: room name.',
+              description: 'teleport: entry name (arrival "<name> (arrival)"). spawn: room.',
               ...freeText('A new region name chosen by the user'),
             },
             from: areaSchema('teleport: the entry'),
             to: areaSchema('teleport: the arrival'),
-            twoWay: { type: 'boolean', description: 'teleport: also back from the arrival.' },
-            choice: { type: 'boolean', description: 'teleport: player confirms each teleport.' },
+            twoWay: { type: 'boolean', description: 'teleport: also back.' },
+            choice: { type: 'boolean', description: 'teleport: player confirms.' },
             placement: {
               type: 'string',
               enum: [...ROOM_TELEPORT_PLACEMENTS],
-              description: 'teleport: landing spot (default center).',
+              description: 'teleport: landing (default center).',
             },
             area: areaSchema('spawn: the room'),
             creatures: {
               type: 'array',
-              description: 'spawn: actors (id or name) and count, 40 tokens at most.',
+              description: 'spawn: actors (id or name), count; 40 tokens max.',
               items: {
                 type: 'object',
                 properties: { actor: { type: 'string' }, count: { type: 'integer' } },
@@ -178,12 +186,18 @@ export class RoomSetupTools {
             },
             hidden: {
               type: 'boolean',
-              description: 'spawn: tokens hidden from players (default true).',
+              description: 'spawn: hide tokens from players (default true).',
             },
-            scene: { type: 'string', description: 'levels: scene.' },
+            squares: {
+              type: 'string',
+              description:
+                'stairs, hazard, whisper: grid labels instead of area, A1 top left: "C4 to H9, without E6 to F7"; L shape "A1 to D8, D5 to H8".',
+            },
+            scene: { type: 'string', description: 'levels, squares: scene.' },
+            level: { type: 'string', description: 'squares: Scene Level.' },
             levels: {
               type: 'array',
-              description: 'levels: [{name, bottom, top?, background?}]. stairs: level names.',
+              description: 'levels: [{name, bottom, top?, background?}]. stairs: names.',
               items: {},
             },
             movementActions: { type: 'array', items: { type: 'string' } },
@@ -194,13 +208,12 @@ export class RoomSetupTools {
             effectUuid: { type: 'string', ...freeText('An existing ActiveEffect uuid') },
             text: {
               type: 'string',
-              description: 'whisper: the room card text for the GM (2000 characters at most).',
+              description: 'whisper: card text for the GM (2000 characters).',
               ...freeText('Room card text written for the GM'),
             },
             once: {
               type: 'boolean',
-              description:
-                'whisper: only the first entry (default every entry; two tokens entering at the same moment can both whisper).',
+              description: 'whisper: first entry only (default every entry).',
             },
           },
           required: ['action'],

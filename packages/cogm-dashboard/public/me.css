@@ -152,6 +152,11 @@ main {
   gap: 0.4rem;
   flex-wrap: wrap;
 }
+.me-connector .mc-url-row {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
 .me-connector input {
   flex: 1 1 14rem;
   min-width: 0;

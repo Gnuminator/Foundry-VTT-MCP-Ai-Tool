@@ -544,9 +544,19 @@ function keepsakeStatus(text) {
 }
 
 function renderKeepsakes(out) {
+  const labels = {
+    rest: 'A rest taken',
+    death: 'Someone went down',
+    stabilize: 'Someone back up',
+    'combat-start': 'A combat started',
+    'combat-end': 'A combat ended',
+    'item-use': 'A feature or item used',
+  };
+  const picked = $('mk-event').value;
   $('mk-event').innerHTML = (out.eventTypes || [])
-    .map(t => `<option value="${esc(t)}">${esc(t)}</option>`)
+    .map(t => `<option value="${esc(t)}">${esc(labels[t] || t)}</option>`)
     .join('');
+  if (picked) $('mk-event').value = picked;
   $('mk-list').innerHTML = (out.ledgers || [])
     .map(
       l => `<li>
@@ -559,7 +569,7 @@ function renderKeepsakes(out) {
                 .join('')}</ul>`
             : ''
         }
-        <button type="button" data-keepsake-del="${esc(l.id)}" data-track="me.keepsake.delete">Remove</button>
+        <button type="button" data-keepsake-del="${esc(l.id)}" aria-label="Remove ${esc(l.title)}" data-track="me.keepsake.delete">Remove</button>
       </li>`
     )
     .join('');
@@ -601,11 +611,18 @@ $('mk-kind').addEventListener('change', () => {
 });
 $('mk-form').addEventListener('submit', async e => {
   e.preventDefault();
+  const character = diaryCharName();
+  if (!character) {
+    keepsakeStatus('Your character has not loaded yet. Try again in a moment.');
+    return;
+  }
+  const submit = $('mk-form').querySelector('button[type="submit"]');
+  submit.disabled = true;
   keepsakeStatus('Saving…');
   try {
     renderKeepsakes(
       await keepsakeCall('POST', '/api/me/keepsakes', {
-        character: diaryCharName(),
+        character,
         kind: $('mk-kind').value,
         title: $('mk-title').value,
         eventType: $('mk-event').value,
@@ -616,6 +633,8 @@ $('mk-form').addEventListener('submit', async e => {
     keepsakeStatus('Added.');
   } catch (err) {
     keepsakeStatus(err.message);
+  } finally {
+    submit.disabled = false;
   }
 });
 $('mk-list').addEventListener('click', async e => {

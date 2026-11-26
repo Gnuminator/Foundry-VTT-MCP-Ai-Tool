@@ -15,8 +15,22 @@
 /** Numbers keyed by a name (actor, damage type, resource, denomination...). */
 export type Tally = Record<string, number>;
 
+/** What a fight was planned to be, stamped on its `combat-start` record by the module. */
+export interface FightPlan {
+  party: { name: string; level: number; hpMax: number }[];
+  foes: number;
+  /** Summed XP of the non-character combatants. */
+  foeXp: number;
+  /** XP budget of a low, moderate and high fight for this party. */
+  budgets: { low: number; moderate: number; high: number };
+}
+
 export interface CombatStats {
   combatId: string;
+  /** Present when the combat-start record carried a plan (fights run before it have none). */
+  plan?: FightPlan;
+  /** Spell slots the party spent during the fight (only counted when the record names the combat). */
+  slotsSpent?: number;
   startedAt: string;
   endedAt: string | null;
   rounds: number;

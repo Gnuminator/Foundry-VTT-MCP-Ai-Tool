@@ -40,6 +40,15 @@ export class EncounterTools {
               enum: ['low', 'moderate', 'high'],
               description: 'Encounter difficulty (default "moderate").',
             },
+            toughness: {
+              type: 'number',
+              minimum: 0.5,
+              maximum: 2,
+              description:
+                'How tough this party measured against its plans (get-play-stats, fights.toughness): ' +
+                'above 1 means fights cost less HP than planned, so the XP budget (and creature count) ' +
+                'is multiplied by it; below 1 it shrinks. Default 1 (no adjustment).',
+            },
           },
         },
       },
@@ -50,6 +59,7 @@ export class EncounterTools {
     const schema = z.object({
       partyLevels: z.array(z.number().int()).optional(),
       difficulty: z.enum(['low', 'moderate', 'high']).optional(),
+      toughness: z.number().min(0.5).max(2).optional(),
     });
     try {
       const params = schema.parse(args ?? {});

@@ -112,6 +112,7 @@ Parameters:
 
 - `partyLevels` (array of integer): Character levels. If omitted, derived from the player characters.
 - `difficulty` (string): Encounter difficulty (default "moderate"). One of: `low`, `moderate`, `high`.
+- `toughness` (number): How tough this party measured against its plans (get-play-stats, fights.toughness): above 1 means fights cost less HP than planned, so the XP budget (and creature count) is multiplied by it; below 1 it shrinks. Default 1 (no adjustment). Range: 0.5 to 2.
 
 ## get-tarokka-reading
 
@@ -216,7 +217,7 @@ Parameters:
 
 ## get-play-stats
 
-GM ONLY. Derived play statistics for the connected world (the same numbers as the AI Tool/Stats/ Obsidian notes): campaign totals, dice, one play session's stats (default the latest) and one PC's or every PC's totals (damage, healing, downs, kills, rolls, spells, resources, loot, currency, XP). Built fresh from the bridge vault's session and play logs; never returns raw play records. A session has a mode ("live", or "paper" for a night played on paper). Changes written by a paper sync are not counted as damage, healing or rolls: a paper night shows them as paperNet (HP lost and regained, slots, resources, coins, XP, items gained and lost per character), and the campaign has the sum. Works with Foundry closed (the last world this bridge saw).
+GM ONLY. Derived play statistics for the connected world (the same numbers as the AI Tool/Stats/ Obsidian notes): campaign totals, dice, one play session's stats (default the latest) and one PC's or every PC's totals (damage, healing, downs, kills, rolls, spells, resources, loot, currency, XP). Built fresh from the bridge vault's session and play logs; never returns raw play records. A session has a mode ("live", or "paper" for a night played on paper). Changes written by a paper sync are not counted as damage, healing or rolls: a paper night shows them as paperNet (HP lost and regained, slots, resources, coins, XP, items gained and lost per character), and the campaign has the sum. Works with Foundry closed (the last world this bridge saw). `fights` lists every fight with its planned size (low, moderate or high, from the foes' XP against the party budget), what it cost (HP lost as a share of the party's max, rounds, slots, downs) and a toughness factor; pass that factor as `toughness` to suggest-balanced-encounter.
 
 Kind: read-only. Title: Get play stats.
 

@@ -8,6 +8,7 @@ import type {
 import * as shared from './shared.js';
 import { changeJournal } from '../change-journal.js';
 import { resolveCombat } from '../combat-resolve.js';
+import { encounterBudget } from '../encounter-budget.js';
 import { eventTracker } from '../session-events.js';
 
 /** The roll-shape fields `rollSavingThrows` forwards to the dnd5e roll dispatch. */
@@ -615,12 +616,15 @@ export class CombatDataAccess {
   async suggestBalancedEncounter(data: {
     partyLevels?: number[];
     difficulty?: 'low' | 'moderate' | 'high';
+    toughness?: number;
   }): Promise<{
     success: true;
     model: string;
     difficulty: 'low' | 'moderate' | 'high';
     partyLevels: number[];
     xpBudget: number;
+    baseXpBudget: number;
+    toughness: number;
     suggestions: {
       singleCreatureMaxCR: number;
       mixes: { count: number; crEach: number; xpEach: number; totalXp: number }[];
@@ -643,49 +647,12 @@ export class CombatDataAccess {
     }
 
     const difficulty = data.difficulty || 'moderate';
-    let xpBudget = 0;
-    let model: string;
-
+    const toughness = data.toughness !== undefined ? Math.min(2, Math.max(0.5, data.toughness)) : 1;
     const table2024: unknown = cfg.ENCOUNTER_DIFFICULTY;
-    if (Array.isArray(table2024)) {
-      model = '2024';
-      const col = { low: 0, moderate: 1, high: 2 }[difficulty];
-      const table = table2024 as (number[] | undefined)[];
-      for (const lvl of levels) {
-        const row = table[lvl];
-        if (Array.isArray(row)) xpBudget += row[col] ?? 0;
-      }
-    } else {
-      // 2014 DMG thresholds [easy, medium, hard, deadly] per character level.
-      model = '2014';
-      const T: Record<number, number[]> = {
-        1: [25, 50, 75, 100],
-        2: [50, 100, 150, 200],
-        3: [75, 150, 225, 400],
-        4: [125, 250, 375, 500],
-        5: [250, 500, 750, 1100],
-        6: [300, 600, 900, 1400],
-        7: [350, 750, 1100, 1700],
-        8: [450, 900, 1300, 2100],
-        9: [550, 1100, 1600, 2400],
-        10: [600, 1200, 1900, 2800],
-        11: [800, 1600, 2400, 3600],
-        12: [1000, 2000, 3000, 4500],
-        13: [1100, 2200, 3400, 5100],
-        14: [1250, 2500, 3800, 5700],
-        15: [1400, 2800, 4300, 6400],
-        16: [1600, 3200, 4800, 7200],
-        17: [2000, 3900, 5900, 8800],
-        18: [2100, 4200, 6300, 9500],
-        19: [2400, 4900, 7300, 10900],
-        20: [2800, 5700, 8500, 12700],
-      };
-      const col = { low: 0, moderate: 1, high: 3 }[difficulty]; // map high→deadly
-      for (const lvl of levels) {
-        const row = T[Math.max(1, Math.min(20, lvl))];
-        if (row) xpBudget += row[col] ?? 0;
-      }
-    }
+    const base = encounterBudget(table2024, levels, difficulty);
+    const model: string = base.model;
+    // Toughness above 1: the party shrugged off its fights, so the budget grows; below 1 it shrinks.
+    const xpBudget = Math.round(base.xpBudget * toughness);
 
     const crExp = cfg.CR_EXP_LEVELS ?? [];
     let singleCreatureMaxCR = 0;
@@ -705,6 +672,8 @@ export class CombatDataAccess {
       difficulty,
       partyLevels: levels,
       xpBudget,
+      baseXpBudget: base.xpBudget,
+      toughness,
       suggestions: { singleCreatureMaxCR, mixes },
       note: 'Use list-creatures-by-criteria / search-compendium to pick creatures near these CRs.',
     };

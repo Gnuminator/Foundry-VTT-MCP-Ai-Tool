@@ -10,6 +10,7 @@ import { z } from 'zod';
 
 import type { Logger } from '../logger.js';
 import { buildStats } from '../stats/build.js';
+import { buildFightsReport, type FightsReport } from '../stats/fights.js';
 import { loadPlayRecords, loadSessionEvents } from '../stats/load.js';
 import type { DiceStats, PcStats, SessionStats, StatsModel } from '../stats/types.js';
 import type { VaultStore } from '../vault/store.js';
@@ -41,6 +42,8 @@ export interface GetPlayStatsResult {
   session: SessionStats | null;
   /** One PC when `pcName` matched, every PC otherwise. */
   pcs: PcStats[];
+  /** Planned vs actual cost of every fight in the log, and the party's toughness factor. */
+  fights: FightsReport;
 }
 
 /** `get-play-stats`: campaign totals, one play session (default the latest)
@@ -70,7 +73,10 @@ export class PlayStatsTools {
           'are not counted as damage, healing or rolls: a paper night shows them as paperNet ' +
           '(HP lost and regained, slots, resources, coins, XP, items gained and lost per ' +
           'character), and the campaign has the sum. Works with Foundry closed (the last ' +
-          'world this bridge saw).',
+          'world this bridge saw). `fights` lists every fight with its planned size (low, moderate ' +
+          "or high, from the foes' XP against the party budget), what it cost (HP lost as a share " +
+          "of the party's max, rounds, slots, downs) and a toughness factor; pass that factor as " +
+          '`toughness` to suggest-balanced-encounter.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -125,6 +131,7 @@ export class PlayStatsTools {
         sessionCount: model.sessions.length,
         session,
         pcs,
+        fights: buildFightsReport(model.sessions),
       };
     } catch (error) {
       this.logger.error('Error getting play stats', error);

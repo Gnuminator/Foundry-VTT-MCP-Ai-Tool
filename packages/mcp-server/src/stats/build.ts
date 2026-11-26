@@ -29,9 +29,11 @@ import {
   type SessionEvent,
 } from '../obsidian/grouping.js';
 
+import { parseFightPlan } from './fights.js';
 import type {
   CombatStats,
   DiceStats,
+  FightPlan,
   HighestRoll,
   PaperNet,
   PaperNetPc,
@@ -219,10 +221,14 @@ interface CombatBuilder {
   kills: string[];
   crits: number;
   fumbles: number;
+  plan: FightPlan | null;
+  slotsSpent: number;
 }
 
 function newCombatBuilder(combatId: string): CombatBuilder {
   return {
+    plan: null,
+    slotsSpent: 0,
     combatId,
     startedAtMs: null,
     endedAtMs: null,
@@ -617,6 +623,7 @@ function buildSession(
         c.sceneName ??= sceneName(record.sceneId, ctx.sceneIndex);
         if (record.combat) c.maxRound = Math.max(c.maxRound, record.combat.round);
         for (const name of rosterOf(record)) c.participants.add(name);
+        c.plan ??= parseFightPlan(record.data?.plan);
         break;
       }
       case 'combat-turn': {
@@ -728,6 +735,9 @@ function buildSession(
         const delta = numDelta(record);
         if (delta >= 0) break;
         spellSlotsSpent += -delta;
+        if (record.combat && isParty(record.actor, ctx)) {
+          combatFor(record.combat.id).slotsSpent += -delta;
+        }
         if (isParty(record.actor, ctx)) {
           const pc = pcFor(record.actor, ctx, number);
           bump(pc.slotsSpent, slotKeyFromPath(record.path), -delta);
@@ -895,6 +905,8 @@ function buildSession(
       kills: c.kills,
       crits: c.crits,
       fumbles: c.fumbles,
+      ...(c.plan ? { plan: c.plan } : {}),
+      ...(c.slotsSpent > 0 ? { slotsSpent: c.slotsSpent } : {}),
     }));
 
   return {

@@ -721,6 +721,7 @@ export class FoundryDataAccess {
   async suggestBalancedEncounter(data: {
     partyLevels?: number[];
     difficulty?: 'low' | 'moderate' | 'high';
+    toughness?: number;
   }): Promise<unknown> {
     return this.combat.suggestBalancedEncounter(data);
   }

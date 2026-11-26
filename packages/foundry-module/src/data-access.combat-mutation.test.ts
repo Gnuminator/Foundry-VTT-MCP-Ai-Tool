@@ -564,9 +564,14 @@ describe('FoundryDataAccess: suggestBalancedEncounter', () => {
   });
 
   it('scales the budget by toughness, clamped to 0.5 to 2', async () => {
-    const base = await da.suggestBalancedEncounter({ partyLevels: [5] });
-    const up = await da.suggestBalancedEncounter({ partyLevels: [5], toughness: 1.5 });
-    const capped = await da.suggestBalancedEncounter({ partyLevels: [5], toughness: 9 });
+    type Budget = { xpBudget: number; baseXpBudget: number; toughness: number };
+    const budget = async (toughness?: number): Promise<Budget> =>
+      (await da.suggestBalancedEncounter(
+        toughness === undefined ? { partyLevels: [5] } : { partyLevels: [5], toughness }
+      )) as Budget;
+    const base = await budget();
+    const up = await budget(1.5);
+    const capped = await budget(9);
     expect(base.xpBudget).toBe(500);
     expect(up.xpBudget).toBe(750);
     expect(up.baseXpBudget).toBe(500);

@@ -7,12 +7,13 @@ each only with a `dietpi-backup` snapshot and an OK first (see the `pi-work` ski
 
 ## What runs where
 
-| In a container                                                                                               | Stays on the host                                                   |
-| ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------- |
-| foundry (`node:24-trixie-slim`, the host's `/opt/foundry` mounted read-only, nothing licensed in the image)  | Syncthing                                                           |
-| bridge (control 31414, Foundry link 31415)                                                                   | cloudflared (the tunnel)                                            |
-| dashboard (port 3000)                                                                                        | Tailscale and `tailscale serve`                                     |
-| gm-browser (Chromium with `--no-sandbox` through `/usr/local/bin/chromium-nosandbox`, low CPU weight, I-098) | the Discord recorder, the GitHub runner, the stage scripts, backups |
+| In a container                                                                                               | Stays on the host                             |
+| ------------------------------------------------------------------------------------------------------------ | --------------------------------------------- |
+| foundry (`node:24-trixie-slim`, the host's `/opt/foundry` mounted read-only, nothing licensed in the image)  | Syncthing                                     |
+| bridge (control 31414, Foundry link 31415)                                                                   | cloudflared (the tunnel)                      |
+| dashboard (port 3000)                                                                                        | Tailscale and `tailscale serve`               |
+| gm-browser (Chromium with `--no-sandbox` through `/usr/local/bin/chromium-nosandbox`, low CPU weight, I-098) | the GitHub runner, the stage scripts, backups |
+| discord-bot (the recorder; compose profile `discord-bot`, only after `24-compose.sh` `MODE=bot`)             |                                               |
 
 Every container uses `network_mode: host`, so the loopback ports are the same ones as under systemd and Tailscale
 serve, the tunnel and Plan B need no change. The env files in `/etc/foundry-ai-tool/` are read as they are.
@@ -68,7 +69,7 @@ runner.
 
 ## Cutover and rollback
 
-`24-compose.sh` takes `MODE=up|down|cutover|rollback`. Run it like the other stages, after the snapshot and the OK.
+`24-compose.sh` takes `MODE=up|down|cutover|rollback|bot|bot-restart|bot-back`. Run it like the other stages, after the snapshot and the OK.
 
 - `MODE=up` starts a **rehearsal** stack on other ports and its own data folders. On the live ports (any one of them) or
   the live data folders it is refused: the live stack is started by `MODE=cutover` only.
@@ -76,6 +77,34 @@ runner.
   waits for healthy; an unhealthy stack rolls back by itself. It asks for a quiet table and a snapshot from today.
 - `MODE=rollback` stops every container of the live project and starts the units again: one command, nothing to rebuild.
 - `MODE=down` stops the stack and leaves the units as they are.
+- `MODE=bot` moves the Discord recorder bot from its systemd unit into the stack (see below). `MODE=bot-restart`
+  recreates its container after a token or settings change.
+
+### The Discord bot as a container
+
+The bot and voice recorder is the fifth service, `discord-bot`, behind the compose profile of the same name, so nothing
+starts it by itself and a rehearsal never does (two bots on one token would both answer `/record`). It is its own image
+target (`deploy/pi/Dockerfile`, `discord-bot`), uses host networking (voice is UDP), reads the same
+`/etc/foundry-ai-tool/discord-bot.env` as the unit and writes to the same `$TOOL_DATA_DIR/recordings` folder with
+`umask 0007`, so the PC's pull over SSH still works. It stops on SIGINT with 60 s to finish and convert a recording, like
+the unit. It is no gate service: a bot that is down never rolls the stack back.
+
+- **Switch:** `MODE=bot` on a cut-over Pi, with a snapshot from today and no recording in progress. It stops and disables
+  the unit (left installed), writes `COMPOSE_PROFILES=discord-bot` into `deploy/pi/.env`, starts the container and waits
+  for its "Logged in as" line. A bot that does not log in goes back to the unit by itself. Needs the image (stage 23, or
+  stage 5 with a release that has it) and `discord-bot.env` with a token.
+- **After a settings or token change:** `set-discord-token` writes the file, then `MODE=bot-restart` recreates the container.
+  Stages 8, 26 and 27 refuse while the container exists (they would start the unit next to it).
+- **Game-night watch:** with the unit off the watch reads the recorder through its status address, so `MODE=bot` adds
+  `FOUNDRY_AI_BOT_STATUS_PORT` (default 3110) to `discord-bot.env` and `WATCH_RECORDER_STATUS_URL` to
+  `gamenight-watch.env` when they are missing (append only).
+- **Back:** `MODE=bot-back` puts only the bot back on its unit (the other four containers keep running); it is also the
+  way out of a `MODE=bot` that was cut off (a rerun of `MODE=bot` continues it too). `MODE=rollback` brings the whole
+  stack back to units, the bot unit included, and takes the profile out of `.env`.
+- **A silent Docker daemon** refuses stages 8, 26 and `set-discord-token` (the container would come back with the daemon).
+- **Check:** `deploy/pi/bot-container-check.mjs` runs in CI (`pi-images.yml`, ARM64 image, no token): the voice libraries load,
+  UDP works, and a synthetic recording converts into the recordings folder with group write. `deploy/pi/deployed-state.sh`
+  fails when the unit and the container run together.
 
 ### What changes after the cutover
 
@@ -94,8 +123,8 @@ runner.
   `MODE=rollback`. The read-only modes of the guarded stages (14 `MODE=status`, 30 `CHECK=1`, kit-session `MODE=status`)
   are refused too: after the cutover look at the stack with stage 24 `MODE=status` and
   `deploy/pi/deployed-state.sh`. The cutover itself is refused while a dnd5e system trial (stage 14) or a kit session is
-  open, so finish those first. The Discord bot is not a container (`compose.yml` has four services), so its stages (8, 26,
-  `set-discord-token`) are not guarded.
+  open, so finish those first. The Discord bot stays its systemd unit after the cutover until `MODE=bot` moves it; from then
+  on its stages (8, 26, 27) refuse and `set-discord-token` points to `MODE=bot-restart`.
 - **The nightly backup follows the stack.** `6-backup.sh` writes a nightly script that, after the cutover, stops the
   Foundry **container** (not `foundry.service`), checks that it is stopped, copies the worlds with restic and starts it
   again. The Assistant GM container is not counted as a player. If the daemon is silent and `foundry.service` is not

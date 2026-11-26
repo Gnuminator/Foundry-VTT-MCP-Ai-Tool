@@ -77,6 +77,7 @@ fi
 [ "$((dry + check_only + undo))" -le 1 ] || die "DRY_RUN, CHECK and UNDO are separate modes: set one"
 
 require_root
+refuse_when_bot_container "stage 26 (it restarts the Discord bot unit)"
 [ -f "$env_file" ] || die "$env_file is missing: run stage 8 (8-recorder.sh) first"
 if [ -z "${DISCORD_ENV_FILE:-}" ]; then
   [ -f "/etc/systemd/system/$unit" ] || die "$unit is missing: run stage 8 (8-recorder.sh) first"

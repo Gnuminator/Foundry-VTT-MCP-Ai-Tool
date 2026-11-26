@@ -24,6 +24,7 @@ root="$(mktemp -d)"
 trap 'rm -rf "${root:?}"' EXIT
 n=0
 all_units="foundry.service foundry-ai-tool-bridge.service foundry-ai-tool-dashboard.service foundry-ai-tool-gm-browser.service"
+botu=foundry-ai-tool-discord-bot.service
 
 new_pi() { # opts: nosnapshot, nobrowser (no Assistant GM unit)
   SB="$root/pi.$((++n))"
@@ -42,6 +43,13 @@ new_pi() { # opts: nosnapshot, nobrowser (no Assistant GM unit)
     [[ "$u" == *gm-browser* && " $* " == *" nobrowser "* ]] && continue
     touch "$FAKE/exists-$u" "$FAKE/enabled-$u" "$FAKE/active-$u"
   done
+  # opt "bot": the recorder bot as a running unit with a token, the image and the backup pulls folder in place
+  if [[ " $* " == *" bot "* ]]; then
+    touch "$FAKE/exists-$botu" "$FAKE/enabled-$botu" "$FAKE/active-$botu"
+    echo "DISCORD_TOKEN=abcdefghijklmnop" >"$SB/etc/discord-bot.env"
+    echo "FOUNDRY_AI_BOT_STATUS_PORT=31420" >>"$SB/etc/discord-bot.env"
+    mkdir -p "$SB/pulls"
+  fi
   write_stubs
 }
 
@@ -88,7 +96,8 @@ F="$FAKE"
 EOF
   cat >>"$BIN/docker" <<'EOF'
 echo "docker $*" >>"$F/calls"
-svcs="foundry bridge dashboard gm-browser"
+svcs="foundry bridge dashboard gm-browser discord-bot"
+base="foundry bridge dashboard gm-browser"
 case "$1" in
   info) [ ! -f "$F/daemon-down" ] || exit 1 ;;
   image) [ ! -f "$F/missing-image" ] || exit 1 ;;
@@ -128,17 +137,32 @@ case "$1" in
   compose)
     proj="$5"
     # compose -f FILE -p PROJECT: like the real thing, it fails when the interpolation needs a .env that is gone
-    [ -f "$(dirname "$3")/.env" ] || exit 1
+    envf="$(dirname "$3")/.env"
+    [ -f "$envf" ] || exit 1
     shift 5
     case "$1" in
       config)
         case "$2" in
-          --services) for s in $svcs; do echo "$s"; done ;;
+          --services) for s in $base; do echo "$s"; done
+            # a profiled service is listed only while deploy/pi/.env switches its profile on, as the real compose does
+            ! grep -qE '^COMPOSE_PROFILES=.*discord-bot' "$envf" || echo discord-bot ;;
           --images) printf 'foundry-ai-tool-pi/foundry:local\nfoundry-ai-tool-pi/app:local\n' ;;
         esac ;;
       up)
         [ ! -f "$F/up-hard-fail" ] || exit 1
-        for s in $svcs; do echo "running healthy 0" >"$F/c/$s"; echo "$proj" >"$F/p-$s"; done
+        # service names are the arguments that are neither a flag nor a flag's value; none = every service of the active profiles
+        names=""; shift
+        while [ $# -gt 0 ]; do case "$1" in --wait-timeout) shift ;; -*) ;; *) names="$names $1" ;; esac; shift; done
+        if [ -z "$names" ]; then
+          names="$base"
+          ! grep -qE '^COMPOSE_PROFILES=.*discord-bot' "$envf" || names="$names discord-bot"
+        fi
+        for s in $names; do
+          echo "running healthy 0" >"$F/c/$s"; echo "$proj" >"$F/p-$s"
+          if [ "$s" = discord-bot ]; then
+            if [ -f "$F/bot-nologin" ]; then rm -f "$F/logs/discord-bot"; else echo "Logged in as Bot#0001" >"$F/logs/discord-bot"; fi
+          fi
+        done
         if [ -f "$F/up-unhealthy" ]; then echo "running unhealthy 0" >"$F/c/bridge"; exit 1; fi
         if [ -f "$F/gm-unhealthy" ]; then echo "running unhealthy 0" >"$F/c/gm-browser"; exit 1; fi ;;
       down)
@@ -589,5 +613,110 @@ touch "$SB/data/kit-session.env"
 run_stage MODE=cutover TEST_ALLOW_CUTOVER=0
 if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'kit session is up' && all_on $all_units && ! echo "$CALLS" | grep -qE 'disable --now|compose.* up'; then pass "cutover is refused while a kit session is up, nothing changed"; else fail "cutover kit (rc $RC): $OUT"; fi
 rm -f "$SB/data/kit-session.env"
+
+# 23. the Discord bot as a container: MODE=bot, bot-restart, rollback, status. A cut-over Pi (four containers, units off) with
+# the bot unit still running is the start; BACKUP_PULLS_DIR points at the sandbox.
+bot_pi() { # a cut-over stack and the bot as a unit
+  new_pi bot
+  for u in $all_units; do rm -f "$FAKE/active-$u" "$FAKE/enabled-$u"; done
+  running_stack
+  BOTENV="BACKUP_PULLS_DIR=$SB/pulls BOT_LOGIN_WAIT=2"
+}
+bot_c() { [ -f "$FAKE/c/discord-bot" ]; }
+bot_profile_on() { grep -qE '^COMPOSE_PROFILES=.*discord-bot' "$SB/tool/app/deploy/pi/.env"; }
+
+bot_pi
+run_stage MODE=bot DRY_RUN=1 $BOTENV
+if [ "$RC" -eq 0 ] && echo "$OUT" | grep -q 'dry run: would add FOUNDRY_AI_BOT_STATUS_PORT' && unit_on "$botu" && ! bot_c && ! bot_profile_on; then pass "bot dry run changes nothing"; else fail "bot dry (rc $RC): $OUT"; fi
+run_stage MODE=bot $BOTENV
+if [ "$RC" -eq 0 ] && unit_off "$botu" && bot_c && bot_profile_on && [ -f "$SB/tool/compose-bot.state" ] && echo "$OUT" | grep -q 'logged in to Discord' && order_ok "disable --now $botu" 'compose.* up -d --no-build discord-bot'; then
+  pass "MODE=bot stops the unit, sets the profile, starts the container and sees its login"
+else fail "bot (rc $RC): $OUT"; fi
+run_stage MODE=bot $BOTENV
+if [ "$RC" -eq 0 ] && echo "$OUT" | grep -q 'nothing to do'; then pass "a second MODE=bot only checks the running container"; else fail "bot rerun (rc $RC): $OUT"; fi
+: >"$FAKE/calls"
+run_stage MODE=bot-restart $BOTENV
+if [ "$RC" -eq 0 ] && echo "$CALLS" | grep -q 'compose.* up -d --no-build --force-recreate discord-bot' && bot_c && ! echo "$CALLS" | grep -q 'systemctl'; then pass "MODE=bot-restart recreates the container and never touches the unit"; else fail "bot-restart (rc $RC): $OUT"; fi
+run_stage MODE=status $BOTENV
+if [ "$RC" -eq 0 ] && echo "$OUT" | grep -q 'discord-bot'; then pass "status lists the bot container beside the stack"; else fail "bot status (rc $RC): $OUT"; fi
+# a rehearsal never starts the bot, even with the profile on in the shared .env
+mkdir -p "$SB/rfdata" "$SB/rdata"
+rm -f "$FAKE/c/discord-bot"
+run_stage MODE=up $reh FOUNDRY_DATA_DIR="$SB/rfdata" TOOL_DATA_DIR="$SB/rdata" TEST_ALLOW_CUTOVER=0 $BOTENV
+if echo "$CALLS" | grep -qE 'compose.* -p [^ ]*rehearsal.* up' && ! echo "$CALLS" | grep -E 'rehearsal.* up' | grep -q discord-bot && ! bot_c; then pass "a rehearsal names its services and never starts the bot"; else fail "rehearsal bot (rc $RC): $OUT / $CALLS"; fi
+run_stage MODE=rollback
+if [ "$RC" -eq 0 ] && unit_on "$botu" && ! bot_c && ! bot_profile_on && [ ! -e "$SB/tool/compose-bot.state" ]; then pass "rollback puts the bot unit back, clears the profile and the record"; else fail "bot rollback (rc $RC): $OUT"; fi
+
+bot_pi
+touch "$FAKE/bot-nologin"
+run_stage MODE=bot $BOTENV
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'ROLLED BACK' && unit_on "$botu" && ! bot_c && ! bot_profile_on && [ ! -e "$SB/tool/compose-bot.state" ]; then pass "a bot that does not log in goes back to the unit by itself"; else fail "bot nologin (rc $RC): $OUT"; fi
+
+bot_pi
+run_stage MODE=bot BACKUP_PULLS_DIR="$SB/nopulls" BOT_LOGIN_WAIT=2
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'is missing' && unit_on "$botu" && ! bot_c; then pass "no backup pulls folder: refused, nothing changed"; else fail "bot nopulls (rc $RC): $OUT"; fi
+echo "DISCORD_TOKEN=" >"$SB/etc/discord-bot.env"
+run_stage MODE=bot $BOTENV
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'has no token' && unit_on "$botu" && ! bot_c; then pass "no token: refused, nothing changed"; else fail "bot notoken (rc $RC): $OUT"; fi
+bot_pi
+mkdir -p "$SB/data/recordings/s1/raw"
+touch "$SB/data/recordings/s1/raw/a.opus"
+run_stage MODE=bot $BOTENV
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'recording is in progress' && unit_on "$botu" && ! bot_c && ! bot_profile_on; then pass "a recording in progress refuses MODE=bot before anything changes"; else fail "bot recording (rc $RC): $OUT"; fi
+bot_pi
+rm -f "$FAKE"/c/*
+run_stage MODE=bot $BOTENV
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'MODE=cutover first' && unit_on "$botu"; then pass "MODE=bot needs the cut-over stack"; else fail "bot no stack (rc $RC): $OUT"; fi
+# MODE=bot-restart that never logs in again exits 1 (the stand-in's up rewrites the log: no stale "Logged in as" is left)
+bot_pi
+run_stage MODE=bot $BOTENV
+touch "$FAKE/bot-nologin"
+run_stage MODE=bot-restart $BOTENV
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'did not log in' && echo "$OUT" | grep -q 'MODE=bot-back'; then pass "bot-restart without a login exits 1 and names MODE=bot-back"; else fail "bot-restart nologin (rc $RC): $OUT"; fi
+# MODE=bot-back: only the bot goes back, the four others keep running
+rm -f "$FAKE/bot-nologin"
+run_stage MODE=bot-back $BOTENV
+if [ "$RC" -eq 0 ] && unit_on "$botu" && ! bot_c && ! bot_profile_on && [ ! -e "$SB/tool/compose-bot.state" ] && [ -f "$FAKE/c/foundry" ] && [ -f "$FAKE/c/bridge" ]; then pass "MODE=bot-back puts only the bot back on its unit"; else fail "bot-back (rc $RC): $OUT"; fi
+run_stage MODE=bot-back $BOTENV
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'nothing to do'; then pass "MODE=bot-back with no container and no record does nothing"; else fail "bot-back none (rc $RC): $OUT"; fi
+# a MODE=bot cut off after the unit was disabled (record, no container, unit off) goes on instead of refusing
+bot_pi
+printf '%s\n' "$botu" >"$SB/tool/compose-bot.state"
+rm -f "$FAKE/active-$botu" "$FAKE/enabled-$botu"
+run_stage MODE=bot $BOTENV
+if [ "$RC" -eq 0 ] && echo "$OUT" | grep -q 'going on from there' && bot_c && bot_profile_on && unit_off "$botu"; then pass "a cut-off MODE=bot is continued, not refused"; else fail "bot resume (rc $RC): $OUT"; fi
+# the status address: added to discord-bot.env and gamenight-watch.env when missing, kept when set
+bot_pi
+echo "DISCORD_TOKEN=abcdefghijklmnop" >"$SB/etc/discord-bot.env"
+printf '#WATCH_FOUNDRY_URL=x\n' >"$SB/etc/gamenight-watch.env"
+run_stage MODE=bot $BOTENV
+if [ "$RC" -eq 0 ] && grep -qx 'FOUNDRY_AI_BOT_STATUS_PORT=3110' "$SB/etc/discord-bot.env" && grep -qx 'WATCH_RECORDER_STATUS_URL=http://127.0.0.1:3110/status' "$SB/etc/gamenight-watch.env" && ! echo "$OUT" | grep -q abcdefghijklmnop; then pass "MODE=bot wires the status address for the game-night watch and prints no token"; else fail "bot wire (rc $RC): $OUT"; fi
+# a silent Docker daemon is unknown: the stages that would start the bot unit refuse; with no docker.service to come back they pass
+bot_pi
+guard_run() {
+  {
+    cat "$LIB"
+    printf '%s\n' "have_systemd() { return 0; }" 'refuse_when_bot_container "stage 8 (the recorder unit)"' 'echo PASSED'
+  } >"$SB/guard.sh"
+  OUT="$(PATH="$BIN:$PATH" bash "$SB/guard.sh" 2>&1)"
+  RC=$?
+}
+touch "$FAKE/daemon-down" "$FAKE/active-docker.service"
+guard_run
+if [ "$RC" -ne 0 ] && echo "$OUT" | grep -q 'daemon does not answer'; then pass "a silent Docker daemon refuses the bot-unit stages"; else fail "guard silent (rc $RC): $OUT"; fi
+rm -f "$FAKE/active-docker.service"
+guard_run
+if [ "$RC" -eq 0 ] && echo "$OUT" | grep -q PASSED; then pass "no docker.service that can come back: the bot-unit stages go on"; else fail "guard cannot return (rc $RC): $OUT"; fi
+rm -f "$FAKE/daemon-down"
+running_stack
+echo "running healthy 0" >"$FAKE/c/discord-bot"
+guard_run
+if [ "$RC" -ne 0 ] && echo "$OUT" | grep -q 'runs as a container'; then pass "a bot container refuses the bot-unit stages"; else fail "guard container (rc $RC): $OUT"; fi
+# a unit and the container at the same time is flagged
+bot_pi
+echo "running healthy 0" >"$FAKE/c/discord-bot"
+touch "$FAKE/active-$botu"
+run_stage MODE=status $BOTENV
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'two bots on one token'; then pass "status fails when the bot unit and the bot container run together"; else fail "bot mixed (rc $RC): $OUT"; fi
 
 if [ "$fails" -eq 0 ]; then echo "ALL SCENARIOS OK"; else echo "$fails scenario check(s) FAILED"; exit 1; fi

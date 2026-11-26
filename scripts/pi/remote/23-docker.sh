@@ -252,11 +252,13 @@ fi
 
 say "the images (a few minutes the first time)"
 require_quiet "building the images (a long build can starve Foundry)"
-if ! (cd "$checkout" && docker compose -f deploy/pi/compose.yml build) >"$build_log" 2>&1; then
+# COMPOSE_PROFILES=discord-bot: the recorder bot's image is built with the rest although its service only starts after stage 24
+# MODE=bot (a profiled service is skipped by `compose build` otherwise, and the switch would find no image).
+if ! (cd "$checkout" && COMPOSE_PROFILES=discord-bot docker compose -f deploy/pi/compose.yml build) >"$build_log" 2>&1; then
   tail -n 40 "$build_log" >&2
   die "the image build failed (full log: $build_log). Nothing was started; the systemd units are as they were"
 fi
-images="$(cd "$checkout" && docker compose -f deploy/pi/compose.yml config --images 2>/dev/null || true)"
+images="$(cd "$checkout" && COMPOSE_PROFILES=discord-bot docker compose -f deploy/pi/compose.yml config --images 2>/dev/null || true)"
 [ -n "$images" ] || die "docker compose lists no images for $compose_file"
 for img in $images; do
   docker image inspect "$img" >/dev/null 2>&1 || die "image $img is missing after the build (log: $build_log)"

@@ -397,6 +397,46 @@ describe('op validation', () => {
 // Apply
 // ---------------------------------------------------------------------------
 
+describe('applyGuardedOps: timed effect start stamp', () => {
+  const stamped = (round: number, turn: number): GuardedOp[] => [
+    {
+      kind: 'create',
+      documentName: 'Actor',
+      data: { name: 'Timed', start: { combat: 'fight1', round, turn } },
+    },
+  ];
+
+  it('refuses a stamp from a turn that has passed, writing nothing', async () => {
+    (game as any).combats = { get: (): object => ({ round: 3, turn: 2 }) };
+    try {
+      const req = await request(stamped(3, 1));
+      await expect(applyGuardedOps(req)).rejects.toThrow(/turn moved since the plan/);
+    } finally {
+      delete (game as any).combats;
+    }
+  });
+
+  it('refuses a stamp whose fight is gone', async () => {
+    (game as any).combats = { get: (): undefined => undefined };
+    try {
+      const req = await request(stamped(3, 1));
+      await expect(applyGuardedOps(req)).rejects.toThrow(/fight .* is gone/);
+    } finally {
+      delete (game as any).combats;
+    }
+  });
+
+  it('applies when the fight is still at the stamped round and turn', async () => {
+    (game as any).combats = { get: (): object => ({ round: 3, turn: 1 }) };
+    try {
+      const req = await request(stamped(3, 1));
+      await expect(applyGuardedOps(req)).resolves.toBeDefined();
+    } finally {
+      delete (game as any).combats;
+    }
+  });
+});
+
 describe('applyGuardedOps: locked audio', () => {
   it('refuses a plan that touches a playlist while Foundry audio is locked, before any write', async () => {
     const req = await request([

@@ -49,11 +49,11 @@ import { WrapperRegistry } from './wrapper-registry.js';
 import {
   ToolCallLog,
   buildCallLine,
-  errorText,
   recordedCallLine,
   gmCaller,
   skillFields,
   type CallCaller,
+  warnFailedCall,
 } from './tool-call-log.js';
 import type { ToolResultLike } from './tool-router.js';
 import { ClientsFile, handleWhoUsesWhat } from './who-uses-what.js';
@@ -191,13 +191,7 @@ async function startBackend(): Promise<void> {
     try {
       const line = buildCallLine(tool, startedAt, result, Date.now(), caller);
       // The call log keeps only the class; the message goes to the backend log once.
-      if (!line.ok) {
-        logger.warn('Tool call failed', {
-          tool: line.tool,
-          class: line.err,
-          message: errorText(result).slice(0, 500),
-        });
-      }
+      warnFailedCall(logger, line, result);
       void callLog.record(line).catch(() => undefined);
     } catch {
       // logging never breaks a tool call

@@ -100,7 +100,6 @@ export const TOOL_SETS: Readonly<Record<ToolSetName, ToolSetSpec>> = Object.from
   ])
 ) as unknown as Record<ToolSetName, ToolSetSpec>;
 
-/** The environment variable a Claude Desktop entry sets, e.g. `core` or `prep,admin`. */
 /**
  * The place in Claude Desktop where the per-connector switches live (checked on the app
  * 2026-11-21: the + menu under the message box, then Plugins). One spelling for the server
@@ -108,6 +107,7 @@ export const TOOL_SETS: Readonly<Record<ToolSetName, ToolSetSpec>> = Object.from
  */
 export const CLAUDE_CONNECTOR_MENU = 'the + menu, then Plugins';
 
+/** The environment variable a Claude Desktop entry sets, e.g. `core` or `prep,admin`. */
 export const TOOL_SETS_ENV = 'FOUNDRY_AI_TOOL_SETS';
 
 const SET_OF_TOOL: ReadonlyMap<string, ToolSetName> = new Map(

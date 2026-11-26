@@ -11,7 +11,9 @@ The same steps as the connector's `rules-question` prompt, so the answers look a
    line. A line marked as not yet agreed or open is a proposal: call it one, never the rule.
 1. `list-compendium-packs` to see which books are installed, and which look like 2024 and which
    2014 rules. If you cannot tell, say "version unknown".
-2. Pick the search terms: the name of the spell, condition, feature, action or rule. Call
+2. Pick the search terms: the name of the spell, condition, feature, action or rule. Search with
+   the English game term, even when the player writes in another language, and answer in the
+   player's language. Call
    `search-rules` with `query` first: it reads the text of the rulebook chapters and of item, spell
    and feature descriptions in the rules packs, and returns the page or item id with a short
    snippet. `search-compendium` matches **names only**, so use it for an exact spell or item name.

@@ -277,7 +277,9 @@ export function reexec(o) {
     if (code !== EXIT_RESTART) {
       // The runner itself ends with 0, 1 or 3; anything else (a signal, a crash) leaves a line.
       if (![0, 1, 3].includes(code) || r.status == null) {
-        o.post?.(`merge runner child ended with ${r.status == null ? `signal ${r.signal ?? 'unknown'}` : `exit code ${code}`}`);
+        o.post?.(
+          `merge runner child ended with ${r.status == null ? `signal ${r.signal ?? 'unknown'}` : `exit code ${code}`}`
+        );
       }
       return code;
     }

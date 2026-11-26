@@ -76,7 +76,7 @@ Parameters:
 
 Direct write. D&D 5e only. Add a feature, attack, spellcasting setup or spells to an existing actor. featureType picks the mode. Parameters per mode (all need actor):
 
-- passive (a trait with no roll): featureName, description
+- passive (a trait with no roll): featureName; description optional
 - save (breath weapon): featureName, saveAbility, saveDC, damageParts; area, halfOnSave optional
 - attack (Claw, Bite): featureName, attackType, damageParts, rangeFt when ranged; weapon fields optional
 - attack-with-save (hit plus save, Stinger): the attack ones plus saveAbility, saveDC, saveDamageParts
@@ -116,7 +116,7 @@ Parameters:
 - `abilityModifier` (string): Ability for to-hit and damage. Default STR melee, DEX ranged. One of: `str`, `dex`, `con`, `int`, `wis`, `cha`.
 - `attackBonus` (number): Flat bonus to the attack roll only (not damage). Default 0. Range: 0 to 10.
 - `proficient` (boolean): Adds the proficiency bonus to hit. Default true.
-- `equipped` (boolean): Default true.
+- `equipped` (boolean): Equipped (attacks). Default true.
 - `reachFt` (number): Melee reach in feet. Default 5. Range: at least 5.
 - `rangeFt` (number): Normal range in feet. Required when ranged. Range: at least 1.
 - `longRangeFt` (number): Long range in feet (disadvantage beyond rangeFt); above rangeFt. Range: at least 1.
@@ -132,7 +132,7 @@ Parameters:
 
 ## dnd5e-create-npc
 
-Direct write. D&D 5e only. Create an NPC from scratch with a full stat block (no items, actions or spells: add them afterwards with dnd5e-add-feature). The actor goes in the "Foundry MCP Creatures" folder.
+Direct write. D&D 5e only. Create an NPC from scratch with a full stat block (no items, actions, features or spells: add them afterwards with dnd5e-add-feature). The actor goes in the "Foundry MCP Creatures" folder.
 
 Kind: changes something. Title: Create NPC.
 
@@ -156,7 +156,7 @@ Parameters:
   - `wis` (number, required)
   - `cha` (number, required)
 - `savingThrows` (array of string): Save proficiencies. One of: `str`, `dex`, `con`, `int`, `wis`, `cha`.
-- `walkSpeed` (number): Walk speed, ft. Range: at least 0.
+- `walkSpeed` (number): Walk speed, ft. Default 30. Range: at least 0.
 - `flySpeed` (number): Fly speed, ft. Range: at least 0.
 - `swimSpeed` (number): Swim speed, ft. Range: at least 0.
 - `climbSpeed` (number): Climb speed, ft. Range: at least 0.

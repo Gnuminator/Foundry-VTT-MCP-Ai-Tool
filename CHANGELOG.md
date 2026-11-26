@@ -120,7 +120,7 @@
   restarted until its heartbeat file is deleted). Re-register it once with
   `pwsh scripts/register-merge-runner.ps1` to get the repeat.
 - **Claude waits for your yes before applying a plan:** the apply tool now says plainly that asking for a change is not a yes, so Claude shows the plan and asks before it applies (tool eval: Sonnet 25/36 to 36/36 on the hard gates).
-- **Tool eval covers 33 cases:** eight new cases for the handout press, read-aloud, renown, macro, omens, actor image and character creation tools.
+- **Tool eval covers 33 cases:** eleven new cases for the handout press, read-aloud, renown, macro, omens, actor image and character creation tools.
 - **Transcription and the Previously on voice take the GPU lock:** `voice-stack.ps1 transcribe` and the dashboard's Previously on narration hold the GPU lock while they run and release it afterwards, also on failure. If another GPU job holds it, they stop with a plain message naming the holder instead of starting on top of it.
 - **Merge runner waits before the "no ready line" post:** the #pr-log notice for a PR with green CI and a Merge note but no ready line now appears only after the PR has stayed that way for 15 minutes, so lanes that write the ready line a few minutes after the note no longer trigger it. `status --planner` still shows it at once.
 - **Voice images rebuild when they are older than the code:** the transcriber and session-pipeline images now carry a hash of their source folder. `voice-stack.ps1 transcribe` compares it with the checkout and rebuilds a stale image before the job (or stops with one line under `-NoRebuild`), so a recording is never transcribed with an old model default again.

@@ -50,6 +50,12 @@ people is still to come. Works through Discord's end-to-end voice encryption (DA
 Players also get `/recap`, `/npc <name>` and `/handouts`. They answer from what the GM has
 revealed only (`src/lookup.ts`), and only in the configured server.
 
+**Voice memos:** the GM (the owner, or the ids in `DISCORD_MEMO_USER_IDS`) sends the bot a voice message or
+audio file in a direct message. The bot saves it in `<FVTT_MEMOS_DIR>/inbox` and answers with one line (`src/memo.ts`).
+On the PC, `node scripts/voice-memos.mjs` transcribes the inbox locally and writes a tagged note per memo
+under `Prep/Voice memos` in the GM vault. The inbox has to reach the PC (the bot on the Pi: sync the folder
+or copy it).
+
 By default only members with Manage Server see `/record`; change that under Server Settings >
 Integrations. Ctrl+C in the bot window also stops and converts a running recording.
 

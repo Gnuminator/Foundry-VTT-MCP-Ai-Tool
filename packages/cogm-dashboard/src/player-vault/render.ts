@@ -9,6 +9,7 @@
 import type { CharacterSheet, PlayerHandout, SheetItem, SheetSpell } from '@gnuminator/shared';
 
 import { htmlToMarkdown, neutralizeMarkdownText } from './html-md.js';
+import type { KeepsakeLedger } from './keepsake.js';
 import { NameAllocator } from './names.js';
 import type { PlayerBestRoll, PlayerStats } from './stats.js';
 import type { PlayerVaultFiles, PlayerVaultInput, VaultSession } from './types.js';
@@ -358,6 +359,24 @@ function sessionOrder(a: VaultSession, b: VaultSession): number {
 }
 
 // ---------------------------------------------------------------------------
+// Keepsakes
+// ---------------------------------------------------------------------------
+
+const KEEPSAKES_PATH = 'My keepsakes.md';
+
+function renderKeepsakes(ledgers: KeepsakeLedger[]): string {
+  const blocks = ledgers.map(l => {
+    const lines = l.lines.map(line => `- ${line.date ? `${line.date} ` : ''}${t(line.text)}`);
+    return [
+      `## ${t(l.title)}${l.character ? ` (${t(l.character)})` : ''}`,
+      t(l.summary),
+      ...(lines.length > 0 ? [lines.join('\n')] : []),
+    ].join('\n\n');
+  });
+  return `${['# My keepsakes', ...blocks].join('\n\n')}\n`;
+}
+
+// ---------------------------------------------------------------------------
 // Allowed stats
 // ---------------------------------------------------------------------------
 
@@ -462,6 +481,7 @@ function homeSection(title: string, refs: NoteRef[]): string {
  */
 export function renderPlayerVault(input: PlayerVaultInput): PlayerVaultFiles {
   const files: PlayerVaultFiles = new Map();
+  const keepsakes = input.keepsakes ?? [];
   const userId = input.player.userId;
 
   // Defence in depth: the service filters too, the renderer never trusts it.
@@ -519,11 +539,13 @@ export function renderPlayerVault(input: PlayerVaultInput): PlayerVaultFiles {
     homeSection(input.sheets.length === 1 ? 'My character' : 'My characters', characters),
     homeSection('Recaps', recaps),
     homeSection('Handouts', handouts),
+    keepsakes.length > 0 ? `## Keepsakes\n\n- ${link('My keepsakes', KEEPSAKES_PATH)}` : '',
     input.stats ? `## Stats\n\n- ${link('My stats', STATS_PATH)}` : '',
     homeSection('Session log', sessions),
   ].filter(v => v !== '');
   files.set('Home.md', `${home.join('\n\n')}\n`);
 
+  if (keepsakes.length > 0) files.set(KEEPSAKES_PATH, renderKeepsakes(keepsakes));
   if (input.stats) files.set(STATS_PATH, renderStats(input.stats));
   for (const [path, content] of notes) files.set(path, content);
   for (const [path, content] of sessionNotes) files.set(path, content);

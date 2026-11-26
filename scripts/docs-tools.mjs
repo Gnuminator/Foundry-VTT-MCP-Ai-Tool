@@ -21,6 +21,8 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 const check = process.argv.includes('--check');
 
 const env = { ...process.env, CI: 'true' };
+// The vitest run starts in packages/mcp-server, so a relative folder is made absolute here.
+if (env.TOOL_REFERENCE_DIR) env.TOOL_REFERENCE_DIR = path.resolve(env.TOOL_REFERENCE_DIR);
 if (check) delete env.UPDATE_TOOL_REFERENCE;
 else env.UPDATE_TOOL_REFERENCE = '1';
 
@@ -31,5 +33,7 @@ const result = spawnSync('npx vitest run src/tool-reference.test.ts', {
   stdio: 'inherit',
 });
 if (check && result.status !== 0)
-  console.error('docs:tools --check: the tool reference pages are stale. Run `npm run docs:tools`.');
+  console.error(
+    'docs:tools --check: check failed (usually a stale page). Run `npm run docs:tools`; if it fails again, read the output above.'
+  );
 process.exit(result.status ?? 1);

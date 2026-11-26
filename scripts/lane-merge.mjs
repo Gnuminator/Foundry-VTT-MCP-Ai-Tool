@@ -64,6 +64,7 @@ import { main } from './lane-merge/main.mjs';
 export * from './lane-merge/constants.mjs';
 export * from './lane-merge/risky.mjs';
 export * from './lane-merge/reviews.mjs';
+export * from './lane-merge/fix-round.mjs';
 export * from './lane-merge/ci.mjs';
 export * from './lane-merge/changelog.mjs';
 export * from './lane-merge/live-check.mjs';

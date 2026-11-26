@@ -11,7 +11,9 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { DiaryStore } from './diary-store.js';
 import { mountMeRoute } from './me-route.js';
 import type { PlayerLinkStore } from './player-links.js';
-import type { PlayerDirectory } from './usage-route.js';
+import type { Config } from './config.js';
+import type { Logger } from './logger.js';
+import { PlayerDirectory, mountUsageRoute, type UsageClient } from './usage-route.js';
 
 const KNOWN = 'k'.repeat(24);
 const UNKNOWN = 'u'.repeat(24);
@@ -52,6 +54,9 @@ const ROUTES: Array<[string, string, string]> = [
   ['diary', 'GET', '/api/me/diary'],
   ['roll', 'POST', '/api/me/roll'],
   ['portrait', 'POST', '/api/me/portrait'],
+  ['helper', 'GET', '/api/me/helper.mcpb'],
+  ['diary add', 'POST', '/api/me/diary'],
+  ['diary delete', 'DELETE', '/api/me/diary/abc'],
 ];
 
 describe('My character with the table closed', () => {
@@ -74,6 +79,74 @@ describe('My character with the table closed', () => {
       expect(((await bad.json()) as { code: string }).code).toBe('no-link');
     });
   }
+
+  it('usage: a known key gets 503 (the page keeps its events), an unknown key 401', async () => {
+    const app = express();
+    mountUsageRoute(app, {
+      config: {} as unknown as Config,
+      client: {} as unknown as UsageClient,
+      logger: { debug: (): void => undefined, warn: (): void => undefined } as unknown as Logger,
+      directory: new PlayerDirectory({} as unknown as UsageClient, {} as unknown as Logger),
+      requireGm: (_req, _res, next) => next(),
+      meUserFor: () => null,
+      meTableClosed: key => key === KNOWN,
+    });
+    await new Promise<void>(r => (server = app.listen(0, '127.0.0.1', () => r())));
+    const base = `http://127.0.0.1:${(server!.address() as AddressInfo).port}`;
+    const send = (key: string): Promise<Response> =>
+      fetch(`${base}/api/me/usage`, {
+        method: 'POST',
+        headers: { 'X-CoGM-Me': key, 'Content-Type': 'application/json' },
+        // Not valid JSON: only a key check that runs before the parser answers 503 or 401, not 400.
+        body: '{',
+      });
+    expect((await send(KNOWN)).status).toBe(503);
+    expect((await send(UNKNOWN)).status).toBe(401);
+  });
+
+  it('usage: a keyed user the directory has not seen is recorded by id with no name', async () => {
+    const recorded: Array<{ who?: unknown }> = [];
+    const client = {
+      isConnected: false,
+      callTool: (): Promise<never> => Promise.reject(new Error('no world')),
+      recordUsage: (
+        events: Array<{ who?: unknown }>
+      ): Promise<{ accepted: number; dropped: number }> => {
+        recorded.push(...events);
+        return Promise.resolve({ accepted: events.length, dropped: 0 });
+      },
+    };
+    const app = express();
+    mountUsageRoute(app, {
+      config: {} as unknown as Config,
+      client: client as never,
+      logger: { debug: (): void => undefined, warn: (): void => undefined } as unknown as Logger,
+      directory: new PlayerDirectory(client as never, {} as unknown as Logger),
+      requireGm: (_req, _res, next) => next(),
+      meUserFor: () => 'ghost',
+    });
+    await new Promise<void>(r => (server = app.listen(0, '127.0.0.1', () => r())));
+    const base = `http://127.0.0.1:${(server!.address() as AddressInfo).port}`;
+    const res = await fetch(`${base}/api/me/usage`, {
+      method: 'POST',
+      headers: { 'X-CoGM-Me': KNOWN, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        events: [
+          {
+            v: 1,
+            key: 'a:1',
+            t: Date.now(),
+            seq: 1,
+            clientId: 'a',
+            kind: 'action',
+            name: 'me.print',
+          },
+        ],
+      }),
+    });
+    expect(res.status).toBe(200);
+    expect(recorded[0]?.who).toEqual({ role: 'player', userId: 'ghost', name: null });
+  });
 
   it('with the table open an unknown key is still 401', async () => {
     const base = await start(true);

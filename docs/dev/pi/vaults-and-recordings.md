@@ -56,7 +56,8 @@ to text runs on this PC (faster-whisper). After `/record stop` the bot converts 
 Pi. This PC's session pipeline (`tools/session-notes/auto.ps1`, with `FVTT_PI_HOST=foundry-pi`) then
 copies every finished recording over SSH through Tailscale, checks each file, and marks it copied on
 the Pi; the Pi deletes copied recordings after 7 days. The recorded audio on this PC is kept (D-097):
-nothing deletes it automatically, only a player's request does. Details:
+nothing deletes it automatically, only a player's request does. The bot is a systemd unit, or a container of the Pi stack
+after stage 24 `MODE=bot` (same settings file, same recordings folder, `deploy/pi/README.md`). Details:
 [the bot's README](../../../packages/discord-bot/README.md#on-the-orange-pi-d-068).
 
 ## Recorder status endpoint (stage 27)

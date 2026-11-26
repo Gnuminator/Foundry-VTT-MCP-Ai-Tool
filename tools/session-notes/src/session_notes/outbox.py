@@ -371,6 +371,9 @@ def refresh(item: dict[str, Any]) -> None:
         )
     if any(len(p) > DISCORD_LIMIT for p in item["discord"]):
         item["warnings"].append("A Discord message is over 2000 characters.")
+    # render_pc keeps the date line and so_far whatever the cap, so the short version can stay over it.
+    if item.get("short") and len(plain(item["short"])) > PC_CAPS["discord"]:
+        item["warnings"].append(f"The short Discord version is over {PC_CAPS['discord']} characters: shorten it.")
 
 
 # ---------------------------------------------------------------------------

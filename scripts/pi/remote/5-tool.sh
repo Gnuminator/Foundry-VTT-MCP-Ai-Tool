@@ -112,11 +112,13 @@ containers_prepare_build() {
   ok "$(stack_dir)/.env carried into the new build"
   require_quiet "building the images (a long build can starve Foundry)"
   say "building the images from the new tree, a few minutes (log: $build_log)"
-  if ! (cd "$tree/deploy/pi" && docker compose -p "$COMPOSE_LIVE_PROJECT" -f compose.yml build) >"$build_log" 2>&1; then
+  # COMPOSE_PROFILES=discord-bot: the recorder bot's image is built and recreated like the others (its service starts only
+  # once stage 24 MODE=bot moved the bot into the stack; a profiled service is skipped by `compose build` otherwise).
+  if ! (cd "$tree/deploy/pi" && COMPOSE_PROFILES=discord-bot docker compose -p "$COMPOSE_LIVE_PROJECT" -f compose.yml build) >"$build_log" 2>&1; then
     tail -n 40 "$build_log" >&2
     die "the image build of $ref failed (full log: $build_log); nothing was swapped or stopped, the containers and $app are as they were"
   fi
-  images="$(cd "$tree/deploy/pi" && docker compose -p "$COMPOSE_LIVE_PROJECT" -f compose.yml config --images 2>/dev/null || true)"
+  images="$(cd "$tree/deploy/pi" && COMPOSE_PROFILES=discord-bot docker compose -p "$COMPOSE_LIVE_PROJECT" -f compose.yml config --images 2>/dev/null || true)"
   for img in $images; do
     docker image inspect "$img" >/dev/null 2>&1 ||
       die "image $img is missing after the build (log: $build_log); nothing was swapped or stopped"
@@ -174,7 +176,9 @@ containers_apply() {
   fi
   for s in $STACK_SERVICES; do
     after="$(svc_cid "$s" -a)"
-    if [ -z "${before[$s]}" ]; then
+    if [ -z "${before[$s]}" ] && [ "$s" = discord-bot ]; then
+      ok "$s: no container (the bot still runs as its systemd unit; stage 24 MODE=bot moves it, stage 8 updates the unit)"
+    elif [ -z "${before[$s]}" ]; then
       ok "$s: no container (stage 24 makes it)"
     elif [ "$after" != "${before[$s]}" ]; then
       ok "$s: recreated"

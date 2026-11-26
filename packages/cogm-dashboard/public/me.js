@@ -536,6 +536,131 @@ $('md-list').addEventListener('click', async e => {
   }
 });
 
+// "My keepsakes": lists that fill themselves from the public log (server-built, player-safe).
+let keepsakeLoaded = false;
+
+function keepsakeStatus(text) {
+  $('mk-status').textContent = text || '';
+}
+
+function renderKeepsakes(out) {
+  const labels = {
+    rest: 'A rest taken',
+    death: 'Someone went down',
+    stabilize: 'Someone back up',
+    'combat-start': 'A combat started',
+    'combat-end': 'A combat ended',
+    'item-use': 'A feature or item used',
+  };
+  const picked = $('mk-event').value;
+  $('mk-event').innerHTML = (out.eventTypes || [])
+    .map(t => `<option value="${esc(t)}">${esc(labels[t] || t)}</option>`)
+    .join('');
+  if (picked) $('mk-event').value = picked;
+  $('mk-list').innerHTML = (out.ledgers || [])
+    .map(
+      l => `<li>
+        <div class="md-meta">${esc(l.character || 'My character')}</div>
+        <p class="md-text"><strong>${esc(l.title)}</strong>: ${esc(l.summary)}</p>
+        ${
+          l.lines.length
+            ? `<ul>${l.lines
+                .map(x => `<li>${x.date ? `${esc(x.date)} ` : ''}${esc(x.text)}</li>`)
+                .join('')}</ul>`
+            : ''
+        }
+        <button type="button" data-keepsake-del="${esc(l.id)}" aria-label="Remove ${esc(l.title)}" data-track="me.keepsake.delete">Remove</button>
+      </li>`
+    )
+    .join('');
+}
+
+async function keepsakeCall(method, path, body) {
+  const res = await fetch(path, {
+    method,
+    headers: { 'X-CoGM-Me': key, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+  const out = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(out.error || 'Could not reach your keepsakes. Try again.');
+    err.status = res.status;
+    throw err;
+  }
+  return out;
+}
+
+async function loadKeepsakes() {
+  if (!key || keepsakeLoaded) return;
+  try {
+    renderKeepsakes(await keepsakeCall('GET', '/api/me/keepsakes'));
+    keepsakeLoaded = true;
+    $('me-keepsakes').hidden = false;
+    keepsakeStatus('');
+  } catch (err) {
+    // No keepsakes here (player vaults off, an older server, no link): the section stays hidden.
+    const status = err && err.status;
+    if (status === 404 || status === 401 || status === 501 || status === 503 || !status) return;
+    $('me-keepsakes').hidden = false;
+    keepsakeStatus(err.message);
+  }
+}
+
+$('mk-kind').addEventListener('change', () => {
+  $('mk-count').hidden = $('mk-kind').value !== 'count';
+});
+$('mk-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const character = diaryCharName();
+  if (!character) {
+    keepsakeStatus('Your character has not loaded yet. Try again in a moment.');
+    return;
+  }
+  const submit = $('mk-form').querySelector('button[type="submit"]');
+  submit.disabled = true;
+  keepsakeStatus('Saving…');
+  try {
+    renderKeepsakes(
+      await keepsakeCall('POST', '/api/me/keepsakes', {
+        character,
+        kind: $('mk-kind').value,
+        title: $('mk-title').value,
+        eventType: $('mk-event').value,
+        unit: $('mk-unit').value,
+      })
+    );
+    $('mk-title').value = '';
+    keepsakeStatus('Added.');
+  } catch (err) {
+    keepsakeStatus(err.message);
+  } finally {
+    submit.disabled = false;
+  }
+});
+$('mk-list').addEventListener('click', async e => {
+  const del = e.target.closest('[data-keepsake-del]');
+  if (!del || !window.confirm('Remove this keepsake?')) return;
+  try {
+    renderKeepsakes(
+      await keepsakeCall(
+        'DELETE',
+        `/api/me/keepsakes/${encodeURIComponent(del.dataset.keepsakeDel)}`
+      )
+    );
+    keepsakeStatus('Removed.');
+  } catch (err) {
+    keepsakeStatus(err.message);
+  }
+});
+$('me-keepsakes').addEventListener('toggle', () => {
+  // Opening it again refreshes the lists (they fill during play).
+  if ($('me-keepsakes').open) {
+    keepsakeLoaded = false;
+    void loadKeepsakes();
+  }
+});
+void loadKeepsakes();
+
 $('me-print').addEventListener('click', () => window.print());
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) {

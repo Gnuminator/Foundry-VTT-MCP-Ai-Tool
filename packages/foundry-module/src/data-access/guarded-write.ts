@@ -1020,7 +1020,8 @@ async function runGuardedApply(
       moduleListTooLarge();
     const reason = tooLarge
       ? MODULE_LIST_TOO_LARGE_MESSAGE
-      : (conflictReason(op, req.expected[i], current[i], req.mode) ?? staleStamp(op, req.mode));
+      : (conflictReason(op, req.expected[i], current[i], req.mode) ??
+        staleStamp(op, req.mode, req.feature));
     if (reason) conflicts.push(`op ${i} (${op.kind}): ${reason}`);
     // The modules a flag drags along are worked out again here: the world may have changed.
     if (req.mode === 'apply' && op.kind === 'update') {

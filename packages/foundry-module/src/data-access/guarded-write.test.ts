@@ -14,6 +14,7 @@ import { eventTracker, type SessionLogEntry } from '../session-events.js';
 import { onAiChangesUpdated } from '../ai-changes-signal.js';
 import { registerGuardedFeature, resetGuardedFeaturesForTests } from '../guarded-features.js';
 import { expectedAfterApply } from '@gnuminator/shared';
+import { staleStamp } from './start-stamp.js';
 import {
   GUARDED_OUTCOME_MEMORY,
   applyGuardedOps,
@@ -398,13 +399,25 @@ describe('op validation', () => {
 // ---------------------------------------------------------------------------
 
 describe('applyGuardedOps: timed effect start stamp', () => {
-  const stamped = (round: number, turn: number): GuardedOp[] => [
+  const stamped = (round: number, turn: number, value: number | null = 1): GuardedOp[] => [
     {
       kind: 'create',
       documentName: 'Actor',
-      data: { name: 'Timed', start: { combat: 'fight1', round, turn } },
+      data: { name: 'Timed', duration: { value }, start: { combat: 'fight1', round, turn } },
     },
   ];
+
+  it('does not check an untimed op or a journal undo plan', async () => {
+    (game as any).combats = { get: (): object => ({ round: 9, turn: 9 }) };
+    try {
+      expect(staleStamp(stamped(3, 1, null)[0], 'apply', FEATURE)).toBeNull();
+      expect(staleStamp(stamped(3, 1)[0], 'apply', 'change-undo')).toBeNull();
+      expect(staleStamp(stamped(3, 1)[0], 'undo', FEATURE)).toBeNull();
+      expect(staleStamp(stamped(3, 1)[0], 'apply', FEATURE)).toMatch(/turn moved/);
+    } finally {
+      delete (game as any).combats;
+    }
+  });
 
   it('refuses a stamp from a turn that has passed, writing nothing', async () => {
     (game as any).combats = { get: (): object => ({ round: 3, turn: 2 }) };

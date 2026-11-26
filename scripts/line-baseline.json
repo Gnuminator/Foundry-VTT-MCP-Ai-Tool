@@ -3,7 +3,7 @@
   "files": {
     ".claude/hooks/guard-remote-commands.mjs": 1034,
     "packages/foundry-module/src/data-access/actor-builder.ts": 1418,
-    "packages/foundry-module/src/data-access/guarded-write.ts": 1101,
+    "packages/foundry-module/src/data-access/guarded-write.ts": 1102,
     "packages/foundry-module/src/data-access/player-rolls.ts": 1195,
     "packages/foundry-module/src/export-index.ts": 1428,
     "packages/foundry-module/src/npc-turn.ts": 1158,
@@ -232,6 +232,12 @@
       "file": "packages/foundry-module/src/data-access/guarded-write.ts",
       "lines": 1101,
       "reason": "one import line for the apply-time start-stamp check; the logic lives in start-stamp.ts",
+      "pr": ""
+    },
+    {
+      "file": "packages/foundry-module/src/data-access/guarded-write.ts",
+      "lines": 1102,
+      "reason": "two lines for the apply-time start-stamp check; the logic lives in start-stamp.ts",
       "pr": ""
     }
   ]

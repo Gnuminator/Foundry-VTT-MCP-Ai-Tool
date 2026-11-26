@@ -75,6 +75,6 @@ export async function readAgenda(sessionsDir: string): Promise<PrepAgenda> {
     note:
       open.length === 0
         ? 'No open table questions.'
-        : `${open.length} open table question(s) from earlier sessions: the "Settle at the start" list (settle or drop one with session-notes agenda).`,
+        : `${open.length} open table question(s) from earlier sessions: the "Settle at the start" list (settle or drop one with "session-notes agenda --settle <id>" or "--drop <id>").`,
   };
 }

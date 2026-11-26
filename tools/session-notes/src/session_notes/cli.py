@@ -158,7 +158,6 @@ def main(argv: list[str] | None = None) -> int:
         "agenda",
         help="show the table agenda (open questions carried over); --settle or --drop marks one by hand",
     )
-    agn.add_argument("session", nargs="?", help="unused; the agenda covers every session")
     agn.add_argument("--settle", metavar="ID", help="mark the item settled")
     agn.add_argument("--drop", metavar="ID", help="mark the item dropped")
     agn.add_argument("--reopen", metavar="ID", help="mark the item open again")

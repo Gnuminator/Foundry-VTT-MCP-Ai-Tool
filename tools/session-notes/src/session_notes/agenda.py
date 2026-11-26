@@ -16,7 +16,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -74,21 +76,49 @@ def words(text: str) -> set[str]:
     return {w for w in re.findall(r"\w+", text.casefold()) if len(w) >= 4 and w not in STOP}
 
 
-def matches(a: str, b: str) -> bool:
-    """Two lines are about the same thing: enough shared content words."""
-    wa, wb = words(a), words(b)
+def matches(item: str, other: str) -> bool:
+    """``other`` is about the same thing as ``item``: at least two content words of both languages
+    shared, and that share is at least MIN_RATIO of the item's own words (a one-word item never
+    matches by itself; it stays open for Danni to settle)."""
+    wa, wb = words(item), words(other)
     shared = len(wa & wb)
-    smaller = min(len(wa), len(wb))
-    return smaller > 0 and shared >= min(MIN_SHARED, smaller) and shared / smaller >= MIN_RATIO
+    return shared >= MIN_SHARED and shared / len(wa) >= MIN_RATIO
+
+
+def _both(en: Any, da: Any) -> str:
+    return f"{en or ''} {da or ''}"
+
+
+def _write(sessions_root: Path, agenda: dict[str, Any]) -> None:
+    """Atomic: a crash mid-write never leaves a half file; the readable pages follow."""
+    sessions_root.mkdir(parents=True, exist_ok=True)
+    path = agenda_path(sessions_root)
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps(agenda, ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n")
+    os.replace(tmp, path)
+    for lang in LANGS:
+        (sessions_root / f"table-agenda.{lang}.md").write_text(
+            render(agenda, lang), encoding="utf-8", newline="\n"
+        )
 
 
 def load(sessions_root: Path) -> dict[str, Any]:
+    path = agenda_path(sessions_root)
     try:
-        data = json.loads(agenda_path(sessions_root).read_text(encoding="utf-8-sig"))
+        data = json.loads(path.read_text(encoding="utf-8-sig"))
+    except FileNotFoundError:
+        return {"schema": 1, "items": []}
     except (OSError, ValueError):
-        return {"schema": 1, "items": []}
+        data = None
     if not isinstance(data, dict) or not isinstance(data.get("items"), list):
+        # never lose Danni's decisions to a bad file: keep it aside and say so
+        try:
+            os.replace(path, path.with_name(path.name + ".bak"))
+            print(f"table agenda: {path} could not be read; kept as {path.name}.bak", file=sys.stderr)
+        except OSError:
+            pass
         return {"schema": 1, "items": []}
+    data["items"] = [i for i in data["items"] if isinstance(i, dict) and i.get("session") and i.get("id")]
     return data
 
 
@@ -124,13 +154,26 @@ def update(
     """Fold one finished session into the agenda and write the file. Returns the agenda."""
     agenda = load(sessions_root)
     starts = _starts(lines)
-    old = {i["id"]: i for i in agenda["items"] if i.get("id")}
+    mine = [i for i in agenda["items"] if i["session"] == session]
+    old = {i["id"]: i for i in mine}
     # this session's items are rebuilt from its notes; a status Danni or an earlier run gave stays
-    items = [i for i in agenda["items"] if i.get("session") != session]
+    items = [i for i in agenda["items"] if i["session"] != session]
     for raw in _table_items(notes, OPEN_TOPICS):
         en, da = str(raw.get("en", "")).strip(), str(raw.get("da", "")).strip()
         iid = item_id(session, raw["topic"], en, da)
-        prev = old.get(iid, {})
+        prev = old.pop(iid, None)
+        if prev is None:  # the notes were reworded on a re-run: the same question keeps its status
+            same = next(
+                (
+                    o
+                    for o in old.values()
+                    if o["topic"] == raw["topic"] and matches(_both(o.get("en"), o.get("da")), _both(en, da))
+                ),
+                None,
+            )
+            if same is not None:
+                prev = old.pop(same["id"])
+        prev = prev or {}
         link = _link(session, "en", list(raw.get("cites", [])), starts)
         item: dict[str, Any] = {
             "id": iid,
@@ -151,7 +194,7 @@ def update(
         for item in items:
             if item["status"] != "open" or item["session"] >= session:
                 continue
-            if matches(item.get("en") or item.get("da", ""), str(raw.get("en") or raw.get("da", ""))):
+            if matches(_both(item.get("en"), item.get("da")), _both(raw.get("en"), raw.get("da"))):
                 item["status"] = "settled"
                 item["settledBy"] = {
                     "session": session,
@@ -161,10 +204,7 @@ def update(
                 }
     items.sort(key=lambda i: (i["session"], i["id"]))
     agenda["items"] = items
-    sessions_root.mkdir(parents=True, exist_ok=True)
-    agenda_path(sessions_root).write_text(
-        json.dumps(agenda, ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n"
-    )
+    _write(sessions_root, agenda)
     return agenda
 
 
@@ -179,9 +219,7 @@ def set_status(sessions_root: Path, item: str, status: str) -> dict[str, Any]:
     hits[0]["status"] = status
     if status != "settled":
         hits[0].pop("settledBy", None)
-    agenda_path(sessions_root).write_text(
-        json.dumps(agenda, ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n"
-    )
+    _write(sessions_root, agenda)
     return hits[0]
 
 
@@ -192,13 +230,22 @@ def open_items(agenda: dict[str, Any]) -> list[dict[str, Any]]:
 def _line(item: dict[str, Any], lang: str, h: dict[str, str]) -> str:
     text = item.get(lang) or item.get("en") or item.get("da") or ""
     src = item.get("source")
-    stamp = f" ([[transcript.{lang}#^{src['ref'].split('^')[-1]}|{src['time']}]])" if src else ""
-    out = f"- {text}{stamp} ({h['from']} {item['session']})"
+    out = f"- {text}{_stamp(item['session'], src, lang)} ({h['from']} {item['session']}, `{item['id']}`)"
     by = item.get("settledBy")
     if by:
-        when = f" {by['time']}" if by.get("time") else ""
-        out += f"; {h['by']} {by['session']}{when}: {by.get(lang) or by.get('en') or by.get('da') or ''}"
+        out += (
+            f"; {h['by']} {by['session']}{_stamp(by['session'], by, lang)}: "
+            f"{by.get(lang) or by.get('en') or by.get('da') or ''}"
+        )
     return out
+
+
+def _stamp(session: str, src: dict[str, Any] | None, lang: str) -> str:
+    """A link to the transcript line, qualified by the session folder (every session has a transcript)."""
+    if not src or not src.get("ref") or not src.get("time"):
+        return ""
+    anchor = str(src["ref"]).split("#", 1)[-1]
+    return f" ([[{session}/notes/transcript.{lang}#{anchor}|{src['time']}]])"
 
 
 def render(agenda: dict[str, Any], lang: str) -> str:

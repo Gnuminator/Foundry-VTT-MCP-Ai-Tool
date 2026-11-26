@@ -83,3 +83,23 @@ def test_render_lists_open_first_in_both_languages(tmp_path: Path) -> None:
     assert "## Settle at the start\n\n- Fumble rule" in agenda.render(result, "en")
     assert "## Afgør ved start" in agenda.render(result, "da")
     assert "## Settled\n\nNone" in agenda.render(result, "en")
+
+
+def test_reworded_rerun_keeps_status_and_single_word_never_auto_settles(tmp_path: Path) -> None:
+    first = [scene(("proposed", "Fumble rule on a natural one", "x"), ("proposed", "Snacks", "snacks"))]
+    result = agenda.update(tmp_path, S0, first, [line("u000001", 1.0)])
+    fumble = next(i for i in result["items"] if i["en"].startswith("Fumble"))
+    agenda.set_status(tmp_path, fumble["id"], "dropped")
+    reworded = [scene(("proposed", "A fumble rule for a natural one", "x"), ("proposed", "Snacks", "snacks"))]
+    again = agenda.update(tmp_path, S0, reworded, [line("u000001", 1.0)])
+    assert {i["en"]: i["status"] for i in again["items"]}["A fumble rule for a natural one"] == "dropped"
+    later = agenda.update(tmp_path, S1, [scene(("house_rules", "Snacks are free", "snacks"))], [line("u000001", 1.0)])
+    assert any(i["en"] == "Snacks" and i["status"] == "open" for i in later["items"])
+
+
+def test_corrupt_file_is_kept_aside_and_pages_follow_hand_changes(tmp_path: Path) -> None:
+    (tmp_path / agenda.AGENDA_FILE).write_text("{nope", encoding="utf-8")
+    result = agenda.update(tmp_path, S0, [scene(("open", "Who brings snacks", "snacks"))], [line("u000001", 1.0)])
+    assert (tmp_path / "table-agenda.json.bak").read_text(encoding="utf-8") == "{nope"
+    agenda.set_status(tmp_path, result["items"][0]["id"], "dropped")
+    assert "## Dropped\n\n- Who brings snacks" in (tmp_path / "table-agenda.en.md").read_text(encoding="utf-8")

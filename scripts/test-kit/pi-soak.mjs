@@ -405,7 +405,7 @@ async function main() {
     notes.push(`CHANGES LEFT APPLIED (undo them by hand): ${guard.stranded.join(', ')}`);
   if (state.reason && state.reason !== 'the time is up') notes.push(`ended early: ${state.reason}`);
   notes.push(
-    'Foundry CPU is the whole foundry.service cgroup over one window; a spike inside a window shows only as its share of it.'
+    'Foundry CPU is the whole foundry container cgroup (compose stack; the foundry.service cgroup on the old systemd stack) over one window; a spike inside a window shows only as its share of it.'
   );
   notes.push(
     '"AI write to dashboard" is plan plus apply as seen from this PC, network hop to the Pi included (the change is logged when the apply returns).'

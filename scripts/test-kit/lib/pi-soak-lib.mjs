@@ -19,6 +19,9 @@ export const WATCHED_UNITS = [
 /** The unit whose CPU is "Foundry's main thread" (the process of foundry.service). */
 export const FOUNDRY_UNIT = 'foundry.service';
 
+/** The compose service whose container is "Foundry's main thread" on the container stack (project foundry-ai-tool-pi). */
+export const FOUNDRY_SERVICE = 'foundry';
+
 /** The pass bar (the user decides; these are the plan's proposal). */
 export const PASS_BAR = Object.freeze({
   foundryCpuPct: 70,
@@ -37,6 +40,11 @@ export function remoteExtras(units = WATCHED_UNITS) {
 echo "CPUSTAT $(head -n1 /proc/stat)"
 echo "FREQ $(cat /sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq 2>/dev/null | tr '\\n' ' ')| $(cat /sys/devices/system/cpu/cpu*/cpufreq/cpuinfo_max_freq 2>/dev/null | tr '\\n' ' ')"
 for u in ${units.join(' ')}; do echo "UNIT $u $(systemctl show -p ActiveState -p MainPID -p NRestarts "$u" 2>/dev/null | tr '\\n' ' ')"; done
+if [ -n "$(command -v docker)" ] && systemctl is-active --quiet docker.service 2>/dev/null; then
+  docker ps -a --no-trunc --filter "label=com.docker.compose.project=foundry-ai-tool-pi" --format '{{.ID}} {{.Label "com.docker.compose.service"}}' 2>/dev/null | while read -r cid svc; do
+    echo "CONTAINER $svc $cid $(docker inspect -f '{{.State.Status}} {{.RestartCount}}' "$cid" 2>/dev/null)"
+  done
+fi
 `;
 }
 
@@ -70,7 +78,20 @@ export function parseExtras(text) {
       restarts: Number(kv.NRestarts) || 0,
     };
   }
+  /** @type {Record<string, string>} compose service to full container id */
+  const containerIds = {};
+  for (const l of text.split('\n')) {
+    const m = /^CONTAINER (\S+) ([0-9a-f]{12,64}) (\S+) (\d+)\s*$/.exec(l);
+    if (!m) continue;
+    containerIds[m[1]] = m[2];
+    units[`container:${m[1]}`] = {
+      active: m[3] === 'running' ? 'active' : m[3],
+      pid: 0,
+      restarts: Number(m[4]),
+    };
+  }
   return {
+    containerIds,
     cpu: cpu.length >= 5 && cpu.every(Number.isFinite) ? cpu : null,
     freqCur: nums(curRaw),
     freqMax: nums(maxRaw),
@@ -114,14 +135,28 @@ export function buildRecord(text, prev) {
       }
     }
   }
+  // A container's processes sit in a cgroup named after its id (docker-<id>.scope or docker/<id>).
+  const unitCpu = Object.fromEntries(Object.entries(s.units).map(([k, v]) => [k, v.cpu]));
+  for (const [svc, id] of Object.entries(x.containerIds)) {
+    if (x.units[`container:${svc}`]?.active !== 'active') continue;
+    unitCpu[`container:${svc}`] = Object.entries(s.units)
+      .filter(([k]) => k.includes(id))
+      .reduce((sum, [, v]) => sum + v.cpu, 0);
+  }
+  // Foundry's CPU: the foundry container on the compose stack, the systemd unit only as the fallback.
+  const containerKey = `container:${FOUNDRY_SERVICE}`;
+  const foundryCpu =
+    unitCpu[containerKey] !== undefined && x.units[containerKey]?.active === 'active'
+      ? unitCpu[containerKey]
+      : (s.units[FOUNDRY_UNIT]?.cpu ?? null);
   return {
     seconds: s.seconds,
     tempC: s.tempC,
     load1: s.load.l1,
     memUsedMb: s.memUsedMb,
     cores: s.cores,
-    foundryCpu: s.units[FOUNDRY_UNIT]?.cpu ?? null,
-    unitCpu: Object.fromEntries(Object.entries(s.units).map(([k, v]) => [k, v.cpu])),
+    foundryCpu,
+    unitCpu,
     iowaitPct,
     busyPct,
     freqRatio,

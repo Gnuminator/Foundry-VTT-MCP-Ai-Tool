@@ -40,6 +40,10 @@ errors, Claude tells you what to fix before calling the prep done.
 ## Tips
 
 - Say "skip step 4" if there is no fight. It goes on the final list so you remember it.
+- Got an idea in the car? Send it to the bot as a voice message in a direct message. The PC writes
+  it out as a note in **Prep/Voice memos** in Obsidian, tagged with the NPCs and places you
+  named (the PC does this when the owner runs `node scripts/voice-memos.mjs`). Set `status` to
+  `done` when you have used it.
 - You can answer in Danish. Claude keeps the English game terms.
 - For a plain read of the same facts without Claude, open the **Prep** drawer in the dashboard
   ([Get ready for next session](cookbook.md#get-ready-for-next-session)).

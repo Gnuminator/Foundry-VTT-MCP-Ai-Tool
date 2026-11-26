@@ -563,6 +563,18 @@ describe('FoundryDataAccess: suggestBalancedEncounter', () => {
     expect(result.difficulty).toBe('high');
   });
 
+  it('scales the budget by toughness, clamped to 0.5 to 2', async () => {
+    const base = await da.suggestBalancedEncounter({ partyLevels: [5] });
+    const up = await da.suggestBalancedEncounter({ partyLevels: [5], toughness: 1.5 });
+    const capped = await da.suggestBalancedEncounter({ partyLevels: [5], toughness: 9 });
+    expect(base.xpBudget).toBe(500);
+    expect(up.xpBudget).toBe(750);
+    expect(up.baseXpBudget).toBe(500);
+    expect(up.toughness).toBe(1.5);
+    expect(capped.xpBudget).toBe(1000);
+    expect(capped.toughness).toBe(2);
+  });
+
   it('derives party levels from player-owned character actors when none are passed', async () => {
     world.addActor({
       name: 'PC1',

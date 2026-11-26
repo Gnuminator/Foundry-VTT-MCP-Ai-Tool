@@ -112,7 +112,7 @@ Parameters:
 
 - `partyLevels` (array of integer): Character levels. If omitted, derived from the player characters.
 - `difficulty` (string): Encounter difficulty (default "moderate"). One of: `low`, `moderate`, `high`.
-- `toughness` (number): How tough this party measured against its plans (get-play-stats, fights.toughness): above 1 means fights cost less HP than planned, so the XP budget (and creature count) is multiplied by it; below 1 it shrinks. Default 1 (no adjustment). Range: 0.5 to 2.
+- `toughness` (number): How tough this party measured against its plans (get-play-stats, fights.toughness): above 1 means fights cost less HP than planned, so the XP budget (and so the suggested CRs) is multiplied by it; below 1 it shrinks. Default 1 (no adjustment). Range: 0.5 to 2.
 
 ## get-tarokka-reading
 

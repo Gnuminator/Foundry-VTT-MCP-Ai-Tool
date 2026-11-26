@@ -46,7 +46,7 @@ export class EncounterTools {
               maximum: 2,
               description:
                 'How tough this party measured against its plans (get-play-stats, fights.toughness): ' +
-                'above 1 means fights cost less HP than planned, so the XP budget (and creature count) ' +
+                'above 1 means fights cost less HP than planned, so the XP budget (and so the suggested CRs) ' +
                 'is multiplied by it; below 1 it shrinks. Default 1 (no adjustment).',
             },
           },
@@ -69,6 +69,12 @@ export class EncounterTools {
       )) as EncounterReply | undefined;
       if (response?.success === false) {
         throw new Error(response.error || 'Failed to suggest encounter');
+      }
+      if (params.toughness !== undefined && response && response.toughness === undefined) {
+        // An older module drops the input: say so, so the unscaled budget is not read as adjusted.
+        const earlier = typeof response.note === 'string' ? response.note : '';
+        response.note =
+          `${earlier} The module is too old to apply toughness: this budget is not adjusted.`.trim();
       }
       return response;
     } catch (error) {

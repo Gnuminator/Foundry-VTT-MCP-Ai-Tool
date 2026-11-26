@@ -76,16 +76,20 @@ export interface FightsReport {
   summary: string;
 }
 
-/** Which planned size the foes' XP is closest to: a midpoint between budgets splits the bands. */
+/** The planned size, by dnd5e's own rule: a budget is the ceiling of its difficulty. */
 export function plannedBandOf(
   foeXp: number,
   budgets: { low: number; moderate: number; high: number }
 ): FightBand | null {
   if (foeXp <= 0 || budgets.moderate <= 0) return null;
-  if (foeXp >= (budgets.moderate + budgets.high) / 2) return 'high';
-  if (foeXp >= (budgets.low + budgets.moderate) / 2) return 'moderate';
-  return 'low';
+  if (foeXp <= budgets.low) return 'low';
+  if (foeXp <= budgets.moderate) return 'moderate';
+  return 'high';
 }
+
+/** Finished fights with a plan needed before a toughness is given, and how many newest count. */
+const MIN_FIGHTS = 3;
+const RECENT_FIGHTS = 10;
 
 const round1 = (n: number): number => Math.round(n * 10) / 10;
 const mid = (b: FightBand): number => (COST_TARGETS[b][0] + COST_TARGETS[b][1]) / 2;
@@ -148,16 +152,17 @@ export function buildFightsReport(sessions: SessionStats[]): FightsReport {
     : null;
 
   let toughness: number | null = null;
-  if (measured > 0) {
-    const target = measuredRows.reduce((sum, f) => sum + mid(f.plannedBand as FightBand), 0);
-    const actual = measuredRows.reduce((sum, f) => sum + (f.hpLostPct ?? 0), 0);
-    const raw = actual > 0 ? target / actual : 2;
-    toughness = Math.round(Math.min(2, Math.max(0.5, raw)) * 100) / 100;
+  if (measured >= MIN_FIGHTS) {
+    // The newest fights only, and a fight that cost nothing counts as 1% (not as infinitely easy).
+    const recent = measuredRows.slice(-RECENT_FIGHTS);
+    const target = recent.reduce((sum, f) => sum + mid(f.plannedBand as FightBand), 0);
+    const actual = recent.reduce((sum, f) => sum + Math.max(1, f.hpLostPct ?? 0), 0);
+    toughness = Math.round(Math.min(2, Math.max(0.5, target / actual)) * 100) / 100;
   }
 
   const summary =
-    measured === 0
-      ? 'No finished fight with a plan yet, so no toughness is measured.'
+    measured < MIN_FIGHTS
+      ? `${measured} of ${MIN_FIGHTS} finished fights with a plan, so no toughness is measured yet.`
       : `${measured} measured fight${measured === 1 ? '' : 's'}, ${inBandPct}% inside their cost band; ` +
         `toughness ${toughness} (${
           (toughness ?? 1) > 1.05

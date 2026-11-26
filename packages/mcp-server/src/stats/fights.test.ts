@@ -57,10 +57,12 @@ function fightRecords(id: string, t: number, foeXp: number, hpLost: number): Pla
 }
 
 describe('plannedBandOf', () => {
-  it('splits at the midpoints between budgets', () => {
-    expect(plannedBandOf(120, BUDGETS)).toBe('low');
-    expect(plannedBandOf(150, BUDGETS)).toBe('moderate');
-    expect(plannedBandOf(300, BUDGETS)).toBe('high');
+  it("uses dnd5e's rule: a budget is the ceiling of its difficulty", () => {
+    expect(plannedBandOf(100, BUDGETS)).toBe('low');
+    expect(plannedBandOf(101, BUDGETS)).toBe('moderate');
+    expect(plannedBandOf(200, BUDGETS)).toBe('moderate');
+    expect(plannedBandOf(201, BUDGETS)).toBe('high');
+    expect(plannedBandOf(900, BUDGETS)).toBe('high');
     expect(plannedBandOf(0, BUDGETS)).toBeNull();
   });
 });
@@ -90,15 +92,42 @@ describe('buildFightsReport', () => {
       buildStats({ worldId: 'w', logEvents: [], playRecords: [] }).sessions
     );
     expect(report.toughness).toBeNull();
-    expect(report.summary).toMatch(/No finished fight/);
+    expect(report.summary).toMatch(/0 of 3 finished fights/);
   });
 
-  it('a fight that hurt more than planned lowers toughness', () => {
-    const records = fightRecords('c1', T0, 200, 30); // moderate, 75% lost, target mid 30
+  it('fights that hurt more than planned lower toughness', () => {
+    const records = [
+      ...fightRecords('c1', T0, 200, 30), // moderate, 75% lost, target mid 30
+      ...fightRecords('c2', T0 + 60_000, 200, 30),
+      ...fightRecords('c3', T0 + 120_000, 200, 30),
+    ];
     const report = buildFightsReport(
       buildStats({ worldId: 'w', logEvents: [], playRecords: records }).sessions
     );
     expect(report.toughness).toBe(0.5);
     expect(report.fights[0]?.inBand).toBe(false);
+  });
+
+  it('gives no toughness from fewer than three finished fights, even a free one', () => {
+    const records = [...fightRecords('c1', T0, 100, 0), ...fightRecords('c2', T0 + 60_000, 100, 0)];
+    const report = buildFightsReport(
+      buildStats({ worldId: 'w', logEvents: [], playRecords: records }).sessions
+    );
+    expect(report.measured).toBe(2);
+    expect(report.toughness).toBeNull();
+    expect(report.summary).toMatch(/2 of 3/);
+  });
+
+  it('a fight that cost nothing counts as 1%, so one free fight does not read as infinitely easy', () => {
+    const records = [
+      ...fightRecords('c1', T0, 200, 0),
+      ...fightRecords('c2', T0 + 60_000, 200, 12),
+      ...fightRecords('c3', T0 + 120_000, 200, 12),
+    ];
+    const report = buildFightsReport(
+      buildStats({ worldId: 'w', logEvents: [], playRecords: records }).sessions
+    );
+    // targets 90 over 1 + 30 + 30 = 61 -> 1.48
+    expect(report.toughness).toBe(1.48);
   });
 });

@@ -592,6 +592,44 @@ describe('combat, scene, world time and users', () => {
     expect(plan.budgets).toEqual({ low: 75, moderate: 150, high: 400 });
   });
 
+  it('the plan leaves out friendly tokens and counts a character once', () => {
+    const now = Date.now();
+    const hero = makeFixtureActor({
+      id: 'hero2',
+      name: 'Twice Hero',
+      t: now,
+      system: { details: { level: 3 }, attributes: { hp: { max: 30 } } },
+    });
+    const mk = (id: string, xp: number): any =>
+      makeFixtureActor({
+        id,
+        name: id,
+        type: 'npc',
+        t: now,
+        system: { details: { xp: { value: xp } } },
+      });
+    const combat: any = {
+      id: 'combat-friends',
+      round: 1,
+      turn: 0,
+      combatants: {
+        size: 4,
+        contents: [
+          { actor: hero },
+          { actor: hero },
+          { actor: mk('Ally', 700), token: { disposition: 1 } },
+          { actor: mk('Wolf', 50), token: { disposition: -1 } },
+        ],
+      },
+      _stats: { modifiedTime: now },
+    };
+    Hooks.callAll('combatStart', combat);
+    const plan = recorder.getPlayRecords({}).records[0].data?.plan as any;
+    expect(plan.party).toHaveLength(1);
+    expect(plan.foes).toBe(1);
+    expect(plan.foeXp).toBe(50);
+  });
+
   it('combat-end keeps the last turn although Foundry 14 nulls combat.turn before deleteCombat', () => {
     const now = Date.now();
     const combat: any = {

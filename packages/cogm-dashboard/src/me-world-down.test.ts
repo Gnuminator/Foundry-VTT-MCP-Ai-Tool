@@ -13,7 +13,7 @@ import { mountMeRoute } from './me-route.js';
 import type { PlayerLinkStore } from './player-links.js';
 import type { Config } from './config.js';
 import type { Logger } from './logger.js';
-import { PlayerDirectory, mountUsageRoute } from './usage-route.js';
+import { PlayerDirectory, mountUsageRoute, type UsageClient } from './usage-route.js';
 
 const KNOWN = 'k'.repeat(24);
 const UNKNOWN = 'u'.repeat(24);
@@ -84,9 +84,9 @@ describe('My character with the table closed', () => {
     const app = express();
     mountUsageRoute(app, {
       config: {} as unknown as Config,
-      client: {},
+      client: {} as unknown as UsageClient,
       logger: { debug: (): void => undefined, warn: (): void => undefined } as unknown as Logger,
-      directory: new PlayerDirectory({}, {} as unknown as Logger),
+      directory: new PlayerDirectory({} as unknown as UsageClient, {} as unknown as Logger),
       requireGm: (_req, _res, next) => next(),
       meUserFor: () => null,
       meTableClosed: key => key === KNOWN,

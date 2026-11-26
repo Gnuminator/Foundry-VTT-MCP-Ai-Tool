@@ -532,7 +532,7 @@ bot_daemon_check() {
 # the same for both; a container reads it again with  stage 24 MODE=bot-restart.
 refuse_when_bot_container() {
   bot_daemon_check "$1"
-  [ -z "$(bot_container -a)" ] || die "the Discord bot runs as a container (compose project $COMPOSE_LIVE_PROJECT): $1 would start the systemd unit next to it, two bots on one token. Stage 5 updates the container; after a settings change run stage 24 with MODE=bot-restart; to go back to the unit run stage 24 with MODE=rollback. Nothing was changed"
+  [ -z "$(bot_container -a)" ] || die "the Discord bot runs as a container (compose project $COMPOSE_LIVE_PROJECT): $1 would start the systemd unit next to it, two bots on one token. Stage 5 updates the container; after a settings change run stage 24 with MODE=bot-restart; to go back to the unit run stage 24 with MODE=bot-back (MODE=rollback takes the whole stack back). Nothing was changed"
 }
 
 # recording_active [DIR]: 0 when a Discord recording seems to run: a session folder under DIR (default

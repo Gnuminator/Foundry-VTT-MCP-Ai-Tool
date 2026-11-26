@@ -393,7 +393,7 @@ wait_bot_login() {
 }
 # Back to the unit after a failed MODE=bot: no container, no profile, the unit on again.
 bot_back_to_unit() {
-  local ids
+  local ids left
   ids="$(containers_of "$project" discord-bot -a | tr '\n' ' ')" || ids=""
   if [ -n "${ids// /}" ]; then
     # shellcheck disable=SC2086
@@ -404,9 +404,18 @@ bot_back_to_unit() {
     docker rm -f $ids >/dev/null 2>&1 || warn "docker rm of the bot container reported an error"
   fi
   bot_profile off || true
+  # Never start the unit next to a container that is still there (two bots on one token); the record stays so a retry works.
+  left="$(containers_of "$project" discord-bot -a | tr '\n' ' ')" || left="unknown"
+  if [ -n "${left// /}" ]; then
+    warn "the bot container is still there (docker ps -a): the unit was not started"
+    return 1
+  fi
   systemctl enable --now "$bot_unit" >/dev/null 2>&1 || warn "systemctl enable --now $bot_unit failed"
-  rm -f "${bot_state_file:?}"
-  unit_active "$bot_unit" && unit_enabled "$bot_unit"
+  if unit_active "$bot_unit" && unit_enabled "$bot_unit"; then
+    rm -f "${bot_state_file:?}"
+    return 0
+  fi
+  return 1
 }
 
 # bot_wire_status: the game-night watch (stage 29) asks the unit whether the recorder runs; with the unit off on purpose it
@@ -468,7 +477,6 @@ mode_bot() {
   fi
   require_recent_snapshot
   require_no_recording "moving the Discord bot into the stack (stopping the unit ends a recording)"
-  bot_wire_status
   if [ "$resume" = 0 ]; then
     printf '%s\n' "$bot_unit" >"$bot_state_file.new"
     mv -f "$bot_state_file.new" "$bot_state_file"
@@ -482,6 +490,7 @@ mode_bot() {
     fi
     ok "$bot_unit stopped and disabled"
   fi
+  bot_wire_status
   bot_profile on
   say "starting the bot container (up to ${BOT_LOGIN_WAIT:-60}s for the Discord login)"
   dc up -d --no-build discord-bot >/dev/null 2>&1 || warn "docker compose up reported an error"
@@ -506,6 +515,7 @@ mode_bot_back() {
     say "dry run: would stop and remove the discord-bot container, take discord-bot out of COMPOSE_PROFILES in $env_file and enable and start $bot_unit; nothing changed"
     return 0
   fi
+  ( require_recent_snapshot ) || warn "no snapshot from today; going on (this is the way out)"
   require_no_recording "putting the Discord bot back on its unit (stopping the container ends a recording)"
   if bot_back_to_unit; then ok "the bot runs as its systemd unit again, the container is gone"; return 0; fi
   die "the unit did not come up: systemctl status $bot_unit, journalctl -u $bot_unit -n 20"

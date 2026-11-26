@@ -20,6 +20,8 @@
  */
 import { readyOrEnqueuedPr } from '../backlog-items.mjs';
 
+export { commentRefusal } from './refusal-comment.mjs';
+
 /** @param {string} s @param {number} max */
 const oneLine = (s, max) => String(s).replace(/\s+/g, ' ').trim().slice(0, max);
 

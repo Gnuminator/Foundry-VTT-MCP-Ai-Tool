@@ -195,7 +195,7 @@ Parameters:
 
 ## plan-room-setup
 
-Plan Region-based scene parts: "teleport" moves tokens entering one rectangle to another (same or other scene); "spawn" makes a room rectangle plus tokens from actors on free squares in it; "levels" adds Scene Levels; "stairs" joins levels; "hazard" makes difficult terrain, darkness or an existing effect; "whisper" whispers a room card to the GM only when a token enters the rectangle; "practice": a practice room. Apply with apply-planned-change, undo with undo-change. Needs the module switch "Room setup" (off by default).
+Plan Region-based scene parts: "teleport" moves tokens entering one rectangle to another (any scene); "spawn" makes a room rectangle plus tokens from actors; "levels" adds Scene Levels; "stairs" joins levels; "hazard" makes difficult terrain, darkness or an effect; "whisper" whispers a room card to the GM when a token enters the rectangle; "practice": a practice room. Apply with apply-planned-change, undo with undo-change. Needs the switch "Room setup" (off by default).
 
 Kind: read-only. Title: Plan room setup (teleports, rooms, levels, stairs, hazards).
 

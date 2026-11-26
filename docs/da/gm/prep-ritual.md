@@ -1,6 +1,6 @@
 ---
 source: gm/prep-ritual.md
-sourceHash: d4f207941757
+sourceHash: d77d6b9538b0
 title: Lad os forberede, forberedelsen på 30 minutter
 description: Én sætning, der fører dig gennem forberedelsen af næste session i fem trin og slutter med pre-flight-tjekket.
 ---
@@ -41,6 +41,10 @@ hvad der skal rettes, før forberedelsen kaldes færdig.
 ## Tips
 
 - Sig "skip step 4", hvis der ikke er nogen kamp. Det kommer på slutlisten, så du husker det.
+- Har du en idé i bilen? Send den til botten som en voice message i en direkte besked. Pc'en
+  skriver den ud som en note i **Prep/Voice memos** i Obsidian, tagget med de NPC'er og steder, du
+  nævnte (pc'en gør det, når ejeren kører `node scripts/voice-memos.mjs`). Sæt `status` til `done`,
+  når du har brugt den.
 - Du kan svare på dansk. Claude beholder de engelske spiltermer.
 - Vil du se de samme fakta uden Claude, så åbn **Prep**-skuffen i dashboardet
   ([Gør klar til næste session](cookbook.md#gør-klar-til-næste-session)).

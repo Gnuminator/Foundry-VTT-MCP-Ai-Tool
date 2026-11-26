@@ -142,7 +142,10 @@ refuse_when_cut_over() {
 # as it did. Never overridden by FORCE=1. A silent Docker daemon is "unknown" and refuses (fail closed), as before.
 # A unit and a container running together (a mixed state) refuses too: two copies of one service.
 STACK=units
-STACK_SERVICES="foundry bridge dashboard gm-browser"
+# discord-bot (the recorder, compose profile discord-bot) is the fifth: it has a container only after stage 24 MODE=bot, so every
+# loop over this list treats "no container" as "still a unit" (use_stack, containers_stale and containers_apply do).
+STACK_SERVICES="foundry bridge dashboard gm-browser discord-bot"
+BOT_UNIT=foundry-ai-tool-discord-bot.service
 
 # svc_unit SERVICE: the systemd unit of a stack service.
 svc_unit() {
@@ -151,6 +154,7 @@ svc_unit() {
     bridge) echo foundry-ai-tool-bridge.service ;;
     dashboard) echo foundry-ai-tool-dashboard.service ;;
     gm-browser) echo foundry-ai-tool-gm-browser.service ;;
+    discord-bot) echo "$BOT_UNIT" ;;
     *) return 1 ;;
   esac
 }
@@ -166,6 +170,8 @@ use_stack() {
   [ -n "$ids" ] || return 0
   if have_systemd; then
     for s in $STACK_SERVICES; do
+      # The bot is a unit until stage 24 MODE=bot moves it: a bot unit next to the four containers is the normal state then.
+      if [ "$s" = discord-bot ] && [ -z "$(containers_of "$COMPOSE_LIVE_PROJECT" discord-bot -a 2>/dev/null || true)" ]; then continue; fi
       ! systemctl is-active --quiet "$(svc_unit "$s")" 2>/dev/null ||
         die "$(svc_unit "$s") runs next to the containers of $COMPOSE_LIVE_PROJECT (a mixed state, two copies of one service): $what is refused. Look: deploy/pi/deployed-state.sh; then stage 24 MODE=rollback. Nothing was changed"
     done
@@ -505,6 +511,30 @@ restart_gamenight_watch() {
   fi
 }
 
+# bot_container [-a]: the id of the bot's container in the live project ("-a": a stopped one too); empty when the bot is
+# still the systemd unit (or the daemon does not answer).
+bot_container() {
+  command -v docker >/dev/null 2>&1 || return 0
+  containers_of "$COMPOSE_LIVE_PROJECT" discord-bot "${1:-}" 2>/dev/null | head -n 1 || true
+}
+
+# bot_daemon_check WHAT: a Docker daemon that is installed but silent means "is there a bot container?" is unknown, and unknown
+# refuses (like refuse_when_cut_over): the container comes back with the daemon and would run next to a unit started now.
+bot_daemon_check() {
+  command -v docker >/dev/null 2>&1 || return 0
+  containers_of "$COMPOSE_LIVE_PROJECT" discord-bot -a >/dev/null 2>&1 && return 0
+  docker_cannot_return && return 0
+  die "the Docker daemon does not answer, so whether the Discord bot runs as a container is unknown: $1 is refused (it would start the bot unit, and the container comes back with the daemon: two bots on one token). Look at: systemctl status docker. Nothing was changed"
+}
+
+# refuse_when_bot_container WHAT: for the stages that restart or enable the bot UNIT (8, 26, 27, set-discord-token): once the
+# bot runs as a container (stage 24 MODE=bot) the unit must stay off, or two bots log in with one token. The settings file is
+# the same for both; a container reads it again with  stage 24 MODE=bot-restart.
+refuse_when_bot_container() {
+  bot_daemon_check "$1"
+  [ -z "$(bot_container -a)" ] || die "the Discord bot runs as a container (compose project $COMPOSE_LIVE_PROJECT): $1 would start the systemd unit next to it, two bots on one token. Stage 5 updates the container; after a settings change run stage 24 with MODE=bot-restart; to go back to the unit run stage 24 with MODE=bot-back (MODE=rollback takes the whole stack back). Nothing was changed"
+}
+
 # recording_active [DIR]: 0 when a Discord recording seems to run: a session folder under DIR (default
 # $TOOL_DATA/recordings) whose raw/ has no session.json yet (the bot writes it when the recording stops) and either
 # has a file changed in the last 10 minutes or, while the bot service runs, was last changed after the bot last
@@ -515,6 +545,9 @@ recording_active() {
   [ -d "$dir" ] || return 1
   if have_systemd && systemctl is-active --quiet foundry-ai-tool-discord-bot.service; then
     since="$(unit_started_epoch foundry-ai-tool-discord-bot.service)"
+  elif [ -n "$(bot_container)" ]; then
+    # The container's own start time is the "since" (docker inspect gives UTC; date -d reads it).
+    since="$(date -d "$(docker inspect -f '{{.State.StartedAt}}' "$(bot_container)" 2>/dev/null || true)" +%s 2>/dev/null || true)"
   fi
   for raw in "$dir"/*/raw; do
     [ -d "$raw" ] || continue

@@ -1,7 +1,11 @@
 // @ts-check
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import {
+  claimAdvice,
   scout,
   formatScout,
   isHot,
@@ -74,6 +78,23 @@ test('hot patterns and folder claims', () => {
   assert.ok(!isHot('scripts/backlog.mjs'));
   assert.ok(fileMatches('scripts/a/b.mjs', 'scripts/a/'));
   assert.ok(!fileMatches('scripts/ab.mjs', 'scripts/a/'));
+});
+
+test('a glob in a touches line matches within its folder, ** crosses folders', () => {
+  assert.ok(fileMatches('scripts/backlog.mjs', 'scripts/*.mjs'));
+  assert.ok(!fileMatches('scripts/a/b.mjs', 'scripts/*.mjs'));
+  assert.ok(!fileMatches('scripts/backlogXmjs', 'scripts/*.mjs'));
+  assert.ok(fileMatches('scripts/a/b.mjs', 'scripts/**/*.mjs'));
+  assert.ok(fileMatches('scripts/a/b.mjs', 'scripts/*'));
+});
+
+test('claimAdvice falls back to a plain line when the item names no files', () => {
+  const vault = fs.mkdtempSync(path.join(os.tmpdir(), 'scout-vault-'));
+  try {
+    assert.match(claimAdvice('no-such-item', vault), /^conflict-scout: no files to check/);
+  } finally {
+    fs.rmSync(vault, { recursive: true, force: true });
+  }
 });
 
 test('touchesOf reads paths and drops prose', () => {

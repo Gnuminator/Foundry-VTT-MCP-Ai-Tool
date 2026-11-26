@@ -346,7 +346,10 @@ async function main() {
                 if (typeof ms === 'number') add('player sheet open', ms);
               } else {
                 await session.page.evaluate(() => {
-                  const tabs = Object.keys(ui.sidebar?.constructor?.TABS ?? {});
+                  // Players have no Scenes tab in Foundry 14; changeTab on it throws "No matching tab element".
+                  const tabs = Object.keys(ui.sidebar?.constructor?.TABS ?? {}).filter(
+                    name => name !== 'scenes' || game.user.isGM
+                  );
                   const t = tabs[Math.floor(Math.random() * tabs.length)];
                   if (t) ui.sidebar.changeTab?.(t, 'primary');
                 });

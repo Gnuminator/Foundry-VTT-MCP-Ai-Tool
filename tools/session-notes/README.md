@@ -157,7 +157,7 @@ In `<session>/notes/`, for `da` and `en` each:
 | `table.<lang>.md`        | L2    | everything said at the table, not in the game: house rules, proposed, play style, absence, planning, open                                                                                                      |
 | `raw.<lang>.md`          |       | the recogniser's text as it came (the same text in both files; no Claude call)                                                                                                                                 |
 | `summary.<lang>.md`      | L3    | session summary and "what changed", for the GM                                                                                                                                                                 |
-| `recap.player.<lang>.md` | L3    | the players' "previously on" recap, marked as a draft until the GM approves it                                                                                                                                 |
+| `recap.player.<lang>.md` | L3    | the players' "previously on" recap, marked as a draft until the GM approves it; ends with the moment of the night (Claude's own pick, one call with the layers, `notes.json` key `moment`)                     |
 
 Plus `notes.json` (everything, for later steps) and `audit.jsonl` (calls, checks, fixes, pauses).
 

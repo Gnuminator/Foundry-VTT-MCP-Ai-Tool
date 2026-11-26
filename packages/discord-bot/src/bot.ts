@@ -17,7 +17,9 @@ import {
   PermissionFlagsBits,
   SlashCommandBuilder,
   type ChatInputCommandInteraction,
+  Partials,
   type Guild,
+  type Message,
   type VoiceBasedChannel,
 } from 'discord.js';
 import { existsSync, mkdirSync } from 'node:fs';
@@ -31,6 +33,17 @@ import { RecorderHealth } from './rec/health.js';
 import { RecordNudge } from './rec/record-nudge.js';
 import { startStatusServer } from './status-server.js';
 import { bi, da, plural } from './i18n.js';
+import {
+  MAX_MEMO_BYTES,
+  MEMO_FAILED,
+  MEMO_NO_AUDIO,
+  MEMO_SAVED,
+  MEMO_TOO_BIG,
+  audioAttachments,
+  memoSenderAllowed,
+  saveMemos,
+} from './memo.js';
+import { dataFolder } from './sessions-dir.js';
 import { alertTarget, isMuted, statusText, voiceAction } from './bot-health.js';
 import {
   claimOnReady,
@@ -170,8 +183,15 @@ export function stopSummary(trackSeconds: number[], incomplete: boolean): string
 
 export class RecorderBot {
   readonly client = new Client({
-    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates],
+    intents: [
+      GatewayIntentBits.Guilds,
+      GatewayIntentBits.GuildVoiceStates,
+      GatewayIntentBits.DirectMessages,
+    ],
+    partials: [Partials.Channel], // a DM channel is not cached until the first message
   });
+  /** Who the application's owner is, once known (the default memo sender). */
+  private ownerId: string | undefined;
   private active: Active | undefined;
   private spaceTimer: NodeJS.Timeout | undefined;
   private stopRecoverRetry: (() => void) | undefined;
@@ -274,6 +294,12 @@ export class RecorderBot {
         this.onLookup(i).catch((err: unknown) => log.error('lookup command failed', err));
       }
     });
+    this.client.on('messageCreate', m => {
+      this.onDirectMessage(m).catch((err: unknown) => {
+        log.error('voice memo failed', err);
+        m.reply(MEMO_FAILED).catch(() => undefined);
+      });
+    });
     this.client.on('voiceStateUpdate', (before, after) => {
       const a = this.active;
       if (!a) return;
@@ -338,6 +364,7 @@ export class RecorderBot {
     const app = await c.application.fetch();
     const owner = app.owner as ApplicationOwnerLike | null;
     const ownerId = resolveOwnerId(this.config.ownerId, owner);
+    this.ownerId = ownerId ?? undefined;
     if (!ownerId) {
       log.info(
         'Space notices: no owner user found (a team owner id is needed), so storage space DMs are off. Set DISCORD_OWNER_ID in the bot settings to turn them on.'
@@ -557,6 +584,42 @@ export class RecorderBot {
   /** Where the bot reads the player state: the setting, else the local dashboard. */
   private dashboardUrl(): string {
     return this.config.dashboardUrl ?? 'http://127.0.0.1:3000';
+  }
+
+  /** A direct message with audio from the GM: save it in the memos inbox (memo.ts). */
+  private async onDirectMessage(m: Message): Promise<void> {
+    if (m.author.bot || m.guildId !== null) return;
+    if (!memoSenderAllowed(m.author.id, this.config.memoUserIds ?? [], this.ownerId)) return;
+    if (audioAttachments(m.attachments.values()).length === 0) {
+      await m.reply(MEMO_NO_AUDIO);
+      return;
+    }
+    const memosDir =
+      this.config.memosDir ?? dataFolder('FoundryMemos', process.env['FVTT_DATA_DIR']);
+    const result = await saveMemos(
+      memosDir,
+      m.id,
+      new Date(),
+      [...m.attachments.values()].map(a => ({
+        name: a.name,
+        contentType: a.contentType,
+        size: a.size,
+        url: a.url,
+      })),
+      async url => {
+        const res = await fetch(url, { signal: AbortSignal.timeout(60_000) });
+        if (!res.ok) throw new Error(`download failed: HTTP ${res.status}`);
+        const bytes = new Uint8Array(await res.arrayBuffer());
+        if (bytes.length > MAX_MEMO_BYTES) throw new Error('download is bigger than a memo');
+        return bytes;
+      }
+    );
+    log.info(`Voice memo: saved ${result.saved.join(', ') || 'nothing'} in ${memosDir}`);
+    const lines = [
+      ...(result.saved.length > 0 ? [MEMO_SAVED] : []),
+      ...(result.tooBig > 0 ? [MEMO_TOO_BIG] : []),
+    ];
+    await m.reply(lines.join('\n\n'));
   }
 
   private async onLookup(i: ChatInputCommandInteraction): Promise<void> {

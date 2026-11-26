@@ -83,6 +83,19 @@ describe('renderPress', () => {
     expect(calls).toEqual(['chrome']);
   });
 
+  it('gives the retry a fresh browser profile', async () => {
+    const profiles: string[] = [];
+    const runner = async (_browser: string, args: string[]): Promise<void> => {
+      profiles.push(args.find(a => a.startsWith('--user-data-dir='))!);
+      if (profiles.length < 2) return; // first run writes nothing
+      const shot = args.find(a => a.startsWith('--screenshot='))!.slice('--screenshot='.length);
+      await fsp.writeFile(shot, Buffer.from(PNG));
+    };
+    await renderPress('letter', { title: 't', body: 'b' }, ['solo'], runner);
+    expect(profiles).toHaveLength(2);
+    expect(profiles[0]).not.toBe(profiles[1]);
+  });
+
   it('fails when every browser misses the picture', async () => {
     await expect(
       renderPress('letter', { title: 't', body: 'b' }, ['a', 'b'], async () => undefined)

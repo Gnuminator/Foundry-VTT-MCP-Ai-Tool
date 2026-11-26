@@ -14,6 +14,7 @@ import { eventTracker, type SessionLogEntry } from '../session-events.js';
 import { onAiChangesUpdated } from '../ai-changes-signal.js';
 import { registerGuardedFeature, resetGuardedFeaturesForTests } from '../guarded-features.js';
 import { expectedAfterApply } from '@gnuminator/shared';
+import { staleStamp } from './start-stamp.js';
 import {
   GUARDED_OUTCOME_MEMORY,
   applyGuardedOps,
@@ -396,6 +397,58 @@ describe('op validation', () => {
 // ---------------------------------------------------------------------------
 // Apply
 // ---------------------------------------------------------------------------
+
+describe('applyGuardedOps: timed effect start stamp', () => {
+  const stamped = (round: number, turn: number, value: number | null = 1): GuardedOp[] => [
+    {
+      kind: 'create',
+      documentName: 'Actor',
+      data: { name: 'Timed', duration: { value }, start: { combat: 'fight1', round, turn } },
+    },
+  ];
+
+  it('does not check an untimed op or a journal undo plan', async () => {
+    (game as any).combats = { get: (): object => ({ round: 9, turn: 9 }) };
+    try {
+      expect(staleStamp(stamped(3, 1, null)[0], 'apply', FEATURE)).toBeNull();
+      expect(staleStamp(stamped(3, 1)[0], 'apply', 'change-undo')).toBeNull();
+      expect(staleStamp(stamped(3, 1)[0], 'undo', FEATURE)).toBeNull();
+      expect(staleStamp(stamped(3, 1)[0], 'apply', FEATURE)).toMatch(/turn moved/);
+    } finally {
+      delete (game as any).combats;
+    }
+  });
+
+  it('refuses a stamp from a turn that has passed, writing nothing', async () => {
+    (game as any).combats = { get: (): object => ({ round: 3, turn: 2 }) };
+    try {
+      const req = await request(stamped(3, 1));
+      await expect(applyGuardedOps(req)).rejects.toThrow(/turn moved since the plan/);
+    } finally {
+      delete (game as any).combats;
+    }
+  });
+
+  it('refuses a stamp whose fight is gone', async () => {
+    (game as any).combats = { get: (): undefined => undefined };
+    try {
+      const req = await request(stamped(3, 1));
+      await expect(applyGuardedOps(req)).rejects.toThrow(/fight .* is gone/);
+    } finally {
+      delete (game as any).combats;
+    }
+  });
+
+  it('applies when the fight is still at the stamped round and turn', async () => {
+    (game as any).combats = { get: (): object => ({ round: 3, turn: 1 }) };
+    try {
+      const req = await request(stamped(3, 1));
+      await expect(applyGuardedOps(req)).resolves.toBeDefined();
+    } finally {
+      delete (game as any).combats;
+    }
+  });
+});
 
 describe('applyGuardedOps: locked audio', () => {
   it('refuses a plan that touches a playlist while Foundry audio is locked, before any write', async () => {

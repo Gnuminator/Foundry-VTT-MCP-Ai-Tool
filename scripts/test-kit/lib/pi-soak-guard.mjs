@@ -17,7 +17,7 @@
  * more than `maxWrites` writes in all, or any write unless the runner was started with `--writes`.
  */
 import { createPiGuard } from './pi-guard.mjs';
-import { EnvError } from './errors.mjs';
+import { EnvError, KitToolError } from './errors.mjs';
 
 export const SOAK_PLAN_TOOL = 'plan-actor-change';
 export const SOAK_ACTIONS = new Set(['damage', 'healing']);
@@ -103,6 +103,18 @@ export function createPiSoakGuard(
           { confirm: true }
         );
       } catch (e) {
+        // Only the answers the dashboard gives before it dispatches the apply are refusals (400 no name, 401/403 GM
+        // token or gm-actions off, 412 confirm required, 421 host). A 422 is any tool error, including "applied but
+        // not recorded" and "may or may not have been applied", and an EnvError can be a connection reset after the
+        // request went out: those stay on the possibly-applied path.
+        if (
+          (e instanceof EnvError && /needs the GM token/.test(e.message)) ||
+          (e instanceof KitToolError && [400, 401, 403, 412, 421].includes(Number(e.status)))
+        ) {
+          throw new EnvError(
+            `REFUSED: pi soak write: the apply of plan ${plan.planId} was refused (${e.message}); nothing was applied`
+          );
+        }
         // The request went out: the change may be applied with nobody to undo it.
         stranded.push(`possibly applied, plan ${plan.planId} (check list-changes)`);
         throw new EnvError(

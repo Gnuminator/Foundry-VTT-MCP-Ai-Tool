@@ -19,6 +19,7 @@ import {
   queueQuery,
 } from './constants.mjs';
 import { riskyHits, isTrainRelevant } from './risky.mjs';
+import { fixRoundNeedsOpus } from './fix-round.mjs';
 import {
   findReviewNotes,
   reviewNamingRule,
@@ -432,9 +433,15 @@ export function main(options = {}) {
   // when it is (the review: line, if any, says what is wrong).
   const opusFound = opusNotesForHead(reviews ?? [], head, carry.carried ?? []);
   const opusState = opusFound.length ? `found (${opusFound.join(', ')})` : 'missing';
+  // A fix round whose PR patch on the Opus list is unchanged since an Opus review needs only Sonnet.
+  const fix = hits.length > 0 && reviews ? fixRoundNeedsOpus(run, reviews, head) : null;
+  const needOpus = hits.length > 0 && (fix?.needOpus ?? true);
+  if (fix?.notice) notes.push(fix.notice);
   for (const h of hits) {
     notes.push(
-      `risky (${h.name}): ${h.file}; an Opus review is required; Opus note for head ${short(head)}: ${opusState}`
+      needOpus
+        ? `risky (${h.name}): ${h.file}; an Opus review is required; Opus note for head ${short(head)}: ${opusState}`
+        : `risky (${h.name}): ${h.file}; no new Opus review needed (fix round)`
     );
   }
   if (reviews === null) {
@@ -444,7 +451,7 @@ export function main(options = {}) {
       );
     }
   } else {
-    const verdict = judgeReviews(reviews, head, hits.length > 0, carry, n);
+    const verdict = judgeReviews(reviews, head, needOpus, carry, n);
     if (verdict.ok && verdict.carriedFrom?.length) {
       carriedFrom = verdict.carriedFrom;
       notes.push(

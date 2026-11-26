@@ -26,6 +26,7 @@ import re
 from typing import Any
 
 from . import extras, layers
+from . import moment as moment_mod
 from .check import PAGE as CHECK_PAGE
 from .fmt import (
     AT_TABLE,
@@ -248,14 +249,21 @@ def render_summary(lang: str, session: dict[str, Any] | None) -> str:
     )
 
 
-def render_recap(lang: str, session: dict[str, Any] | None) -> str:
+def render_recap(
+    lang: str,
+    session: dict[str, Any] | None,
+    moment: dict[str, Any] | None = None,
+    lines: list[Line] | None = None,
+) -> str:
     h = HEAD[lang]
     if session is None:
         return f"# {h['recap']}\n\n{h['missing']}\n"
-    return (
+    text = (
         f"# {h['recap']}: {session[f'title_{lang}']}\n\n> {h['draft']}\n\n"
         f"{session[f'recap_player_{lang}']}\n"
     )
+    block = moment_mod.render(lang, moment, lines or [])
+    return f"{text}\n{block}" if block else text
 
 
 _SESSION_DIR = re.compile(r"^(\d{4})-(\d{2})-(\d{2})(?:_(\d{2})(\d{2}))?(?:-(.+))?$")
@@ -365,7 +373,7 @@ def write_outputs(
         put(f"scenes.{lang}.md", render_scenes(lang, lines, notes, incomplete))
         put(f"table.{lang}.md", render_table(lang, lines, notes, session, incomplete))
         put(f"summary.{lang}.md", render_summary(lang, session))
-        put(f"recap.player.{lang}.md", render_recap(lang, session))
+        put(f"recap.player.{lang}.md", render_recap(lang, session, (extra or {}).get("moment"), lines))
         put(f"raw.{lang}.md", layers.render_raw(lines, notes, lang))
     if depth is not None:
         wanted = [n["index"] for n in notes if not n.get("fallback")]
@@ -404,6 +412,7 @@ def write_outputs(
                 "depth": {str(k): v for k, v in (depth or {}).items()} or None,
                 "characters": (extra or {}).get("characters"),
                 "remember": (extra or {}).get("remember"),
+                "moment": (extra or {}).get("moment"),
                 "layers": layers_info,
             },
             ensure_ascii=False,

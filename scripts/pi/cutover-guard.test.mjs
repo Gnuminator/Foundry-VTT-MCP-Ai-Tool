@@ -5,7 +5,15 @@
 // The scenarios that run each guarded stage on a cut-over Pi are scripts/pi/container-test/cutover-guard-scenarios.sh.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { after, describe, test } from 'node:test';
@@ -29,39 +37,43 @@ function bash(script, env = {}) {
 }
 
 // ---- the env reader ---------------------------------------------------------------------------------------------
-describe('env_file_value (the one reader of deploy/pi/.env)', { skip: !hasBash && 'no bash here' }, () => {
-  const read = (envText, name) => {
-    const dir = path.join(tmp, `env${++counter}`);
-    mkdirSync(dir);
-    const file = path.join(dir, '.env');
-    if (envText !== null) writeFileSync(file, envText);
-    const r = bash(`${lib}\nenv_file_value ${posix(file)} ${name}\n`);
-    assert.equal(r.status, 0, r.stderr);
-    return r.stdout;
-  };
-  test('a plain value, with the name and the value surrounded by blanks', () => {
-    assert.equal(read('A=1\n  B  =  two  \n', 'B'), 'two');
-    assert.equal(read('A=1\n', 'A'), '1');
-  });
-  test('the last assignment wins', () => {
-    assert.equal(read('A=1\nA=2\nA=3\n', 'A'), '3');
-  });
-  test('an unquoted value ends at a blank-then-hash comment; a hash inside the value stays', () => {
-    assert.equal(read('A=8080 # the port\n', 'A'), '8080');
-    assert.equal(read('A=ab#cd\n', 'A'), 'ab#cd');
-  });
-  test('one pair of matching quotes is removed and what is inside is kept as it is', () => {
-    assert.equal(read('A="a b # c"\n', 'A'), 'a b # c');
-    assert.equal(read("A='x y'\n", 'A'), 'x y');
-    assert.equal(read('A="quoted" # tail\n', 'A'), 'quoted');
-  });
-  test('a name that is not there, a name that only ends like it, a commented line and a missing file give nothing', () => {
-    assert.equal(read('A=1\n', 'B'), '');
-    assert.equal(read('XA=1\n', 'A'), '');
-    assert.equal(read('# A=1\n', 'A'), '');
-    assert.equal(read(null, 'A'), '');
-  });
-});
+describe(
+  'env_file_value (the one reader of deploy/pi/.env)',
+  { skip: !hasBash && 'no bash here' },
+  () => {
+    const read = (envText, name) => {
+      const dir = path.join(tmp, `env${++counter}`);
+      mkdirSync(dir);
+      const file = path.join(dir, '.env');
+      if (envText !== null) writeFileSync(file, envText);
+      const r = bash(`${lib}\nenv_file_value ${posix(file)} ${name}\n`);
+      assert.equal(r.status, 0, r.stderr);
+      return r.stdout;
+    };
+    test('a plain value, with the name and the value surrounded by blanks', () => {
+      assert.equal(read('A=1\n  B  =  two  \n', 'B'), 'two');
+      assert.equal(read('A=1\n', 'A'), '1');
+    });
+    test('the last assignment wins', () => {
+      assert.equal(read('A=1\nA=2\nA=3\n', 'A'), '3');
+    });
+    test('an unquoted value ends at a blank-then-hash comment; a hash inside the value stays', () => {
+      assert.equal(read('A=8080 # the port\n', 'A'), '8080');
+      assert.equal(read('A=ab#cd\n', 'A'), 'ab#cd');
+    });
+    test('one pair of matching quotes is removed and what is inside is kept as it is', () => {
+      assert.equal(read('A="a b # c"\n', 'A'), 'a b # c');
+      assert.equal(read("A='x y'\n", 'A'), 'x y');
+      assert.equal(read('A="quoted" # tail\n', 'A'), 'quoted');
+    });
+    test('a name that is not there, a name that only ends like it, a commented line and a missing file give nothing', () => {
+      assert.equal(read('A=1\n', 'B'), '');
+      assert.equal(read('XA=1\n', 'A'), '');
+      assert.equal(read('# A=1\n', 'A'), '');
+      assert.equal(read(null, 'A'), '');
+    });
+  }
+);
 
 // ---- refuse_when_cut_over ---------------------------------------------------------------------------------------
 // A docker stand-in: DOCKER_MODE=down (daemon silent) | none (no container) | live (a container of the live project) |
@@ -111,12 +123,15 @@ exit 0
     // Explicit both ways: a CI runner has a real systemd, so "no systemd" must be stubbed too.
     const sys = systemd ? 'have_systemd() { return 0; }\n' : 'have_systemd() { return 1; }\n';
     // PATH is extended inside bash: on Windows the parent's PATH is semicolon-separated until bash converts it.
-    return bash(`export PATH="$BIN:$PATH"\n${lib}\n${hide}${sys}refuse_when_cut_over "stage X"\necho passed\n`, {
-      BIN: posix(bin),
-      DOCKER_MODE: mode,
-      SYSTEMD_DOCKER: systemd,
-      PGREP_RC: pgrep,
-    });
+    return bash(
+      `export PATH="$BIN:$PATH"\n${lib}\n${hide}${sys}refuse_when_cut_over "stage X"\necho passed\n`,
+      {
+        BIN: posix(bin),
+        DOCKER_MODE: mode,
+        SYSTEMD_DOCKER: systemd,
+        PGREP_RC: pgrep,
+      }
+    );
   }
 
   test('docker not installed: never cut over, the stage may run', () => {
@@ -156,7 +171,10 @@ exit 0
     assert.equal(guard('down', { systemd: 'on' }).status, 1);
   });
   test('FORCE=1 does not override it', () => {
-    const body = lib.slice(lib.indexOf('refuse_when_cut_over() {'), lib.indexOf('# env_file_value FILE NAME'));
+    const body = lib.slice(
+      lib.indexOf('refuse_when_cut_over() {'),
+      lib.indexOf('# env_file_value FILE NAME')
+    );
     assert.ok(body.includes('die "'), 'it dies, it does not call refuse');
     assert.doesNotMatch(body.replace(/^\s*#.*$/gm, ''), /FORCE|\brefuse\b/);
   });
@@ -213,7 +231,10 @@ exit 0
   }
 
   test('no container of the live project: STACK is units and the helpers run the same systemctl commands as before', () => {
-    const r = run('none', 'use_stack "stage X"; echo "STACK=$STACK"; svc_stop gm-browser; svc_start foundry; svc_restart bridge; svc_try_restart dashboard');
+    const r = run(
+      'none',
+      'use_stack "stage X"; echo "STACK=$STACK"; svc_stop gm-browser; svc_start foundry; svc_restart bridge; svc_try_restart dashboard'
+    );
     assert.match(r.stdout, /STACK=units/);
     assert.match(r.calls, /systemctl stop foundry-ai-tool-gm-browser\.service/);
     assert.match(r.calls, /systemctl start foundry\.service/);
@@ -222,11 +243,17 @@ exit 0
     assert.doesNotMatch(r.calls, /docker (stop|start|restart)/);
   });
   test('docker not installed: units', () => {
-    const r = run('none', 'command() { if [ "$1" = -v ] && [ "$2" = docker ]; then return 1; fi; builtin command "$@"; }\nuse_stack "stage X"; echo "STACK=$STACK"');
+    const r = run(
+      'none',
+      'command() { if [ "$1" = -v ] && [ "$2" = docker ]; then return 1; fi; builtin command "$@"; }\nuse_stack "stage X"; echo "STACK=$STACK"'
+    );
     assert.match(r.stdout, /STACK=units/);
   });
   test('a container of the live project: STACK is containers and the helpers act on the existing container', () => {
-    const r = run('live', 'use_stack "stage X"; echo "STACK=$STACK"; svc_stop foundry; svc_start foundry; svc_restart bridge; svc_try_restart dashboard; svc_active gm-browser && echo active');
+    const r = run(
+      'live',
+      'use_stack "stage X"; echo "STACK=$STACK"; svc_stop foundry; svc_start foundry; svc_restart bridge; svc_try_restart dashboard; svc_active gm-browser && echo active'
+    );
     assert.equal(r.status, 0, r.stderr);
     assert.match(r.stdout, /STACK=containers/);
     assert.match(r.stdout, /active/);
@@ -238,7 +265,10 @@ exit 0
     assert.doesNotMatch(r.calls, /docker (rm|compose|run)/);
   });
   test('a stopped container still means containers; svc_start starts it and svc_stop leaves it', () => {
-    const r = run('stopped', 'use_stack "stage X"; echo "STACK=$STACK"; svc_stop foundry; svc_start foundry; svc_wanted gm-browser && echo wanted; svc_active gm-browser || echo notactive');
+    const r = run(
+      'stopped',
+      'use_stack "stage X"; echo "STACK=$STACK"; svc_stop foundry; svc_start foundry; svc_wanted gm-browser && echo wanted; svc_active gm-browser || echo notactive'
+    );
     assert.match(r.stdout, /STACK=containers/);
     assert.match(r.stdout, /wanted/);
     assert.match(r.stdout, /notactive/);
@@ -258,7 +288,10 @@ exit 0
     assert.match(r.stderr, /foundry\.service runs next to the containers.*mixed state/);
   });
   test('a silent Docker daemon is not "no container": svc_stop on containers fails and says so', () => {
-    const r = run('live', 'use_stack "x"; DOCKER_MODE=down; export DOCKER_MODE; svc_stop foundry || echo "rc=$?"');
+    const r = run(
+      'live',
+      'use_stack "x"; DOCKER_MODE=down; export DOCKER_MODE; svc_stop foundry || echo "rc=$?"'
+    );
     assert.match(r.stdout, /rc=1/);
     assert.doesNotMatch(r.calls, /docker stop/);
     assert.match(r.stderr, /does not answer/);
@@ -271,7 +304,10 @@ exit 0
     );
     assert.match(r.stdout, /running=0/);
     assert.match(r.stdout, /silent=2/);
-    const none = run('stopped', 'use_stack "x"; rc=0; svc_active foundry || rc=$?; echo "stopped=$rc"');
+    const none = run(
+      'stopped',
+      'use_stack "x"; rc=0; svc_active foundry || rc=$?; echo "stopped=$rc"'
+    );
     assert.match(none.stdout, /stopped=1/);
     const units = run('none', 'use_stack "x"; rc=0; svc_active foundry || rc=$?; echo "unit=$rc"');
     assert.match(units.stdout, /unit=1/);
@@ -295,27 +331,40 @@ const NO_GUARD = {
   '4-tailscale.sh': 'enables tailscaled only; Tailscale is not part of the stack',
   '6-backup.sh':
     'installs the backup timer; the nightly script it writes finds the stack by label and stops the Foundry container instead of foundry.service (pi-stage-safety.test.mjs)',
-  '8-recorder.sh': 'the Discord recorder unit; the bot is not a container (compose.yml has no bot)',
+  '8-recorder.sh':
+    'the Discord recorder unit; refuses once the bot runs as a container (refuse_when_bot_container), so it never starts a second bot',
   '9-ssh-log.sh': 'sshd logging and its safety timer only',
   '10-space-check.sh': 'its own timer; starts the space check, which only reads',
   '15-ssh-keys-only.sh': 'sshd only (reload, with a safety timer)',
   '16-board-status.sh': 'its own timer; the report only reads',
   '17-gh-runner.sh': 'the GitHub runner units; not part of the stack',
-  '23-docker.sh': 'enables docker.service and builds images; starts no stack unit (docker-compose.test.mjs)',
-  '24-compose.sh': 'is the cutover and the rollback: it starts and stops the units on purpose, with its own guards',
-  '26-discord-game-server.sh': 'the Discord bot unit; the bot stays a systemd unit after the cutover (compose.yml has no bot)',
-  '29-gamenight-watch.sh': 'its own watch unit (After= lines only name the stack); not a stack unit',
-  '32-crash-guard.sh': 'drop-ins only for stack units that are enabled systemd units, plus its own timer; starts none of them',
-  '35-who-uses-what.sh': 'its own oneshot service and timer only; the report reads the dashboard, which a cut-over stack still serves on its port',
-  'set-discord-token.sh': 'restarts the Discord bot unit only; the bot is not a container',
+  '23-docker.sh':
+    'enables docker.service and builds images; starts no stack unit (docker-compose.test.mjs)',
+  '24-compose.sh':
+    'is the cutover and the rollback: it starts and stops the units on purpose, with its own guards',
+  '26-discord-game-server.sh':
+    'the Discord bot unit; refuses once the bot runs as a container (refuse_when_bot_container), so it never starts a second bot',
+  '29-gamenight-watch.sh':
+    'its own watch unit (After= lines only name the stack); not a stack unit',
+  '32-crash-guard.sh':
+    'drop-ins only for stack units that are enabled systemd units, plus its own timer; starts none of them',
+  '35-who-uses-what.sh':
+    'its own oneshot service and timer only; the report reads the dashboard, which a cut-over stack still serves on its port',
+  'set-discord-token.sh':
+    'restarts the Discord bot unit only; with a bot container it writes the token and points to stage 24 MODE=bot-restart instead',
   'set-tunnel-token.sh': 'restarts the cloudflared unit only; not part of the stack',
 };
 
 const stageFiles = readdirSync(remote)
   .filter(f => f.endsWith('.sh') && f !== 'lib.sh' && f !== 'lib-gm-passwords.sh')
   .sort();
-const codeLines = text => text.split('\n').map((line, i) => ({ line, n: i + 1 })).filter(l => !/^\s*#/.test(l.line));
-const MUTATING = /\benable_unit\b|\bsystemctl\s+(?:--\S+\s+)*(?:start|restart|try-restart|reload-or-restart|enable)\b/;
+const codeLines = text =>
+  text
+    .split('\n')
+    .map((line, i) => ({ line, n: i + 1 }))
+    .filter(l => !/^\s*#/.test(l.line));
+const MUTATING =
+  /\benable_unit\b|\bsystemctl\s+(?:--\S+\s+)*(?:start|restart|try-restart|reload-or-restart|enable)\b/;
 // A stage is guarded by refuse_when_cut_over (it refuses on a cut-over Pi) or by use_stack (day two, D-149: it works on the
 // containers through the svc_* helpers of lib.sh).
 const GUARD = /^\s*(?:refuse_when_cut_over|use_stack)\s+"/;
@@ -349,8 +398,15 @@ describe('every stage that starts, restarts or enables a unit calls the guard', 
     if (firstChange === null && guard === null) continue;
     test(`${f}`, () => {
       if (f in NO_GUARD) {
-        assert.ok(firstChange !== null, `${f} is in NO_GUARD but no longer starts, restarts or enables a unit: remove the entry`);
-        assert.equal(guard, null, `${f} is in NO_GUARD but calls refuse_when_cut_over: remove the entry`);
+        assert.ok(
+          firstChange !== null,
+          `${f} is in NO_GUARD but no longer starts, restarts or enables a unit: remove the entry`
+        );
+        assert.equal(
+          guard,
+          null,
+          `${f} is in NO_GUARD but calls refuse_when_cut_over: remove the entry`
+        );
         assert.ok(NO_GUARD[f].length > 20, 'a reason, not a word');
         return;
       }
@@ -359,20 +415,27 @@ describe('every stage that starts, restarts or enables a unit calls the guard', 
         `${f} starts, restarts or enables a unit (line ${firstChange}) and does not call refuse_when_cut_over "<what>": call it right after require_root, or add the file to NO_GUARD with the reason it cannot start a second copy of a stack unit`
       );
       if (firstChange !== null) {
-        assert.ok(guard < firstChange, `${f}: the guard (line ${guard}) comes after the first change (line ${firstChange})`);
+        assert.ok(
+          guard < firstChange,
+          `${f}: the guard (line ${guard}) comes after the first change (line ${firstChange})`
+        );
       }
     });
   }
 
   test('a stage that calls use_stack drives the stack services through svc_*, not systemctl on their units', () => {
-    const users = stageFiles.filter(f => codeLines(readFileSync(path.join(remote, f), 'utf8')).some(l => USE_STACK.test(l.line)));
+    const users = stageFiles.filter(f =>
+      codeLines(readFileSync(path.join(remote, f), 'utf8')).some(l => USE_STACK.test(l.line))
+    );
     assert.deepEqual(
       users,
       ['21-player-vault.sh', '25-modules.sh', '5-tool.sh', 'kit-session.sh', 'switch-world.sh'],
       'the day-two stages (D-149)'
     );
     for (const f of users) {
-      const raw = codeLines(readFileSync(path.join(remote, f), 'utf8')).filter(l => RAW_STACK_UNIT.test(l.line));
+      const raw = codeLines(readFileSync(path.join(remote, f), 'utf8')).filter(l =>
+        RAW_STACK_UNIT.test(l.line)
+      );
       assert.deepEqual(
         raw.map(l => `${f}:${l.n}: ${l.line.trim()}`),
         [],
@@ -382,28 +445,56 @@ describe('every stage that starts, restarts or enables a unit calls the guard', 
   });
 
   test('only the use_stack stages and lib.sh call stack_docker or stack_compose, with the allowed verbs', () => {
-    const allowed = new Set(['lib.sh', '21-player-vault.sh', '25-modules.sh', '5-tool.sh', 'kit-session.sh', 'switch-world.sh']);
+    const allowed = new Set([
+      'lib.sh',
+      '21-player-vault.sh',
+      '25-modules.sh',
+      '5-tool.sh',
+      'kit-session.sh',
+      'switch-world.sh',
+    ]);
     const files = readdirSync(remote).filter(f => f.endsWith('.sh'));
     const verbs = /\bstack_docker\s+(\S+)/g;
     const found = new Map();
     for (const f of files) {
-      const text = codeLines(readFileSync(path.join(remote, f), 'utf8')).map(l => l.line).join('\n');
+      const text = codeLines(readFileSync(path.join(remote, f), 'utf8'))
+        .map(l => l.line)
+        .join('\n');
       const hits = [...text.matchAll(/\bstack_(?:docker|compose)\b/g)];
-      if (hits.length && !allowed.has(f)) assert.fail(`${f} uses stack_docker or stack_compose: only the use_stack stages and lib.sh may (the guard hides their verbs)`);
+      if (hits.length && !allowed.has(f))
+        assert.fail(
+          `${f} uses stack_docker or stack_compose: only the use_stack stages and lib.sh may (the guard hides their verbs)`
+        );
       for (const m of text.matchAll(verbs)) found.set(m[1], (found.get(m[1]) ?? 0) + 1);
-      assert.doesNotMatch(text, /\bstack_compose\b[^\n]*\b(?:down|kill)\b/, `${f}: stack_compose down or kill is stage 24's, with its own checks`);
+      assert.doesNotMatch(
+        text,
+        /\bstack_compose\b[^\n]*\b(?:down|kill)\b/,
+        `${f}: stack_compose down or kill is stage 24's, with its own checks`
+      );
       // Outside lib.sh the stage files may only start or recreate what changed (up, never --force-recreate) and read the
       // config (config); anything else goes through stage 24 or a lib.sh helper with its own checks.
       if (f !== 'lib.sh') {
         for (const line of text.split('\n')) {
           const m = /\bstack_compose\s+(\S+)(.*)$/.exec(line);
           if (!m || line.trimStart().startsWith('#')) continue;
-          assert.ok(['up', 'config'].includes(m[1]), `${f}: stack_compose ${m[1]} is not allowed in a stage file (only up and config)`);
-          assert.doesNotMatch(m[2], /--force-recreate/, `${f}: stack_compose up --force-recreate recreates healthy containers: not allowed in a stage file`);
+          assert.ok(
+            ['up', 'config'].includes(m[1]),
+            `${f}: stack_compose ${m[1]} is not allowed in a stage file (only up and config)`
+          );
+          assert.doesNotMatch(
+            m[2],
+            /--force-recreate/,
+            `${f}: stack_compose up --force-recreate recreates healthy containers: not allowed in a stage file`
+          );
         }
       }
     }
-    for (const verb of found.keys()) assert.ok(['stop', 'start', 'restart', 'rm', 'run', 'logs', 'inspect'].includes(verb) || verb.startsWith('-'), `stack_docker ${verb}`);
+    for (const verb of found.keys())
+      assert.ok(
+        ['stop', 'start', 'restart', 'rm', 'run', 'logs', 'inspect'].includes(verb) ||
+          verb.startsWith('-'),
+        `stack_docker ${verb}`
+      );
   });
 
   test('the Kit GM hint never tells the operator to run a bare docker inspect (it prints the password)', () => {
@@ -414,11 +505,15 @@ describe('every stage that starts, restarts or enables a unit calls the guard', 
   test('the nightly backup subtracts the Kit GM container like lib.sh does', () => {
     const backup = readFileSync(path.join(remote, '6-backup.sh'), 'utf8');
     assert.match(backup, /kit_gm_container_joined/);
-    assert.match(backup, /\$stack" = containers \] && \[ "\$users" -gt 0 \] && kit_gm_container_joined/);
+    assert.match(
+      backup,
+      /\$stack" = containers \] && \[ "\$users" -gt 0 \] && kit_gm_container_joined/
+    );
   });
 
   test('NO_GUARD names only files that exist', () => {
-    for (const f of Object.keys(NO_GUARD)) assert.ok(stageFiles.includes(f), `${f} is gone: remove the entry`);
+    for (const f of Object.keys(NO_GUARD))
+      assert.ok(stageFiles.includes(f), `${f} is gone: remove the entry`);
   });
 
   test('the stages the item names are guarded', () => {

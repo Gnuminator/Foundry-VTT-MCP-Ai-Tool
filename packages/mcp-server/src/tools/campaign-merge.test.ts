@@ -7,7 +7,11 @@ import { CampaignMergeTools } from './campaign-merge.js';
 
 type Guard = (worldId: string, entry: AuditEntry) => Promise<string | null>;
 
-function toolsWith(options: { enabled: boolean; pages?: Array<{ id: string; name: string }> }): {
+function toolsWith(options: {
+  enabled: boolean;
+  pages?: Array<{ id: string; name: string }>;
+  missing?: 'null';
+}): {
   tools: CampaignMergeTools;
   query: ReturnType<typeof vi.fn>;
   createPlan: ReturnType<typeof vi.fn>;
@@ -18,6 +22,7 @@ function toolsWith(options: { enabled: boolean; pages?: Array<{ id: string; name
       return [{ id: 'campaign-merge', enabled: options.enabled }];
     }
     if (method === 'foundry-mcp-bridge.getJournalContent') {
+      if (options.missing === 'null') return null;
       if (!options.pages) throw new Error('journal not found');
       return { allPages: options.pages };
     }
@@ -80,5 +85,12 @@ describe('plan-campaign-merge tool', () => {
     expect(await guard()('w', entry)).toMatch(/Bram/);
     const same = toolsWith({ enabled: true, pages: [{ id: 'MADE', name: 'Aldo' }] });
     expect(await same.guard()('w', entry)).toBeNull();
+  });
+
+  it('lets an undo through when the bridge answers null for a missing journal', async () => {
+    const jid = `JournalEntry.${journalId('npcs')}`;
+    const { guard } = toolsWith({ enabled: true, missing: 'null' });
+    const entry = { mode: 'apply', results: [{ uuid: jid }] } as unknown as AuditEntry;
+    expect(await guard()('w', entry)).toBeNull();
   });
 });

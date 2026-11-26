@@ -1,0 +1,3 @@
+### Orange Pi
+
+- **Pi lows sweep:** the deployed-state check no longer reads a slow gm-browser restart loop plus one nightly backup restart as routine (it counts the journal's restarts outside the backup window); `deployed-state.ps1` writes no UTF-8 byte order mark into the pipe and the Pi strips one, which ended in `#!/usr/bin/env: No such file or directory`; stage 36 `CHECK=1` warns when players are online; stage 26 drops its dashboard port warning (the bot defaults to port 3000 since v0.32); the soak guard treats a 4xx answer on apply as a refusal, not as possibly applied; the stage 6 scenario header lists 6b and the restart-and-stop variant of 8; the racooze-map-library wording in stage 37 and the licensed-content page is no longer out of date.

@@ -36,7 +36,7 @@ describe('23-docker.sh as text', () => {
       'DEBIAN_FRONTEND=noninteractive apt-get update',
       'enable_unit docker.service',
       'write_file "$env_file"',
-      '(cd "$checkout" && docker compose -f deploy/pi/compose.yml build)',
+      '(cd "$checkout" && COMPOSE_PROFILES=discord-bot docker compose -f deploy/pi/compose.yml build)',
     ]) {
       assert.ok(snap < s22.indexOf(write), write);
     }
@@ -64,7 +64,10 @@ describe('23-docker.sh as text', () => {
   test('the image build ignores tsbuildinfo files and checks that shared emitted dist', () => {
     const ignore = read('deploy/pi/Dockerfile.dockerignore');
     assert.match(ignore, /^\*\*\/\*\.tsbuildinfo$/m);
-    assert.match(read('deploy/pi/Dockerfile'), /RUN npm run build && test -f shared\/dist\/index\.js/);
+    assert.match(
+      read('deploy/pi/Dockerfile'),
+      /RUN npm run build && test -f shared\/dist\/index\.js/
+    );
   });
 
   test('keeps the .env lines it does not own and writes only the four managed names', () => {
@@ -110,9 +113,11 @@ describe('24-compose.sh as text', () => {
     const up = s23.slice(s23.indexOf('mode_up() {'), s23.indexOf('mode_down() {'));
     const liveRefusal = up.indexOf('would start the live stack next to the units');
     const dataRefusal = up.indexOf('would use a live data folder');
-    assert.ok(liveRefusal > 0 && liveRefusal < dataRefusal && dataRefusal < up.indexOf('need_daemon'));
+    assert.ok(
+      liveRefusal > 0 && liveRefusal < dataRefusal && dataRefusal < up.indexOf('need_daemon')
+    );
     // The first start does not build (stage 23 does) and comes before the --wait start.
-    const first = s23.indexOf('dc up -d --no-build >/dev/null');
+    const first = s23.indexOf('dc up -d --no-build $only >/dev/null');
     assert.ok(first > 0 && first < s23.indexOf('dc up -d --no-build --wait'));
     // The images are checked (preflight) before anything stops.
     assert.ok(cut.indexOf('preflight_stack') < snap);
@@ -159,7 +164,11 @@ describe('24-compose.sh as text', () => {
     assert.match(s23, /up -d --no-build --wait --wait-timeout "\$wait_timeout"/);
     // The live data folders are compared as canonical paths (a trailing slash must not get past), in both refusals.
     assert.match(s23, /canon\(\) \{ realpath -m/);
-    assert.equal((s23.match(/on_live_data/g) ?? []).length, 3, 'defined once, used by conflict_guard and mode_up');
+    assert.equal(
+      (s23.match(/on_live_data/g) ?? []).length,
+      3,
+      'defined once, used by conflict_guard and mode_up'
+    );
     assert.match(s23, /share their data folder/);
     assert.match(s23, /live port\(s\)/);
   });

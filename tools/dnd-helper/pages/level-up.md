@@ -15,7 +15,9 @@ subclass, spells, choices), and you have no tool that runs it.
    subclass, spells, items) and any earlier advancement left unfinished. Then look each feature
    up by name (`search-compendium` for the feature, then `get-compendium-item`) and read what it
    does. If the tool returns nothing for a class, or a feature's name finds no entry, say so and
-   say that the level-up window in Foundry shows the real list. Choices to look for: subclass (level 3), Ability Score Improvement or feat, expertise, fighting
+   say that the level-up window in Foundry shows the real list. The tool cannot describe a class
+   the character does not have yet (a new multiclass): read that class's entry with
+   `search-compendium` and `get-compendium-item` instead. Choices to look for: subclass (level 3), Ability Score Improvement or feat, expertise, fighting
    style, spells. For a subclass, find it by name the same way.
 3. For each choice, `search-compendium` / `get-compendium-item` the candidates (feats, spells,
    features) and read them. Never describe an option from memory alone. Note that each name can

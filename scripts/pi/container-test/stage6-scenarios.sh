@@ -12,9 +12,11 @@
 #     running; the next night backs up anyway, exit 0, marker removed
 #   5 restic fails: the exit code is restic's, Foundry is started again by the trap, the clean-up (forget, prune) is not run
 #   6 Foundry does not come back after the copy: exit 1 with the ERROR line, no clean-up
+#   6b Foundry answers after the copy but is back on the setup screen: exit 1 with the setup-screen ERROR
 #   7 the container stack (after the Docker cutover): clean run, and restic failing, with Foundry's container running after
 #   8 the container stack: Foundry's container restarts during the copy: exit 1, the torn snapshot is forgotten, the
-#     container is running
+#     container is running; a variant (restart and stop) restarts it and stops it again during the copy, which the
+#     start time catches: exit 1, container running
 # The last line is ALL SCENARIOS OK when every one passed:
 #   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" <IMAGE> bash /repo/scripts/pi/container-test/stage6-scenarios.sh
 # (scripts/pi/backup-nightly-container.test.mjs runs it with PI_STAGE6_CONTAINER=1.) STAGE=<file> runs another copy of the

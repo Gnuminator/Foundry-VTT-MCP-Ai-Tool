@@ -266,6 +266,25 @@ test('a refusal writes the reason as a progress line and posts one line; it is n
   assert.equal(f.calls.gate.length, 1, 'the same head is not gated twice in one run');
 });
 
+test('a refusal also leaves one PR comment with the refusal line; a merge leaves none', () => {
+  const f = fakes({
+    text: backlog([
+      ['one', `PR #5 ready, head ${SHA}`],
+      ['two', `PR #6 ready, head ${SHA2}`],
+    ]),
+    prs: { 5: open(), 6: open(SHA2) },
+    gates: {
+      5: { status: 1, stdout: 'lane:merge: refused because drift: tool counts' },
+      6: merged(6),
+    },
+  });
+  round(f.deps, new Set());
+  const comments = f.calls.gh.filter(a => a[0] === 'pr' && a[1] === 'comment');
+  assert.equal(comments.length, 1);
+  assert.equal(comments[0][2], '5');
+  assert.match(comments[0].at(-1), /not merged on head .*drift: tool counts/);
+});
+
 test('a ready line rewritten for the same head after a refusal is gated again, without a restart', () => {
   const f = fakes({
     text: backlog([['one', `PR #5 ready, head ${SHA}`]]),

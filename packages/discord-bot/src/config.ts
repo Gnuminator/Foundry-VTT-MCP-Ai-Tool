@@ -20,6 +20,8 @@
  * | `FOUNDRY_AI_PLAYER_TOKEN` | the dashboard's player token, if the deployment sets one |
  * | `DISCORD_OMENS` | `1` sends the omens the GM approved in the dashboard as private messages (I-181); unset = off |
  * | `FOUNDRY_AI_GM_TOKEN` | the dashboard's GM token, for the omens (blank when the dashboard has no token split) |
+ * | `FVTT_MEMOS_DIR`     | where voice memos sent to the bot in a DM are saved; default `FoundryMemos` in `FVTT_DATA_DIR`, else `Documents` |
+ * | `DISCORD_MEMO_USER_IDS` | comma separated user ids allowed to send memos; default the owner only |
  * | `REHEARSAL_TOKEN_1` to `_3` | speaker bot tokens for `rehearse` (one bot application each) |
  * | `REHEARSAL_CHANNEL_ID` | the voice channel rehearsals use                          |
  * | `FVTT_REHEARSAL_DIR` | where rehearsals go; default `FoundryRehearsals` in `FVTT_DATA_DIR`, else `Documents` |
@@ -69,6 +71,10 @@ export interface BotConfig {
    * channel); unset means alerts go to the voice channel's text chat as before.
    */
   gmBotChannelId?: string | undefined;
+  /** Voice memos: where the inbox lives; unset means `FoundryMemos` in the data folder. */
+  memosDir?: string | undefined;
+  /** Voice memos: who may send them in a DM; empty means the owner only. */
+  memoUserIds?: string[] | undefined;
 }
 
 export interface RehearsalConfig {
@@ -138,6 +144,11 @@ export function loadConfig(envFile = defaultEnvFile(), requireToken = true): Bot
     omensOn: ['1', 'true', 'on'].includes((get('DISCORD_OMENS') ?? '').toLowerCase()),
     gmToken: get('FOUNDRY_AI_GM_TOKEN'),
     gmBotChannelId: get('DISCORD_GM_BOT_CHANNEL_ID') ?? get('GAMENIGHT_WATCH_CHANNEL_ID'),
+    memosDir: get('FVTT_MEMOS_DIR'),
+    memoUserIds: (get('DISCORD_MEMO_USER_IDS') ?? '')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean),
   };
 }
 

@@ -62,6 +62,27 @@ export function evaluate(current, baseline) {
   return problems;
 }
 
+/**
+ * The baseline `--update` writes: the current counts, but never a rise (unless seeding a new file).
+ * @param {Record<string, Record<string, number>>} current
+ * @param {Record<string, Record<string, number>>} baseline
+ * @param {boolean} seeding no baseline file yet
+ * @returns {{ next: Record<string, Record<string, number>>, refusal: string | null }}
+ */
+export function nextBaseline(current, baseline, seeding) {
+  /** @type {Record<string, Record<string, number>>} */
+  const next = {};
+  for (const [ws, codes] of Object.entries(current)) {
+    for (const [code, n] of Object.entries(codes)) {
+      const old = seeding ? undefined : (baseline[ws]?.[code] ?? 0);
+      if (old !== undefined && n > old)
+        return { next, refusal: `refusing to raise ${ws} ${code} ${old} -> ${n}` };
+      (next[ws] ??= {})[code] = n;
+    }
+  }
+  return { next, refusal: null };
+}
+
 /** @param {string} ws */
 function run(ws) {
   const args = [
@@ -113,8 +134,8 @@ function main() {
     }
     current[ws] = countByCode(out);
   }
-  /** @type {Record<string, Record<string, number>>} */
   const seeding = !existsSync(baselinePath);
+  /** @type {Record<string, Record<string, number>>} */
   const baseline = existsSync(baselinePath) ? JSON.parse(readFileSync(baselinePath, 'utf8')) : {};
   const total = Object.values(current).reduce(
     (a, c) => a + Object.values(c).reduce((x, y) => x + y, 0),
@@ -122,17 +143,10 @@ function main() {
   );
 
   if (update) {
-    /** @type {Record<string, Record<string, number>>} */
-    const next = {};
-    for (const [ws, codes] of Object.entries(current)) {
-      for (const [code, n] of Object.entries(codes)) {
-        const old = seeding ? undefined : (baseline[ws]?.[code] ?? 0);
-        if (old !== undefined && n > old) {
-          console.error(`typecheck-tests: refusing to raise ${ws} ${code} ${old} -> ${n}`);
-          process.exit(1);
-        }
-        (next[ws] ??= {})[code] = n;
-      }
+    const { next, refusal } = nextBaseline(current, baseline, seeding);
+    if (refusal) {
+      console.error(`typecheck-tests: ${refusal}`);
+      process.exit(1);
     }
     writeFileSync(baselinePath, `${JSON.stringify(next, null, 2)}\n`);
     console.log(`typecheck-tests: baseline written (${total} errors).`);

@@ -1,7 +1,7 @@
 // Tests for `npm run ci:health` (scripts/ci-health.mjs) and its lines in the Weekly check note.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildCiHealth, ciLines, formatTable, summarizeRuns } from '../ci-health.mjs';
+import { buildCiHealth, ciLines, formatTable, lastRunLine, summarizeRuns } from '../ci-health.mjs';
 import { sectionFor } from './weekly-check-note.mjs';
 
 const NOW = new Date('2026-11-18T12:00:00Z');
@@ -78,6 +78,22 @@ test('runs outside the window and an empty list give n/a, not 0', () => {
   assert.equal(s.failPercent, null);
   assert.equal(s.medianMinutes, null);
   assert.match(formatTable(buildCiHealth([], NOW)), /median minutes\s+n\/a\s+n\/a/);
+});
+
+test('lastRunLine names the conclusion and date, or says there was no run', () => {
+  assert.equal(
+    lastRunLine('release', { conclusion: 'success', createdAt: '2026-11-20T08:00:00Z' }),
+    'last release: success (2026-11-20)'
+  );
+  assert.equal(
+    lastRunLine('pi-images', {
+      conclusion: '',
+      status: 'in_progress',
+      createdAt: '2026-11-25T01:00:00Z',
+    }),
+    'last pi-images: in_progress (2026-11-25)'
+  );
+  assert.equal(lastRunLine('mutation-core', undefined), 'last mutation-core: no run');
 });
 
 test('the table has both windows and one row per figure', () => {

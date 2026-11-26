@@ -37,7 +37,6 @@ recorded yes (`python -m session_notes consent check <session>`; `consent set <i
      Nothing is lost; for the limit say when to run the same command again (the message says when
      it resets); for a logout ask the user to log in to `claude`, then run it again.
    - exit 76: some scenes are still raw text. Run the same command again to finish them.
-   - exit 77: no consent is recorded for the session; stop and tell the user (`python -m session_notes consent check <session>` gives the reason).
    - exit 78: the scene notes are done but the session summary failed. Run the same command again; after three failed runs it retries only when the notes change.
    - exit 1: show the error from the output and `notes/audit.jsonl`.
 7. Names check artifact (optional, for a reviewer who wants to listen): `node scripts/names-check.mjs

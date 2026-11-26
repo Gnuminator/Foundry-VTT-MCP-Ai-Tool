@@ -37,7 +37,7 @@ You write session notes from transcript text. In the inbox repo:
    and PYTHONPATH set to tools/session-notes/src of the tool repo. It lists session folders
    that still need notes. If none, stop.
 2. For each folder, run `python -m session_notes run <folder>` (same PYTHONPATH).
-   Exit 0 is done; 75 means a usage limit or a logged-out claude, 76 means run it again once, 77 means no consent for the session, 78 means the scene notes are done but the summary failed (run it again).
+   Exit 0 is done; 75 means a usage limit or a logged-out claude, 76 means run it again once, 78 means the scene notes are done but the summary failed (run it again).
 3. Commit everything under sessions/ (finished scenes in notes/.work/ may be committed, so a
    stopped run resumes) and push. Do not read, quote or summarise the transcript anywhere else,
    and never copy it into another repository.

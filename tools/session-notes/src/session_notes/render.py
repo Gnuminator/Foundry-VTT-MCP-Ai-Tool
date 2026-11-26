@@ -25,7 +25,7 @@ from pathlib import Path
 import re
 from typing import Any
 
-from . import extras, layers
+from . import agenda, extras, layers
 from .check import PAGE as CHECK_PAGE
 from .fmt import (
     AT_TABLE,
@@ -367,6 +367,11 @@ def write_outputs(
         put(f"summary.{lang}.md", render_summary(lang, session))
         put(f"recap.player.{lang}.md", render_recap(lang, session))
         put(f"raw.{lang}.md", layers.render_raw(lines, notes, lang))
+    if session is not None:
+        # the table agenda carries open questions over from session to session (backlog table-agenda)
+        carried = agenda.update(notes_dir.parent.parent, notes_dir.parent.name, notes, lines)
+        for lang in LANGS:
+            put(f"agenda.{lang}.md", agenda.render(carried, lang))
     if depth is not None:
         wanted = [n["index"] for n in notes if not n.get("fallback")]
         depth_complete = not incomplete and all(i in depth for i in wanted)

@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from .fmt import stamp
-from .model import Line, Roster
+from .model import Line, Roster, is_gm
 from .prompts import _IDS, _STR, PRONOUN_RULE, _list, _obj, roster_block
 
 MOMENT = _obj(da=_STR, en=_STR, reason_da=_STR, reason_en=_STR, cites=_IDS)
@@ -40,8 +40,8 @@ Produce the JSON described by the schema.
   fight turned on one roll").
 - cites: 1 to 3 line ids from the notes where the moment happens, the first one at its start.
 - Positive moments only. Never a mistake, a low roll played for blame, or a comparison of players.
-- Use only what is in the notes. Never invent. The notes hold nothing the GM keeps secret, so
-  tell nothing beyond them.
+- Use only what is in the notes and the public rolls. Never invent. Never use a roll or message
+  that looks like a GM secret, a whisper or a hidden roll, and never tell what the GM keeps hidden.
 - Game terms stay English in both languages: attack, saving throw, hit points, armor class,
   initiative, spell slot, advantage, token, D&D. The Danish text is Danish sentences with these.
 - Write both languages, the same content.
@@ -68,18 +68,29 @@ def _chat(session: Path) -> list[dict[str, Any]]:
         return []
     if not isinstance(rows, list):
         return []
-    keep = [r for r in rows if isinstance(r, dict) and r.get("text")]
+    private = ("whisper", "blind", "private", "secret", "gmOnly")
+    keep = [
+        r
+        for r in rows
+        if isinstance(r, dict)
+        and r.get("text")
+        and not any(r.get(k) for k in private)
+        and not is_gm(str(r.get("who", "")))
+    ]
     return [{"time": r.get("time"), "who": r.get("who"), "text": str(r["text"])[:160]} for r in keep[:CHAT_ROWS]]
 
 
 def scenes_body(scenes: list[dict[str, Any]]) -> str:
     slim = [_slim(s) for s in scenes if not s.get("fallback")]
     body = json.dumps(slim, ensure_ascii=False, indent=1)
-    if len(body) > MAX_CHARS:  # a very long night: the first events of each scene are enough
+    if len(body) > MAX_CHARS:  # a very long night: a few events per scene, whole scenes only
         for s in slim:
             s.pop("decisions", None)
             s["events"] = (s.get("events") or [])[:4]
-        body = json.dumps(slim, ensure_ascii=False)[:MAX_CHARS]
+            s["quotes"] = (s.get("quotes") or [])[:3]
+        while len(slim) > 1 and len(json.dumps(slim, ensure_ascii=False)) > MAX_CHARS:
+            del slim[len(slim) // 2]
+        body = json.dumps(slim, ensure_ascii=False)
     return body
 
 

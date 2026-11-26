@@ -244,3 +244,34 @@ def test_moment_rejects_two_moments_and_unknown_cites() -> None:
     assert moment.check({"moments": [m, m]}, KNOWN)
     assert moment.check({"moments": [{**m, "cites": ["u9"]}]}, KNOWN)
     assert not moment.check({"moments": [m]}, KNOWN) and not moment.check({"moments": []}, KNOWN)
+
+
+def test_moment_prompt_leaves_out_whispers_gm_rows_and_gm_only_notes(session: Path) -> None:
+    rows = [
+        {"time": "1", "who": "Anna", "text": "public natural 20"},
+        {"time": "2", "who": "Anna", "text": "whispered thing", "whisper": ["gm"]},
+        {"time": "3", "who": "GM", "text": "gm secret roll"},
+    ]
+    (session / "chat-log.json").write_text(json.dumps(rows), encoding="utf-8")
+    fake = FakeClaude()
+    Writer(session, fake, opts()).run()
+    prompt = next(p for k, p in fake.calls if k == "moment")
+    assert "public natural 20" in prompt
+    assert "whispered thing" not in prompt and "gm secret roll" not in prompt
+    assert "Hemmelig" not in prompt and "Secret" not in prompt
+
+
+def test_a_failing_moment_call_is_given_up_after_counted_runs(session: Path) -> None:
+    class Broken(FakeClaude):
+        def __call__(self, prompt, schema, model, effort="low"):  # type: ignore[no-untyped-def]
+            if "moments" in schema["properties"]:
+                self.calls.append(("moment", prompt))
+                return {"moments": [{"da": "", "en": "", "reason_da": "", "reason_en": "", "cites": []}]}
+            return super().__call__(prompt, schema, model, effort)
+
+    for _ in range(3):
+        Writer(session, Broken(), opts(fallback_gap_s=0)).run()
+    after = Broken()
+    result = Writer(session, after, opts(fallback_gap_s=0)).run()
+    assert "moment" not in [k for k, _ in after.calls] and not result.paused
+    assert "Moment of the night" not in (session / "notes" / "recap.player.en.md").read_text(encoding="utf-8")

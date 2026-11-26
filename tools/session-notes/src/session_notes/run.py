@@ -370,7 +370,13 @@ class Writer:
             tmp.write_text(json.dumps({"key": key, "notes": result}, ensure_ascii=False), encoding="utf-8")
             os.replace(tmp, path)
             self._log("moment_ok", picked=len(result.get("moments") or []))
+            self._clear_extra_failure("moment")
             return result, None
+        if self._count_extra_failure("moment", extras.chunk_scenes(notes), roster):
+            # given up after MAX_FALLBACK_RUNS counted runs: no moment, and no more calls
+            given_up = {"moments": [], "fallback": True}
+            path.write_text(json.dumps({"key": key, "notes": given_up}), encoding="utf-8")
+            return given_up, None
         return None, None
 
     def _extra_fail_path(self, layer: str) -> Path:

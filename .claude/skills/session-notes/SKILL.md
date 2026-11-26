@@ -47,7 +47,7 @@ recorded yes (`python -m session_notes consent check <session>`; `consent set <i
    commit or post them.
 8. Campaign pages (D-151). After the notes run, the session adds to the GM-only Campaign journals:
    - Save the Foundry side into the session folder first (the Claude session does it; both files are
-     optional): `get-chat-log` for the session's night, written as `<session>/chat-log.json` (a list of
+     optional): `get-chat-log` for the session's night (public messages and rolls only, no whispers or GM rolls: the moment of the night reads it), written as `<session>/chat-log.json` (a list of
      `{time, who, text}`), and Foundry's own values for the characters and creatures the talk mentions as
      `<session>/foundry-facts.json` (`{"Ilvara": {"level": "4"}}`; keys `stats`, `items`, `level`,
      `ownership`). Without them the plan still works; claims about stats stay hints.

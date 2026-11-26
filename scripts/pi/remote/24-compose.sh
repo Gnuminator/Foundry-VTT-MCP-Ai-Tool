@@ -471,6 +471,8 @@ mode_bot() {
   docker image inspect "$bot_image" >/dev/null 2>&1 || die "the image $bot_image is not built (a stack from before the bot container): run stage 23, or stage 5 with a release that has it. Nothing was changed"
   [ -d "$backup_pulls_dir" ] || die "$backup_pulls_dir is missing (stage 6 writes it): the bot container mounts it read-only. Nothing was changed"
   grep -Eq '^DISCORD_TOKEN=[^[:space:]]+' "$TOOL_ETC/discord-bot.env" 2>/dev/null || die "$TOOL_ETC/discord-bot.env has no token: nothing to move. Nothing was changed"
+  # Checked here, before anything is stopped; bot_wire_status runs after the disable and must not refuse.
+  { [[ "${BOT_STATUS_PORT:-3110}" =~ ^[0-9]+$ ]] && [ "${BOT_STATUS_PORT:-3110}" -ge 1024 ] && [ "${BOT_STATUS_PORT:-3110}" -le 65535 ]; } || die "BOT_STATUS_PORT must be a port from 1024 to 65535. Nothing was changed"
   if [ "$dry" = 1 ]; then
     say "dry run: would add FOUNDRY_AI_BOT_STATUS_PORT to discord-bot.env and WATCH_RECORDER_STATUS_URL to gamenight-watch.env when they are missing, stop and disable $bot_unit, set COMPOSE_PROFILES=discord-bot in $env_file, start the discord-bot container and wait for its login line; rolls back to the unit by itself when it does not log in; nothing changed"
     return 0

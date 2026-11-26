@@ -103,13 +103,13 @@ export function createPiSoakGuard(
           { confirm: true }
         );
       } catch (e) {
-        // A 4xx answer (or an EnvError such as a missing GM token) is a refusal: the change was not applied.
+        // Only the answers the dashboard gives before it dispatches the apply are refusals (400 no name, 401/403 GM
+        // token or gm-actions off, 412 confirm required, 421 host). A 422 is any tool error, including "applied but
+        // not recorded" and "may or may not have been applied", and an EnvError can be a connection reset after the
+        // request went out: those stay on the possibly-applied path.
         if (
-          e instanceof EnvError ||
-          (e instanceof KitToolError &&
-            typeof e.status === 'number' &&
-            e.status >= 400 &&
-            e.status < 500)
+          (e instanceof EnvError && /needs the GM token/.test(e.message)) ||
+          (e instanceof KitToolError && [400, 401, 403, 412, 421].includes(Number(e.status)))
         ) {
           throw new EnvError(
             `REFUSED: pi soak write: the apply of plan ${plan.planId} was refused (${e.message}); nothing was applied`

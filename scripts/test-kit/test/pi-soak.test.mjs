@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { KitToolError } from '../lib/errors.mjs';
+import { EnvError, KitToolError } from '../lib/errors.mjs';
 import { createPiSoakGuard } from '../lib/pi-soak-guard.mjs';
 import {
   buildRecord,
@@ -156,6 +156,15 @@ test('soak guard: a 4xx refusal on apply is a refusal, not possibly applied', as
     /was refused .*nothing was applied/
   );
   assert.deepEqual(g.stranded, []);
+  for (const err of [
+    new KitToolError({ kind: 'tool', status: 422, error: 'was applied but could not be recorded', name: 'apply-planned-change' }),
+    new EnvError('nothing is listening on http://pi:3000'),
+  ]) {
+    const f = fake({ applyFails: err });
+    const gx = createPiSoakGuard(f.dashboard, { world: 'strahd-kit', allowWrites: true });
+    await assert.rejects(gx.damageRoundTrip({ target: 'G', action: 'damage', amount: 1 }), /failed in transit/);
+    assert.equal(gx.stranded.length, 1);
+  }
   const five = fake({
     applyFails: new KitToolError({ kind: 'x', status: 502, error: 'bad gateway', name: 'apply-planned-change' }),
   });

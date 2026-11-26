@@ -226,10 +226,13 @@ function journalHtml(language: 'en' | 'da'): string {
 /** Build the practice room plan. Throws when the name is taken. */
 export function planPracticeRoom(request: RoomPracticeRequest): RoomSetupPlan {
   const name = (request.name ?? '').trim() || 'Practice Room';
-  const language = request.language === 'da' ? 'da' : 'en';
   const scenes = globals().game.scenes?.contents ?? [];
   if (scenes.some(s => String(s.name ?? '').toLowerCase() === name.toLowerCase())) {
     throw new Error(`A scene named "${name}" already exists: pick another name or remove it`);
+  }
+  const actors = (globals().game as { actors?: { contents?: Array<{ name?: string }> } }).actors;
+  if ((actors?.contents ?? []).some(a => a.name === 'Training Dummy')) {
+    throw new Error('A Training Dummy already exists: remove the old practice room first');
   }
   const users = (globals().game.users?.contents ?? []).filter(u => u.isGM !== true);
   const warnings: string[] = [];
@@ -314,10 +317,10 @@ export function planPracticeRoom(request: RoomPracticeRequest): RoomSetupPlan {
     tokenData(
       h.tokenId,
       h.actorId,
-      tokens[index]!.name,
+      tokens[index].name,
       'icons/svg/mystery-man.svg',
-      tokens[index]!.x,
-      tokens[index]!.y,
+      tokens[index].x,
+      tokens[index].y,
       { actorLink: true, disposition: 1 }
     )
   );
@@ -355,17 +358,16 @@ export function planPracticeRoom(request: RoomPracticeRequest): RoomSetupPlan {
     keepId: true,
     data: {
       _id: journalId,
-      name: STEPS[language].journal,
+      name: STEPS.en.journal,
       flags: PRACTICE_FLAGS,
       ownership: { default: OBSERVER_LEVEL },
-      pages: [
-        {
-          _id: newId(),
-          name: STEPS[language].journal,
-          type: 'text',
-          text: { format: 1, content: journalHtml(language) },
-        },
-      ],
+      pages: (['en', 'da'] as const).map((language, sort) => ({
+        _id: newId(),
+        name: STEPS[language].journal,
+        type: 'text',
+        sort,
+        text: { format: 1, content: journalHtml(language) },
+      })),
     },
   });
 
@@ -393,7 +395,7 @@ export function planPracticeRoom(request: RoomPracticeRequest): RoomSetupPlan {
   });
 
   warnings.push(
-    'The scene is not activated: open it with switch-scene when the players are ready, and Undo removes the room, the practice actors and the combat. Once people have played in it (moved, rolled, ended turns) Undo refuses because the documents changed: then delete the scene, the two Practice/Training actors and the journal entry by hand (all carry the practice flag).'
+    'The scene is not activated: open it with switch-scene when the players are ready, and Undo removes the room, the practice actors and the combat. Once people have played in it (moved, rolled, ended turns) Undo refuses because the documents changed: then delete the scene, the Training Dummy, every Practice Hero actor and the journal entry by hand (all carry the practice flag).'
   );
   return {
     summary: `Set up the practice room "${name}" with ${heroTokens.length} practice hero${heroTokens.length === 1 ? '' : 'es'}, a training dummy and a begun combat`,

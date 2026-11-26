@@ -21,7 +21,7 @@ afterEach(() => {
 });
 
 const ops = (plan: { ops: any[] }, doc: string): any[] =>
-  plan.ops.filter(o => o.documentName === doc);
+  plan.ops.filter((o: any) => o.documentName === doc);
 
 describe('practice room', () => {
   it('makes a dummy, one owned hero per player, a scene, a journal and a begun combat', async () => {
@@ -42,7 +42,7 @@ describe('practice room', () => {
     const hero = actors[1].data;
     expect(hero.items.map((i: any) => i.name)).toEqual(['Practice Sword', 'Practice Spark']);
     for (const item of hero.items) {
-      const acts = Object.values(item.system.activities) as any[];
+      const acts = Object.values<any>(item.system.activities);
       expect(acts).toHaveLength(1);
       expect(acts[0].type).toBe('attack');
     }
@@ -69,12 +69,23 @@ describe('practice room', () => {
     expect(ops(plan, 'Scene')[0].data.name).toBe('Try-out');
   });
 
-  it('writes the step journal in Danish on request and keeps content generic', async () => {
-    const plan = await planRoomSetup({ action: 'practice', language: 'da' });
+  it('writes the step journal in English and Danish and keeps content generic', async () => {
+    const plan = await planRoomSetup({ action: 'practice' });
     const journal = ops(plan, 'JournalEntry')[0].data;
-    expect(journal.name).toBe('Øverum: sådan gør du');
+    expect(journal.name).toBe('Practice room: how to');
+    expect(journal.pages.map((p: any) => p.name)).toEqual([
+      'Practice room: how to',
+      'Øverum: sådan gør du',
+    ]);
     expect(journal.ownership).toEqual({ default: 2 });
     expect(JSON.stringify(plan.ops)).not.toMatch(/strahd/i);
+  });
+
+  it('refuses a second room while a Training Dummy exists', async () => {
+    world.addActor({ id: 'd', name: 'Training Dummy', type: 'npc' });
+    await expect(planRoomSetup({ action: 'practice', name: 'Other' })).rejects.toThrow(
+      /Training Dummy already exists/
+    );
   });
 
   it('refuses a name that is already a scene', async () => {

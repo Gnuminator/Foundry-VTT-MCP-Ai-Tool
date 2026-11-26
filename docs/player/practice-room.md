@@ -11,13 +11,14 @@ table, in your own time, with nobody watching the clock. Nothing you do there co
 dummy cannot hurt anyone.
 
 You do not need the GM in the room. When they have set it up, they tell you its name and open it.
-Join the game as usual (see [Join the game](join.md)) and you land on the practice scene.
+Join the game as usual (see [Join the game](join.md)); once the GM has opened it, you land on the
+practice scene.
 
 ## What you get
 
-- A **practice hero** with your name on it. Only you can move it.
+- A **practice hero** with your name on it. Of the players, only you can move it.
 - A **training dummy** to attack. It has no attacks of its own.
-- A short **step list** in the Journal tab (the book icon), called "Practice room: how to".
+- A short **step list** in the Journal tab (the book icon), called "Practice room: how to" (it has an English and a Danish page).
 - A **combat tracker** that is already running, so you can see whose turn it is and how to end it.
 
 ## The four steps
@@ -37,8 +38,9 @@ the real game.
 
 ## When you are done
 
-Tell the GM. They remove the whole room with one Undo: the scene, the dummy, the practice heroes
-and the combat all go away together, and your real character is untouched.
+Tell the GM. They remove the room: the scene, the dummy, the practice heroes, the step list and
+the combat all go away, and your real character is untouched. (Foundry's Undo works only before
+anyone has played in the room; after that the GM deletes those few things by hand.)
 
 The practice room is an extra. The normal way to learn Foundry is still playing it, and your GM
 can always help.

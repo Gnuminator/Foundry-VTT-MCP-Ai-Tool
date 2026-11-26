@@ -157,14 +157,12 @@ export interface RoomWhisperRequest {
  * A practice room for new players (idea 2.14): one plan makes a small scene, a training dummy,
  * one practice hero per player (owned by that player, with a weapon attack and a cantrip), a
  * short step list as a journal entry and a begun combat, so a new player can move, attack, cast
- * and end a turn without the GM. Generic: no book or campaign content. Undo removes all of it.
+ * and end a turn without the GM. Generic: no book or campaign content. Undo removes all of it until someone has played in the room (then the documents have changed and Undo refuses).
  */
 export interface RoomPracticeRequest {
   action: 'practice';
   /** The scene name (default "Practice Room"). */
   name?: string;
-  /** Language of the step list journal (default en). */
-  language?: 'en' | 'da';
 }
 
 export type RoomSetupRequest =

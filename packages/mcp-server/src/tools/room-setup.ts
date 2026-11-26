@@ -91,7 +91,6 @@ const planParams = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('practice'),
     name: z.string().min(1).max(120).optional(),
-    language: z.enum(['en', 'da']).optional(),
   }),
   z.object({
     action: z.literal('whisper'),
@@ -152,7 +151,7 @@ export class RoomSetupTools {
       {
         name: 'plan-room-setup',
         description:
-          'Plan Region-based scene parts: "teleport" moves tokens entering one rectangle to another (same or other scene); "spawn" makes a room rectangle plus tokens from actors on free squares in it; "levels" adds Scene Levels; "stairs" joins levels; "hazard" makes difficult terrain, darkness or an existing effect; "whisper" whispers a room card to the GM only when a token enters the rectangle; "practice" (name?, language en|da) makes a practice scene, dummy, a practice hero per player, step journal and begun combat. Apply with apply-planned-change, undo with undo-change. Needs the module switch "Room setup" (off by default).',
+          'Plan Region-based scene parts: "teleport" moves tokens entering one rectangle to another (same or other scene); "spawn" makes a room rectangle plus tokens from actors on free squares in it; "levels" adds Scene Levels; "stairs" joins levels; "hazard" makes difficult terrain, darkness or an existing effect; "whisper" whispers a room card to the GM only when a token enters the rectangle; "practice": a practice room. Apply with apply-planned-change, undo with undo-change. Needs the module switch "Room setup" (off by default).',
         inputSchema: {
           type: 'object',
           properties: {
@@ -186,7 +185,6 @@ export class RoomSetupTools {
               description: 'spawn: tokens hidden from players (default true).',
             },
             scene: { type: 'string', description: 'levels: scene.' },
-            language: { type: 'string', enum: ['en', 'da'], description: 'practice: step list.' },
             levels: {
               type: 'array',
               description: 'levels: [{name, bottom, top?, background?}]. stairs: level names.',

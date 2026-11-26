@@ -95,7 +95,7 @@ describe('planTokenRings', () => {
       },
     };
     const plan = planTokenRings({ action: 'enable', look: 'steel', actorType: 'npc' });
-    expect(plan.ops.map(o => o.uuid)).toEqual(['Actor.a1']);
+    expect(plan.ops).toEqual([expect.objectContaining({ uuid: 'Actor.a1' })]);
     expect(plan.alreadyDone).toBe(1);
   });
 

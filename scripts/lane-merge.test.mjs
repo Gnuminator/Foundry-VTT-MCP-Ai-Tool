@@ -622,7 +622,9 @@ test('risky categories: every category has patterns and the real paths match', (
   assert.deepEqual(category('packages/mcp-server/src/handouts/strip-secrets.ts'), ['security']);
   assert.deepEqual(category('packages/mcp-server/src/obsidian/licensed-guard.ts'), ['security']);
   assert.deepEqual(category('.claude/hooks/guard-remote-commands.mjs'), ['security']);
-  assert.deepEqual(category('plugin/foundry-lane-kit/hooks/guard-remote-commands.mjs'), ['security']);
+  assert.deepEqual(category('plugin/foundry-lane-kit/hooks/guard-remote-commands.mjs'), [
+    'security',
+  ]);
   assert.deepEqual(category('.claude-plugin/marketplace.json'), ['security']);
   assert.deepEqual(category('scripts/pi/remote/5-tool.sh'), ['Pi scripts']);
   assert.deepEqual(category('scripts/plan-b/start.ps1'), ['Pi scripts']);
@@ -3814,8 +3816,12 @@ test('carry (5): an Opus-required PR with a carried Sonnet note still refuses', 
 
 test('fix round: a fix off the Opus list needs only a Sonnet Merge, a risky file in the fix needs Opus', () => {
   const r = carryRepo();
-  const opus = [reviewed(r.B, true, '**Fixes first.** One medium.')];
-  // the fix touches a non-risky file; main moves on and is merged in cleanly after it
+  // the PR changes a risky file; Opus reviewed that commit (Merge after fixes)
+  fs.mkdirSync(path.join(r.dir, 'scripts', 'pi'), { recursive: true });
+  r.write('scripts/pi/x.sh', ['echo hi']);
+  const R1 = r.commit('risky change');
+  const opus = [reviewed(R1, true, '**Merge after fixes.** One medium.')];
+  // a fix off the Opus list, then main moves on and is merged in cleanly
   r.write('a.txt', [...r.lines, 'fix']);
   r.commit('fix');
   const M1 = mainMovesOn(r);
@@ -3823,20 +3829,34 @@ test('fix round: a fix off the Opus list needs only a Sonnet Merge, a risky file
   r.setMain(M1);
   const C = r.g('rev-parse', 'HEAD');
   const notes = [...opus, reviewed(C)];
-  const relief = fixRoundRelief(r.run, notes, C);
-  assert.deepEqual(relief, { relief: true, from: r.B, files: ['a.txt'] });
+  assert.deepEqual(fixRoundRelief(r.run, notes, C), {
+    relief: true,
+    from: R1,
+    files: ['scripts/pi/x.sh'],
+  });
   assert.equal(judgeReviews(notes, C, false).ok, true);
   assert.equal(judgeReviews(notes, C, true).ok, false, 'without the relief Sonnet is refused');
-  // a risky file in the fix: no relief
-  fs.mkdirSync(path.join(r.dir, 'scripts', 'pi'), { recursive: true });
-  r.write('scripts/pi/x.sh', ['echo hi']);
+  // the reversed merge (main as first parent) cannot hide a later risky edit
+  r.write('scripts/pi/x.sh', ['echo changed']);
   const D = r.commit('risky fix');
-  const hit = fixRoundRelief(r.run, [...opus, reviewed(D)], D);
-  assert.equal(hit.relief, false);
-  assert.match(/** @type {{ why: string }} */ (hit).why, /touches scripts\/pi\/x\.sh/);
-  // no earlier Opus review: no relief
-  assert.equal(fixRoundRelief(r.run, [reviewed(r.B), reviewed(C)], C).relief, false);
-  // a Sonnet-only first pass of a risky PR gets no relief either
+  r.g('checkout', '-q', '-B', 'rev', 'main');
+  r.g('merge', '-q', '--no-edit', 'pr');
+  const rev = r.g('rev-parse', 'HEAD');
+  assert.equal(
+    fixRoundRelief(r.run, [...opus, reviewed(rev)], rev).relief,
+    false,
+    'reversed merge'
+  );
+  assert.equal(fixRoundRelief(r.run, [...opus, reviewed(D)], D).relief, false, 'risky edit');
+  // a file with a non-ASCII name on the Opus list counts
+  r.g('checkout', '-q', 'pr');
+  r.write('scripts/pi/ø.sh', ['echo hi']);
+  const E = r.commit('non-ascii risky file');
+  assert.equal(fixRoundRelief(r.run, [...opus, reviewed(E)], E).relief, false, 'non-ASCII name');
+  // an Opus Do not merge opens nothing; no Opus note, or a Sonnet-only first pass: no relief
+  const veto = [reviewed(R1, true, '**Do not merge.** Broken.')];
+  assert.equal(fixRoundRelief(r.run, [...veto, reviewed(C)], C).relief, false, 'do not merge');
+  assert.equal(fixRoundRelief(r.run, [reviewed(R1), reviewed(C)], C).relief, false);
   assert.equal(fixRoundRelief(r.run, [reviewed(C)], C).relief, false);
 });
 

@@ -49,5 +49,6 @@ describe('parseGridLabels', () => {
     expect(() => parseGridLabels('A1 without B1 without C1')).toThrow(/once/);
     expect(() => parseGridLabels('without B1')).toThrow(/before/);
     expect(() => parseGridLabels('A1 to ZZ999')).toThrow(/more than/);
+    expect(() => parseGridLabels('C4 to H9, without E16')).toThrow(/not in the room: E16/);
   });
 });

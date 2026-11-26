@@ -244,7 +244,7 @@ export class RoomSetupTools {
     );
     if (unknown.length > 0) {
       throw new Error(
-        `Unknown parameter(s) for this action: ${unknown.join(', ')} (level belongs inside area)`
+        `Unknown parameter(s) for this action: ${unknown.join(', ')} (level goes inside area, or at the top level with squares)`
       );
     }
     const params = parsed as RoomSetupRequest;

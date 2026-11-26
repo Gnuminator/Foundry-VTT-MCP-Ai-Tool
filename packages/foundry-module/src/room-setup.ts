@@ -244,6 +244,9 @@ function resolvePlace(
   if (request.scene !== undefined) area.scene = request.scene;
   if (request.level !== undefined) area.level = request.level;
   const rect = areaRect(scene, area, 'squares', warnings);
+  warnings.push(
+    `The Region is the ${cells.length} squares of "${request.squares.trim()}", not the whole box: the squares in the summary (${x}, ${y}, ${width} x ${height}) are only its bounding box`
+  );
   // Foundry's grid offsets count from the padded canvas corner: shift by the map's own origin.
   const sceneRect = scene.dimensions?.sceneRect;
   const shiftJ = Math.round((sceneRect?.x ?? 0) / grid.size);
@@ -640,6 +643,9 @@ function planStairs(request: RoomStairsRequest): RoomSetupPlan {
   const name = (request.name ?? '').trim();
   if (!name) throw new Error('Stairs need a name');
   const warnings: string[] = [];
+  if (request.level !== undefined || request.area?.level !== undefined) {
+    throw new Error('Stairs join the levels in "levels": leave level out');
+  }
   const { area, scene, rect, shapes } = resolvePlace(request, warnings);
   if (!sceneHasLevels(scene as unknown as Scene) || sceneLevels(scene).length < 2) {
     throw new Error(`${quoted(scene.name)} has fewer than two levels: plan the levels first`);

@@ -96,7 +96,12 @@ export function parseGridLabels(text: string): GridCell[] {
   if (pieces.length === 2) {
     const cut = parseList(pieces[1]);
     if (cut.length === 0) throw new Error('Name the squares after "without"');
-    for (const c of cut) keep.delete(`${c.i}.${c.j}`);
+    const missing = cut.filter(c => !keep.delete(`${c.i}.${c.j}`)).map(cellLabel);
+    if (missing.length > 0) {
+      throw new Error(
+        `"without" names squares that are not in the room: ${missing.slice(0, 5).join(', ')}`
+      );
+    }
   }
   if (keep.size === 0) throw new Error('Nothing is left after "without"');
   if (keep.size > MAX_LABEL_CELLS) {

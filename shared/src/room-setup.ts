@@ -175,7 +175,7 @@ export type RoomSetupRequest =
 export interface RoomRegionSummary {
   name: string;
   sceneName: string;
-  /** Grid squares: x, y, width, height. */
+  /** Grid squares: x, y, width, height (the bounding box when the Region was made from grid labels). */
   squares: [number, number, number, number];
   role: 'entry' | 'arrival' | 'room' | 'stairs' | 'hazard' | 'whisper';
 }

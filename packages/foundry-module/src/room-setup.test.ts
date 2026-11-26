@@ -505,6 +505,17 @@ describe('hazard', () => {
     expect(shapes[0].offsets).toContainEqual({ i: 3, j: 2 });
     expect(shapes[0].offsets).not.toContainEqual({ i: 5, j: 4 });
     expect(plan.regions[0].squares).toEqual([2, 3, 6, 6]);
+    expect(plan.warnings.join(' ')).toMatch(/32 squares .* bounding box/);
+  });
+
+  it('stairs refuse a level (they join the levels in "levels")', async () => {
+    const levels = { contents: [lv('d', 'Ground', 0, 10), lv('u', 'Up', 10, 20)] };
+    world.setActiveScene(scene('a', 'Tower', { levels }).id);
+    await expect(
+      planRoomSetup({ action: 'stairs', name: 'S', squares: 'A1', level: 'Up' })
+    ).rejects.toThrow(/leave level out/);
+    const ok = await planRoomSetup({ action: 'stairs', name: 'S', squares: 'A1 to B2' });
+    expect((ok.ops[0] as any).data.shapes[0].type).toBe('grid');
   });
 
   it('grid label offsets move with the map origin and take scene and level at the top', async () => {

@@ -299,6 +299,10 @@ test('kitLine reports the latest run, its age, failures and a later skip', () =>
     kitLine(JSON.stringify({ version: 1, last: skipped, lastRun: ran }), now),
     /latest run FAILED.*latest attempt skipped: the lock was not free \(1 h ago\)/
   );
+  const noGit = { at: '2026-11-17T09:00:00Z', state: 'passed', text: 'passed' };
+  const noGitLine = kitLine(JSON.stringify({ version: 1, last: noGit, lastRun: noGit }), now);
+  assert.doesNotMatch(noGitLine, /undefined/);
+  assert.doesNotMatch(noGitLine, / on /);
   assert.match(kitLine(null, now), /no last-run.json yet/);
   assert.match(kitLine('{bad', now), /unreadable/);
 });

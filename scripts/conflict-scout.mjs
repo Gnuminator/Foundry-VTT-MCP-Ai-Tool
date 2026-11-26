@@ -27,6 +27,7 @@ import { parseBacklog } from './backlog-items.mjs';
 import { REPO } from './planner-state.mjs';
 
 const HOUR = 3600 * 1000;
+const REPLAY_TIMEOUT = 120000;
 
 /** Files every busy lane ends up touching: a collision on these is expected, not a reason to wait. */
 export const HOT_PATTERNS = [
@@ -52,6 +53,15 @@ export const isHot = f => HOT_PATTERNS.some(re => re.test(f.replace(/\\/g, '/'))
 export function fileMatches(file, claim) {
   const f = file.replace(/\\/g, '/');
   const c = claim.replace(/\\/g, '/').replace(/\*+$/, '');
+  if (c.includes('*')) {
+    // A glob in the middle (`scripts/*.mjs`, `a/**/b.ts`): `*` stays inside one folder, `**` crosses folders.
+    const re = claim
+      .replace(/\\/g, '/')
+      .split(/(\*\*|\*)/)
+      .map(p => (p === '**' ? '.*' : p === '*' ? '[^/]*' : p.replace(/[.+?^${}()|[\]\\]/g, '\\$&')))
+      .join('');
+    return new RegExp(`^${re}$`).test(f);
+  }
   if (c.endsWith('/')) return f.startsWith(c);
   return f === c;
 }
@@ -123,11 +133,11 @@ export function formatScout(r) {
   return lines.join('\n');
 }
 
-/** @param {string[]} args */
-function gh(args) {
+/** @param {string[]} args @param {number} [timeout] ms; the replay lists up to 500 PRs and needs longer */
+function gh(args, timeout = 15000) {
   const r = spawnSync('gh', args, {
     encoding: 'utf8',
-    timeout: 15000,
+    timeout,
     maxBuffer: 64 * 1024 * 1024,
   });
   if (r.status !== 0) return null;
@@ -204,8 +214,8 @@ function replay({ since, until, log }) {
   const refusals = conflictRefusals(fs.readFileSync(log, 'utf8'), since, until);
   const pad = (/** @type {string} */ d) =>
     new Date(Date.parse(d) - 3 * 86400000).toISOString().slice(0, 10);
-  const all = toPrs(
-    gh([
+  const raw = gh(
+    [
       'pr',
       'list',
       '--repo',
@@ -218,13 +228,19 @@ function replay({ since, until, log }) {
       '500',
       '--json',
       FIELDS,
-    ])
+    ],
+    REPLAY_TIMEOUT
   );
+  if (raw === null) {
+    console.log('replay: gh did not answer within 2 minutes (or failed); no data to replay.');
+    return;
+  }
+  const all = toPrs(raw);
   let flagged = 0;
   let either = 0;
   for (const [n, refusedAt] of refusals) {
     const pr = all.find(p => p.number === n);
-    const v = gh(['pr', 'view', String(n), '--repo', REPO, '--json', 'commits']);
+    const v = gh(['pr', 'view', String(n), '--repo', REPO, '--json', 'commits'], REPLAY_TIMEOUT);
     const dates = (v?.commits ?? [])
       .map((/** @type {{committedDate?: string}} */ c) => c.committedDate)
       .filter(Boolean)

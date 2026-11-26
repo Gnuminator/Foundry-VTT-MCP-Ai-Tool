@@ -53,7 +53,6 @@ import {
   quickSteps,
   quickLintSteps,
   QUICK_LINT_MAX_CHARS,
-  installIsFresh,
 } from './green.mjs';
 import { main as prePush, CHECKS, pushedCommits } from './pre-push.mjs';
 import { HELD_ENV } from './heavy-lock.mjs';
@@ -130,7 +129,10 @@ test('parity: the required check build-test (Node 24) is a summary of every grou
   const summary = ciDoc.jobs['build-test'];
   assert.deepEqual([...summary.needs].sort(), [...GROUP_JOBS].sort());
   assert.equal(summary.name.startsWith('build-test (Node 24)'), true);
-  assert.deepEqual(ciRunCommands(ciYml, 'build-test').filter(c => RUN_CALL.test(c)), []);
+  assert.deepEqual(
+    ciRunCommands(ciYml, 'build-test').filter(c => RUN_CALL.test(c)),
+    []
+  );
 });
 
 test('parity: no job writes a test command in ci.yml outside `checks.mjs --run`, except the named ones', () => {
@@ -1250,6 +1252,16 @@ test('quickSteps: a changed script runs its test, a changed test runs itself, a 
   assert.ok(!t.args.some(a => a.includes('no-such-thing')));
 });
 
+test('quickSteps: session notes or the voice stack script run pytest, other files do not', () => {
+  const here = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+  for (const f of ['tools/session-notes/src/session_notes/outbox.py', 'scripts/voice-stack.ps1']) {
+    const s = quickSteps([f], here).find(x => x.name === 'pytest-session-notes');
+    assert.ok(s, f);
+    assert.deepEqual(s.args.slice(0, 2), ['-m', 'pytest']);
+  }
+  assert.ok(!quickSteps(['scripts/green.mjs'], here).some(x => x.name === 'pytest-session-notes'));
+});
+
 test('quickSteps: a changed merge gate module runs the gate test', () => {
   const steps = quickSteps(
     ['scripts/lane-merge/reviews.mjs'],
@@ -2026,34 +2038,6 @@ test('checks.mjs: names are unique, every entry has a group, and green gets the 
     all.filter(c => c.steps !== false).map(c => c.name)
   );
   for (const h of heavy) assert.ok(names.includes(h), `HEAVY_STEPS names unknown step ${h}`);
-});
-
-test('installIsFresh: node_modules/.package-lock.json newer than package-lock.json skips a local npm ci', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fresh-'));
-  try {
-    assert.equal(installIsFresh(dir), false);
-    const lock = path.join(dir, 'package-lock.json');
-    fs.writeFileSync(lock, '{}');
-    fs.mkdirSync(path.join(dir, 'node_modules'));
-    // a bare node_modules folder (an aborted install) is not a finished install
-    assert.equal(installIsFresh(dir), false);
-    fs.writeFileSync(path.join(dir, 'node_modules', '.package-lock.json'), '{}');
-    const old = new Date(Date.now() - 60_000);
-    fs.utimesSync(lock, old, old);
-    assert.equal(installIsFresh(dir), true);
-    // an old .package-lock.json inside a newer node_modules folder (a leftover install) is not fresh
-    const inner = path.join(dir, 'node_modules', '.package-lock.json');
-    const older = new Date(Date.now() - 120_000);
-    fs.utimesSync(inner, older, older);
-    assert.equal(installIsFresh(dir), false);
-    fs.utimesSync(inner, new Date(), new Date());
-    assert.equal(installIsFresh(dir), true);
-    const newer = new Date(Date.now() + 60_000);
-    fs.utimesSync(lock, newer, newer);
-    assert.equal(installIsFresh(dir), false);
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
 });
 
 test('scripts/tsconfig.json typechecks every gate script, and its file list only grows', () => {

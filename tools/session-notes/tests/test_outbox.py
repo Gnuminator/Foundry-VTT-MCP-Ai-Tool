@@ -240,6 +240,51 @@ def test_render_pc_drops_whole_bullets_over_the_cap_but_keeps_date_and_so_far() 
     assert "Session 1:" in text and "Ready." in text and "Before session 1" in text
 
 
+def test_render_pc_still_over_the_cap_gets_a_warning_on_the_item() -> None:
+    row = {"text": "x" * 300, "source": "s"}
+    data = {"so_far": "y" * 1000, "threads": [], "known": [], "todos": [row]}
+    short = outbox.render_pc("en", "Ebbe", data, "", "discord")
+    assert len(outbox.plain(short)) > 900  # the so_far line alone is past the cap and always stays
+    item = outbox._item("2026-11-22_1906", "pc-note", "en", "pc-ebbe", "Ebbe", short,
+                        {"type": "player", "player": "Christian", "character": "Ebbe"}, ["discord-dm"])
+    item["short"] = short
+    outbox.refresh(item)
+    assert any("900" in w for w in item["warnings"])
+
+
+def test_danish_labels_in_pc_gm_and_table_notes() -> None:
+    row = {"text": "Bekræft datoen.", "source": "s"}
+    pc = outbox.render_pc("da", "Ebbe", {"so_far": "Klar.", "threads": [row], "known": [], "todos": [row]}, "")
+    assert "#### Du indtil nu" in pc and "#### Dine tråde" in pc and "#### Før session 1" in pc
+    gm = outbox.render_gm("da", {"call": ["Fumble?"], "open": [], "gm_only": ["Ret historien."]})
+    assert gm.startswith("# Beslutninger til dig, Danni")
+    assert "## Kun til dig" in gm and "## Dannis afgørelse" in gm and "- Ret historien." in gm
+
+
+def test_render_gm_caps_rows_and_skips_empty_sections() -> None:
+    gm = outbox.render_gm("en", {"gm_only": [f"s{i}" for i in range(6)], "call": ["", "  "], "open": []})
+    assert gm.count("- s") == outbox.TABLE_CAPS["gm_only"]
+    assert "Danni's call" not in gm and "Open (decide" not in gm
+
+
+def test_preview_lists_the_gm_note_as_a_dm_to_danni(tmp_path: Path) -> None:
+    session = make_session(tmp_path)
+    tracks = {"tracks": [{"file": "1.rec", "userId": "111", "displayName": "Ebbe (Christian)"},
+                         {"file": "2.rec", "userId": "999", "displayName": "GM (Danni)"}]}
+    (session / "raw" / "session.json").write_text(json.dumps(tracks), encoding="utf-8")
+
+    def runner(prompt: str, schema: dict, model: str, effort: str = "low") -> dict:
+        if "session_when" in schema["properties"]:
+            return {"session_when": "", "confirmed": False, "changed": [], "agreed": [], "call": ["Fumble rule?"],
+                    "open": [], "logistics": [], "gm_only": ["Correct Jorr's story."]}
+        return {"so_far": "x", "threads": [], "known": [], "todos": []}
+
+    outbox.build(session, runner=runner)
+    text = outbox.preview(session)
+    assert "Danni as GM (Discord 999):" in text
+    assert "gm-decisions-en" in text and "and gets his own decisions note as a DM." in text
+
+
 def test_obsidian_page_has_tags_and_links(tmp_path: Path) -> None:
     session = make_session(tmp_path)
     (session / "notes" / "notes.json").write_text(

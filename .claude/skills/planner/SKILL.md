@@ -25,7 +25,7 @@ the top Backlog items with a bold recommended pick.
 
 ## Backlog upkeep
 
-Use `node scripts/backlog.mjs` (`add`, `done <id> <PR> --sha --pi-run`, `claim`, `progress`,
+Use `node scripts/backlog.mjs` (`add`, `done <id> <PR> --sha --pi-run` or `done <id> --no-pr --summary <text>`, `claim`, `progress`,
 `release`, `low`; format in the file's preamble): it pulls, edits one item, checks and pushes.
 `done` writes the `Backlog done.md` line. Reorder and triage by hand: pull first, keep each item's
 lines together. The board's Lanes zone warns on two lanes on one path or a claim before its dependency is done; check it before a start. Order is priority; G0 critical path first. A speed item's `done when` names before and after numbers. When an item leaves, drop or repoint a `Board.md` light naming the id. Triage `## Captured on the board

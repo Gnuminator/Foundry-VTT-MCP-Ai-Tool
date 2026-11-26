@@ -29,6 +29,8 @@ import { collectToolDefinitions } from './tool-router.js';
 const REFERENCE_DIR =
   process.env.TOOL_REFERENCE_DIR ??
   fileURLToPath(new URL('../../../docs/reference/', import.meta.url));
+// Names the folder in failure messages (the real docs/reference unless the script test redirects it).
+const SHOWN_DIR = process.env.TOOL_REFERENCE_DIR ? REFERENCE_DIR : 'docs/reference/';
 const EM_DASH = String.fromCharCode(0x2014);
 const UPDATE = process.env.UPDATE_TOOL_REFERENCE === '1';
 
@@ -57,7 +59,7 @@ describe('tool reference pages', () => {
       const line = a.findIndex((text, i) => text !== b[i]);
       const at = line === -1 ? Math.min(a.length, b.length) : line;
       expect.fail(
-        `docs/reference/${file} is stale (first difference at line ${at + 1}: ` +
+        `${SHOWN_DIR}${SHOWN_DIR.endsWith('/') || SHOWN_DIR.endsWith('\\') ? '' : '/'}${file} is stale (first difference at line ${at + 1}: ` +
           `${JSON.stringify(a[at] ?? '')} vs ${JSON.stringify(b[at] ?? '')}). Run \`npm run docs:tools\`.`
       );
     }
@@ -66,8 +68,7 @@ describe('tool reference pages', () => {
   it('docs/reference/tools/ holds no page that is not a set page', () => {
     const expected = setPages.map(([file]) => file.replace('tools/', '')).sort();
     const folder = join(REFERENCE_DIR, 'tools');
-    if (!existsSync(folder))
-      expect.fail('docs/reference/tools/ is missing. Run `npm run docs:tools`.');
+    if (!existsSync(folder)) expect.fail(`${folder} is missing. Run \`npm run docs:tools\`.`);
     const found = readdirSync(folder).sort();
     expect(found).toEqual(expected);
   });

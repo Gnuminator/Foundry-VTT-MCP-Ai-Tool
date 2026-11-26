@@ -20,6 +20,7 @@ import {
   acquireLock,
   announceSource,
   carriedReviews,
+  fixRoundRelief,
   defaultAnnounce,
   defaultRun,
   entryDecision,
@@ -621,7 +622,9 @@ test('risky categories: every category has patterns and the real paths match', (
   assert.deepEqual(category('packages/mcp-server/src/handouts/strip-secrets.ts'), ['security']);
   assert.deepEqual(category('packages/mcp-server/src/obsidian/licensed-guard.ts'), ['security']);
   assert.deepEqual(category('.claude/hooks/guard-remote-commands.mjs'), ['security']);
-  assert.deepEqual(category('plugin/foundry-lane-kit/hooks/guard-remote-commands.mjs'), ['security']);
+  assert.deepEqual(category('plugin/foundry-lane-kit/hooks/guard-remote-commands.mjs'), [
+    'security',
+  ]);
   assert.deepEqual(category('.claude-plugin/marketplace.json'), ['security']);
   assert.deepEqual(category('scripts/pi/remote/5-tool.sh'), ['Pi scripts']);
   assert.deepEqual(category('scripts/plan-b/start.ps1'), ['Pi scripts']);
@@ -3696,10 +3699,15 @@ function carryRepo() {
 }
 
 /** A note (Sonnet unless `opus`) for one reviewed sha, parsed as the gate reads it. */
-const reviewed = (/** @type {string} */ sha, opus = false, verdict = '**Merge.** Fine.') =>
+const reviewed = (
+  /** @type {string} */ sha,
+  opus = false,
+  verdict = '**Merge.** Fine.',
+  extra = ''
+) =>
   parseReviewNote(
     opus ? '312-opus-review.md' : '312-review.md',
-    note({ head: sha, verdict, title: opus ? 'PR #312 Opus review' : 'PR #312 review' }),
+    note({ head: sha, verdict, title: opus ? 'PR #312 Opus review' : 'PR #312 review', extra }),
     312
   );
 
@@ -3809,6 +3817,105 @@ test('carry (5): an Opus-required PR with a carried Sonnet note still refuses', 
   const v = judgeReviews(veto, C, true, carriedReviews(r.run, veto, C));
   assert.equal(v.ok, false);
   assert.match(v.detail, /says "Do not merge\." for head .* \(verdict carried from /);
+});
+
+test('fix round: a fix off the Opus list needs only a Sonnet Merge, a risky file in the fix needs Opus', () => {
+  const r = carryRepo();
+  // the PR changes a risky file; Opus reviewed that commit (Merge after fixes)
+  fs.mkdirSync(path.join(r.dir, 'scripts', 'pi'), { recursive: true });
+  r.write('scripts/pi/x.sh', ['echo hi']);
+  const R1 = r.commit('risky change');
+  const opus = [reviewed(R1, true, '**Merge after fixes.** One medium.')];
+  // a fix off the Opus list, then main moves on and is merged in cleanly
+  r.write('a.txt', [...r.lines, 'fix']);
+  r.commit('fix');
+  const M1 = mainMovesOn(r);
+  r.g('merge', '-q', '--no-edit', 'main');
+  r.setMain(M1);
+  const C = r.g('rev-parse', 'HEAD');
+  const notes = [...opus, reviewed(C)];
+  assert.deepEqual(fixRoundRelief(r.run, notes, C), {
+    relief: true,
+    from: R1,
+    files: ['scripts/pi/x.sh'],
+  });
+  assert.equal(judgeReviews(notes, C, false).ok, true);
+  assert.equal(judgeReviews(notes, C, true).ok, false, 'without the relief Sonnet is refused');
+  // the reversed merge (main as first parent) cannot hide a later risky edit
+  r.write('scripts/pi/x.sh', ['echo changed']);
+  const D = r.commit('risky fix');
+  r.g('checkout', '-q', '-B', 'rev', 'main');
+  r.g('merge', '-q', '--no-edit', 'pr');
+  const rev = r.g('rev-parse', 'HEAD');
+  assert.equal(
+    fixRoundRelief(r.run, [...opus, reviewed(rev)], rev).relief,
+    false,
+    'reversed merge'
+  );
+  assert.equal(fixRoundRelief(r.run, [...opus, reviewed(D)], D).relief, false, 'risky edit');
+  // a file with a non-ASCII name on the Opus list counts
+  r.g('checkout', '-q', 'pr');
+  r.write('scripts/pi/ø.sh', ['echo hi']);
+  const E = r.commit('non-ascii risky file');
+  assert.equal(fixRoundRelief(r.run, [...opus, reviewed(E)], E).relief, false, 'non-ASCII name');
+  // an Opus Do not merge opens nothing; no Opus note, or a Sonnet-only first pass: no relief
+  const veto = [reviewed(R1, true, '**Do not merge.** Broken.')];
+  assert.equal(fixRoundRelief(r.run, [...veto, reviewed(C)], C).relief, false, 'do not merge');
+  assert.equal(fixRoundRelief(r.run, [reviewed(R1), reviewed(C)], C).relief, false);
+  assert.equal(fixRoundRelief(r.run, [reviewed(C)], C).relief, false);
+  // a later Opus veto on the same risky patch closes the relief an earlier Merge opened
+  r.g('checkout', '-q', 'pr');
+  r.write('a.txt', [...r.lines, 'fix', 'again']);
+  const G = r.commit('another off-list fix');
+  r.write('a.txt', [...r.lines, 'fix', 'again', 'once more']);
+  const H = r.commit('and another');
+  const opusD = [reviewed(E, true, '**Merge after fixes.** Fine.')];
+  const laterVeto = [...opusD, reviewed(G, true, '**Do not merge.** Broken.'), reviewed(H)];
+  assert.equal(fixRoundRelief(r.run, laterVeto, H).relief, false, 'later Opus veto');
+  assert.equal(fixRoundRelief(r.run, [...opusD, reviewed(H)], H).relief, true, 'same without it');
+  // a Merge after fixes whose findings name a risky file opens nothing
+  const withRisky = [
+    reviewed(
+      R1,
+      true,
+      '**Merge after fixes.**',
+      '\n### M1. Unfixed\n`scripts/pi/x.sh:3` is wrong.\n'
+    ),
+    reviewed(C),
+  ];
+  assert.equal(fixRoundRelief(r.run, withRisky, C).relief, false, 'risky finding');
+  for (const [label, where] of [
+    ['absolute path with spaces', 'C:\\Users\\x\\Claude Code\\Foundry VTT\\scripts\\pi\\x.sh:3'],
+    ['posix absolute path', '/home/a b/repo/scripts/pi/x.sh:3'],
+    ['extensionless file', 'deploy/Dockerfile'],
+  ]) {
+    const notes = [
+      reviewed(R1, true, '**Merge after fixes.**', `\n### M1. Unfixed\n${where} is wrong.\n`),
+      reviewed(C),
+    ];
+    assert.equal(fixRoundRelief(r.run, notes, C).relief, false, label);
+  }
+  // an Opus review of a commit this clone cannot read cannot be compared: no relief
+  const unknown = 'f'.repeat(40);
+  const lost = [reviewed(R1, true), reviewed(unknown, true, '**Do not merge.** Broken.')];
+  assert.equal(fixRoundRelief(r.run, [...lost, reviewed(C)], C).relief, false, 'unreadable veto');
+  const offList = [
+    reviewed(
+      R1,
+      true,
+      '**Merge after fixes.**',
+      '\n### M1. Test gap\n`scripts/foo.test.mjs:3` lacks a case.\n'
+    ),
+    reviewed(C),
+  ];
+  assert.equal(fixRoundRelief(r.run, offList, C).relief, true, 'finding off the Opus list');
+  // a mode change on a risky file is a change
+  r.g('checkout', '-q', 'pr');
+  // chmod on disk too: where core.filemode is on (Linux), `git add -A` rereads the file mode
+  fs.chmodSync(path.join(r.dir, 'scripts', 'pi', 'x.sh'), 0o755);
+  r.g('update-index', '--chmod=+x', 'scripts/pi/x.sh');
+  const F = r.commit('mode change');
+  assert.equal(fixRoundRelief(r.run, [...opus, reviewed(F)], F).relief, false, 'mode change');
 });
 
 test('carry: any error carries nothing (unknown commit, shallow clone, old git, no main)', () => {

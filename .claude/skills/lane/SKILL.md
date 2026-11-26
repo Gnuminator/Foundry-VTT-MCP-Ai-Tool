@@ -88,7 +88,9 @@ scripts/heavy-lock.mjs status`). `SKIP_PREPUSH=1 git push ...` skips the em-dash
 - **One pass:** a risky PR (guarded writes, the write gate, bridge link, security, Pi scripts, wire
   contracts, as the gate decides) gets one Opus pass: a narrow agent in `.claude/agents/`
   (`review-guarded-writes`, `review-wire-contracts`, `review-pi-ci`, `model: "opus"`) or a formal
-  Opus review, not both. Everything else gets a Sonnet review plus CI. The reviewer is a read-only
+  Opus review, not both. A fix round whose patch on Opus-list paths is unchanged since an Opus
+  review (Merge, or fixes naming no Opus-list file; no later Opus veto; main merges and rebases don't count) gets a Sonnet review; the gate checks it.
+  Everything else gets a Sonnet review plus CI. The reviewer is a read-only
   subagent; give it the PR number, the full head sha, the area, a `git diff aitool/main...HEAD`
   file and the PR description, in a checkout at that sha. A narrow agent cannot write files: save
   its answer as the note. A note with only lows says **Merge.**

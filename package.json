@@ -92,7 +92,7 @@
     "audit:unused": "npx knip",
     "audit:circular": "npx madge --circular --extensions ts packages/mcp-server/src packages/foundry-module/src shared/src",
     "size:analyze": "npm run bundle:server && npx esbuild-analyzer packages/mcp-server/dist/backend.bundle.cjs",
-    "prepare": "husky && node -e \"for(const f of ['scripts/usage-catalog.mjs','scripts/skill-guides.mjs'])if(require('fs').existsSync(f))try{require('child_process').execFileSync(process.execPath,[f],{stdio:'inherit'})}catch{}\""
+    "prepare": "husky && node -e \"for(const f of ['scripts/usage-catalog.mjs','scripts/skill-guides.mjs','scripts/merge-drivers/install.mjs'])if(require('fs').existsSync(f))try{require('child_process').execFileSync(process.execPath,[f],{stdio:'inherit'})}catch{}\""
   },
   "dependencies": {
     "playwright-core": "~1.64.0"

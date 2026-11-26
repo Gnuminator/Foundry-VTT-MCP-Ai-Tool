@@ -117,7 +117,7 @@ export class DnD5eNpcTools {
       {
         name: 'dnd5e-create-npc',
         description:
-          'Direct write. D&D 5e only. Create an NPC from scratch with a full stat block (no items, actions or spells: ' +
+          'Direct write. D&D 5e only. Create an NPC from scratch with a full stat block (no items, actions, features or spells: ' +
           'add them afterwards with dnd5e-add-feature). The actor goes in the "Foundry MCP Creatures" folder.',
         inputSchema: {
           type: 'object',
@@ -216,7 +216,7 @@ export class DnD5eNpcTools {
             // --- Movement ---
             walkSpeed: {
               type: 'number',
-              description: 'Walk speed, ft',
+              description: 'Walk speed, ft. Default 30.',
               minimum: 0,
             },
             flySpeed: {

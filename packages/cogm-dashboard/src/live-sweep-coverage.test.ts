@@ -24,7 +24,7 @@ const RECORDED_SKIPS: Record<string, string> = {
   'plan-scene-restore':
     'needs a backup copy of the world on disk and Foundry app files (I-128); checked by hand on server A (break a scene, restore, undo), see the PR',
   'plan-pc-creation':
-    'ships behind the "Character creation" switch (pc-creation-tool); checked by hand on server A (build a PC with a container, apply, undo), see the PR',
+    'ships behind the "Character creation" switch (pc-creation-tool); checked by hand on server B (build a PC with a container, apply, undo), see the PR',
   'plan-renown-change':
     'needs a faction actor and the dnd5e "Renown Scores" setting, which the sweep world lacks (D-146); checked by hand on server B on dnd5e 6.1.1 (adjust create and update, set-member, undo, a bogus member refused), see the PR',
   'plan-campaign-merge':

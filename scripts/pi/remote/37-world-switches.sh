@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Stage 37: set world switches in the live world from the Pi, with no world bundle (backlog stage11-clean-world-route). Stage 11
 # needs a bundle from push-world.ps1 even to set one setting, and push-world refuses the PC copy of curse-of-strahd (the Pi is
-# the truth for that world, and the PC copy has racooze-map-library active, which the Pi does not have). This stage skips all of
+# the truth for that world, and the PC copy's racooze-map-library map files lie outside the bundle roots, so the two copies differ). This stage skips all of
 # that: it joins the running world as its GM and sets the switches through Foundry's settings API, with the same driver stage 11
 # uses (scripts/pi/remote/world-switches.mjs, SWITCH_ONLY narrows it to the named entries).
 #

@@ -64,12 +64,13 @@
     "player-preset": "node scripts/player-preset.mjs",
     "wiki:stage": "node scripts/wiki/stage.mjs",
     "wiki:test": "node --test \"scripts/wiki/*.test.mjs\"",
-    "dev:test": "node --test \"scripts/dev/*.test.mjs\" \"scripts/tool-eval/*.test.mjs\"",
+    "dev:test": "node --test \"scripts/dev/*.test.mjs\" \"scripts/tool-eval/*.test.mjs\" \"scripts/away/*.test.mjs\"",
     "usage:catalog": "node scripts/usage-catalog.mjs",
     "usage:catalog:check": "node scripts/usage-catalog.mjs --check",
     "usage:week": "node scripts/dev/usage-week.mjs",
     "ci:health": "node scripts/ci-health.mjs",
     "ci:evidence": "node scripts/ci-evidence.mjs",
+    "token:budget": "node scripts/dev/token-budget.mjs",
     "usage:now": "node scripts/dev/usage-now.mjs",
     "usage:calls": "node scripts/dev/usage-calls.mjs",
     "live:roundtrip": "node scripts/live-roundtrip.mjs",
@@ -83,7 +84,6 @@
     "docs:dashboard-pictures": "npm run build -w @gnuminator/cogm-dashboard && npm run docs:pictures -w @gnuminator/cogm-dashboard",
     "docs:foundry-images": "node scripts/demo/foundry-basics.mjs",
     "format": "prettier --write \"**/*.{ts,js,json,md}\"",
-    "format:check": "prettier --check \"**/*.{ts,js,json,md}\"",
     "typecheck": "npm run usage:catalog && npm run typecheck --workspaces --if-present && tsc -p scripts/tsconfig.json",
     "vault": "node packages/mcp-server/dist/vault-cli.js",
     "obsidian": "node packages/mcp-server/dist/obsidian-cli.js",
@@ -92,7 +92,7 @@
     "audit:unused": "npx knip",
     "audit:circular": "npx madge --circular --extensions ts packages/mcp-server/src packages/foundry-module/src shared/src",
     "size:analyze": "npm run bundle:server && npx esbuild-analyzer packages/mcp-server/dist/backend.bundle.cjs",
-    "prepare": "husky && node -e \"for(const f of ['scripts/usage-catalog.mjs','scripts/skill-guides.mjs'])if(require('fs').existsSync(f))try{require('child_process').execFileSync(process.execPath,[f],{stdio:'inherit'})}catch{}\""
+    "prepare": "husky && node -e \"for(const f of ['scripts/usage-catalog.mjs','scripts/skill-guides.mjs','scripts/merge-drivers/install.mjs'])if(require('fs').existsSync(f))try{require('child_process').execFileSync(process.execPath,[f],{stdio:'inherit'})}catch{}\""
   },
   "dependencies": {
     "playwright-core": "~1.64.0"
@@ -156,7 +156,7 @@
     "rpg"
   ],
   "lint-staged": {
-    "*.{ts,js,json,md}": [
+    "*.{ts,tsx,js,mjs,cjs,json,md}": [
       "prettier --write"
     ]
   }

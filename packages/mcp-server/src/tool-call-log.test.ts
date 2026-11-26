@@ -2,7 +2,7 @@ import { promises as fsp } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   TOOL_CALL_LOG_DIR,
@@ -14,6 +14,7 @@ import {
   gmCaller,
   pruneCallLogs,
   recordedCallLine,
+  warnFailedCall,
 } from './tool-call-log.js';
 import { TOOL_SETS } from './tool-sets.js';
 
@@ -66,6 +67,7 @@ describe('tool call log', () => {
       ).err
     ).toBe('switch-off');
     expect(fail('The switch "Handouts" is off').err).toBe('switch-off');
+    expect(fail('The AI Tool module cannot be turned off by a plan').err).toBe('other');
     expect(
       fail('[{"code":"invalid_value","message":"Invalid option: expected one of \\"a\\"|\\"b\\""}]')
         .err
@@ -279,5 +281,28 @@ describe('tool call log', () => {
     const blocker = path.join(dataDir, 'file');
     await fsp.writeFile(blocker, 'x');
     expect(await new ToolCallLog({ dataDir: blocker, enabled: true }).record(line)).toBe(false);
+  });
+});
+
+describe('warnFailedCall', () => {
+  it('warns once with tool, class and a trimmed message for a thrown-error result', () => {
+    const warn = vi.fn();
+    const result = {
+      content: [{ type: 'text', text: `Error: ${'x'.repeat(600)}` }],
+      isError: true,
+    };
+    warnFailedCall({ warn }, buildCallLine('get-world-info', 0, result, 5), result);
+    expect(warn).toHaveBeenCalledTimes(1);
+    const [message, meta] = warn.mock.calls[0];
+    expect(message).toBe('Tool call failed');
+    expect(meta).toMatchObject({ tool: 'get-world-info', class: 'other' });
+    expect((meta as { message: string }).message).toHaveLength(500);
+  });
+
+  it('stays quiet for a call that worked', () => {
+    const warn = vi.fn();
+    const result = { content: [{ type: 'text', text: 'ok' }] };
+    warnFailedCall({ warn }, buildCallLine('get-world-info', 0, result, 5), result);
+    expect(warn).not.toHaveBeenCalled();
   });
 });

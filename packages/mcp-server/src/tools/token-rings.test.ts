@@ -101,6 +101,20 @@ describe('plan-token-rings', () => {
     expect(createPlan).not.toHaveBeenCalled();
   });
 
+  it('hints at an old module when a look is asked and every ring is already on', async () => {
+    query.mockImplementation((method: string) =>
+      method === 'foundry-mcp-bridge.listGuardedFeatures'
+        ? Promise.resolve([{ id: TOKEN_RINGS_FEATURE_ID, enabled }])
+        : Promise.reject(new Error('All 8 matching actors already have their token ring on.'))
+    );
+    await expect(
+      tools.handleToolCall('plan-token-rings', { action: 'enable', look: 'steel' })
+    ).rejects.toThrow(/may be too old/);
+    await expect(
+      tools.handleToolCall('plan-token-rings', { action: 'enable' })
+    ).rejects.not.toThrow(/may be too old/);
+  });
+
   it('passes placed tokens, scenes and the unmatched names through', async () => {
     query.mockImplementation((method: string) =>
       Promise.resolve(

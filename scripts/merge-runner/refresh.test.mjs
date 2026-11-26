@@ -105,7 +105,10 @@ test('clean merge: main is merged in, the merge commit is pushed, the lane patch
     assert.equal(s.run(s.checkout, 'log', '-1', '--format=%s', r.head), REFRESH_SUBJECT);
     // a real two-parent merge: the old lane head first, then main's tip
     const mainTip = s.run(s.checkout, 'rev-parse', 'aitool/main');
-    assert.equal(s.run(s.checkout, 'rev-list', '--parents', '-n', '1', r.head), `${r.head} ${s.head} ${mainTip}`);
+    assert.equal(
+      s.run(s.checkout, 'rev-list', '--parents', '-n', '1', r.head),
+      `${r.head} ${s.head} ${mainTip}`
+    );
     // review carries by patch id: the diff from the merge base is the same patch
     assert.equal(
       patchId(s, s.checkout, 'aitool/main', s.head),
@@ -297,6 +300,13 @@ test('generated tool pages conflict: both sides regenerated, merge commit pushed
     s.run(s.checkout, 'push', '-q', 'aitool', 'HEAD:main');
     s.run(s.checkout, 'fetch', '-q', 'aitool');
     s.run(s.checkout, 'checkout', '-q', '--detach', s.head);
+    // The repo's generated-docs merge driver is installed (keeps our page, exit 0): the runner
+    // must still see the conflict, or it would push stale pages without regenerating.
+    s.run(s.checkout, 'config', 'merge.generated-docs.driver', 'true');
+    fs.writeFileSync(
+      path.join(s.checkout, '.git', 'info', 'attributes'),
+      'docs/reference/tools.md merge=generated-docs\n'
+    );
     const calls = [];
     const r = refreshBranch(opts(s, { run: fakeGen(s, calls) }));
     assert.ok(r?.head, JSON.stringify(r));

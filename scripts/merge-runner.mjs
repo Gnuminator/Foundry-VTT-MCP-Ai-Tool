@@ -95,7 +95,7 @@ import {
 } from './merge-runner/queue.mjs';
 import { makeBaseDeps, runningInfo, skipMainWait } from './merge-runner/base-current.mjs';
 import { openLeft } from './merge-runner/open-steps.mjs';
-import { makeRefresh, refreshStep } from './merge-runner/refresh.mjs';
+import { commentRefusal, makeRefresh, refreshStep } from './merge-runner/refresh.mjs';
 import { EXIT_RESTART, makeSelfCheck, reexec } from './merge-runner/self-check.mjs';
 import { startLiveness } from './merge-runner/liveness.mjs';
 import { isRunnerProcess, takeRunnerLock } from './merge-runner/runner-lock.mjs';
@@ -321,8 +321,7 @@ export function round(d, tried, attempts, tick) {
     return r.status === 0;
   };
   /**
-   * The refusal replaces the ready line only while it is still that same line (`--if-ready`, under
-   * backlog.mjs's lock). Once it is gone the head leaves `tried`: a rewritten ready line is gated again.
+   * The refusal replaces that ready line only (`--if-ready`), frees the head, comments on the PR.
    * @param {{ id: string, pr: number, head: string }} r @param {string} why
    */
   const refuse = (r, why) => {
@@ -341,6 +340,7 @@ export function round(d, tried, attempts, tick) {
     );
     if (written) tried.delete(`${r.pr}@${r.head}`); // a failed write keeps it: the line is still there
     d.post(`merge runner: #${r.pr} not merged: ${reason}`);
+    commentRefusal(d, REPO, r, reason);
   };
   /**
    * @param {{ id: string, pr: number, head: string }} r @param {boolean} [fromReady] the line is still a ready line

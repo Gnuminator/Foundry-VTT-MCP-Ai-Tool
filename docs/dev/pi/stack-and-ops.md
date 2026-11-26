@@ -127,7 +127,7 @@ side, each only after a `dietpi-backup` snapshot and the user's OK; nothing here
   existing containers on the stack side, never a recreate except where written above.
 - **The other stages still refuse after a cutover** (`refuse_when_cut_over`: 3, 7, 11, 12, 13, 14, 19, 27, 28, 30, `gm-script`,
   `set-dashboard-access`), also with `FORCE=1`, also when only a stopped container exists, and when the Docker daemon does not
-  answer. The Discord bot stays a unit, so its stages (8, 26, `set-discord-token`) are not guarded. Go back with
+  answer. The Discord bot stays a unit until stage 24 `MODE=bot` moves it into the stack (fifth service, compose profile `discord-bot`, `deploy/pi/README.md`, "The Discord bot as a container"); from then on stages 8, 26 and 27 refuse while its container exists, `set-discord-token` writes the token and points to `MODE=bot-restart`, and `MODE=rollback` brings the bot unit back too. Go back with
   `MODE=rollback` first. `scripts/pi/cutover-guard.test.mjs` fails for a new stage that starts a unit without `refuse_when_cut_over`
   or `use_stack`, and for a `use_stack` stage that still calls `systemctl` on a stack unit directly.
 - The nightly backup (stage 6) stops and starts the Foundry **container** when the stack runs as containers, verifies it is stopped

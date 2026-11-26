@@ -287,7 +287,7 @@ export function kitLine(json, nowMs) {
   const parts = [];
   if (run) {
     const fail = run.failing?.length ? `; failing: ${run.failing.slice(0, 5).join(', ')}` : '';
-    parts.push(`latest run ${run.text ?? run.state}, ${age(run)}, on ${run.git}${fail}`);
+    parts.push(`latest run ${run.text ?? run.state}, ${age(run)}${run.git ? `, on ${run.git}` : ''}${fail}`);
   }
   if (!finished(doc.last))
     parts.push(`latest attempt ${doc.last.text ?? doc.last.state} (${age(doc.last)})`);

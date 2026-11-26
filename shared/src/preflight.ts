@@ -143,7 +143,7 @@ export interface PreflightChecksResult {
   /** No check failed (warnings allowed). */
   ready: boolean;
   checks: PreflightCheck[];
-  /** The scan behind the world-settings, visible-names and modules checks; null if it failed. */
+  /** The scan behind the world-settings, visible-names, modules and character-building checks; null if it failed. */
   scan: PreflightScanResult | null;
   bridgeVersion: string;
   moduleVersion: string | null;

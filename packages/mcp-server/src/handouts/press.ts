@@ -227,6 +227,8 @@ async function renderWith(
   try {
     const page = path.join(dir, 'page.html');
     const out = path.join(dir, 'out.png');
+    // A fresh profile per run: a retry must not inherit a lock or half-written state.
+    let runs = 0;
     const run = (noSandbox: boolean): Promise<void> =>
       runBrowser(browser, [
         '--headless=new',
@@ -234,7 +236,7 @@ async function renderWith(
         '--hide-scrollbars',
         '--no-first-run',
         ...(noSandbox ? ['--no-sandbox'] : []),
-        `--user-data-dir=${path.join(dir, 'profile')}`,
+        `--user-data-dir=${path.join(dir, `profile-${runs++}`)}`,
         '--force-device-scale-factor=2',
         `--window-size=${width},${height}`,
         `--screenshot=${out}`,

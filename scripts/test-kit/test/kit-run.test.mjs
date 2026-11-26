@@ -257,6 +257,62 @@ test('a passing run: lock, build, fresh environment, kit, stop, release, then th
   }
 });
 
+test('--demo-rehearsal: after a passing kit the environment stops and the takes are rehearsed', async () => {
+  const t = setup({}, { opts: { demoRehearsal: true } });
+  try {
+    const { code, result } = await kitRun(t.o, t.deps);
+    assert.equal(code, 0);
+    assert.equal(result.state, 'passed');
+    const at = t.fake.calls.indexOf('kit.mjs all');
+    assert.deepEqual(t.fake.calls.slice(at, at + 3), [
+      'kit.mjs all',
+      'stop.ps1 -Server',
+      'rehearse.mjs --no-lock',
+    ]);
+  } finally {
+    t.cleanup();
+  }
+});
+
+test('--demo-rehearsal: a failed take fails the run and names the takes', async () => {
+  const t = setup(
+    {
+      'rehearse.mjs': {
+        code: 1,
+        stdout: 'ok a\nFAIL intro-take x\nFAIL intro-take y\nFAIL outro y\n',
+      },
+    },
+    { opts: { demoRehearsal: true } }
+  );
+  try {
+    const { code, result } = await kitRun(t.o, t.deps);
+    assert.equal(code, 1);
+    assert.equal(result.state, 'failed');
+    assert.equal(result.detail, 'demo takes failed: intro-take, outro');
+  } finally {
+    t.cleanup();
+  }
+});
+
+test('--demo-rehearsal: not run after a failing kit', async () => {
+  const t = setup(
+    {
+      'kit.mjs all': args => {
+        const dir = args[args.indexOf('--report-dir') + 1];
+        writeFileSync(path.join(dir, 'report.json'), JSON.stringify(report({ failed: ['x'] })));
+        return { code: 1 };
+      },
+    },
+    { opts: { demoRehearsal: true } }
+  );
+  try {
+    await kitRun(t.o, t.deps);
+    assert.ok(!t.fake.calls.some(c => c.startsWith('rehearse.mjs')));
+  } finally {
+    t.cleanup();
+  }
+});
+
 test('failing scenarios: exit 1, the ids are recorded', async () => {
   const t = setup({
     'kit.mjs all': args => {

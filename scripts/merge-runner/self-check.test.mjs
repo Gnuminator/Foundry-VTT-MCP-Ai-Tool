@@ -380,7 +380,14 @@ test('reexec: the first process runs the same script and arguments as a child an
 test('reexec: a child code other than 0, 1, 3 or a signal posts one line; the usual codes post nothing', () => {
   const run = result => {
     const posts = [];
-    const code = reexec({ script: '/x', argv: [], env: {}, spawn: () => result, log: () => {}, post: t => posts.push(t) });
+    const code = reexec({
+      script: '/x',
+      argv: [],
+      env: {},
+      spawn: () => result,
+      log: () => {},
+      post: t => posts.push(t),
+    });
     return { code, posts };
   };
   for (const status of [0, 1, 3]) assert.deepEqual(run({ status }).posts, []);

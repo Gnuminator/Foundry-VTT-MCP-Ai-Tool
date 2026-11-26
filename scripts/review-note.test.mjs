@@ -129,4 +129,5 @@ test('a Sonnet stamp on a risky PR is refused, Opus is not', () => {
   assert.match(modelRefusal('sonnet', risky) ?? '', /--model opus/);
   assert.equal(modelRefusal('opus', risky), null);
   assert.equal(modelRefusal('sonnet', ['docs/x.md']), null);
+  assert.equal(modelRefusal('sonnet', risky, true), null, 'a fix round off the Opus list');
 });

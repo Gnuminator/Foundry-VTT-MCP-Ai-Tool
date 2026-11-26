@@ -295,7 +295,7 @@ const NO_GUARD = {
   '4-tailscale.sh': 'enables tailscaled only; Tailscale is not part of the stack',
   '6-backup.sh':
     'installs the backup timer; the nightly script it writes finds the stack by label and stops the Foundry container instead of foundry.service (pi-stage-safety.test.mjs)',
-  '8-recorder.sh': 'the Discord recorder unit; the bot is not a container (compose.yml has no bot)',
+  '8-recorder.sh': 'the Discord recorder unit; refuses once the bot runs as a container (refuse_when_bot_container), so it never starts a second bot',
   '9-ssh-log.sh': 'sshd logging and its safety timer only',
   '10-space-check.sh': 'its own timer; starts the space check, which only reads',
   '15-ssh-keys-only.sh': 'sshd only (reload, with a safety timer)',
@@ -303,11 +303,11 @@ const NO_GUARD = {
   '17-gh-runner.sh': 'the GitHub runner units; not part of the stack',
   '23-docker.sh': 'enables docker.service and builds images; starts no stack unit (docker-compose.test.mjs)',
   '24-compose.sh': 'is the cutover and the rollback: it starts and stops the units on purpose, with its own guards',
-  '26-discord-game-server.sh': 'the Discord bot unit; the bot stays a systemd unit after the cutover (compose.yml has no bot)',
+  '26-discord-game-server.sh': 'the Discord bot unit; refuses once the bot runs as a container (refuse_when_bot_container), so it never starts a second bot',
   '29-gamenight-watch.sh': 'its own watch unit (After= lines only name the stack); not a stack unit',
   '32-crash-guard.sh': 'drop-ins only for stack units that are enabled systemd units, plus its own timer; starts none of them',
   '35-who-uses-what.sh': 'its own oneshot service and timer only; the report reads the dashboard, which a cut-over stack still serves on its port',
-  'set-discord-token.sh': 'restarts the Discord bot unit only; the bot is not a container',
+  'set-discord-token.sh': 'restarts the Discord bot unit only; with a bot container it writes the token and points to stage 24 MODE=bot-restart instead',
   'set-tunnel-token.sh': 'restarts the cloudflared unit only; not part of the stack',
 };
 

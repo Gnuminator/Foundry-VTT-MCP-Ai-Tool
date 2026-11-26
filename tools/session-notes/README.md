@@ -35,7 +35,9 @@ hotwords) helps Claude spell names right.
 | `--only-scene N`   |          | process one scene (for trying prompt changes)                        |
 
 Exit codes: 0 done, 1 error, 75 paused by a usage limit, 76 incomplete (some scenes could not be
-written or have no in-depth notes yet). After a pause or an incomplete run, run the same command
+written or have no in-depth notes yet), 78 the scenes are written
+but the session summary failed (tried again until three runs have failed, then only when the notes
+change). After a pause or an incomplete run, run the same command
 again later; finished scenes are kept in `notes/.work/` and are not redone.
 
 ## The current way: one command per session
@@ -155,7 +157,7 @@ In `<session>/notes/`, for `da` and `en` each:
 | `table.<lang>.md`        | L2    | everything said at the table, not in the game: house rules, proposed, play style, absence, planning, open                                                                                                      |
 | `raw.<lang>.md`          |       | the recogniser's text as it came (the same text in both files; no Claude call)                                                                                                                                 |
 | `summary.<lang>.md`      | L3    | session summary and "what changed", for the GM                                                                                                                                                                 |
-| `recap.player.<lang>.md` | L3    | the players' "previously on" recap, marked as a draft until the GM approves it                                                                                                                                 |
+| `recap.player.<lang>.md` | L3    | the players' "previously on" recap, marked as a draft until the GM approves it; ends with the moment of the night (Claude's own pick, one call with the layers, `notes.json` key `moment`)                     |
 
 Plus `notes.json` (everything, for later steps) and `audit.jsonl` (calls, checks, fixes, pauses).
 

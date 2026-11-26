@@ -1,6 +1,8 @@
 # Rules question flow
 
-1. Pick the search terms: the name of the spell, condition, feature, action or rule.
+1. Pick the search terms: the name of the spell, condition, feature, action or rule. Search with
+   the English game term, even when the player writes in another language, and answer in the
+   player's language.
 2. Call `search-books` with `query`. It reads the text of the books the table allows players to
    read and returns short excerpts with the entry and book. For an exact spell, feature or item
    name use `find-book-entries` instead: it matches names and types, and is the quickest way to

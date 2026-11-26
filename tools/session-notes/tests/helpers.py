@@ -100,6 +100,8 @@ class FakeClaude:
             if "characters" in props
             else "remember"
             if "items" in props
+            else "moment"
+            if "moments" in props
             else "session"
         )
         self.calls.append((kind, prompt))
@@ -111,6 +113,19 @@ class FakeClaude:
             raise ClaudeError("boom")
         if kind == "session":
             return dict(SESSION_ANSWER)
+        if kind == "moment":
+            ids = re.findall(r"\bu\d{6}\b", prompt)
+            return {
+                "moments": [
+                    {
+                        "da": "Ilvara greb øjeblikket",
+                        "en": "Ilvara seized the moment",
+                        "reason_da": "Hele bordet jublede",
+                        "reason_en": "The whole table cheered",
+                        "cites": [ids[0], "u999999"],
+                    }
+                ]
+            }
         if kind in ("characters", "remember"):
             ids = re.findall(r"\bu\d{6}\b", prompt)
             point = {"da": "Punkt", "en": "Point", "cites": [ids[0], "u999999"]}

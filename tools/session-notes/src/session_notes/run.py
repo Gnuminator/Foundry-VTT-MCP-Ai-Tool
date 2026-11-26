@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from . import check, extras, npcs
+from . import moment as moment_mod
 from .claude_runner import AuthError, ClaudeError, Runner, UsageLimitError
 from .layers import (
     DEPTH_SCHEMA,
@@ -268,6 +269,9 @@ class Writer:
                 if not paused_reason:
                     extra, extras_pause = self._extra_notes(notes, roster, lines)
                     paused_reason = extras_pause
+                if not paused_reason and extra.get("characters") is not None:
+                    extra["moment"], moment_pause = self._moment_note(notes, roster, lines)
+                    paused_reason = moment_pause
                 extras_missing = sum(1 for k in extras.LAYERS if extra.get(k) is None)
             else:
                 depth_missing = sum(1 for n in notes if not n.get("fallback"))
@@ -325,6 +329,55 @@ class Writer:
             else:
                 out[layer] = None
         return out, None
+
+    def _moment_note(
+        self, notes: list[dict[str, Any]], roster: Roster, lines: list[Line]
+    ) -> tuple[dict[str, Any] | None, str | None]:
+        """The moment of the night: one call, cached. ``None`` when not written, so the recap just
+        has no moment (it never blocks the publish); a usage limit pauses like the other layers."""
+        if not extras.chunk_scenes(notes):
+            return {"moments": []}, None
+        known = extras.known_ids(lines)
+        text = moment_mod.prompt(notes, roster, self.session)
+        key = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        path = self.work / "moment.json"
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if data.get("key") == key and isinstance(data["notes"], dict):
+                return data["notes"], None
+        except (ValueError, KeyError, OSError, AttributeError, TypeError):
+            pass
+        hint = ""
+        for _attempt in range(2):
+            try:
+                result = self.runner(
+                    text + hint, moment_mod.MOMENT_SCHEMA, self.opts.extras_model, self.opts.extras_effort
+                )
+            except UsageLimitError as exc:
+                self.login_needed = self.login_needed or isinstance(exc, AuthError)
+                self._log("paused", scene="moment", reason=str(exc), layer="moment")
+                return None, str(exc)
+            except ClaudeError as exc:
+                self._log("moment_error", error=str(exc))
+                continue
+            problems = moment_mod.check(result, known)
+            if problems:
+                self._log("moment_invalid", problems=problems)
+                hint = "\n\nYour previous answer was rejected: " + "; ".join(problems) + ". Fix this."
+                continue
+            moment_mod.repair(result, known)
+            tmp = path.with_suffix(".tmp")
+            tmp.write_text(json.dumps({"key": key, "notes": result}, ensure_ascii=False), encoding="utf-8")
+            os.replace(tmp, path)
+            self._log("moment_ok", picked=len(result.get("moments") or []))
+            self._clear_extra_failure("moment")
+            return result, None
+        if self._count_extra_failure("moment", extras.chunk_scenes(notes), roster):
+            # given up after MAX_FALLBACK_RUNS counted runs: no moment, and no more calls
+            given_up = {"moments": [], "fallback": True}
+            path.write_text(json.dumps({"key": key, "notes": given_up}), encoding="utf-8")
+            return given_up, None
+        return None, None
 
     def _extra_fail_path(self, layer: str) -> Path:
         return self.work / f"extra-{layer}.fail.json"

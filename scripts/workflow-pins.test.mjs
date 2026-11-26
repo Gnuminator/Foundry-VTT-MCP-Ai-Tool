@@ -143,11 +143,15 @@ export function jobsWithoutTimeout(doc) {
     .map(([name]) => name);
 }
 
+// A job timeout fails the job, which would turn an informational report red. Its steps carry
+// their own timeouts and continue-on-error instead (see the comment in ci.yml).
+const NO_JOB_TIMEOUT = ['ci.yml: dashboard-visual-diff'];
+
 test('every job in every workflow sets timeout-minutes', () => {
   const bad = [];
   for (const f of fs.readdirSync(dir).filter(n => /\.ya?ml$/.test(n))) {
     for (const name of jobsWithoutTimeout(yaml.load(fs.readFileSync(path.join(dir, f), 'utf8')))) {
-      bad.push(`${f}: ${name}`);
+      if (!NO_JOB_TIMEOUT.includes(`${f}: ${name}`)) bad.push(`${f}: ${name}`);
     }
   }
   assert.deepEqual(bad, [], `add timeout-minutes to:\n${bad.join('\n')}`);

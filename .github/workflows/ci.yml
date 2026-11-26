@@ -432,7 +432,6 @@ jobs:
     needs: [visual-changes, dashboard-visual-shard]
     if: ${{ !cancelled() && needs.visual-changes.outputs.run == 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
     name: dashboard-visual-diff (report)${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
     steps:
       # Every step has its own timeout and continue-on-error (no job timeout: that would turn the

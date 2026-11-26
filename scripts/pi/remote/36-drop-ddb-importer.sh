@@ -89,6 +89,13 @@ ok "a world is running on port 30000"
 if [ -n "$APPLY$UNDO" ]; then
   require_recent_snapshot
   if [ "${FORCE:-0}" != 1 ]; then require_quiet "stage 36 (it joins the world as the GM and changes a module setting)"; fi
+elif [ -n "$CHECK" ]; then
+  # CHECK=1 joins as the GM too (read-only for settings): say so when someone besides the GM browsers is online.
+  online="$(users_online)"
+  case "$online" in '' | *[!0-9]*) online="?" ;; esac
+  if [ "$online" != "?" ] && [ "$online" -gt "$(gm_browsers_joined)" ]; then
+    warn "$online user(s) are online besides the GM browsers: CHECK=1 joins the world as the GM, which they would see (nothing is changed)"
+  fi
 elif [ -z "$CHECK" ]; then
   ok "dry run: nothing joined, nothing changed. CHECK=1 reads the module's state from the live world; APPLY=1 switches it off (snapshot and the user's OK first)"
   exit 0

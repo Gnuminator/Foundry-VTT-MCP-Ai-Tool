@@ -263,12 +263,15 @@ describe('turnOptions', () => {
       slots: [{ level: 1, value: 2, max: 4, pact: false }],
       spells: [{ name: 'Healing Word', level: 1, prepared: true, castingTime: 'Bonus Action' }],
     });
-    const mv = groups.find(g => g.id === 'movement')?.options ?? [];
-    expect(mv.map((o: { name: string }) => o.name)).toEqual(['Move', 'Fly']);
-    expect(mv[0].note).toMatch(/30 ft/);
-    const hw = groups.find(g => g.id === 'bonus')?.options[0];
+    type Grp = { id: string; options: { name: string; note: string }[] };
+    const mv = (groups as Grp[]).find((g: Grp) => g.id === 'movement')?.options ?? [];
+    expect(mv.map(o => o.name)).toEqual(['Move', 'Fly']);
+    expect(mv[0]?.note).toMatch(/30 ft/);
+    const hw = (groups as Grp[]).find((g: Grp) => g.id === 'bonus')?.options[0];
     expect(hw?.note).toMatch(/2\/4 slots left/);
-    expect(turnOptions({ features: [] }).some(g => g.id === 'movement')).toBe(false);
+    expect((turnOptions({ features: [] }) as Grp[]).some((g: Grp) => g.id === 'movement')).toBe(
+      false
+    );
   });
 
   it('returns nothing without a sheet', () => {

@@ -1,6 +1,6 @@
 ---
 source: gm/away-night.md
-sourceHash: 005b38e17cfb
+sourceHash: 3ea16324e4a3
 title: En aften hos en anden
 description: Tjekket dagen før og pakkelisten til at spille i samme rum væk hjemmefra, med tv, et fremmed netværk og en plan, hvis netværket svigter.
 ---

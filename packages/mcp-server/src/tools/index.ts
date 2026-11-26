@@ -45,6 +45,7 @@ import { playerViewModule } from './modules/player-view.js';
 import { playerModule } from './modules/player.js';
 import { preflightModule } from './modules/preflight.js';
 import { prepDigestModule } from './modules/prep-digest.js';
+import { npcOnStageModule } from './modules/npc-on-stage.js';
 import { readAloudModule } from './modules/read-aloud.js';
 import { questCreationModule } from './modules/quest-creation.js';
 import { refChoicesModule } from './modules/ref-choices.js';
@@ -123,6 +124,7 @@ export const TOOL_MODULES: readonly AnyToolModule[] = [
   preflightModule,
   prepDigestModule,
   readAloudModule,
+  npcOnStageModule,
   partyModule,
   livePlayModule,
   sceneChangeModule,

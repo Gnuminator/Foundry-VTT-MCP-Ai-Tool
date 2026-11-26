@@ -273,6 +273,10 @@ export interface BridgeQueryMap {
     request: Play.SendChatMessageRequest;
     reply: Play.SendChatMessageReply;
   };
+  'foundry-mcp-bridge.setNpcOnStage': {
+    request: Play.SetNpcOnStageRequest;
+    reply: Play.SetNpcOnStageReply;
+  };
   'foundry-mcp-bridge.request-player-rolls': {
     request: Play.RequestPlayerRollsRequest;
     reply: Play.RequestPlayerRollsReply;

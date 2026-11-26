@@ -1504,6 +1504,14 @@ async function chatTools() {
     assert(r && r.messageId, brief(r));
     return r.messageId;
   });
+  await step('set-npc-on-stage (on, off)', async () => {
+    if (!ctx.npcId) skip('no sweep NPC');
+    const on = await tool('set-npc-on-stage', { actorId: ctx.npcId });
+    assert(on && on.onStage && on.onStage.actorId === ctx.npcId, brief(on));
+    const off = await tool('set-npc-on-stage', { clear: true });
+    assert(off && off.onStage === null, brief(off));
+    return `${on.onStage.name} on stage (name shown: ${on.onStage.nameShown}) -> off`;
+  });
   const requests = [
     [
       'request-player-rolls',

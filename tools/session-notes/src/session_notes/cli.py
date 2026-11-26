@@ -216,6 +216,11 @@ def main(argv: list[str] | None = None) -> int:
     ros_sub = ros.add_subparsers(dest="roster_cmd", required=True)
     ros_check = ros_sub.add_parser("check", help="list the speakers of a session that the roster does not know")
     ros_check.add_argument("session")
+    stg = sub.add_parser(
+        "stage", help="NPC on stage: write stage.json from the bridge session log (who the GM spoke as)"
+    )
+    stg.add_argument("session")
+    stg.add_argument("log", nargs="+", help="bridge session log file(s), sessions/<date>.jsonl")
     out = sub.add_parser("outbox", help="the notes that go out to players: build, preview, approve (sends nothing)")
     out_sub = out.add_subparsers(dest="outbox_cmd", required=True)
     for name, helptext in (
@@ -268,6 +273,16 @@ def main(argv: list[str] | None = None) -> int:
         result = roster.check(resolve_session(args.session), sessions_root())
         print(result.message)
         return 0 if result.ok else 1
+    if args.cmd == "stage":
+        from . import stage
+
+        try:
+            count = stage.export(resolve_session(args.session), [Path(p) for p in args.log])
+        except (OSError, ValueError) as exc:
+            print(exc, file=sys.stderr)
+            return 1
+        print(f"{count} NPC on stage event(s) written to stage.json")
+        return 0
     if args.cmd == "outbox":
         return run_outbox(args)
     if args.cmd == "inbox":

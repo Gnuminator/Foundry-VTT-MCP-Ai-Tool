@@ -295,3 +295,35 @@
     transform: scale(1);
   }
 }
+
+/* NPC on stage: the portrait and name of the NPC the GM speaks as, on the Table TV only. */
+.fmb-npc-stage {
+  position: fixed;
+  left: 2vw;
+  bottom: 2vw;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6vw;
+  max-width: 22vw;
+  pointer-events: none;
+  color: #fff;
+  text-shadow: 0 0 1rem rgb(0 0 0 / 90%);
+}
+
+.fmb-npc-stage-img {
+  max-width: 20vw;
+  max-height: 34vh;
+  border: 0.3vw solid rgb(255 255 255 / 80%);
+  border-radius: 0.8vw;
+  box-shadow: 0 0 2rem rgb(0 0 0 / 80%);
+  object-fit: cover;
+}
+
+.fmb-npc-stage-name {
+  font-size: 2.6vw;
+  font-weight: bold;
+  letter-spacing: 0.06em;
+  text-align: center;
+}

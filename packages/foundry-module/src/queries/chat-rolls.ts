@@ -5,6 +5,7 @@
 import type { BridgeAnswer, BridgeMethod, BridgeRequest } from '@gnuminator/shared';
 import type { BridgeHandlerTable } from '../bridge-handlers.js';
 import { MODULE_ID } from '../constants.js';
+import { setNpcOnStage } from '../npc-on-stage.js';
 import type { QueryContext } from './context.js';
 
 /**
@@ -17,6 +18,11 @@ export function registerChatRollHandlers(ctx: QueryContext, table: BridgeHandler
   table.on(`${MODULE_ID}.getChatLog`, 'read', data => getChatLog(ctx, data));
   table.on(`${MODULE_ID}.getCombatPlayByPlay`, 'read', () => getCombatPlayByPlay(ctx));
   table.on(`${MODULE_ID}.sendChatMessage`, 'recordless-write', data => sendChatMessage(ctx, data));
+
+  // NPC on stage: the Table TV shows who the GM speaks as (a world setting, no chat message)
+  table.on(`${MODULE_ID}.setNpcOnStage`, 'recordless-write', data =>
+    ctx.withGmGate('Failed to set NPC on stage', () => setNpcOnStage(data ?? {}))
+  );
 
   // Roll requests (interactive roll buttons in chat) and NPC rolls
   table.on(`${MODULE_ID}.request-player-rolls`, 'recordless-write', data =>

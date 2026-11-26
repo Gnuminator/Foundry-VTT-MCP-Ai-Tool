@@ -211,9 +211,9 @@ try {
             Tell "paused|$($dir.Name)|$(Get-Date -Format 'yyyy-MM-dd')" "Session notes for $($dir.Name) are paused: the usage limit is reached or Claude is logged out. The next pass continues."
           }
           78 {
-            Say "$($dir.Name): the scene notes are done but the session summary failed (see notes\status.json); the next pass tries again"
+            Say "$($dir.Name): the scene notes are done but the session summary failed (see notes\status.json); the next pass tries again until three runs have failed, then only when the notes change"
             # No date in the key: told once for the session, not once a day.
-            Tell "summary-failed|$($dir.Name)" "The scene notes for $($dir.Name) are written, but the session summary could not be. The next pass tries again."
+            Tell "summary-failed|$($dir.Name)" "The scene notes for $($dir.Name) are written, but the session summary could not be. The next pass tries again until three runs have failed, then only when the notes change."
           }
           76 { Say "$($dir.Name): some scenes are still raw; the next pass tries them again" }
           default {

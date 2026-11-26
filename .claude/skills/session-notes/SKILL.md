@@ -37,6 +37,7 @@ recorded yes (`python -m session_notes consent check <session>`; `consent set <i
      Nothing is lost; for the limit say when to run the same command again (the message says when
      it resets); for a logout ask the user to log in to `claude`, then run it again.
    - exit 76: some scenes are still raw text. Run the same command again to finish them.
+   - exit 78: the scene notes are done but the session summary failed. Run the same command again; after three failed runs it retries only when the notes change.
    - exit 1: show the error from the output and `notes/audit.jsonl`.
 7. Names check artifact (optional, for a reviewer who wants to listen): `node scripts/names-check.mjs
 <session>` builds one card per uncertain name (3 raw lines, the same speaker's cleaned line, a
@@ -51,13 +52,15 @@ recorded yes (`python -m session_notes consent check <session>`; `consent set <i
      `{time, who, text}`), and Foundry's own values for the characters and creatures the talk mentions as
      `<session>/foundry-facts.json` (`{"Ilvara": {"level": "4"}}`; keys `stats`, `items`, `level`,
      `ownership`). Without them the plan still works; claims about stats stay hints.
-   - Run `python -m session_notes campaign <session>` (in the background, one Claude call; exit 75 is a
+   - Run `python -m session_notes campaign <session>` (it needs a finished `run --layers`, which the
+     full chain `session.ps1` does and the plain `run` of step 5 does not; in the background, one Claude call; exit 75 is a
      usage limit or a logged-out `claude`, run it again). It writes `notes/campaign-merge.json`,
      `notes/Campaign merge plan.en.md` and the names and facts for the check page. Pages for
      unconfirmed names are held until someone answers the check page; then run `session_notes check` and
      `campaign` again.
    - Pass the plan's `entries` to `plan-campaign-merge` (prep set). Additions apply at once only when the
-     GM's switch is on; otherwise confirm the plan. Details: `tools/session-notes/README.md`.
+     GM's switch is on and the user said go ahead (as in step 9); otherwise show the plan and apply it
+     after the OK. Details: `tools/session-notes/README.md`.
 9. A pasted Discord message or screenshot (paste-to-pages). The bot does not read Discord; the user
    pastes what matters into a Claude session. No session folder and no python: read the paste (an
    image too), build the entries yourself under the same rules, then call `plan-campaign-merge`. The

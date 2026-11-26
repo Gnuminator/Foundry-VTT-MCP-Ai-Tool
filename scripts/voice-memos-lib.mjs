@@ -107,7 +107,30 @@ export function memoDate(fileName, fallback) {
   return fallback;
 }
 
-/** Note text. `ai_context: true` and the prep properties match the templates in Prep/Templates. */
+/** A name as an Obsidian tag: lower case, spaces to dashes, nothing else but letters, digits, _ and -. */
+export function tagOf(name) {
+  return name
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^\p{L}\p{N}_-]/gu, '');
+}
+
+/**
+ * The folder holding `Prep`: `<vault>/Campaigns/<world>` as the bridge writes it. `world` names it;
+ * without one the single folder under Campaigns is used; a vault without Campaigns is used as is.
+ */
+export function resolveCampaignDir(vaultDir, world) {
+  const campaigns = join(vaultDir, 'Campaigns');
+  if (!existsSync(campaigns)) return vaultDir;
+  if (world) return join(campaigns, world);
+  const worlds = readdirSync(campaigns, { withFileTypes: true })
+    .filter(e => e.isDirectory())
+    .map(e => e.name);
+  if (worlds.length === 1) return join(campaigns, worlds[0]);
+  throw new Error(`Which world? ${worlds.length} folders under Campaigns; pass --world <id>.`);
+}
+
+/** Note text.`ai_context: true` and the prep properties match the templates in Prep/Templates. */
 export function renderNote({ title, text, date, tags, audioName }) {
   const links = tags.map(t => `[[${t.name}]]`);
   return [
@@ -118,7 +141,7 @@ export function renderNote({ title, text, date, tags, audioName }) {
     'fvtt_uuid:',
     'ai_context: true',
     'secret:',
-    `tags: [${['voice-memo', ...tags.map(t => t.name.toLowerCase().replace(/\s+/g, '-'))].join(', ')}]`,
+    `tags: [${['voice-memo', ...tags.map(t => tagOf(t.name)).filter(Boolean)].join(', ')}]`,
     `audio: ${audioName}`,
     '---',
     `%% A voice memo, written out by the machine on the PC: names and words can be wrong. Set status to done when you have used it. Players never see your Prep notes. %%`,
@@ -161,7 +184,8 @@ export async function processInbox({ memosDir, vaultDir, transcribe }) {
   const work = join(memosDir, 'work');
   rmSync(work, { recursive: true, force: true });
   mkdirSync(work, { recursive: true });
-  writeFileSync(join(work, 'names.txt'), `${names.map(n => n.name).join('\n')}\n`);
+  if (names.length > 0)
+    writeFileSync(join(work, 'names.txt'), `${names.map(n => n.name).join('\n')}\n`);
   const stems = new Map(files.map((f, i) => [f, `memo${i + 1}`]));
   for (const [f, stem] of stems) {
     copyFileSync(join(inbox, f), join(work, `${stem}${extname(f).toLowerCase()}`));
@@ -187,7 +211,12 @@ export async function processInbox({ memosDir, vaultDir, transcribe }) {
       const note = freeNotePath(noteDir, `${dateOf(date)} ${timeOf(date)} ${safeFileTitle(title)}`);
       writeFileSync(note, renderNote({ title, text, date, tags, audioName: file }));
       mkdirSync(done, { recursive: true });
-      renameSync(src, join(done, file));
+      try {
+        renameSync(src, join(done, file));
+      } catch (err) {
+        rmSync(note, { force: true }); // no duplicate note on the next run
+        throw err;
+      }
       results.push({ file, ok: true, note, title, tags: tags.map(t => t.name) });
     } catch (err) {
       results.push({ file, ok: false, error: err instanceof Error ? err.message : String(err) });

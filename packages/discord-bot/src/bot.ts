@@ -34,6 +34,7 @@ import { RecordNudge } from './rec/record-nudge.js';
 import { startStatusServer } from './status-server.js';
 import { bi, da, plural } from './i18n.js';
 import {
+  MAX_MEMO_BYTES,
   MEMO_FAILED,
   MEMO_NO_AUDIO,
   MEMO_SAVED,
@@ -594,9 +595,11 @@ export class RecorderBot {
         url: a.url,
       })),
       async url => {
-        const res = await fetch(url);
+        const res = await fetch(url, { signal: AbortSignal.timeout(60_000) });
         if (!res.ok) throw new Error(`download failed: HTTP ${res.status}`);
-        return new Uint8Array(await res.arrayBuffer());
+        const bytes = new Uint8Array(await res.arrayBuffer());
+        if (bytes.length > MAX_MEMO_BYTES) throw new Error('download is bigger than a memo');
+        return bytes;
       }
     );
     log.info(`Voice memo: saved ${result.saved.join(', ') || 'nothing'} in ${memosDir}`);

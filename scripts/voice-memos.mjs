@@ -8,13 +8,14 @@
 // GPU lock included); nothing is sent anywhere. Notes land in `<vault>/Prep/Voice memos`.
 //
 // Memos dir: --memos-dir, else FVTT_MEMOS_DIR, else FoundryMemos in FVTT_DATA_DIR, else Documents.
-// Vault: --vault, else FOUNDRY_AI_OBSIDIAN_DIR.
+// Vault: --vault, else FOUNDRY_AI_OBSIDIAN_DIR. World: --world <id>, else the only folder under
+// Campaigns (notes go in <vault>/Campaigns/<world>/Prep/Voice memos).
 import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { processInbox, transcriptText } from './voice-memos-lib.mjs';
+import { processInbox, resolveCampaignDir, transcriptText } from './voice-memos-lib.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -33,6 +34,7 @@ export function defaultMemosDir(env = process.env, home = homedir()) {
 
 /** Run the local transcriber on a folder of memoN audio files; returns `{ memoN: text }`. */
 export function transcribeWithVoiceStack(dir) {
+  const hotwords = existsSync(join(dir, 'names.txt')) ? ['-Hotwords'] : [];
   const r = spawnSync(
     'pwsh',
     [
@@ -42,12 +44,13 @@ export function transcribeWithVoiceStack(dir) {
       'transcribe',
       dir,
       '-NoPipeline',
-      '-Hotwords',
+      ...hotwords,
     ],
     { stdio: 'inherit' }
   );
   if (r.status !== 0) throw new Error(`the transcriber stopped with exit code ${r.status}`);
   const jsonDir = join(dir, 'transcripts', 'json');
+  if (!existsSync(jsonDir)) throw new Error(`the transcriber wrote no JSON in ${jsonDir}`);
   const out = {};
   for (const f of readdirSync(jsonDir).filter(n => n.endsWith('.json'))) {
     out[f.replace(/\.json$/, '')] = transcriptText(
@@ -60,11 +63,12 @@ export function transcribeWithVoiceStack(dir) {
 async function main() {
   const args = process.argv.slice(2);
   const memosDir = argValue(args, '--memos-dir') ?? defaultMemosDir();
-  const vaultDir = argValue(args, '--vault') ?? process.env.FOUNDRY_AI_OBSIDIAN_DIR?.trim();
-  if (!vaultDir) {
+  const vaultRoot = argValue(args, '--vault') ?? process.env.FOUNDRY_AI_OBSIDIAN_DIR?.trim();
+  if (!vaultRoot) {
     console.error('voice-memos: no GM vault. Pass --vault or set FOUNDRY_AI_OBSIDIAN_DIR.');
     process.exit(2);
   }
+  const vaultDir = resolveCampaignDir(vaultRoot, argValue(args, '--world'));
   const results = await processInbox({ memosDir, vaultDir, transcribe: transcribeWithVoiceStack });
   if (results.length === 0) console.log(`voice-memos: no memos in ${join(memosDir, 'inbox')}`);
   for (const r of results) {

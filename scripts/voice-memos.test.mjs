@@ -16,7 +16,9 @@ import {
   makeTitle,
   memoDate,
   processInbox,
+  resolveCampaignDir,
   safeFileTitle,
+  tagOf,
   transcriptText,
 } from './voice-memos-lib.mjs';
 
@@ -122,6 +124,39 @@ test('a silent memo and a transcriber failure stay in the inbox', async () => {
   assert.equal(failed[0].ok, false);
   assert.equal(failed[0].error, 'GPU busy');
   assert.ok(existsSync(join(memos, 'inbox', 'a.ogg')));
+});
+
+test('resolveCampaignDir finds the one world, wants --world for several, and accepts a plain vault', () => {
+  const { root, vault } = setup();
+  assert.equal(resolveCampaignDir(vault), vault);
+  mkdirSync(join(vault, 'Campaigns', 'strahd'), { recursive: true });
+  assert.equal(resolveCampaignDir(vault), join(vault, 'Campaigns', 'strahd'));
+  mkdirSync(join(vault, 'Campaigns', 'other'));
+  assert.throws(() => resolveCampaignDir(vault), /--world/);
+  assert.equal(resolveCampaignDir(vault, 'other'), join(vault, 'Campaigns', 'other'));
+  assert.ok(root);
+});
+
+test('tagOf keeps tags valid for Obsidian', () => {
+  assert.equal(tagOf("Ireena D'Kolyana, Jr"), 'ireena-dkolyana-jr');
+  assert.equal(tagOf('Åse Ørsted'), 'åse-ørsted');
+});
+
+test('no names file when Prep has no notes', async () => {
+  const { root, memos } = setup();
+  const emptyVault = join(root, 'empty');
+  mkdirSync(emptyVault);
+  writeFileSync(join(memos, 'inbox', 'a.ogg'), 'x');
+  let files;
+  await processInbox({
+    memosDir: memos,
+    vaultDir: emptyVault,
+    transcribe: async dir => {
+      files = readdirSync(dir);
+      return { memo1: 'Hej.' };
+    },
+  });
+  assert.deepEqual(files, ['memo1.ogg']);
 });
 
 test('an empty inbox is not an error and does not call the transcriber', async () => {

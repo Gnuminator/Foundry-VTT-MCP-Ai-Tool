@@ -172,6 +172,7 @@ if have "$SYSTEMCTL"; then
   check_unit foundry-ai-tool-bridge.service bridge required
   check_unit foundry-ai-tool-dashboard.service dashboard required
   check_unit foundry-ai-tool-gm-browser.service gm-browser optional
+  check_unit foundry-ai-tool-discord-bot.service discord-bot optional
 else
   warn "no systemctl here: the units were not checked"
 fi

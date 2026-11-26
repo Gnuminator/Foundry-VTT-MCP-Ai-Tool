@@ -70,7 +70,7 @@ jobs:
         run: |
           date +%s > "$RUNNER_TEMP/pi-images-start"
           data="$RUNNER_TEMP/tool-data"
-          mkdir -p "$data/vault" "$data/dashboard" "$data/gm-browser" "$RUNNER_TEMP/tool-etc"
+          mkdir -p "$data/vault" "$data/dashboard" "$data/gm-browser" "$data/recordings" "$RUNNER_TEMP/tool-etc" "$RUNNER_TEMP/backup-pulls"
           # What deployed-state.sh reads as the deployed build: a folder with a package.json and a ref.
           mkdir -p "$RUNNER_TEMP/tool-dir/app"
           echo '{"name":"stand-in"}' > "$RUNNER_TEMP/tool-dir/app/package.json"
@@ -80,13 +80,14 @@ jobs:
             echo "FOUNDRY_GID=$(id -g)"
             echo "TOOL_DATA_DIR=$data"
             echo "TOOL_ETC_DIR=$RUNNER_TEMP/tool-etc"
+            echo "BACKUP_PULLS_DIR=$RUNNER_TEMP/backup-pulls"
           } >> "$GITHUB_ENV"
 
       - name: Compose file is valid
         run: $COMPOSE config --quiet
 
       - name: Build the images
-        run: $COMPOSE --profile gm-browser build
+        run: $COMPOSE --profile gm-browser --profile discord-bot build
 
       - name: Image sizes
         run: |
@@ -150,11 +151,19 @@ jobs:
           PI_STAGE23_CONTAINER: 1
         run: node --test scripts/pi/docker-compose.test.mjs deploy/pi/healthcheck.test.mjs
 
+      # The Discord bot container (compose profile discord-bot) without a token: its libraries load on ARM64, UDP works, and a
+      # synthetic recording is converted into FVTT_SESSIONS_DIR ($TOOL_DATA_DIR/recordings, owned by the runner user) with the
+      # group allowed to write. The same umask wrapper as the service command.
+      - name: Discord bot container check
+        run: |
+          $COMPOSE --profile discord-bot run --rm --no-deps --entrypoint sh discord-bot \
+            -c 'umask 0007 && node /app/bot-container-check.mjs'
+
       - name: Logs and teardown
         if: always()
         run: |
           $COMPOSE logs --no-color --tail 40 || true
-          $COMPOSE --profile gm-browser down --volumes --remove-orphans || true
+          $COMPOSE --profile gm-browser --profile discord-bot down --volumes --remove-orphans || true
 
       - name: Job time
         if: always()

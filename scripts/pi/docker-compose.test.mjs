@@ -36,7 +36,7 @@ describe('23-docker.sh as text', () => {
       'DEBIAN_FRONTEND=noninteractive apt-get update',
       'enable_unit docker.service',
       'write_file "$env_file"',
-      '(cd "$checkout" && docker compose -f deploy/pi/compose.yml build)',
+      '(cd "$checkout" && COMPOSE_PROFILES=discord-bot docker compose -f deploy/pi/compose.yml build)',
     ]) {
       assert.ok(snap < s22.indexOf(write), write);
     }
@@ -112,7 +112,7 @@ describe('24-compose.sh as text', () => {
     const dataRefusal = up.indexOf('would use a live data folder');
     assert.ok(liveRefusal > 0 && liveRefusal < dataRefusal && dataRefusal < up.indexOf('need_daemon'));
     // The first start does not build (stage 23 does) and comes before the --wait start.
-    const first = s23.indexOf('dc up -d --no-build >/dev/null');
+    const first = s23.indexOf('dc up -d --no-build $only >/dev/null');
     assert.ok(first > 0 && first < s23.indexOf('dc up -d --no-build --wait'));
     // The images are checked (preflight) before anything stops.
     assert.ok(cut.indexOf('preflight_stack') < snap);

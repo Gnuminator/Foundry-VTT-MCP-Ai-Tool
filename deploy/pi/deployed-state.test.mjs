@@ -264,6 +264,22 @@ describe('deployed-state.sh', { skip: noBash }, () => {
     assert.match(clash.out, /FAIL: foundry-ai-tool-bridge\.service is active and the bridge container is running too/);
   });
 
+  test('the Discord bot: a unit and the bot container together fail, the retired unit next to the container is fine', () => {
+    const healthy = { state: 'running', restarts: 0, health: 'healthy' };
+    const unit = 'foundry-ai-tool-discord-bot.service';
+    const clash = run({
+      containers: { 'discord-bot': healthy },
+      units: { [unit]: { active: 'active', sub: 'running', restarts: 0 } },
+    });
+    assert.equal(clash.code, 1);
+    assert.match(clash.out, /FAIL: foundry-ai-tool-discord-bot\.service is active and the discord-bot container is running too/);
+    const cut = run({ containers: { 'discord-bot': healthy }, units: { [unit]: OFF } });
+    assert.match(cut.out, /foundry-ai-tool-discord-bot\.service is inactive \(retired; the discord-bot container runs\)/);
+    assert.match(cut.out, /container discord-bot is running and healthy/);
+    // No bot unit installed (a Pi without the recorder) is fine.
+    assert.match(run().out, /foundry-ai-tool-discord-bot\.service is not installed/);
+  });
+
   test('containers outside the compose project are ignored', () => {
     const r = run({ containers: {} });
     assert.match(r.out, /no containers in project foundry-ai-tool-pi/);

@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import {
   LOOKUP_UNAVAILABLE,
+  NOTHING_FOUND,
   NOTHING_REVEALED,
+  ruleAnswer,
   lookupAllowed,
   lookupReply,
   createPlayerStateReader,
@@ -45,6 +47,50 @@ const state = {
   events: [{ text: SECRET }],
   scene: SECRET,
 };
+
+describe('rule lookup', () => {
+  const rules = {
+    handouts: [
+      {
+        id: 'h',
+        title: 'House rules',
+        html: '<h2>Exhaustion</h2><p>Each level costs 2 off d20 tests.</p><p>Flanking: none.</p>',
+        revealedAt: '2026-11-26T10:00:00Z',
+      },
+      { id: 'g', title: 'GM notes', html: `<p>exhaustion ${SECRET}</p>`, players: ['u1'] },
+    ],
+  };
+
+  it('a title hit answers with the whole page', () => {
+    const text = ruleAnswer(rules, 'house');
+    expect(text).toContain('**House rules**');
+    expect(text).toContain('Flanking: none.');
+  });
+
+  it('a body hit answers with only the matching lines', () => {
+    const text = ruleAnswer(rules, 'exhaustion');
+    expect(text).toContain('Each level costs');
+    expect(text).not.toContain('Flanking');
+  });
+
+  it('never answers from a GM-only page', () => {
+    expect(ruleAnswer(rules, 'exhaustion')).not.toContain(SECRET);
+    expect(ruleAnswer(rules, 'secret')).toBe(NOTHING_FOUND);
+  });
+
+  it('misses, empty queries and failed reads are plain', () => {
+    expect(ruleAnswer(rules, 'grapple')).toBe(NOTHING_FOUND);
+    expect(ruleAnswer(rules, '')).toBe(NOTHING_REVEALED);
+    expect(lookupReply('rule', 'house', null)).toBe(LOOKUP_UNAVAILABLE);
+  });
+
+  it('stays under the Discord cap', () => {
+    const big = {
+      handouts: [{ id: 'b', title: 'House rules', html: `<p>${'x '.repeat(3000)}</p>` }],
+    };
+    expect(ruleAnswer(big, 'house').length).toBeLessThanOrEqual(2000);
+  });
+});
 
 describe('lookups', () => {
   it('drops handouts meant for chosen players', () => {

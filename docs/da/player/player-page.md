@@ -1,6 +1,6 @@
 ---
 source: player/player-page.md
-sourceHash: 43fea263b39f
+sourceHash: baabbd2b3208
 title: Brug player page
 description: Korte how-tos om den valgfri player page ved siden af Foundry, med at vælge dit navn, følge combaten, handouts til dig, roll-knapper og hvordan du spørger GM'en om det, værktøjet ved.
 ---
@@ -81,7 +81,9 @@ endnu, så sig det til dem. Ingen andre ser din besked, og den står ikke på pl
 ## Spørg Discord-botten
 
 - **Gør:** skriv `/recap` i Discord for det seneste recap, `/npc <navn>` for det, GM'en har fortalt alle
-  om en person, eller `/handouts` for de handouts, der er afsløret indtil nu.
+  om en person, `/rule <ord>` (fx `/rule house`) for bordets husregler, eller `/handouts` for de
+  handouts, der er afsløret indtil nu. `/rule` søger i de afslørede sider med ren tekst, uden AI, så
+  den kender kun det, GM'en har delt; bogens regler er der ikke, spørg hjælperen.
 - **Godt at vide:** kun du ser svaret. Det er handoutens egen tekst, den samme som på player page, og et
   navn, GM'en ikke har afsløret, giver "Nothing revealed yet".
 

@@ -101,6 +101,18 @@ const LOOKUP_COMMANDS = [
         .setMaxLength(100)
     ),
   new SlashCommandBuilder()
+    .setName('rule')
+    .setDescription('Look up a house rule or a shared rules page')
+    .setDescriptionLocalizations(da('Slå en husregel eller en delt regelside op'))
+    .addStringOption(o =>
+      o
+        .setName('words')
+        .setDescription('What to look up, for example exhaustion or house')
+        .setDescriptionLocalizations(da('Hvad der skal slås op, fx exhaustion eller house'))
+        .setRequired(true)
+        .setMaxLength(100)
+    ),
+  new SlashCommandBuilder()
     .setName('handouts')
     .setDescription('The handouts the GM has shared')
     .setDescriptionLocalizations(da('De handouts, GM har delt')),
@@ -557,7 +569,11 @@ export class RecorderBot {
       ? LOOKUP_NOT_HERE
       : lookupReply(
           i.commandName,
-          i.commandName === 'npc' ? i.options.getString('name', true) : '',
+          i.commandName === 'npc'
+            ? i.options.getString('name', true)
+            : i.commandName === 'rule'
+              ? i.options.getString('words', true)
+              : '',
           await this.readPlayerState()
         );
     await i.reply({

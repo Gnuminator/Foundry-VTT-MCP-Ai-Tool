@@ -82,7 +82,9 @@ yet, so tell them. Nobody else sees your message, and it is not on the player pa
 ## Ask the Discord bot
 
 - **Do:** in Discord type `/recap` for the last recap, `/npc <name>` for what the GM has told everyone
-  about a person, or `/handouts` for the handouts revealed so far.
+  about a person, `/rule <words>` (for example `/rule house`) for the table's house rules, or
+  `/handouts` for the handouts revealed so far. `/rule` searches the revealed pages with plain text,
+  with no AI, so it only knows what the GM has shared; book rules are not in it, ask the helper.
 - **Good to know:** only you see the answer. It is the handout's own text, the same as the player page,
   and a name the GM has not revealed says "Nothing revealed yet".
 

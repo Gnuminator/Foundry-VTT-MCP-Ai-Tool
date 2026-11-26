@@ -3699,10 +3699,15 @@ function carryRepo() {
 }
 
 /** A note (Sonnet unless `opus`) for one reviewed sha, parsed as the gate reads it. */
-const reviewed = (/** @type {string} */ sha, opus = false, verdict = '**Merge.** Fine.') =>
+const reviewed = (
+  /** @type {string} */ sha,
+  opus = false,
+  verdict = '**Merge.** Fine.',
+  extra = ''
+) =>
   parseReviewNote(
     opus ? '312-opus-review.md' : '312-review.md',
-    note({ head: sha, verdict, title: opus ? 'PR #312 Opus review' : 'PR #312 review' }),
+    note({ head: sha, verdict, title: opus ? 'PR #312 Opus review' : 'PR #312 review', extra }),
     312
   );
 
@@ -3858,6 +3863,42 @@ test('fix round: a fix off the Opus list needs only a Sonnet Merge, a risky file
   assert.equal(fixRoundRelief(r.run, [...veto, reviewed(C)], C).relief, false, 'do not merge');
   assert.equal(fixRoundRelief(r.run, [reviewed(R1), reviewed(C)], C).relief, false);
   assert.equal(fixRoundRelief(r.run, [reviewed(C)], C).relief, false);
+  // a later Opus veto on the same risky patch closes the relief an earlier Merge opened
+  r.g('checkout', '-q', 'pr');
+  r.write('a.txt', [...r.lines, 'fix', 'again']);
+  const G = r.commit('another off-list fix');
+  r.write('a.txt', [...r.lines, 'fix', 'again', 'once more']);
+  const H = r.commit('and another');
+  const opusD = [reviewed(E, true, '**Merge after fixes.** Fine.')];
+  const laterVeto = [...opusD, reviewed(G, true, '**Do not merge.** Broken.'), reviewed(H)];
+  assert.equal(fixRoundRelief(r.run, laterVeto, H).relief, false, 'later Opus veto');
+  assert.equal(fixRoundRelief(r.run, [...opusD, reviewed(H)], H).relief, true, 'same without it');
+  // a Merge after fixes whose findings name a risky file opens nothing
+  const withRisky = [
+    reviewed(
+      R1,
+      true,
+      '**Merge after fixes.**',
+      '\n### M1. Unfixed\n`scripts/pi/x.sh:3` is wrong.\n'
+    ),
+    reviewed(C),
+  ];
+  assert.equal(fixRoundRelief(r.run, withRisky, C).relief, false, 'risky finding');
+  const offList = [
+    reviewed(
+      R1,
+      true,
+      '**Merge after fixes.**',
+      '\n### M1. Test gap\n`scripts/foo.test.mjs:3` lacks a case.\n'
+    ),
+    reviewed(C),
+  ];
+  assert.equal(fixRoundRelief(r.run, offList, C).relief, true, 'finding off the Opus list');
+  // a mode change on a risky file is a change
+  r.g('checkout', '-q', 'pr');
+  r.g('update-index', '--chmod=+x', 'scripts/pi/x.sh');
+  const F = r.commit('mode change');
+  assert.equal(fixRoundRelief(r.run, [...opus, reviewed(F)], F).relief, false, 'mode change');
 });
 
 test('carry: any error carries nothing (unknown commit, shallow clone, old git, no main)', () => {

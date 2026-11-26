@@ -9,7 +9,7 @@
  *     [--round N] [--head SHA] [--vault DIR] [--no-commit] [--dry-run]
  *
  * It refuses `--model sonnet` when the gate calls the PR risky (an Opus review is required), except
- * for a fix round whose change since the Opus-reviewed commit touches no Opus-list path.
+ * for a fix round whose PR patch on Opus-list paths is unchanged since an Opus review (fixRoundRelief).
  * Tests: scripts/review-note.test.mjs. The pure parts (noteName, finishNote, buildNote) are exported.
  */
 import fs from 'node:fs';
@@ -178,7 +178,7 @@ export function parseArgs(argv, env = process.env) {
 
 /**
  * The refusal for a Sonnet stamp on a risky PR, else null. `fixRound` is true when the gate would
- * accept Sonnet for this head: a fix round whose change since an Opus-reviewed commit is off the Opus list.
+ * accept Sonnet for this head: a fix round whose PR patch on the Opus list is unchanged since an Opus review.
  * @param {'opus' | 'sonnet'} model @param {string[]} files @param {boolean} [fixRound]
  */
 export function modelRefusal(model, files, fixRound = false) {

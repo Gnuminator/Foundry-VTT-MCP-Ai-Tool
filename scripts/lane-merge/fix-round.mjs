@@ -27,73 +27,115 @@ function riskyFilesAt(run, sha, mainRef) {
   return { base, files };
 }
 
-/** `git patch-id` of the PR's patch at `sha` limited to `files` ('' when the patch is empty). @param {GitRun} run */
-function riskyPatchId(run, base, sha, files) {
-  if (files.length === 0) return '';
-  const diff = run('git', [
-    'diff',
-    '--binary',
-    '--full-index',
-    '--no-renames',
-    '--no-color',
-    '--no-ext-diff',
-    '--no-textconv',
-    '--no-relative',
-    base,
-    sha,
-    '--',
-    ...files.map(f => `:(literal)${f}`),
-  ]);
-  if (diff.status !== 0) return null;
-  if (diff.stdout.trim() === '') return '';
+/**
+ * A fingerprint of the PR's patch at `sha` limited to `files`: its `git patch-id` plus the file
+ * modes and statuses (patch-id ignores mode lines). Null on any git problem.
+ * @param {GitRun} run @param {string} base @param {string} sha @param {string[]} files
+ * @returns {string | null}
+ */
+function riskyPatch(run, base, sha, files) {
+  const spec = ['--', ...files.map(f => `:(literal)${f}`)];
+  const flags = ['--no-renames', '--no-color', '--no-ext-diff', '--no-textconv', '--no-relative'];
+  const diff = run('git', ['diff', '--binary', '--full-index', ...flags, base, sha, ...spec]);
+  const raw = run('git', ['diff', '--raw', '--no-abbrev', ...flags, base, sha, ...spec]);
+  if (diff.status !== 0 || raw.status !== 0) return null;
+  const modes = raw.stdout
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .map(l => l.replace(/^:(\d+) (\d+) [0-9a-f]+ [0-9a-f]+ /, '$1 $2 '))
+    .join('\n');
+  if (diff.stdout.trim() === '') return `empty|${modes}`;
   const pid = run('git', ['patch-id', '--verbatim'], diff.stdout);
-  return /^([0-9a-f]{40})\s/.exec(pid.stdout)?.[1] ?? null;
+  const id = /^([0-9a-f]{40})\s/.exec(pid.stdout)?.[1];
+  return id ? `${id}|${modes}` : null;
 }
+
+/**
+ * True when an Opus note names an Opus-list file in one of its H or M findings: a Merge after fixes
+ * from it may mean an unfixed finding on a risky file, so it opens no relief.
+ * @param {import('./reviews.mjs').ReviewNote} note
+ */
+function riskyFindings(note) {
+  let inFinding = false;
+  for (const line of (note.text ?? '').split(/\r?\n/)) {
+    if (/^#{1,6}\s+\**[HM]\d+\b|^\**[HM]\d+[.:)\s]/.test(line)) inFinding = true;
+    else if (/^#{1,6}\s/.test(line)) inFinding = false;
+    if (!inFinding) continue;
+    for (const m of line.matchAll(/[\w@./-]+\.\w+/g)) {
+      if (riskyHits([m[0]]).length > 0) return true;
+    }
+  }
+  return false;
+}
+
+/** @param {string | null} verdict */
+const verdictWord = verdict =>
+  verdict
+    ? verdict
+        .replace(/\*\*/g, '')
+        .replace(/[.\s]+$/, '')
+        .toLowerCase()
+    : '';
 
 /**
  * A fix round after an Opus review gets a review sized to the fix (D-152, amends D-101): when an
  * Opus note reviewed an earlier commit of this PR and the PR's own patch on every Opus-list file
  * is the same at that commit and at the head, a Sonnet Merge for the head is enough on a risky PR.
- * The comparison is by content (git patch-id of the PR patch limited to the risky files, as in
- * patchIdAt), not by history, so merge direction, conflict resolutions and rebases cannot hide a
- * risky change; a clean merge of main that does not touch the PR's risky patch keeps the relief.
- * Only Opus entries that said Merge or Merge after fixes count (a Do not merge opens nothing).
- * Any git error gives no relief.
+ * The comparison is by content (git patch-id of the PR patch limited to the risky files, plus file
+ * modes), not by history, so merge direction, conflict resolutions and rebases cannot hide a risky
+ * change; a clean merge of main that leaves the PR's risky patch alone keeps the relief.
+ * What opens it: an Opus entry saying Merge, or Merge after fixes when that note's H and M
+ * findings name no Opus-list file. What closes it: any Opus entry that is not a Merge verdict
+ * (Do not merge) on the same risky patch as the head. Nothing to compare (no Opus-list file in
+ * either patch) and any git error give no relief.
  * @param {GitRun} run
  * @param {import('./reviews.mjs').ReviewNote[]} notes @param {string} headSha @param {string} [mainRef]
  * @returns {{ relief: true, from: string, files: string[] } | { relief: false, why: string }}
  */
 export function fixRoundRelief(run, notes, headSha, mainRef = MAIN) {
   const head = headSha.toLowerCase();
-  /** @type {string[]} */
-  const opusHeads = [];
+  /** @type {{ sha: string, open: boolean }[]} */
+  const entries = [];
   for (const n of notes) {
     if (!n.opus) continue;
+    const risky = riskyFindings(n);
     for (const e of n.entries) {
-      const v = e.verdict
-        ? e.verdict
-            .replace(/\*\*/g, '')
-            .replace(/[.\s]+$/, '')
-            .toLowerCase()
-        : '';
-      if (e.head && e.head !== head && (v === 'merge' || v === 'merge after fixes')) {
-        opusHeads.push(e.head);
-      }
+      if (!e.head || e.head === head) continue;
+      const v = verdictWord(e.verdict);
+      entries.push({ sha: e.head, open: v === 'merge' || (v === 'merge after fixes' && !risky) });
     }
   }
-  if (opusHeads.length === 0) return { relief: false, why: 'no earlier Opus review' };
+  if (entries.length === 0) return { relief: false, why: 'no earlier Opus review' };
   const atHead = riskyFilesAt(run, head, mainRef);
   if (!atHead) return { relief: false, why: 'git could not read the head' };
+  /** @type {Map<string, { files: string[], same: boolean } | null>} */
+  const cache = new Map();
+  const compare = (/** @type {string} */ sha) => {
+    if (!cache.has(sha)) {
+      const atSha = riskyFilesAt(run, sha, mainRef);
+      const files = atSha ? [...new Set([...atHead.files, ...atSha.files])] : [];
+      const a = atSha && files.length > 0 ? riskyPatch(run, atSha.base, sha, files) : null;
+      const h = a === null ? null : riskyPatch(run, atHead.base, head, files);
+      cache.set(sha, a === null || h === null ? null : { files, same: a === h });
+    }
+    return cache.get(sha) ?? null;
+  };
+  // An Opus entry that is not a Merge verdict, on the head's own risky patch, vetoes the relief.
+  for (const x of entries) {
+    if (x.open) continue;
+    if (compare(x.sha)?.same)
+      return {
+        relief: false,
+        why: `Opus reviewed this patch at ${x.sha.slice(0, 7)} and did not say Merge`,
+      };
+  }
   let why = 'the PR patch on the Opus list changed since every Opus-reviewed commit';
-  for (const sha of [...new Set(opusHeads)]) {
-    const atSha = riskyFilesAt(run, sha, mainRef);
-    if (!atSha) continue;
-    const files = [...new Set([...atHead.files, ...atSha.files])];
-    const a = riskyPatchId(run, atSha.base, sha, files);
-    const h = riskyPatchId(run, atHead.base, head, files);
-    if (a === null || h === null) continue;
-    if (a === h) return { relief: true, from: sha, files };
-    why = `the PR patch on ${files[0]} (or another Opus-list file) differs from the Opus-reviewed ${sha.slice(0, 7)}`;
+  for (const x of entries) {
+    if (!x.open) continue;
+    const c = compare(x.sha);
+    if (c?.same) return { relief: true, from: x.sha, files: c.files };
+    if (c)
+      why = `the PR patch on ${c.files[0]} (or another Opus-list file) differs from the Opus-reviewed ${x.sha.slice(0, 7)}`;
   }
   return { relief: false, why };
 }

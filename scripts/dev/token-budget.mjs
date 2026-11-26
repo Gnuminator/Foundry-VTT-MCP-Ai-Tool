@@ -55,12 +55,18 @@ export function group(states, prs = []) {
   for (const p of prs) if (!prOf.has(p.headRefName)) prOf.set(p.headRefName, p.number);
   const byBranch = new Map();
   for (const s of states) {
-    const branch = s.branch || '(unknown)';
-    const g = byBranch.get(branch) ?? { branch, tokens: 0, sessions: 0, updated: '' };
-    g.tokens += s.tokens;
-    g.sessions += 1;
-    if (s.updated > g.updated) g.updated = s.updated;
-    byBranch.set(branch, g);
+    // a session that changed branch is split by branch (branchTokens); older state has one total
+    const parts =
+      s.branchTokens && Object.keys(s.branchTokens).length
+        ? Object.entries(s.branchTokens)
+        : [[s.branch || '(unknown)', s.tokens]];
+    for (const [branch, tokens] of parts) {
+      const g = byBranch.get(branch) ?? { branch, tokens: 0, sessions: 0, updated: '' };
+      g.tokens += tokens;
+      g.sessions += 1;
+      if (s.updated > g.updated) g.updated = s.updated;
+      byBranch.set(branch, g);
+    }
   }
   return [...byBranch.values()]
     .map(g => ({ ...g, pr: prOf.get(g.branch) ?? null }))
@@ -77,6 +83,7 @@ export function noteText(groups, limit, now = new Date()) {
     '',
     'Per branch and PR, from the Stop hook `.claude/hooks/budget.mjs` (`npm run token:budget`).',
     'Tokens are context tokens per API response, counted like `npm run usage:week`.',
+    'A forked session repeats its parent history, so forks count that part twice.',
     '',
   ];
   for (const g of groups) {
@@ -92,7 +99,18 @@ export function fetchPrs(env = process.env) {
   return new Promise(resolve => {
     execFile(
       'gh',
-      ['pr', 'list', '-R', REPO, '--state', 'all', '--limit', '300', '--json', 'number,headRefName'],
+      [
+        'pr',
+        'list',
+        '-R',
+        REPO,
+        '--state',
+        'all',
+        '--limit',
+        '300',
+        '--json',
+        'number,headRefName',
+      ],
       { maxBuffer: 16 * 1024 * 1024 },
       (err, stdout) => {
         if (err) return resolve([]);
@@ -107,7 +125,8 @@ export function fetchPrs(env = process.env) {
 }
 
 export function noteFileFor(env = process.env) {
-  const vault = env.FOUNDRY_AI_OBSIDIAN_DIR || path.join(os.homedir(), 'Documents', 'Obsidian', 'vault');
+  const vault =
+    env.FOUNDRY_AI_OBSIDIAN_DIR || path.join(os.homedir(), 'Documents', 'Obsidian', 'vault');
   return path.join(vault, 'Dev', 'Foundry AI Tool', 'Token budget.md');
 }
 
@@ -142,7 +161,10 @@ async function main() {
 }
 
 const self = fileURLToPath(import.meta.url);
-if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === pathToFileURL(self).href) {
+if (
+  process.argv[1] &&
+  pathToFileURL(path.resolve(process.argv[1])).href === pathToFileURL(self).href
+) {
   main().catch(e => {
     console.error(e.message);
     process.exit(1);

@@ -29,6 +29,7 @@ import {
   readSync,
   fstatSync,
   renameSync,
+  rmSync,
   writeFileSync,
 } from 'node:fs';
 import os from 'node:os';
@@ -67,22 +68,49 @@ export function writeState(state, env = process.env) {
   const file = stateFileFor(state.sessionId, env);
   mkdirSync(path.dirname(file), { recursive: true });
   const tmp = `${file}.${process.pid}.tmp`;
-  writeFileSync(tmp, JSON.stringify(state));
-  renameSync(tmp, file);
+  try {
+    writeFileSync(tmp, JSON.stringify(state));
+    for (let attempt = 0; ; attempt++) {
+      try {
+        renameSync(tmp, file);
+        return;
+      } catch (e) {
+        // Windows: the target may be open in the aggregator for a moment
+        if (attempt >= 3) throw e;
+      }
+    }
+  } finally {
+    try {
+      rmSync(tmp, { force: true });
+    } catch {
+      // nothing to clean
+    }
+  }
 }
 
-// Folds new complete transcript lines into `entry` ({offset, last:{id,tokens}}) and returns
-// {tokens added, lastContext, branch}. A response written as several lines shares one message id;
-// its tokens replace the earlier reading instead of adding to it.
-export function foldLines(lines, entry, { main }) {
+export const SEEN_MAX = 400;
+
+// Folds new complete transcript lines into the session state and returns {added, lastContext,
+// branch}. Every API response counts once: state.seen maps recent message ids to the tokens
+// counted for them, shared by all of the session's files, so a response written as several lines,
+// or repeated in a subagent file, adds only the difference. The tokens go to the branch named on
+// the line (state.branchTokens), so a session that changes branch is split between them.
+export function foldLines(lines, state, { main }) {
+  state.seen ??= {};
+  state.branchTokens ??= {};
   let added = 0;
   let lastContext = null;
   let branch = null;
   for (const line of lines) {
     if (!line) continue;
-    if (!branch && line.includes('"gitBranch"')) {
+    let lineBranch = null;
+    if (line.includes('"gitBranch"')) {
       const m = /"gitBranch":"([^"]+)"/.exec(line);
-      if (m) branch = m[1];
+      if (m) lineBranch = m[1];
+    }
+    if (lineBranch) {
+      state.curBranch = lineBranch;
+      if (main) branch = lineBranch;
     }
     if (!line.includes('"usage"')) continue;
     let j;
@@ -96,19 +124,24 @@ export function foldLines(lines, entry, { main }) {
     const tokens = contextOf(j.message.usage);
     if (tokens === 0) continue;
     const id = j.message.id;
-    if (id && entry.last && entry.last.id === id) {
-      added += tokens - entry.last.tokens;
-    } else {
-      added += tokens;
+    const delta = id && id in state.seen ? tokens - state.seen[id] : tokens;
+    if (id) {
+      state.seen[id] = tokens;
+      const ids = Object.keys(state.seen);
+      for (let i = 0; i < ids.length - SEEN_MAX; i++) delete state.seen[ids[i]];
     }
-    entry.last = { id: id ?? null, tokens };
+    added += delta;
+    const b = state.curBranch || '(unknown)';
+    state.branchTokens[b] = (state.branchTokens[b] ?? 0) + delta;
     if (main && !j.isSidechain) lastContext = tokens;
   }
   return { added, lastContext, branch };
 }
 
-// Reads the bytes of `file` after entry.offset (whole lines only) and folds them in.
-export function advance(file, entry, opts) {
+// Reads the bytes of `file` after entry.offset (whole lines only) and folds them in. Stops at
+// `deadline` (a time in ms) so a first run over a huge transcript never hits the hook timeout;
+// the next turn carries on from the saved offset.
+export function advance(file, entry, state, opts, deadline = Infinity) {
   let fd;
   try {
     fd = openSync(file, 'r');
@@ -117,16 +150,13 @@ export function advance(file, entry, opts) {
   }
   try {
     const size = fstatSync(fd).size;
-    if (size < entry.offset) {
-      // the file was replaced or truncated: start over for this file, keep the total
-      entry.offset = 0;
-      entry.last = null;
-    }
+    if (size < entry.offset) entry.offset = 0; // replaced or truncated: start over, keep the total
     let added = 0;
     let lastContext = null;
     let branch = null;
-    while (entry.offset < size) {
-      const len = Math.min(size - entry.offset, CHUNK_BYTES);
+    let chunk = CHUNK_BYTES;
+    while (entry.offset < size && Date.now() < deadline) {
+      const len = Math.min(size - entry.offset, chunk);
       const buf = Buffer.alloc(len);
       let got = 0;
       while (got < len) {
@@ -134,15 +164,20 @@ export function advance(file, entry, opts) {
         if (n <= 0) break;
         got += n;
       }
-      const text = buf.subarray(0, got).toString('utf8');
-      const cut = text.lastIndexOf('\n');
-      if (cut < 0) break; // no complete line yet (or one line over the chunk: wait for more)
-      const consumed = Buffer.byteLength(text.slice(0, cut + 1), 'utf8');
-      const r = foldLines(text.slice(0, cut).split('\n'), entry, opts);
+      const cut = buf.subarray(0, got).lastIndexOf(10);
+      if (cut < 0) {
+        if (len < size - entry.offset) {
+          chunk *= 2; // one line longer than the chunk: read more of it
+          continue;
+        }
+        break; // the last line is not finished yet
+      }
+      const r = foldLines(buf.subarray(0, cut).toString('utf8').split('\n'), state, opts);
       added += r.added;
       if (r.lastContext !== null) lastContext = r.lastContext;
-      branch ??= r.branch;
-      entry.offset += consumed;
+      branch = r.branch ?? branch;
+      entry.offset += cut + 1;
+      chunk = CHUNK_BYTES;
     }
     return { added, lastContext, branch };
   } finally {
@@ -173,9 +208,10 @@ export function transcriptsOf(transcriptPath) {
 export function update(sessionId, transcriptPath, env = process.env) {
   const state = readState(sessionId, env);
   state.sessionId = sessionId;
+  const deadline = Date.now() + 5000;
   for (const { file, main } of transcriptsOf(transcriptPath)) {
-    const entry = (state.files[file] ??= { offset: 0, last: null });
-    const r = advance(file, entry, { main });
+    const entry = (state.files[file] ??= { offset: 0 });
+    const r = advance(file, entry, state, { main }, deadline);
     state.tokens += r.added;
     if (r.lastContext !== null) state.lastContext = r.lastContext;
     if (main && r.branch) state.branch = r.branch;

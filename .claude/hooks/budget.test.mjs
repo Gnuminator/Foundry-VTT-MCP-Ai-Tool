@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import { lineFor, readState, run, update } from './budget.mjs';
 
 const root = mkdtempSync(path.join(os.tmpdir(), 'budget-test-'));
-const env = { TOKEN_BUDGET_STATE_DIR: path.join(root, 'state'), TOKEN_BUDGET_LIMIT: '1000' };
+const env = { TOKEN_BUDGET_STATE_DIR: path.join(root, 'state'), TOKEN_BUDGET_LIMIT: '10000000' };
 
 const resp = (id, input, extra = {}) =>
   JSON.stringify({
@@ -86,7 +86,10 @@ test('subagent transcripts add to the session total', () => {
   const t = path.join(root, 's6.jsonl');
   writeFileSync(t, resp('a', 100));
   mkdirSync(path.join(root, 's6', 'subagents'), { recursive: true });
-  writeFileSync(path.join(root, 's6', 'subagents', 'agent-1.jsonl'), resp('z', 70, { isSidechain: true }));
+  writeFileSync(
+    path.join(root, 's6', 'subagents', 'agent-1.jsonl'),
+    resp('z', 70, { isSidechain: true })
+  );
   const s = update('s6', t, env);
   assert.equal(s.tokens, 170);
   assert.equal(s.lastContext, 100);
@@ -94,11 +97,11 @@ test('subagent transcripts add to the session total', () => {
 
 test('one line at 70% and one at 100%, then quiet', () => {
   const t = path.join(root, 's7.jsonl');
-  writeFileSync(t, resp('a', 750));
+  writeFileSync(t, resp('a', 7_500_000));
   const first = JSON.parse(run({ session_id: 's7', transcript_path: t }, env));
-  assert.match(first.systemMessage, /lane at 0\.0 M of 0\.0 M \(75%\)/);
+  assert.match(first.systemMessage, /lane at 7\.5 M of 10\.0 M \(75%\)/);
   assert.equal(run({ session_id: 's7', transcript_path: t }, env), '');
-  appendFileSync(t, resp('b', 300));
+  appendFileSync(t, resp('b', 3_000_000));
   const second = JSON.parse(run({ session_id: 's7', transcript_path: t }, env));
   assert.match(second.systemMessage, /\(105%\)/);
   assert.equal(run({ session_id: 's7', transcript_path: t }, env), '');
@@ -108,4 +111,43 @@ test('lineFor stays quiet under 70% and a subagent call prints nothing', () => {
   assert.equal(lineFor({ tokens: 600, level: 0 }, 1000).line, '');
   assert.equal(run({ session_id: 's8', transcript_path: 'x', agent_id: 'a' }, env), '');
   assert.equal(run(null, env), '');
+});
+
+test('the same id in a subagent file and the main file counts once', () => {
+  const t = path.join(root, 's9.jsonl');
+  writeFileSync(t, resp('a', 100) + resp('x', 5) + resp('a', 100));
+  mkdirSync(path.join(root, 's9', 'subagents'), { recursive: true });
+  writeFileSync(path.join(root, 's9', 'subagents', 'agent-1.jsonl'), resp('a', 100));
+  assert.equal(update('s9', t, env).tokens, 105);
+});
+
+test('a line longer than the chunk is still read', () => {
+  const t = path.join(root, 's10.jsonl');
+  const big = JSON.stringify({ type: 'user', pad: 'x'.repeat(9 * 1024 * 1024) }) + '\n';
+  writeFileSync(t, resp('a', 100) + big + resp('b', 50));
+  assert.equal(update('s10', t, env).tokens, 150);
+});
+
+test('multi-byte text does not skew the offset', () => {
+  const t = path.join(root, 's11.jsonl');
+  writeFileSync(
+    t,
+    JSON.stringify({ type: 'user', text: 'æøå€😀'.repeat(50) }) + '\n' + resp('a', 100)
+  );
+  run({ session_id: 's11', transcript_path: t }, env);
+  appendFileSync(t, resp('b', 100));
+  run({ session_id: 's11', transcript_path: t }, env);
+  assert.equal(readState('s11', env).tokens, 200);
+});
+
+test('a session that changes branch is split between the branches', () => {
+  const t = path.join(root, 's12.jsonl');
+  writeFileSync(
+    t,
+    resp('a', 100) +
+      resp('b', 40, { gitBranch: 'claude/y' }) +
+      resp('c', 10, { gitBranch: 'claude/y' })
+  );
+  const s = update('s12', t, env);
+  assert.deepEqual(s.branchTokens, { 'claude/x': 100, 'claude/y': 50 });
 });

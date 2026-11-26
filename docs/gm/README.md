@@ -35,6 +35,7 @@ should see when it worked and what to do if it did not.
 | [Your vault on your PC (Obsidian and Syncthing)](setup-obsidian-sync.md) | Install both, pair with the server and check a note travels both ways.        | 20 min |
 | [The Obsidian plugin](setup-obsidian-plugin.md)                          | Install the plugin and connect it to the dashboard.                           | 10 min |
 | [The TV at the table](setup-tv-table.md)                                 | Only for in-person play: make the Table player and sign the TV in.            | 15 min |
+| [A night at someone else's place](away-night.md)                         | The day-before check and pack list for playing in person away from home.      | 10 min |
 
 ## All guides
 

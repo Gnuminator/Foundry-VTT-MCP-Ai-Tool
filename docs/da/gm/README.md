@@ -1,6 +1,6 @@
 ---
 source: gm/README.md
-sourceHash: ba7ea0c73f38
+sourceHash: 7a55022baf05
 title: GM-guides
 description: Guides til en GM, der kører et spil med Foundry AI Tool, skrevet til en, der er ny i Foundry og i værktøjet.
 ---
@@ -37,6 +37,7 @@ du gør, hvis det ikke gjorde.
 | [Din vault på din pc (Obsidian og Syncthing)](setup-obsidian-sync.md) | Installer begge, par med serveren og tjek, at en note rejser begge veje.   | 20 min |
 | [Obsidian-pluginet](setup-obsidian-plugin.md)                         | Installer pluginet og forbind det til dashboardet.                         | 10 min |
 | [Tv'et ved bordet](setup-tv-table.md)                                 | Kun til spil i samme rum: lav Table-spilleren og log tv'et ind.            | 15 min |
+| [En aften hos en anden](away-night.md)                                | Tjekket dagen før og pakkelisten til at spille i samme rum væk hjemmefra.  | 10 min |
 
 ## Alle guides
 

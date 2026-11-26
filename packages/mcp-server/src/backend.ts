@@ -62,7 +62,7 @@ import { handleDowntime } from './downtime/store.js';
 import { HandoutsService, handleRecordHandoutSeen } from './handouts/service.js';
 import { DIRECT_WRITE_TIMEOUT_MS, queryTimeoutContext } from './direct-write-timeout.js';
 import { createDraftsStore, draftsControlReply } from './drafts/store.js';
-import { createOmensStore, omensControlReply } from './omens/store.js';
+import { createGmPrivate } from './ledger/wiring.js';
 import { SecretTermsService } from './secret-terms.js';
 import { isBatchRider } from './guarded-write/rider-undo.js';
 import { GuardedWriteService } from './guarded-write/service.js';
@@ -279,7 +279,7 @@ async function startBackend(): Promise<void> {
     worldIds,
     foundryClient,
   });
-  const omens = createOmensStore(vaultStore, worldIds, secretTerms);
+  const gm = createGmPrivate(vaultStore, worldIds, secretTerms, foundryClient);
   // Draft tray (I-069): publishing posts to Foundry chat through the existing chat bridge query.
   const drafts = createDraftsStore(vaultStore, worldIds, secretTerms, async post => {
     // Longer wait like other direct writes; a lost answer keeps the draft out of "publish again".
@@ -336,7 +336,7 @@ async function startBackend(): Promise<void> {
     tarokka: tarokkaService,
     secretTerms,
     handouts,
-    omens,
+    ...gm.stores,
     drafts,
     onPlaySessionMarked: renderObsidian,
     wrapperStatus: () => wrapperRegistry.status(),
@@ -762,8 +762,8 @@ async function startBackend(): Promise<void> {
             continue;
           }
 
-          if (msg.method === 'omens') {
-            socket.write(`${JSON.stringify(await omensControlReply(omens, msg.id, msg.params))}\n`);
+          if (msg.method === 'omens' || msg.method === 'ledger' || msg.method === 'whisper') {
+            socket.write(`${JSON.stringify(await gm.control(msg.method, msg.id, msg.params))}\n`);
             continue;
           }
 

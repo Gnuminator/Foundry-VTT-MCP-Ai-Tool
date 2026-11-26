@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useState, type JSX } from 'react';
 
 import { Drawer, DrawerClose } from '../components/Drawer';
+import { PageKnows } from '../components/PageKnows';
 import { useToast } from '../components/Toasts';
 import { callTool, errorText } from '../lib/api';
 import { Button, QueryState } from '../ui';
@@ -13,6 +14,7 @@ import { Button, QueryState } from '../ui';
 import styles from './ReadAloud.module.css';
 
 interface ReadAloudPage {
+  pageId?: string;
   journalName: string;
   pageName: string;
   from: 'scene' | 'note';
@@ -131,6 +133,9 @@ export function ReadAloudDrawer({
                   {page.pageName || page.journalName}
                   {page.from === 'note' && <span className={styles['pin']}> (map pin)</span>}
                 </h3>
+                {page.pageId && (
+                  <PageKnows pageId={page.pageId} pageName={page.pageName || page.journalName} />
+                )}
                 <ol className={styles['blocks']}>
                   {page.blocks.map((b, i) => (
                     <Block

@@ -1,6 +1,6 @@
 ---
 source: gm/dashboard-drawers.md
-sourceHash: ee4d124d4f21
+sourceHash: 962d8fc489f8
 title: 'Dashboardet: confirm-vindue, Tool Runner og skuffer'
 description: 'Confirm-vinduet, Tool Runner og skufferne Tarokka, Handouts, Prep og Party.'
 ---
@@ -242,6 +242,36 @@ ikke skal grave i modulet, mens spillerne venter. **Show** åbner én blok i ful
 spillerne kan se; **Copy** lægger den på udklipsholderen. Teksten læses fra din world, når du åbner
 skuffen, og gemmes aldrig. En scene uden indrammet tekst siger det. Claude kan læse den samme tekst
 med `get-read-aloud`.
+
+Under hver sides titel står en lille grå linje, der siger, hvem der ved, hvad siden indeholder: "Only
+Jorr knows this", "Jorr and Mia know this" eller "Nobody knows this yet". En side uden mærke har en knap
+**Mark who knows**: sæt flueben ved de spillere, der kender den, og tryk **Save**. Kun du ser linjen
+(se [Hvem ved hvad](#hvem-ved-hvad-og-hviskeskrivebordet)).
+
+## Hvem ved hvad og hviskeskrivebordet
+
+To små værktøjer, der forhindrer, at en hemmelighed når de forkerte ører, og som efterlader et spor af,
+hvad du har fortalt til hvem. Begge er kun til dig: intet af det vises nogensinde på spillersiden eller
+på tv'et.
+
+**Who knows what** er en liste i Prep-skuffen (under **Omens by post**). Den har én linje pr.
+hemmelighed: en privat backstory, et rygte kun én spiller har, en hvisken, du har sendt. Hver linje
+siger, hvem der kender den. **Add a secret** nederst skriver en linje med dine egne ord (ikke tekst fra
+bogen) og sætter flueben ved dem, der kender den; **Remove** sletter en linje. Vil du mærke en hel
+journalside, så brug knappen **Mark who knows** i read-aloud-skuffen. Spørg Claude "What does Jorr know
+about the amulet?", så svarer den ud fra listen med `get-secret-ledger` (Play-connectoren). Claude kan
+læse listen, men aldrig ændre den.
+
+**Whisper.** På live-stripen trykker du **Whisper**, vælger en spiller, skriver en linje og trykker
+**Send whisper**. Den går ud i Foundry som en hvisken, kun den spiller (og du) kan læse. Har spilleren et
+Discord-id koblet på (samme liste som til omens), og kører botten med `DISCORD_OMENS=1`, kommer linjen
+også som en privat Discord-besked med overskriften "A whisper from your GM", inden for få minutter.
+Linjen gemmes i Who knows what som "Only Jorr knows this", Claude kan læse den derfra, og
+Foundry-hviskningen bliver også i spillogget som en besked kun til GM. Når Foundry-hviskningen ikke når frem til spilleren (et forkert navn, eller "Allow Write
+Operations" er slået fra), bliver intet gemt eller sendt på Discord, og stripen siger det.
+
+Du kan altid hviske i Foundrys egen chat eller på Discord i stedet; det her er et ekstra, der også
+gemmer optegnelsen.
 
 ## Party-skuffen (🛡 Party)
 

@@ -237,6 +237,35 @@ players can see; **Copy** puts it on the clipboard. The text is read from your w
 the drawer and is never stored. A scene with no boxed text says so. Claude can read the same text with
 `get-read-aloud`.
 
+Under each page's title a small grey line says who knows what the page holds: "Only Jorr knows this",
+"Jorr and Mia know this" or "Nobody knows this yet". A page with no mark shows a **Mark who knows**
+button: tick the players who know it and press **Save**. Only you see this line (see
+[Who knows what](#who-knows-what-and-the-whisper-desk)).
+
+## Who knows what and the whisper desk
+
+Two small tools that stop a secret from reaching the wrong ears, and leave a trace of what you told
+whom. Both are for you only: nothing here ever shows on the player page or the TV.
+
+**Who knows what** is a list in the Prep drawer (under **Omens by post**). It holds one line per
+secret: a private backstory, a rumour one player holds, a whisper you sent. Each line says who
+knows it. **Add a secret** at the bottom writes a line in your own words (not book text) and
+ticks who knows it; **Remove** deletes a line. To mark a whole journal page, use the **Mark who
+knows** button in the read-aloud drawer. Ask Claude "What does Jorr know about the amulet?"
+and it answers from this list with `get-secret-ledger` (Play connector). Claude can read the list but
+never changes it.
+
+**Whisper.** On the live strip, press **Whisper**, pick a player, write a line and press **Send
+whisper**. It goes out in Foundry as a whisper that only that player (and you) can read. If the
+player has a Discord id linked (the same list as for omens) and the bot runs with `DISCORD_OMENS=1`,
+the line also arrives as a private Discord message headed "A whisper from your GM", within a few
+minutes. The line is saved in Who knows what as "Only Jorr knows this", Claude can read it from
+there, and the Foundry whisper also stays in the play log as a GM-only message. If the Foundry whisper does not reach the player (a wrong name, or
+"Allow Write Operations" is off) nothing is saved or sent on Discord, and the strip says so.
+
+You can always whisper in Foundry's own chat or on Discord instead; this is an extra that also keeps
+the record.
+
 ## The party drawer (🛡 Party)
 
 The party at a glance, from the dnd5e Group actor. Foundry makes the party by itself: the AI Tool

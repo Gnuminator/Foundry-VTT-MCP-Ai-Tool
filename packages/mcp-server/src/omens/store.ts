@@ -34,8 +34,12 @@ type OmenStatus = 'draft' | 'approved' | 'rejected' | 'sending' | 'sent' | 'fail
 /** After this many failed sends an omen stops retrying and shows the error to the GM. */
 const MAX_SEND_ATTEMPTS = 3;
 
+type OmenKind = 'omen' | 'whisper';
+
 interface Omen {
   userId: string;
+  /** A whisper the GM wrote at the table (whisper desk): sent as is, no draft or approval step. */
+  kind?: OmenKind;
   text: string;
   status: OmenStatus;
   createdAt: string;
@@ -63,6 +67,8 @@ interface OutboxItem {
   userId: string;
   discordId: string;
   text: string;
+  /** Absent for an omen; 'whisper' changes the heading the bot puts on it. */
+  kind?: OmenKind;
 }
 
 interface OmensStoreOptions {
@@ -178,6 +184,45 @@ export class OmensStore {
     return result!;
   }
 
+  /**
+   * The whisper desk: a text the GM wrote for one player is approved at once (the GM is the author),
+   * so the bot sends it at its next check. Returns null when the player has no Discord link, so the
+   * caller can say so instead of queueing a message nobody will send.
+   */
+  async addWhisper(userId: unknown, text: unknown): Promise<{ id: string } | null> {
+    const uid = assertUserId(userId);
+    const clean = cleanText(text);
+    const worldId = await this.worldIds.current();
+    if (!(await this.players(worldId))[uid]) return null;
+    let id = '';
+    await this.store.update<OmensFile>(worldId, 'gm', OMENS_FILE, 1, current => {
+      const omens = { ...(current?.data?.omens ?? {}) };
+      // A full list drops the oldest sent or failed entries; a pending one is never dropped.
+      const keys = Object.keys(omens);
+      if (keys.length >= MAX_OMENS) {
+        const done = keys
+          .filter(k => omens[k].status === 'sent' || omens[k].status === 'failed')
+          .sort((a, b) => (omens[a].createdAt < omens[b].createdAt ? -1 : 1));
+        for (const k of done.slice(0, keys.length - MAX_OMENS + 1)) delete omens[k];
+        if (Object.keys(omens).length >= MAX_OMENS) {
+          throw new Error(`The omens list is full (${MAX_OMENS}); remove old ones first`);
+        }
+      }
+      id = this.newId();
+      const stamp = this.stamp();
+      omens[id] = {
+        userId: uid,
+        kind: 'whisper',
+        text: clean,
+        status: 'approved',
+        createdAt: stamp,
+        decidedAt: stamp,
+      };
+      return { omens };
+    });
+    return { id };
+  }
+
   /** Change a draft's (or a rejected omen's) text; it goes back to draft. */
   async edit(id: string, text: unknown): Promise<Omen> {
     const clean = cleanText(text);
@@ -192,6 +237,7 @@ export class OmensStore {
       ) {
         throw new Error(`Omen ${id} is ${omen.status} and cannot be edited`);
       }
+      if (omen.kind === 'whisper') throw new Error(`Omen ${id} is a whisper and cannot be edited`);
       const next: Omen = {
         userId: omen.userId,
         text: clean,
@@ -261,7 +307,13 @@ export class OmensStore {
     for (const omen of omens) {
       const discordId = players[omen.userId];
       if (omen.status === 'approved' && discordId) {
-        items.push({ id: omen.id, userId: omen.userId, discordId, text: omen.text });
+        items.push({
+          id: omen.id,
+          userId: omen.userId,
+          discordId,
+          text: omen.text,
+          ...(omen.kind ? { kind: omen.kind } : {}),
+        });
       }
     }
     return items;
@@ -282,7 +334,13 @@ export class OmensStore {
       const omen = omens[id];
       if (omen?.status !== 'approved') return { omens };
       omens[id] = { ...omen, status: 'sending', claimedText: omen.text };
-      claimed = { id, userId: omen.userId, discordId, text: omen.text };
+      claimed = {
+        id,
+        userId: omen.userId,
+        discordId,
+        text: omen.text,
+        ...(omen.kind ? { kind: omen.kind } : {}),
+      };
       return { omens };
     });
     return claimed;

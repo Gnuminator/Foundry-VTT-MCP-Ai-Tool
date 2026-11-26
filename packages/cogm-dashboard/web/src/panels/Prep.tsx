@@ -15,6 +15,7 @@ import { PREFLIGHT_ICONS, type CheckStatus } from './Preflight';
 
 // The omens list loads from its own chunk, only once the Prep drawer is open (bundle budget).
 const DraftsSection = lazy(() => import('./Drafts').then(m => ({ default: m.DraftsSection })));
+const LedgerSection = lazy(() => import('./Ledger').then(m => ({ default: m.LedgerSection })));
 const OmensSection = lazy(() => import('./Omens').then(m => ({ default: m.OmensSection })));
 
 type PrepAction = 'summary' | 'last-session';
@@ -625,6 +626,8 @@ export function PrepDrawer({
       <Suspense fallback={null}>{open && <DraftsSection open={open} />}</Suspense>
       <h3 className="preflight-h">Omens by post</h3>
       <Suspense fallback={null}>{open && <OmensSection open={open} />}</Suspense>
+      <h3 className="preflight-h">Who knows what</h3>
+      <Suspense fallback={null}>{open && <LedgerSection open={open} />}</Suspense>
     </Drawer>
   );
 }

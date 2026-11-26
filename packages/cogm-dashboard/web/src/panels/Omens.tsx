@@ -14,6 +14,7 @@ type OmenStatus = 'draft' | 'approved' | 'rejected' | 'sending' | 'sent' | 'fail
 interface Omen {
   id: string;
   userId: string;
+  kind?: 'omen' | 'whisper';
   text: string;
   status: OmenStatus;
   secretTerms?: string[];
@@ -115,7 +116,8 @@ export function OmensSection({ open }: { open: boolean }): JSX.Element {
                 <span>
                   <strong>
                     {data.names.find(p => p.userId === omen.userId)?.name ?? 'Unknown player'}
-                  </strong>{' '}
+                  </strong>
+                  {omen.kind === 'whisper' && ' (whisper desk)'}{' '}
                   <span className="pf-detail">
                     · {STATUS_TEXT[omen.status]}
                     {data.players[omen.userId] === undefined &&

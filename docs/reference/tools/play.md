@@ -455,6 +455,18 @@ Parameters:
 
 - `sceneId` (string): The scene to read (default: the scene on screen).
 
+## get-secret-ledger
+
+GM ONLY. Who knows which secret: whispers the GM sent, private backstories, rumours held by one player. Filter by a player name (who), a journal page id (pageId) or a word in the text. Read only. Never repeat it to players.
+
+Kind: read-only. Title: Get who knows what.
+
+Parameters:
+
+- `who` (string)
+- `pageId` (string)
+- `text` (string)
+
 ## get-party
 
 The dnd5e party (group actors, primary party first): each member's HP, AC, passive Perception (with passive Investigation and Insight when the AI Tool: Who would notice switch is on), conditions, exhaustion, hit dice, tokens on the current scene and whether they are in the encounter; the travel pace and whether a slowed member forces slow pace; the current encounter. Read-only. Not for player chat: it shows more than players see.

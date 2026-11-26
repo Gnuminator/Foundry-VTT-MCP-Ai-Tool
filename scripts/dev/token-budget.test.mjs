@@ -25,6 +25,28 @@ test('sessions on one branch add up and map to the newest PR', () => {
 
 test('the note has one parseable line per branch', () => {
   const text = noteText(group(states, [{ number: 9, headRefName: 'claude/x' }]), 18_000_000);
-  assert.match(text, /^- branch: claude\/x \| pr: 9 \| tokens: 1500 \| limit: 18000000 \| sessions: 2 \|/m);
+  assert.match(
+    text,
+    /^- branch: claude\/x \| pr: 9 \| tokens: 1500 \| limit: 18000000 \| sessions: 2 \|/m
+  );
   assert.match(text, /pr: none \| tokens: 70/);
+});
+
+test('a session that changed branch is split between the branches', () => {
+  const g = group(
+    [
+      {
+        sessionId: 'd',
+        branch: 'claude/y',
+        tokens: 150,
+        branchTokens: { 'claude/x': 100, 'claude/y': 50 },
+        updated: '2026-11-26T13:00:00.000Z',
+      },
+    ],
+    []
+  );
+  assert.deepEqual(g.map(x => [x.branch, x.tokens, x.sessions]).sort(), [
+    ['claude/x', 100, 1],
+    ['claude/y', 50, 1],
+  ]);
 });

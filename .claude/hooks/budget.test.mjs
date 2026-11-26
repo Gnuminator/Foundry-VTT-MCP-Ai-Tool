@@ -4,7 +4,7 @@ import { appendFileSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
-import { lineFor, readState, run, update } from './budget.mjs';
+import { advance, lineFor, readState, run, update } from './budget.mjs';
 
 const root = mkdtempSync(path.join(os.tmpdir(), 'budget-test-'));
 const env = { TOKEN_BUDGET_STATE_DIR: path.join(root, 'state'), TOKEN_BUDGET_LIMIT: '10000000' };
@@ -150,4 +150,15 @@ test('a session that changes branch is split between the branches', () => {
   );
   const s = update('s12', t, env);
   assert.deepEqual(s.branchTokens, { 'claude/x': 100, 'claude/y': 50 });
+});
+
+test('a passed deadline leaves the offset where it was', () => {
+  const t = path.join(root, 's13.jsonl');
+  writeFileSync(t, resp('a', 100));
+  const state = { files: {}, seen: {}, branchTokens: {} };
+  const entry = { offset: 0 };
+  advance(t, entry, state, { main: true }, Date.now() - 1);
+  assert.equal(entry.offset, 0);
+  advance(t, entry, state, { main: true });
+  assert.ok(entry.offset > 0);
 });

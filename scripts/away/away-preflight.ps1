@@ -40,7 +40,10 @@ function Add-Check([string]$Name, $Verdict) {
 # 1. The game's address
 $sw = [Diagnostics.Stopwatch]::StartNew()
 try {
-  $r = Invoke-WebRequest -Uri $uri -Method Get -MaximumRedirection 0 -SkipHttpErrorCheck -TimeoutSec 15
+  # A redirect (the Cloudflare Access sign-in) raises a non-terminating "maximum redirection" error
+  # but still returns the response, so errors are collected, not stopped on; no response is a failure.
+  $r = Invoke-WebRequest -Uri $uri -Method Get -MaximumRedirection 0 -SkipHttpErrorCheck -TimeoutSec 15 -ErrorAction SilentlyContinue -ErrorVariable iwrErr
+  if (-not $r) { throw $(if ($iwrErr) { $iwrErr[0].Exception.Message } else { 'no answer' }) }
   $loc = [string]($r.Headers['Location'] | Select-Object -First 1)
   Add-Check 'Game address' (Get-GameReachVerdict -StatusCode ([int]$r.StatusCode) -Location $loc -ElapsedMs ([int]$sw.ElapsedMilliseconds))
 } catch {
@@ -68,7 +71,8 @@ Add-Check 'TV' (Get-DisplayVerdict -Count ([System.Windows.Forms.Screen]::AllScr
 $pf = $env:ProgramFiles
 $pf86 = ${env:ProgramFiles(x86)}
 $browser = @("$pf86\Microsoft\Edge\Application\msedge.exe", "$pf\Microsoft\Edge\Application\msedge.exe",
-  "$pf\Google\Chrome\Application\chrome.exe", "$pf86\Google\Chrome\Application\chrome.exe") |
+  "$pf\Google\Chrome\Application\chrome.exe", "$pf86\Google\Chrome\Application\chrome.exe",
+  "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe") |
   Where-Object { $_ -and (Test-Path -LiteralPath $_) } | Select-Object -First 1
 Add-Check 'Browser' ([pscustomobject]@{
     Level = $(if ($browser) { 'ok' } else { 'fail' })
@@ -79,7 +83,7 @@ Add-Check 'Browser' ([pscustomobject]@{
 try {
   $b = Get-CimInstance Win32_Battery -ErrorAction Stop | Select-Object -First 1
   if ($b) {
-    $onAc = $b.BatteryStatus -in 2, 6, 7, 8, 9
+    $onAc = $b.BatteryStatus -in 2, 3, 6, 7, 8, 9, 11
     Add-Check 'Power' ([pscustomobject]@{
         Level = $(if ($onAc) { 'ok' } else { 'warn' })
         Text  = $(if ($onAc) { "On mains power, battery $($b.EstimatedChargeRemaining)%." } else { "On battery ($($b.EstimatedChargeRemaining)%). Bring the charger and plug in." })

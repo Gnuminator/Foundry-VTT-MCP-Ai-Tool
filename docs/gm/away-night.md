@@ -9,7 +9,7 @@ For a session where you play in one room that is not yours: a friend's home, wit
 TV. The day before, run one check on the laptop that goes. It reads the network, the screens and
 the game's address, and prints the pack list. It changes nothing. About 10 minutes.
 
-You need the TV set up once already ([The TV at the table](setup-tv-table.md)) and the game's
+You need PowerShell 7 (`pwsh`) on the laptop, the TV set up once already ([The TV at the table](setup-tv-table.md)) and the game's
 address.
 
 ## The day before

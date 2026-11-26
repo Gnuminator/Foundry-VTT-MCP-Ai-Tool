@@ -1,6 +1,6 @@
 ---
 source: gm/away-night.md
-sourceHash: 3ea16324e4a3
+sourceHash: c11742f02d96
 title: En aften hos en anden
 description: Tjekket dagen før og pakkelisten til at spille i samme rum væk hjemmefra, med tv, et fremmed netværk og en plan, hvis netværket svigter.
 ---
@@ -11,7 +11,7 @@ Til en session, hvor I spiller i ét rum, der ikke er dit: hos en ven, med din l
 kører du ét tjek på den laptop, der skal med. Det læser netværket, skærmene og spillets adresse og
 udskriver pakkelisten. Det ændrer ingenting. Cirka 10 minutter.
 
-Du skal allerede have sat tv'et op én gang ([Tv'et ved bordet](setup-tv-table.md)) og have spillets
+Du skal have PowerShell 7 (`pwsh`) på laptoppen og allerede have sat tv'et op én gang ([Tv'et ved bordet](setup-tv-table.md)) og have spillets
 adresse.
 
 ## Dagen før

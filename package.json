@@ -64,7 +64,7 @@
     "player-preset": "node scripts/player-preset.mjs",
     "wiki:stage": "node scripts/wiki/stage.mjs",
     "wiki:test": "node --test \"scripts/wiki/*.test.mjs\"",
-    "dev:test": "node --test \"scripts/dev/*.test.mjs\" \"scripts/tool-eval/*.test.mjs\"",
+    "dev:test": "node --test \"scripts/dev/*.test.mjs\" \"scripts/tool-eval/*.test.mjs\" \"scripts/away/*.test.mjs\"",
     "usage:catalog": "node scripts/usage-catalog.mjs",
     "usage:catalog:check": "node scripts/usage-catalog.mjs --check",
     "usage:week": "node scripts/dev/usage-week.mjs",

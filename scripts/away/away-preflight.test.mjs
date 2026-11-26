@@ -1,7 +1,8 @@
 // Tests for scripts/away/away-preflight*.ps1 (away-game-preflight). Needs PowerShell 7 (pwsh).
 //   node --test scripts/away/away-preflight.test.mjs
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
+import http from 'node:http';
 import path from 'node:path';
 import { describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -70,6 +71,35 @@ describe('away preflight', { skip: !hasPwsh && 'pwsh 7 not installed' }, () => {
       });
       assert.notEqual(r.status, 0);
     }
+  });
+
+  test('a live run against a server that redirects to Cloudflare Access reports the game reachable', async () => {
+    const server = http.createServer((_req, res) => {
+      res.writeHead(302, { Location: 'https://x.cloudflareaccess.com/cdn-cgi/access/login/g' });
+      res.end();
+    });
+    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+    const { port } = server.address();
+    const r = await new Promise(resolve => {
+      const child = spawn(
+        'pwsh',
+        [
+          '-NoProfile',
+          '-NonInteractive',
+          '-File',
+          script,
+          '-Url',
+          `http://127.0.0.1:${port}`,
+          '-SkipDiscord',
+        ],
+        { encoding: 'utf8' }
+      );
+      let out = '';
+      child.stdout.on('data', d => (out += d));
+      child.on('close', () => resolve(out));
+    });
+    server.close();
+    assert.match(r, /OK {2}\] Game address: .*sign-in page/);
   });
 
   test('a live run against a closed local port reports not ready (exit 1)', () => {

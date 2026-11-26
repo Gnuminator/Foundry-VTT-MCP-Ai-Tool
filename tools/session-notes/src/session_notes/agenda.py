@@ -167,7 +167,7 @@ def update(
                 (
                     o
                     for o in old.values()
-                    if o["topic"] == raw["topic"] and matches(_both(o.get("en"), o.get("da")), _both(en, da))
+                    if o.get("topic") == raw["topic"] and matches(_both(o.get("en"), o.get("da")), _both(en, da))
                 ),
                 None,
             )

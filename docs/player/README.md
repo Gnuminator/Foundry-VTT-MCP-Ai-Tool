@@ -11,7 +11,8 @@ how-tos are in [Using the player page](player-page.md). The player page and My c
 optional extras next to Foundry, never a replacement.
 
 New to the table? Start with [Join the game](join.md) (the address, logging in, Discord), then
-[Make your character](make-a-character.md). Want an AI helper for your own character and the
+[Make your character](make-a-character.md). Want to try the buttons first? Ask for the
+[practice room](practice-room.md). Want an AI helper for your own character and the
 rules? See [The D&D helper for players](dnd-helper.md), and its ready-made requests in the
 [D&D helper cookbook](cookbook.md).
 

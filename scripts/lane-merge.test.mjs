@@ -3884,6 +3884,21 @@ test('fix round: a fix off the Opus list needs only a Sonnet Merge, a risky file
     reviewed(C),
   ];
   assert.equal(fixRoundRelief(r.run, withRisky, C).relief, false, 'risky finding');
+  for (const [label, where] of [
+    ['absolute path with spaces', 'C:\\Users\\x\\Claude Code\\Foundry VTT\\scripts\\pi\\x.sh:3'],
+    ['posix absolute path', '/home/a b/repo/scripts/pi/x.sh:3'],
+    ['extensionless file', 'deploy/Dockerfile'],
+  ]) {
+    const notes = [
+      reviewed(R1, true, '**Merge after fixes.**', `\n### M1. Unfixed\n${where} is wrong.\n`),
+      reviewed(C),
+    ];
+    assert.equal(fixRoundRelief(r.run, notes, C).relief, false, label);
+  }
+  // an Opus review of a commit this clone cannot read cannot be compared: no relief
+  const unknown = 'f'.repeat(40);
+  const lost = [reviewed(R1, true), reviewed(unknown, true, '**Do not merge.** Broken.')];
+  assert.equal(fixRoundRelief(r.run, [...lost, reviewed(C)], C).relief, false, 'unreadable veto');
   const offList = [
     reviewed(
       R1,

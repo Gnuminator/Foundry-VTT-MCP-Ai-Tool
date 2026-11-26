@@ -61,8 +61,13 @@ function riskyFindings(note) {
     if (/^#{1,6}\s+\**[HM]\d+\b|^\**[HM]\d+[.:)\s]/.test(line)) inFinding = true;
     else if (/^#{1,6}\s/.test(line)) inFinding = false;
     if (!inFinding) continue;
-    for (const m of line.matchAll(/[\w@./-]+\.\w+/g)) {
-      if (riskyHits([m[0]]).length > 0) return true;
+    // Every path-like run after a start or a slash counts, so an absolute path (even one with
+    // spaces), a backslash path and a file without an extension all reach the Opus-list match.
+    const text = line.replace(/\\/g, '/');
+    for (let i = 0; i < text.length; i++) {
+      if (i > 0 && text[i - 1] !== '/' && /[\w@./-]/.test(text[i - 1])) continue;
+      const m = /^[\w@./-]+/.exec(text.slice(i));
+      if (m && riskyHits([m[0]]).length > 0) return true;
     }
   }
   return false;
@@ -123,11 +128,16 @@ export function fixRoundRelief(run, notes, headSha, mainRef = MAIN) {
   // An Opus entry that is not a Merge verdict, on the head's own risky patch, vetoes the relief.
   for (const x of entries) {
     if (x.open) continue;
-    if (compare(x.sha)?.same)
+    const c = compare(x.sha);
+    if (c === null) {
+      return { relief: false, why: `cannot compare the Opus review at ${x.sha.slice(0, 7)}` };
+    }
+    if (c.same) {
       return {
         relief: false,
-        why: `Opus reviewed this patch at ${x.sha.slice(0, 7)} and did not say Merge`,
+        why: `Opus reviewed this patch at ${x.sha.slice(0, 7)} and did not clear it (Do not merge, or Merge after fixes with a finding on an Opus-list file)`,
       };
+    }
   }
   let why = 'the PR patch on the Opus list changed since every Opus-reviewed commit';
   for (const x of entries) {

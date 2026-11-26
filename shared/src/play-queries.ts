@@ -240,6 +240,21 @@ export interface SendChatMessageReply {
   warning?: string;
 }
 
+/** Request of `setNpcOnStage`. */
+export interface SetNpcOnStageRequest {
+  actorId?: string | undefined;
+  actorName?: string | undefined;
+  clear?: boolean | undefined;
+  nameKnown?: boolean | undefined;
+}
+
+/** Reply of `setNpcOnStage` (GM side: includes the true name). */
+export interface SetNpcOnStageReply {
+  success: true;
+  onStage: { actorId: string; name: string; nameShown: boolean } | null;
+  previous: { actorId: string } | null;
+}
+
 /** Request of `request-player-rolls`. */
 export interface RequestPlayerRollsRequest {
   rollType: string;

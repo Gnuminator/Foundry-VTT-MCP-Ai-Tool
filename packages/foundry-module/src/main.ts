@@ -43,6 +43,7 @@ import {
   registerTarokkaTableSettings,
   startTableWatch,
 } from './tarokka-table-window.js';
+import { registerNpcOnStageSettings, startNpcOnStage } from './npc-on-stage.js';
 import { registerStingerSettings, startStingers } from './stinger.js';
 import { logInfo } from './log.js';
 import { warmPlayerIndexes } from './player-read.js';
@@ -152,6 +153,8 @@ class FoundryMCPBridge {
       registerTarokkaTableSettings();
       // Stingers on the table TV (I-176): the setting; the hook acts for the Table user only.
       registerStingerSettings();
+      // NPC on stage: the setting the Table TV reads.
+      registerNpcOnStageSettings();
       // Themed dice (I-085): every client, players included; silent without Dice So Nice.
       registerDiceThemes();
 
@@ -594,6 +597,7 @@ Hooks.once('ready', async () => {
     onTableSettingChanged();
     startTableWatch();
     startStingers();
+    startNpcOnStage();
 
     await foundryMCPBridge.onReady();
 

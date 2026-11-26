@@ -107,6 +107,12 @@ def apply_speakers(lines: list[Line], session: Path) -> list[Line]:
     It is the same file the session pipeline reads, so a character or a GM mark added after the
     transcription (``"character": "GM"``) still reaches the notes without a new merge.
     """
+    from .stage import apply_stage
+
+    return apply_stage(_apply_speaker_table(lines, session), session)
+
+
+def _apply_speaker_table(lines: list[Line], session: Path) -> list[Line]:
     path = session / "speakers.json"
     if not path.exists() and not roster_for_speakers(session):
         return lines
@@ -152,4 +158,9 @@ def load_roster(session: Path, lines: list[Line]) -> Roster:
             name = raw.strip()
             if name and not name.startswith("#") and not name.startswith("==="):
                 roster.names.append(name)
+    from .stage import names as stage_names
+
+    for name in stage_names(session):
+        if name not in roster.names:
+            roster.names.append(name)
     return roster

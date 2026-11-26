@@ -25,6 +25,7 @@ import { GmActionsButton } from './GmActionsSwitch';
 import { useHelp } from './HelpButton';
 import { LazyPanel, panelChunk, usePreloadPanels } from './LazyPanel';
 import { LiveStrip } from './LiveStrip';
+import { NpcStage } from './NpcStage';
 import { HealthLine } from './HealthLine';
 import { RoleNotice } from './RoleNotice';
 import { SessionMarker } from './SessionMarker';
@@ -157,6 +158,7 @@ export function LiveScreen(): JSX.Element {
             <LiveStrip />
           </StripUndoContext.Provider>
         </RollNpcInitiativeContext.Provider>
+        <NpcStage />
         <div className={styles['grid']}>
           <DockContext.Provider value={partySlot}>
             <div className={styles['slot']} ref={setPartySlot} data-slot="party" />

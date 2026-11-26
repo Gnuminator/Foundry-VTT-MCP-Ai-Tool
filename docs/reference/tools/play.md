@@ -455,6 +455,19 @@ Parameters:
 
 - `sceneId` (string): The scene to read (default: the scene on screen).
 
+## set-npc-on-stage
+
+Direct write. GM ONLY. Put the NPC the GM is speaking as on stage: the Table TV shows its portrait, and its name once the players know it (they see the name on a token, or nameKnown is true; otherwise "?"). Logs the time in the session log so the notes can attribute the GM's lines to the NPC. clear: true takes it off. Only one NPC is on stage at a time. Player characters are refused.
+
+Kind: changes something. Title: Put an NPC on stage on the TV.
+
+Parameters:
+
+- `actorId` (string): The NPC actor id.
+- `actorName` (string): The NPC name, when the id is not known (must match one actor).
+- `clear` (boolean): Take the NPC off stage.
+- `nameKnown` (boolean): The players already know this NPC by name: show it on the TV.
+
 ## get-party
 
 The dnd5e party (group actors, primary party first): each member's HP, AC, passive Perception (with passive Investigation and Insight when the AI Tool: Who would notice switch is on), conditions, exhaustion, hit dice, tokens on the current scene and whether they are in the encounter; the travel pace and whether a slowed member forces slow pace; the current encounter. Read-only. Not for player chat: it shows more than players see.

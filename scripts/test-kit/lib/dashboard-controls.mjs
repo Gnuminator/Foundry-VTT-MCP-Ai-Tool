@@ -164,6 +164,11 @@ export const DASHBOARD_CONTROLS = [
     how: 'skip',
     why: 'only on live screen A (/next/?live=1) or its opt-in link; the e2e spec live-screen.spec.ts covers it',
   })),
+  ...['dash.npc-stage.clear', 'dash.npc-stage.fight', 'dash.npc-stage.pick'].map(name => ({
+    name,
+    how: 'skip',
+    why: 'only on live screen A (/next/?live=1) and writes to the table TV; the unit tests of npc-stage.ts cover the arguments, the live check on a test server covers the TV',
+  })),
   {
     name: 'dash.header.version-tracker',
     how: 'skip',

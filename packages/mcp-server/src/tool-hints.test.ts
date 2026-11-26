@@ -43,6 +43,7 @@ const WRITES = [
   'roll-saving-throws',
   'send-chat-message',
   'set-initiative',
+  'set-npc-on-stage',
   'switch-scene',
   'undo-change',
   'update-quest-journal',

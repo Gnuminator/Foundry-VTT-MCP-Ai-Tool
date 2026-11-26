@@ -73,6 +73,7 @@ const PINNED_RECORDLESS_WRITES = [
   'rollNpcCheck',
   'rollSavingThrows',
   'sendChatMessage',
+  'setNpcOnStage',
   'showJournalPage',
   'uploadActorImage',
   'uploadHandoutImage',

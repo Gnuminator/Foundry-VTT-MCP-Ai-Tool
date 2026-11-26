@@ -14,6 +14,7 @@ env_file="$TOOL_ETC/discord-bot.env"
 unit=foundry-ai-tool-discord-bot.service
 # The bot as a container (stage 24 MODE=bot) reads this file when it is created: the token is written here, the container is
 # recreated afterwards with stage 24 MODE=bot-restart (never the unit: that would be a second bot on the same token).
+bot_daemon_check "set-discord-token (it restarts the Discord bot unit)"
 in_container=0
 [ -z "$(bot_container -a)" ] || in_container=1
 if [ "$in_container" = 1 ]; then

@@ -627,7 +627,7 @@ bot_profile_on() { grep -qE '^COMPOSE_PROFILES=.*discord-bot' "$SB/tool/app/depl
 
 bot_pi
 run_stage MODE=bot DRY_RUN=1 $BOTENV
-if [ "$RC" -eq 0 ] && echo "$OUT" | grep -q 'dry run: would stop and disable' && unit_on "$botu" && ! bot_c && ! bot_profile_on; then pass "bot dry run changes nothing"; else fail "bot dry (rc $RC): $OUT"; fi
+if [ "$RC" -eq 0 ] && echo "$OUT" | grep -q 'dry run: would add FOUNDRY_AI_BOT_STATUS_PORT' && unit_on "$botu" && ! bot_c && ! bot_profile_on; then pass "bot dry run changes nothing"; else fail "bot dry (rc $RC): $OUT"; fi
 run_stage MODE=bot $BOTENV
 if [ "$RC" -eq 0 ] && unit_off "$botu" && bot_c && bot_profile_on && [ -f "$SB/tool/compose-bot.state" ] && echo "$OUT" | grep -q 'logged in to Discord' && order_ok "disable --now $botu" 'compose.* up -d --no-build discord-bot'; then
   pass "MODE=bot stops the unit, sets the profile, starts the container and sees its login"
@@ -667,6 +667,51 @@ bot_pi
 rm -f "$FAKE"/c/*
 run_stage MODE=bot $BOTENV
 if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'MODE=cutover first' && unit_on "$botu"; then pass "MODE=bot needs the cut-over stack"; else fail "bot no stack (rc $RC): $OUT"; fi
+# MODE=bot-restart that never logs in again exits 1 (the stand-in's up rewrites the log: no stale "Logged in as" is left)
+bot_pi
+run_stage MODE=bot $BOTENV
+touch "$FAKE/bot-nologin"
+run_stage MODE=bot-restart $BOTENV
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'did not log in' && echo "$OUT" | grep -q 'MODE=bot-back'; then pass "bot-restart without a login exits 1 and names MODE=bot-back"; else fail "bot-restart nologin (rc $RC): $OUT"; fi
+# MODE=bot-back: only the bot goes back, the four others keep running
+rm -f "$FAKE/bot-nologin"
+run_stage MODE=bot-back $BOTENV
+if [ "$RC" -eq 0 ] && unit_on "$botu" && ! bot_c && ! bot_profile_on && [ ! -e "$SB/tool/compose-bot.state" ] && [ -f "$FAKE/c/foundry" ] && [ -f "$FAKE/c/bridge" ]; then pass "MODE=bot-back puts only the bot back on its unit"; else fail "bot-back (rc $RC): $OUT"; fi
+run_stage MODE=bot-back $BOTENV
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'nothing to do'; then pass "MODE=bot-back with no container and no record does nothing"; else fail "bot-back none (rc $RC): $OUT"; fi
+# a MODE=bot cut off after the unit was disabled (record, no container, unit off) goes on instead of refusing
+bot_pi
+printf '%s\n' "$botu" >"$SB/tool/compose-bot.state"
+rm -f "$FAKE/active-$botu" "$FAKE/enabled-$botu"
+run_stage MODE=bot $BOTENV
+if [ "$RC" -eq 0 ] && echo "$OUT" | grep -q 'going on from there' && bot_c && bot_profile_on && unit_off "$botu"; then pass "a cut-off MODE=bot is continued, not refused"; else fail "bot resume (rc $RC): $OUT"; fi
+# the status address: added to discord-bot.env and gamenight-watch.env when missing, kept when set
+bot_pi
+echo "DISCORD_TOKEN=abcdefghijklmnop" >"$SB/etc/discord-bot.env"
+printf '#WATCH_FOUNDRY_URL=x\n' >"$SB/etc/gamenight-watch.env"
+run_stage MODE=bot $BOTENV
+if [ "$RC" -eq 0 ] && grep -qx 'FOUNDRY_AI_BOT_STATUS_PORT=3110' "$SB/etc/discord-bot.env" && grep -qx 'WATCH_RECORDER_STATUS_URL=http://127.0.0.1:3110/status' "$SB/etc/gamenight-watch.env" && ! echo "$OUT" | grep -q abcdefghijklmnop; then pass "MODE=bot wires the status address for the game-night watch and prints no token"; else fail "bot wire (rc $RC): $OUT"; fi
+# a silent Docker daemon is unknown: the stages that would start the bot unit refuse; with no docker.service to come back they pass
+bot_pi
+guard_run() {
+  {
+    cat "$LIB"
+    printf '%s\n' "have_systemd() { return 0; }" 'refuse_when_bot_container "stage 8 (the recorder unit)"' 'echo PASSED'
+  } >"$SB/guard.sh"
+  OUT="$(PATH="$BIN:$PATH" bash "$SB/guard.sh" 2>&1)"
+  RC=$?
+}
+touch "$FAKE/daemon-down" "$FAKE/active-docker.service"
+guard_run
+if [ "$RC" -ne 0 ] && echo "$OUT" | grep -q 'daemon does not answer'; then pass "a silent Docker daemon refuses the bot-unit stages"; else fail "guard silent (rc $RC): $OUT"; fi
+rm -f "$FAKE/active-docker.service"
+guard_run
+if [ "$RC" -eq 0 ] && echo "$OUT" | grep -q PASSED; then pass "no docker.service that can come back: the bot-unit stages go on"; else fail "guard cannot return (rc $RC): $OUT"; fi
+rm -f "$FAKE/daemon-down"
+running_stack
+echo "running healthy 0" >"$FAKE/c/discord-bot"
+guard_run
+if [ "$RC" -ne 0 ] && echo "$OUT" | grep -q 'runs as a container'; then pass "a bot container refuses the bot-unit stages"; else fail "guard container (rc $RC): $OUT"; fi
 # a unit and the container at the same time is flagged
 bot_pi
 echo "running healthy 0" >"$FAKE/c/discord-bot"

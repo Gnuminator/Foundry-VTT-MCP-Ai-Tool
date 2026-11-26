@@ -3,8 +3,8 @@
 #
 #   docker compose -f deploy/pi/compose.yml up -d --wait
 #
-# Stays on the host, NOT in this file: Syncthing, cloudflared (the tunnel), Tailscale (serve), the Discord recorder,
-# the GitHub runner and the stage scripts. Every service uses network_mode: host, so the loopback ports are the
+# Stays on the host, NOT in this file: Syncthing, cloudflared (the tunnel), Tailscale (serve), the GitHub runner and the
+# stage scripts. The Discord recorder is the profiled service discord-bot below: a systemd unit until stage 24 MODE=bot. Every service uses network_mode: host, so the loopback ports are the
 # ones the host already uses and Tailscale serve, the tunnel and Plan B need no change.
 #
 # Ports and folders come from the environment (deploy/pi/.env, written by stage 23, or the shell). The defaults are

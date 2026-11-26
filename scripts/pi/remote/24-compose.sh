@@ -38,6 +38,11 @@
 #                  as before (host networking). A rerun on a Pi where the bot already runs as a container only checks it.
 #   MODE=bot-restart  recreate the bot container so it reads discord-bot.env again (after a token or settings change; the
 #                  stages 26, 27 and set-discord-token refuse to touch the unit once the container runs). No recording in progress.
+#   MODE=bot-back  only the bot goes back to its unit (container removed, profile out of .env, unit enabled and started); the other
+#                  four containers keep running. Also the way out of a MODE=bot that was cut off. No recording in progress.
+#                  MODE=bot also adds FOUNDRY_AI_BOT_STATUS_PORT (default 3110, BOT_STATUS_PORT) to discord-bot.env and
+#                  WATCH_RECORDER_STATUS_URL to gamenight-watch.env when missing (append only), so the game-night watch sees
+#                  the bot with its unit off, and it continues an earlier MODE=bot that stopped the unit and did not finish.
 # FOUNDRY_DATA_DIR and TOOL_DATA_DIR must be absolute paths for up and cutover (compose and this script would resolve a
 # relative one against different folders); down, rollback and status ignore the rule so the way out is never blocked.
 # A .env value of FOUNDRY_HTTP_PORT, BRIDGE_CONTROL_PORT, BRIDGE_LINK_PORT, DASHBOARD_PORT, FOUNDRY_DATA_DIR,
@@ -45,7 +50,7 @@
 # (the key is named, not the value): write the plain value. Down, rollback and status ignore that rule as well.
 # Without MODE it is status. DRY_RUN=1 with any other mode checks everything and prints the plan.
 #
-# Not touched in any mode (except MODE=bot, bot-restart and rollback, for the bot): Syncthing, cloudflared, Tailscale (serve), the GitHub runner, the env files,
+# Not touched in any mode (except MODE=bot, bot-restart, bot-back and rollback, for the bot, and the two status lines above): Syncthing, cloudflared, Tailscale (serve), the GitHub runner, the env files,
 # Foundry's and the tool's data folders, the images. Nothing is deleted except the containers of `down` and `rollback`.
 # Stages 3, 7 and the others that start or enable one of the four units refuse while the live project has containers (they
 # would start a second copy): MODE=rollback first. Stages 5, 21, 25, switch-world and kit-session work on the containers
@@ -77,8 +82,8 @@ require_root
 PATH="$PATH:/usr/sbin:/sbin"
 
 case "$mode" in
-  status | up | down | cutover | rollback | bot | bot-restart) ;;
-  *) die "MODE must be status, up, down, cutover, rollback, bot or bot-restart (got '$mode'). Nothing was changed" ;;
+  status | up | down | cutover | rollback | bot | bot-restart | bot-back) ;;
+  *) die "MODE must be status, up, down, cutover, rollback, bot, bot-restart or bot-back (got '$mode'). Nothing was changed" ;;
 esac
 # An SSH drop must not leave a switch half done: ignore HUP and a closed stdout from here on and keep the story on the Pi.
 if [ "$mode" != status ]; then
@@ -404,7 +409,35 @@ bot_back_to_unit() {
   unit_active "$bot_unit" && unit_enabled "$bot_unit"
 }
 
+# bot_wire_status: the game-night watch (stage 29) asks the unit whether the recorder runs; with the unit off on purpose it
+# needs the bot's status address instead. Adds FOUNDRY_AI_BOT_STATUS_PORT to discord-bot.env and WATCH_RECORDER_STATUS_URL to
+# gamenight-watch.env when they are missing (append only, owner and mode stay; never a value that is there). Stage 27 would
+# do the first but refuses on a cut-over Pi. The watch is restarted to read it (it idles outside a marked session).
+bot_wire_status() {
+  local bot_env="$TOOL_ETC/discord-bot.env" watch_env="$TOOL_ETC/gamenight-watch.env" port changed=0
+  port="$(sed -n 's/^FOUNDRY_AI_BOT_STATUS_PORT=\([0-9][0-9]*\)$/\1/p' "$bot_env" 2>/dev/null | tail -n 1)"
+  if [ -z "$port" ]; then
+    port="${BOT_STATUS_PORT:-3110}"
+    { [[ "$port" =~ ^[0-9]+$ ]] && [ "$port" -ge 1024 ] && [ "$port" -le 65535 ]; } || die "BOT_STATUS_PORT must be a port from 1024 to 65535. Nothing was changed"
+    if [ -n "$(tail -c 1 "$bot_env")" ]; then printf '\n' >>"$bot_env"; fi
+    printf 'FOUNDRY_AI_BOT_STATUS_PORT=%s\n' "$port" >>"$bot_env"
+    ok "discord-bot.env: FOUNDRY_AI_BOT_STATUS_PORT=$port added (the bot's status address, loopback only)"
+  fi
+  if [ -f "$watch_env" ]; then
+    if grep -Eq '^[[:space:]]*WATCH_RECORDER_STATUS_URL=[^[:space:]]' "$watch_env"; then
+      ok "gamenight-watch.env already has WATCH_RECORDER_STATUS_URL"
+    else
+      if [ -n "$(tail -c 1 "$watch_env")" ]; then printf '\n' >>"$watch_env"; fi
+      printf 'WATCH_RECORDER_STATUS_URL=http://127.0.0.1:%s/status\n' "$port" >>"$watch_env"
+      ok "gamenight-watch.env: WATCH_RECORDER_STATUS_URL added, so the watch sees the bot with its unit off"
+      changed=1
+    fi
+  fi
+  if [ "$changed" = 1 ]; then restart_gamenight_watch "the recorder status address"; fi
+}
+
 mode_bot() {
+  local resume=0
   have_systemd || die "systemd is not running here: nothing to move the bot from"
   [ "$project" = "$live_project" ] || die "MODE=bot works on the live stack (ports and folders as in deploy/pi/.env), not on rehearsal ports. Nothing was changed"
   need_daemon "moving the Discord bot"
@@ -413,47 +446,69 @@ mode_bot() {
   if [ -n "$(bot_cid -a)" ] && ! unit_active "$bot_unit"; then
     say "the bot already runs in the stack"
     if [ -n "$(bot_cid)" ] && bot_logged_in; then ok "the container is up and logged in to Discord: nothing to do"; return 0; fi
-    out "ERROR: the bot container exists but is not running or has not logged in (docker logs of the discord-bot container). MODE=bot-restart tries again, MODE=rollback goes back to the unit" 1
+    out "ERROR: the bot container exists but is not running or has not logged in (docker logs of the discord-bot container). MODE=bot-restart tries again; MODE=bot-back puts only the bot back on its unit (the stack keeps running); MODE=rollback takes the whole stack back" 1
     return 1
   fi
   unit_installed "$bot_unit" || die "$bot_unit is not installed: run stage 8 first. Nothing was changed"
-  if ! unit_active "$bot_unit" && ! unit_enabled "$bot_unit"; then
+  # An earlier MODE=bot that was cut off after it disabled the unit and before the container started left the record and no
+  # container: go on from there instead of refusing.
+  if [ -f "$bot_state_file" ] && ! unit_active "$bot_unit" && ! unit_enabled "$bot_unit"; then
+    resume=1
+    say "an earlier MODE=bot stopped the unit and did not finish (record $bot_state_file): going on from there"
+  fi
+  if [ "$resume" = 0 ] && ! unit_active "$bot_unit" && ! unit_enabled "$bot_unit"; then
     die "$bot_unit is neither running nor enabled (no token yet?): there is no bot to move. Run set-discord-token.ps1 first. Nothing was changed"
   fi
   docker image inspect "$bot_image" >/dev/null 2>&1 || die "the image $bot_image is not built (a stack from before the bot container): run stage 23, or stage 5 with a release that has it. Nothing was changed"
   [ -d "$backup_pulls_dir" ] || die "$backup_pulls_dir is missing (stage 6 writes it): the bot container mounts it read-only. Nothing was changed"
   grep -Eq '^DISCORD_TOKEN=[^[:space:]]+' "$TOOL_ETC/discord-bot.env" 2>/dev/null || die "$TOOL_ETC/discord-bot.env has no token: nothing to move. Nothing was changed"
-  # The game-night watch (stage 29) reads the recorder through the unit; with the unit off it needs the bot's status address.
-  if ! grep -Eq '^FOUNDRY_AI_BOT_STATUS_PORT=[0-9]+' "$TOOL_ETC/discord-bot.env" 2>/dev/null; then
-    warn "FOUNDRY_AI_BOT_STATUS_PORT is not set in discord-bot.env: with the unit off the game-night watch cannot see the recorder run (stage 27 sets the port, but it refuses on a cut-over Pi: add the line by hand first, ask Claude)"
-  fi
   if [ "$dry" = 1 ]; then
-    say "dry run: would stop and disable $bot_unit, set COMPOSE_PROFILES=discord-bot in $env_file, start the discord-bot container and wait for its login line; rolls back to the unit by itself when it does not log in; nothing changed"
+    say "dry run: would add FOUNDRY_AI_BOT_STATUS_PORT to discord-bot.env and WATCH_RECORDER_STATUS_URL to gamenight-watch.env when they are missing, stop and disable $bot_unit, set COMPOSE_PROFILES=discord-bot in $env_file, start the discord-bot container and wait for its login line; rolls back to the unit by itself when it does not log in; nothing changed"
     return 0
   fi
   require_recent_snapshot
   require_no_recording "moving the Discord bot into the stack (stopping the unit ends a recording)"
-  printf '%s\n' "$bot_unit" >"$bot_state_file.new"
-  mv -f "$bot_state_file.new" "$bot_state_file"
-  ok "recorded that $bot_unit was on ($bot_state_file)"
-  say "stopping and disabling $bot_unit (it stays installed)"
-  systemctl disable --now "$bot_unit" >/dev/null 2>&1 || warn "systemctl disable --now $bot_unit failed"
-  if unit_active "$bot_unit" || unit_enabled "$bot_unit"; then
-    systemctl enable --now "$bot_unit" >/dev/null 2>&1 || true
-    rm -f "${bot_state_file:?}"
-    die "$bot_unit is still enabled or active after disable --now; it was left on, nothing else changed"
+  bot_wire_status
+  if [ "$resume" = 0 ]; then
+    printf '%s\n' "$bot_unit" >"$bot_state_file.new"
+    mv -f "$bot_state_file.new" "$bot_state_file"
+    ok "recorded that $bot_unit was on ($bot_state_file)"
+    say "stopping and disabling $bot_unit (it stays installed)"
+    systemctl disable --now "$bot_unit" >/dev/null 2>&1 || warn "systemctl disable --now $bot_unit failed"
+    if unit_active "$bot_unit" || unit_enabled "$bot_unit"; then
+      systemctl enable --now "$bot_unit" >/dev/null 2>&1 || true
+      rm -f "${bot_state_file:?}"
+      die "$bot_unit is still enabled or active after disable --now; it was left on, nothing else changed"
+    fi
+    ok "$bot_unit stopped and disabled"
   fi
-  ok "$bot_unit stopped and disabled"
   bot_profile on
   say "starting the bot container (up to ${BOT_LOGIN_WAIT:-60}s for the Discord login)"
   dc up -d --no-build discord-bot >/dev/null 2>&1 || warn "docker compose up reported an error"
   if wait_bot_login; then
-    ok "the bot runs as a container and logged in to Discord. Back: MODE=rollback (the whole stack). Look: deploy/pi/deployed-state.sh"
+    ok "the bot runs as a container and logged in to Discord. Back: MODE=bot-back (only the bot) or MODE=rollback (the whole stack). Look: deploy/pi/deployed-state.sh"
     return 0
   fi
   out "ERROR: the bot container did not log in to Discord in time: going back to the unit" 1
   if bot_back_to_unit; then die "ROLLED BACK: the bot runs as its systemd unit again, the container is gone"; fi
-  die "ROLLBACK OF THE BOT FAILED: systemctl enable --now $bot_unit by hand, then check docker ps"
+  die "ROLLBACK OF THE BOT FAILED: MODE=bot-back tries again; or systemctl enable --now $bot_unit by hand, then check docker ps"
+}
+
+# MODE=bot-back: only the bot goes back to its unit (container gone, profile out of .env, unit on); the other four containers
+# keep running. The way out of a cut-off or failed MODE=bot without taking the table down.
+mode_bot_back() {
+  [ "$project" = "$live_project" ] || die "MODE=bot-back works on the live stack, not on rehearsal ports. Nothing was changed"
+  have_systemd || die "systemd is not running here: nothing to move the bot to"
+  need_daemon "putting the Discord bot back on its unit"
+  { [ -n "$(bot_cid -a)" ] || [ -f "$bot_state_file" ]; } || die "the bot is its systemd unit already (no container, no record): nothing to do. Nothing was changed"
+  unit_installed "$bot_unit" || die "$bot_unit is not installed: run stage 8 first. Nothing was changed"
+  if [ "$dry" = 1 ]; then
+    say "dry run: would stop and remove the discord-bot container, take discord-bot out of COMPOSE_PROFILES in $env_file and enable and start $bot_unit; nothing changed"
+    return 0
+  fi
+  require_no_recording "putting the Discord bot back on its unit (stopping the container ends a recording)"
+  if bot_back_to_unit; then ok "the bot runs as its systemd unit again, the container is gone"; return 0; fi
+  die "the unit did not come up: systemctl status $bot_unit, journalctl -u $bot_unit -n 20"
 }
 
 mode_bot_restart() {
@@ -469,7 +524,7 @@ mode_bot_restart() {
   say "recreating the bot container (it reads discord-bot.env when it is created)"
   dc up -d --no-build --force-recreate discord-bot >/dev/null 2>&1 || warn "docker compose up reported an error"
   if wait_bot_login; then ok "the bot restarted and logged in to Discord"; return 0; fi
-  die "the bot container did not log in to Discord in ${BOT_LOGIN_WAIT:-60}s (docker logs of the discord-bot container); MODE=rollback goes back to the unit"
+  die "the bot container did not log in to Discord in ${BOT_LOGIN_WAIT:-60}s (docker logs of the discord-bot container); MODE=bot-back puts only the bot back on its unit, MODE=rollback takes the whole stack back"
 }
 
 # ---- rollback --------------------------------------------------------------------------------------------------
@@ -770,4 +825,5 @@ case "$mode" in
   rollback) mode_rollback ;;
   bot) mode_bot ;;
   bot-restart) mode_bot_restart ;;
+  bot-back) mode_bot_back ;;
 esac

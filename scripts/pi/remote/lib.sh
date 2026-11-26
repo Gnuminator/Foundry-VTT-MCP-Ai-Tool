@@ -518,10 +518,20 @@ bot_container() {
   containers_of "$COMPOSE_LIVE_PROJECT" discord-bot "${1:-}" 2>/dev/null | head -n 1 || true
 }
 
+# bot_daemon_check WHAT: a Docker daemon that is installed but silent means "is there a bot container?" is unknown, and unknown
+# refuses (like refuse_when_cut_over): the container comes back with the daemon and would run next to a unit started now.
+bot_daemon_check() {
+  command -v docker >/dev/null 2>&1 || return 0
+  containers_of "$COMPOSE_LIVE_PROJECT" discord-bot -a >/dev/null 2>&1 && return 0
+  docker_cannot_return && return 0
+  die "the Docker daemon does not answer, so whether the Discord bot runs as a container is unknown: $1 is refused (it would start the bot unit, and the container comes back with the daemon: two bots on one token). Look at: systemctl status docker. Nothing was changed"
+}
+
 # refuse_when_bot_container WHAT: for the stages that restart or enable the bot UNIT (8, 26, 27, set-discord-token): once the
 # bot runs as a container (stage 24 MODE=bot) the unit must stay off, or two bots log in with one token. The settings file is
 # the same for both; a container reads it again with  stage 24 MODE=bot-restart.
 refuse_when_bot_container() {
+  bot_daemon_check "$1"
   [ -z "$(bot_container -a)" ] || die "the Discord bot runs as a container (compose project $COMPOSE_LIVE_PROJECT): $1 would start the systemd unit next to it, two bots on one token. Stage 5 updates the container; after a settings change run stage 24 with MODE=bot-restart; to go back to the unit run stage 24 with MODE=rollback. Nothing was changed"
 }
 

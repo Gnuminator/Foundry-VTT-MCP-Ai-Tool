@@ -69,7 +69,7 @@ runner.
 
 ## Cutover and rollback
 
-`24-compose.sh` takes `MODE=up|down|cutover|rollback|bot|bot-restart`. Run it like the other stages, after the snapshot and the OK.
+`24-compose.sh` takes `MODE=up|down|cutover|rollback|bot|bot-restart|bot-back`. Run it like the other stages, after the snapshot and the OK.
 
 - `MODE=up` starts a **rehearsal** stack on other ports and its own data folders. On the live ports (any one of them) or
   the live data folders it is refused: the live stack is started by `MODE=cutover` only.
@@ -95,7 +95,13 @@ the unit. It is no gate service: a bot that is down never rolls the stack back.
   stage 5 with a release that has it) and `discord-bot.env` with a token.
 - **After a settings or token change:** `set-discord-token` writes the file, then `MODE=bot-restart` recreates the container.
   Stages 8, 26 and 27 refuse while the container exists (they would start the unit next to it).
-- **Back:** `MODE=rollback` brings the whole stack back to units, the bot unit included, and takes the profile out of `.env`.
+- **Game-night watch:** with the unit off the watch reads the recorder through its status address, so `MODE=bot` adds
+  `FOUNDRY_AI_BOT_STATUS_PORT` (default 3110) to `discord-bot.env` and `WATCH_RECORDER_STATUS_URL` to
+  `gamenight-watch.env` when they are missing (append only).
+- **Back:** `MODE=bot-back` puts only the bot back on its unit (the other four containers keep running); it is also the
+  way out of a `MODE=bot` that was cut off (a rerun of `MODE=bot` continues it too). `MODE=rollback` brings the whole
+  stack back to units, the bot unit included, and takes the profile out of `.env`.
+- **A silent Docker daemon** refuses stages 8, 26 and `set-discord-token` (the container would come back with the daemon).
 - **Check:** `deploy/pi/bot-container-check.mjs` runs in CI (`pi-images.yml`, ARM64 image, no token): the voice libraries load,
   UDP works, and a synthetic recording converts into the recordings folder with group write. `deploy/pi/deployed-state.sh`
   fails when the unit and the container run together.

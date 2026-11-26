@@ -14,6 +14,14 @@ export const refusalMarker = head => `<!-- merge-runner-refusal ${head} -->`;
 const oneLine = (s, max) => String(s).replace(/\s+/g, ' ').trim().slice(0, max);
 
 /**
+ * The comment is public: a local absolute path (a gate log in the temp folder, a vault file) shows
+ * only its last segment.
+ * @param {string} s
+ */
+export const noPaths = s =>
+  s.replace(/(?:[A-Za-z]:[\\/]|\/(?:home|Users|tmp|var)\/)[^\s)]*[\\/]([^\s\\/)]+)/g, '$1');
+
+/**
  * @param {{ gh: (args: string[]) => { status: number, stdout: string }, log: (l: string) => void }} d
  * @param {string} repo
  * @param {{ pr: number, head: string }} r
@@ -33,7 +41,7 @@ export function commentRefusal(d, repo, r, reason) {
         /* unreadable: comment anyway */
       }
     }
-    const body = `${marker}\nMerge runner: not merged on head ${r.head.slice(0, 7)}: ${oneLine(reason, 300)}`;
+    const body = `${marker}\nMerge runner: not merged on head ${r.head.slice(0, 7)}: ${oneLine(noPaths(reason), 300)}`;
     const res = d.gh(['pr', 'comment', String(r.pr), '-R', repo, '--body', body]);
     if (res.status !== 0) d.log(`WARNING: refusal comment on #${r.pr} not written`);
     return res.status === 0;

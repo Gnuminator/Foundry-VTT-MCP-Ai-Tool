@@ -181,7 +181,20 @@ export function refreshBranch(o) {
   let regen = toolDocs;
   let regenChanged = false;
   const merged = git(
-    [...IDENT, 'merge', '--no-ff', '--no-verify', '--no-edit', '-m', REFRESH_SUBJECT, main],
+    // The generated-docs merge driver is switched off here (`false` exits 1): a page conflict must
+    // stay a conflict so the regeneration below runs; the driver would push stale pages instead.
+    [
+      ...IDENT,
+      '-c',
+      'merge.generated-docs.driver=false',
+      'merge',
+      '--no-ff',
+      '--no-verify',
+      '--no-edit',
+      '-m',
+      REFRESH_SUBJECT,
+      main,
+    ],
     5 * 60_000
   );
   const mergePending = merged.status !== 0;

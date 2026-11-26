@@ -5,4 +5,4 @@
   it, so a lane can fix a refusal while its cache is warm.
 - **Baseline and tool pages merge themselves:** git merge drivers (`scripts/merge-drivers`,
   registered by `npm ci`) merge `scripts/line-baseline.json` entry by entry and keep the
-  branch's generated tool pages, so two PRs touching them no longer conflict.
+  branch's generated tool pages, so merging main into a branch no longer stops on them (GitHub's own conflict flag still shows until main is merged in).

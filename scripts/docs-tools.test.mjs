@@ -31,6 +31,7 @@ test('docs-tools --check passes on current pages, fails on a stale one and write
     writeFileSync(page, stale);
     const bad = run(dir, '--check');
     assert.notEqual(bad.status, 0);
+    assert.match(`${bad.stdout}${bad.stderr}`, /is stale/, 'the page message names the stale page');
     assert.equal(readFileSync(page, 'utf8'), stale, '--check must not rewrite the page');
 
     assert.equal(run(dir).status, 0, 'the plain run rewrites');

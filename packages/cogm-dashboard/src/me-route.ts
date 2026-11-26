@@ -201,6 +201,10 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
    * The page keeps what it showed on a 503.
    */
   function keyedUser(req: Request, res: Response): string | null {
+    return keyedLink(req, res)?.userId ?? null;
+  }
+  /** Like {@link keyedUser}, with the live world the key was checked against. */
+  function keyedLink(req: Request, res: Response): { world: string; userId: string } | null {
     const world = worldId();
     const raw = req.headers[ME_KEY_HEADER];
     const key = Array.isArray(raw) ? raw[0] : raw;
@@ -221,7 +225,7 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
         .json({ code: 'no-link', error: 'This link is not valid. Ask your GM for a new one.' });
       return null;
     }
-    return userId;
+    return { world, userId };
   }
 
   app.get('/me', (_req: Request, res: Response) => {
@@ -419,14 +423,13 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
   };
   function diaryUser(req: Request, res: Response): { world: string; userId: string } | null {
     res.set('Cache-Control', 'no-store');
-    const userId = keyedUser(req, res);
-    const world = worldId();
-    if (!world || !userId) return null;
+    const link = keyedLink(req, res);
+    if (!link) return null;
     if (!diary) {
       res.status(501).json({ error: 'The diary is not available here.' });
       return null;
     }
-    return { world, userId };
+    return link;
   }
   app.get('/api/me/diary', (req: Request, res: Response) => {
     const who = diaryUser(req, res);

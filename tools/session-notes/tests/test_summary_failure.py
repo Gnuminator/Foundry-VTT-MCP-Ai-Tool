@@ -10,6 +10,8 @@ from helpers import FakeClaude, write_session
 from test_notes import ROWS, _CliRunner, _status
 
 from session_notes import cli
+from session_notes import run as run_mod
+from session_notes.claude_runner import ClaudeError
 from session_notes.run import Options, Writer
 
 
@@ -95,3 +97,55 @@ def test_a_pause_at_the_summary_is_not_a_summary_failure(
 ) -> None:
     assert _run_cli(monkeypatch, session, FakeClaude(fail={3: "limit"})) == cli.EXIT_PAUSED
     assert _status(session)["state"] == "paused"
+
+
+class _SummaryDown(FakeClaude):
+    """Every summary call fails; scene calls still work."""
+
+    def __call__(self, prompt: str, schema: dict, model: str, effort: str = "low") -> dict:
+        if "lines" not in schema["properties"] and "in_short_da" in schema["properties"]:
+            self.calls.append(("session", prompt))
+            raise ClaudeError("boom")
+        return super().__call__(prompt, schema, model, effort)
+
+
+def _clock(monkeypatch: pytest.MonkeyPatch, start: float = 1_000_000.0) -> list[float]:
+    now = [start]
+    monkeypatch.setattr(run_mod.time, "time", lambda: now[0])
+    return now
+
+
+def test_a_real_gap_counts_the_next_run_and_a_short_one_does_not(
+    session: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    now = _clock(monkeypatch)
+    assert Writer(session, _SummaryDown(), Options(workers=1)).run().summary_tries == 1
+    now[0] += 60  # a quick re-run: same run
+    assert Writer(session, _SummaryDown(), Options(workers=1)).run().summary_tries == 1
+    now[0] += 1800  # past the 30 minute gap: a new counted run
+    result = Writer(session, _SummaryDown(), Options(workers=1)).run()
+    assert result.summary_tries == 2 and not result.summary_given_up
+
+
+def test_changed_notes_reset_the_count_after_the_runs_are_given_up(
+    session: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    now = _clock(monkeypatch)
+    for _ in range(3):
+        result = Writer(session, _SummaryDown(), Options(workers=1)).run()
+        now[0] += 1801
+    assert result.summary_given_up
+    quiet = _SummaryDown()
+    assert Writer(session, quiet, Options(workers=1)).run().summary_given_up
+    assert [k for k, _ in quiet.calls if k == "session"] == []  # no calls while given up
+    # The transcript changes, so the scene notes (and the digest) change: the count starts over.
+    with (session / "timeline" / "timeline.jsonl").open("a", encoding="utf-8") as fh:
+        fh.write(
+            json.dumps(
+                {"start": 700.0, "end": 704.0, "speaker": "anna", "player": "Anna",
+                 "character": "Ilvara", "text": "En ny linje.", "words": [{"word": "En", "probability": 0.9}]}
+            )
+            + "\n"
+        )
+    again = Writer(session, _SummaryDown(), Options(workers=1)).run()
+    assert again.summary_tries == 1 and not again.summary_given_up

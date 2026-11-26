@@ -870,9 +870,8 @@ export function run(argv, env = {}) {
       case 'done': {
         needId();
         const noPr = flags['no-pr'] === true;
-        if (!noPr && !pos[1])
-          throw new Usage('done <id> <PR>  (or done <id> --no-pr --summary <text>)');
-        if (noPr && pos[1]) throw new Usage('--no-pr takes no PR number');
+        if (noPr ? pos[1] || flags.sha || flags['pi-run'] : !pos[1])
+          throw new Usage('done <id> <PR> [--sha --pi-run] | done <id> --no-pr --summary <text>');
         const piRun = typeof flags['pi-run'] === 'string' ? oneLine(flags['pi-run']) : '';
         const paths = [BACKLOG, DONE, ...(piRun ? [PI_LIST] : [])];
         // The merge commit comes from GitHub (a PR head is not on main after a squash merge);

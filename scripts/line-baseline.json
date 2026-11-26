@@ -3,7 +3,7 @@
   "files": {
     ".claude/hooks/guard-remote-commands.mjs": 1034,
     "packages/foundry-module/src/data-access/actor-builder.ts": 1418,
-    "packages/foundry-module/src/data-access/guarded-write.ts": 1100,
+    "packages/foundry-module/src/data-access/guarded-write.ts": 1102,
     "packages/foundry-module/src/data-access/player-rolls.ts": 1195,
     "packages/foundry-module/src/export-index.ts": 1428,
     "packages/foundry-module/src/npc-turn.ts": 1158,
@@ -229,15 +229,27 @@
       "pr": ""
     },
     {
+      "file": "packages/foundry-module/src/data-access/guarded-write.ts",
+      "lines": 1101,
+      "reason": "one import line for the apply-time start-stamp check; the logic lives in start-stamp.ts",
+      "pr": ""
+    },
+    {
+      "file": "packages/foundry-module/src/data-access/guarded-write.ts",
+      "lines": 1102,
+      "reason": "two lines for the apply-time start-stamp check; the logic lives in start-stamp.ts",
+      "pr": ""
+    },
+    {
       "file": "packages/foundry-module/src/play-recorder.ts",
       "lines": 2129,
-      "reason": "encounter afterglow: plan stamp on combat-start, logic lives in fight-plan.ts (+2 lines)",
+      "reason": "encounter afterglow: plan stamp on combat-start, logic lives in fight-plan.ts",
       "pr": ""
     },
     {
       "file": "packages/mcp-server/src/stats/build.ts",
       "lines": 1047,
-      "reason": "encounter afterglow: per-combat plan and slot fields, parsing lives in fights.ts (+12 lines)",
+      "reason": "encounter afterglow: per-combat plan and slot fields, parsing lives in fights.ts",
       "pr": ""
     }
   ]

@@ -8,7 +8,8 @@
  *   node scripts/review-note.mjs <PR> --verdict merge|fixes|no --model opus|sonnet --body FILE
  *     [--round N] [--head SHA] [--vault DIR] [--no-commit] [--dry-run]
  *
- * It refuses `--model sonnet` when the gate calls the PR risky (an Opus review is required).
+ * It refuses `--model sonnet` when the gate calls the PR risky (an Opus review is required), except
+ * for a fix round whose PR patch on Opus-list paths is unchanged since an Opus review (fixRoundRelief).
  * Tests: scripts/review-note.test.mjs. The pure parts (noteName, finishNote, buildNote) are exported.
  */
 import fs from 'node:fs';
@@ -16,7 +17,13 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { parseReviewNote, riskyHits } from './lane-merge.mjs';
+import {
+  parseReviewNote,
+  riskyHits,
+  findReviewNotes,
+  fixRoundRelief,
+  defaultRun,
+} from './lane-merge.mjs';
 
 /** The verdicts the gate accepts, lower case, without the full stop. */
 export const VERDICTS = ['merge', 'merge after fixes', 'do not merge'];
@@ -76,7 +83,8 @@ export function finishNote(answer, pr, model, sha, name) {
     problems.push('the verdict is not tied to the head sha');
   }
   const verdict = note.entries[0]?.verdict?.replace(/[.\s]+$/, '').toLowerCase() ?? '';
-  if (!VERDICTS.includes(verdict)) problems.push(`unknown verdict "${note.entries[0]?.verdict ?? ''}"`);
+  if (!VERDICTS.includes(verdict))
+    problems.push(`unknown verdict "${note.entries[0]?.verdict ?? ''}"`);
   if (note.opus !== (model === 'opus')) {
     problems.push(
       model === 'opus'
@@ -109,7 +117,9 @@ export function buildNote(c) {
   } else {
     const first = /\*\*[^*]+\*\*/.exec(body.slice(at));
     if (!first || first[0] !== bold) {
-      problems.push(`the text's own verdict (${first ? first[0] : 'none'}) does not match --verdict ${c.verdict} (${bold})`);
+      problems.push(
+        `the text's own verdict (${first ? first[0] : 'none'}) does not match --verdict ${c.verdict} (${bold})`
+      );
     }
   }
   const done = finishNote(body, c.pr, c.model, c.sha, name);
@@ -165,14 +175,20 @@ export function parseArgs(argv, env = process.env) {
   if (!o.pr) throw new Error('give the PR number');
   if (!o.verdict) throw new Error('--verdict merge|fixes|no is required');
   if (!o.model) throw new Error('--model opus|sonnet is required');
-  if (!o.body) throw new Error('--body FILE (the reviewer\'s text) is required');
-  return /** @type {typeof o & { verdict: keyof typeof VERDICT_FLAGS, model: 'opus' | 'sonnet', body: string }} */ (o);
+  if (!o.body) throw new Error("--body FILE (the reviewer's text) is required");
+  return /** @type {typeof o & { verdict: keyof typeof VERDICT_FLAGS, model: 'opus' | 'sonnet', body: string }} */ (
+    o
+  );
 }
 
-/** The refusal for a Sonnet stamp on a risky PR, else null. @param {'opus' | 'sonnet'} model @param {string[]} files */
-export function modelRefusal(model, files) {
+/**
+ * The refusal for a Sonnet stamp on a risky PR, else null. `fixRound` is true when the gate would
+ * accept Sonnet for this head: a fix round whose PR patch on the Opus list is unchanged since an Opus review.
+ * @param {'opus' | 'sonnet'} model @param {string[]} files @param {boolean} [fixRound]
+ */
+export function modelRefusal(model, files, fixRound = false) {
   const hits = riskyHits(files);
-  if (model === 'sonnet' && hits.length > 0) {
+  if (model === 'sonnet' && hits.length > 0 && !fixRound) {
     return `PR is risky (${hits.map(h => h.name).join(', ')}: ${hits[0].file}); the gate needs an Opus review, so --model opus (npm run lane:risky prints the list)`;
   }
   return null;
@@ -180,7 +196,12 @@ export function modelRefusal(model, files) {
 
 /** @param {string} cmd @param {string[]} args @param {string} [cwd] */
 function run(cmd, args, cwd) {
-  const r = spawnSync(cmd, args, { cwd, encoding: 'utf8', timeout: 120000, maxBuffer: 64 * 1024 * 1024 });
+  const r = spawnSync(cmd, args, {
+    cwd,
+    encoding: 'utf8',
+    timeout: 120000,
+    maxBuffer: 64 * 1024 * 1024,
+  });
   return { ok: r.status === 0, out: (r.stdout ?? '').trim(), err: (r.stderr ?? '').trim() };
 }
 
@@ -192,7 +213,12 @@ function must(cmd, args, cwd) {
 }
 
 const today = () =>
-  new Intl.DateTimeFormat('sv', { timeZone: ZONE, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  new Intl.DateTimeFormat('sv', {
+    timeZone: ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
 
 /**
  * Bring the vault up to date without touching anyone else's work: fetch plus a fast-forward works with
@@ -236,8 +262,11 @@ function changedFiles(pr, sha) {
   must('git', ['fetch', '-q', 'aitool', 'main']);
   must('git', ['fetch', '-q', 'aitool', `refs/pull/${pr}/head`]);
   const fetched = must('git', ['rev-parse', 'FETCH_HEAD']).toLowerCase();
-  if (fetched !== sha) throw new Error(`PR #${pr} head moved while reading it (${fetched.slice(0, 8)}); run again`);
-  return must('git', ['diff', '--name-only', '--no-renames', `aitool/main...${sha}`]).split(/\r?\n/).filter(Boolean);
+  if (fetched !== sha)
+    throw new Error(`PR #${pr} head moved while reading it (${fetched.slice(0, 8)}); run again`);
+  return must('git', ['diff', '--name-only', '--no-renames', `aitool/main...${sha}`])
+    .split(/\r?\n/)
+    .filter(Boolean);
 }
 
 /** @param {string[]} argv */
@@ -247,16 +276,24 @@ export function main(argv) {
   if (info.state !== 'OPEN') throw new Error(`PR #${o.pr} is ${info.state}, not open`);
   const sha = String(info.headRefOid).toLowerCase();
   if (o.head && o.head !== sha) {
-    throw new Error(`PR #${o.pr} head is ${sha.slice(0, 8)} on GitHub, not ${o.head.slice(0, 8)}; review the new head`);
+    throw new Error(
+      `PR #${o.pr} head is ${sha.slice(0, 8)} on GitHub, not ${o.head.slice(0, 8)}; review the new head`
+    );
   }
-  const refusal = modelRefusal(o.model, changedFiles(o.pr, sha));
+  const files = changedFiles(o.pr, sha);
+  const fixRound =
+    o.model === 'sonnet' &&
+    riskyHits(files).length > 0 &&
+    fixRoundRelief(defaultRun, findReviewNotes(o.vault, o.pr) ?? [], sha).relief;
+  const refusal = modelRefusal(o.model, files, fixRound);
   if (refusal) throw new Error(refusal);
   const handoff = path.join(o.vault, 'Dev', 'Foundry AI Tool', 'Handoff');
   if (!o.noCommit && !o.dryRun) syncVault(o.vault);
   let existing = /** @type {string[]} */ ([]);
   if (fs.existsSync(handoff)) {
     for (const d of fs.readdirSync(handoff, { withFileTypes: true })) {
-      if (d.isDirectory() && d.name.startsWith('Reviews ')) existing.push(...fs.readdirSync(path.join(handoff, d.name)));
+      if (d.isDirectory() && d.name.startsWith('Reviews '))
+        existing.push(...fs.readdirSync(path.join(handoff, d.name)));
     }
   }
   const round = o.round ?? latestRound(existing, o.pr) + 1;
@@ -268,13 +305,15 @@ export function main(argv) {
     verdict: o.verdict,
     body: fs.readFileSync(o.body, 'utf8'),
   });
-  if (note.problems.length > 0) throw new Error(`the note is not acceptable: ${note.problems.join('; ')}`);
+  if (note.problems.length > 0)
+    throw new Error(`the note is not acceptable: ${note.problems.join('; ')}`);
   const file = path.join(handoff, `Reviews ${today()}`, note.name);
   if (o.dryRun) {
     console.log(`review-note: would write ${file} for head ${sha}`);
     return;
   }
-  if (existing.includes(note.name)) throw new Error(`a note named ${note.name} already exists; use another --round`);
+  if (existing.includes(note.name))
+    throw new Error(`a note named ${note.name} already exists; use another --round`);
   if (o.noCommit) {
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, note.text);

@@ -84,6 +84,8 @@ describe('usage.js', () => {
     expect(read('../web/index.html')).toContain('data-usage-endpoint="/api/usage"');
     expect(read('me.html')).toContain('data-usage-endpoint="/api/me/usage"');
     expect(read('player.html')).toContain('data-usage-endpoint="/api/player/usage"');
+    // /me sends its private key in this header, which is the one the server reads.
+    expect(read('me.html')).toContain('data-usage-key-header="X-CoGM-Me"');
     expect(source).not.toMatch(/\.value\b/);
   });
 });

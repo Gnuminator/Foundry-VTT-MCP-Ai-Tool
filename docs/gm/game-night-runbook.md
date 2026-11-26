@@ -28,6 +28,9 @@ heads-up: the pre-flight check below is still the real one.
 - [ ] Join Discord voice. Start the recording with `/record start` only if every player has said
       yes to recording (or their track is taken out afterwards).
 
+Playing at someone else's place? Run the check and use the pack list in
+[A night at someone else's place](away-night.md) the day before.
+
 ## Foundry does not load for you
 
 1. Reload the page (F5). Then try another browser, or a private window.

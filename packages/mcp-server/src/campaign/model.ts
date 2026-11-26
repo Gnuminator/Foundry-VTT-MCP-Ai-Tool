@@ -147,7 +147,7 @@ function sessionBlock(session: string, items: string): string {
 
 function statBlockHtml(link: StatBlockLink | undefined): string {
   if (!link) return '<p class="campaign-statblock"></p>';
-  return `<p class="campaign-statblock" data-uuid="${escapeHtml(link.uuid)}">@UUID[${link.uuid}]{${link.name.replace(/[{}[\]]/g, '')}}</p>`;
+  return `<p class="campaign-statblock" data-uuid="${escapeHtml(link.uuid)}">@UUID[${link.uuid}]{${escapeHtml(link.name.replace(/[{}[\]]/g, ''))}}</p>`;
 }
 
 function langSection(lang: CampaignLang, content: NewPageContent): string {

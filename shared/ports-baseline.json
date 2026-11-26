@@ -78,7 +78,7 @@
   "scripts/pi/remote/22-seven-books.sh": 2,
   "scripts/pi/remote/24-compose.sh": 25,
   "scripts/pi/remote/25-modules.sh": 3,
-  "scripts/pi/remote/26-discord-game-server.sh": 10,
+  "scripts/pi/remote/26-discord-game-server.sh": 4,
   "scripts/pi/remote/29-gamenight-watch.sh": 3,
   "scripts/pi/remote/3-foundry.sh": 6,
   "scripts/pi/remote/30-player-connector.sh": 15,

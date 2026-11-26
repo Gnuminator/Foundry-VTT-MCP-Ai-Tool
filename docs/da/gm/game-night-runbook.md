@@ -1,6 +1,6 @@
 ---
 source: gm/game-night-runbook.md
-sourceHash: a3ec49a159bb
+sourceHash: bc81158711fb
 title: Spilaftenens runbook
 description: Én side til selve aftenen. Hvad du gør, når Foundry, en spiller, Claude, dashboardet eller hjemmeserveren fejler, og hvornår du råber om hjælp.
 ---
@@ -29,6 +29,9 @@ forvarsel: pre-flight-tjekket herunder er stadig det rigtige.
 - [ ] Gå checklisten [Før hver session](before-session.md) igennem (pre-flight, Turn on for tonight).
 - [ ] Kom ind i Discord-voice. Start optagelsen med `/record start` kun hvis alle spillere har sagt
       ja til optagelse (ellers tages deres spor ud bagefter).
+
+Spiller I hos en anden? Kør tjekket og brug pakkelisten i
+[En aften hos en anden](away-night.md) dagen før.
 
 ## Foundry vil ikke indlæse hos dig
 

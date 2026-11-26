@@ -26,3 +26,9 @@
 *.pdf binary
 *.zip binary
 *.exe binary
+
+# Merge drivers (scripts/merge-drivers, registered by npm ci's prepare step): a baseline or a
+# generated tool page that two branches both changed merges without a conflict.
+scripts/line-baseline.json merge=line-baseline
+docs/reference/tools.md merge=generated-docs
+docs/reference/tools/*.md merge=generated-docs

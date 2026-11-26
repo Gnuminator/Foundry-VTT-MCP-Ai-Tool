@@ -11,6 +11,22 @@ import { ACTOR_IMAGE_FEATURE_ID } from '@gnuminator/shared';
 
 import { makeLogger } from '../test-support/stub-tool-deps.js';
 
+// Lets one test swap the file right after the tool opened it (the swap-while-reading case).
+const afterOpen = vi.hoisted(() => ({ run: undefined as undefined | (() => void) }));
+vi.mock('node:fs/promises', async importOriginal => {
+  const actual = await importOriginal<typeof import('node:fs/promises')>();
+  return {
+    ...actual,
+    open: async (...args: Parameters<typeof actual.open>): ReturnType<typeof actual.open> => {
+      const handle = await actual.open(...args);
+      const run = afterOpen.run;
+      afterOpen.run = undefined;
+      run?.();
+      return handle;
+    },
+  };
+});
+
 import {
   ActorImageTools,
   checkPathText,
@@ -175,6 +191,21 @@ describe('plan-actor-image', () => {
       );
     }
   );
+
+  it('refuses a picture that was swapped after it was opened', async () => {
+    const file = join(root, 'swap.png');
+    writeFileSync(file, PNG);
+    afterOpen.run = (): void => {
+      rmSync(file);
+      writeFileSync(file, Buffer.concat([PNG, Buffer.from([9, 9])]));
+    };
+    await expect(call({ actor: 'Ebbe', file })).rejects.toThrow(/changed while it was being read/);
+    expect(query).not.toHaveBeenCalledWith(
+      'foundry-mcp-bridge.uploadActorImage',
+      expect.anything(),
+      expect.anything()
+    );
+  });
 
   it.runIf(linked)('reads a picture from an allowed folder that is itself a link', async () => {
     const via = join(base, 'via-link');

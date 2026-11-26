@@ -8,6 +8,7 @@ import {
   freeText,
   unwrapBridgeReply,
   featureSwitchOff,
+  type TokenRingsPlan,
   type TokenRingsPlanRequest,
   type TokenRingsPlanResult,
 } from '@gnuminator/shared';
@@ -73,7 +74,7 @@ export class TokenRingsTools {
               type: 'string',
               enum: [...TOKEN_RINGS_LOOKS],
               description:
-                'With enable: steel also sets the table look (steel ring, dark background, subject scale 0.8). Also plans rings that are on without it. Undo restores the old look.',
+                'With enable: steel also sets the steel look (ring colour, dark background, subject scale 0.8; the fit mode is left as it is). Also plans rings that are on without it. Undo restores the old look.',
             },
             scenes: {
               type: 'array',
@@ -109,6 +110,13 @@ export class TokenRingsTools {
     }
   }
 
+  private async queryPlan(request: TokenRingsPlanRequest): Promise<TokenRingsPlan> {
+    return unwrapBridgeReply(
+      await this.foundryClient.query('foundry-mcp-bridge.planTokenRings', request),
+      'Could not plan the token rings'
+    );
+  }
+
   private async planTokenRings(args: unknown): Promise<PlanView & TokenRingsPlanResult> {
     const params = planParams.parse(args ?? {});
     const features = unwrapBridgeReply(
@@ -124,10 +132,19 @@ export class TokenRingsTools {
     const request = Object.fromEntries(
       Object.entries(params).filter(([, v]) => v !== undefined)
     ) as unknown as TokenRingsPlanRequest;
-    const built = unwrapBridgeReply(
-      await this.foundryClient.query('foundry-mcp-bridge.planTokenRings', request),
-      'Could not plan the token rings'
-    );
+    let built: TokenRingsPlan;
+    try {
+      built = await this.queryPlan(request);
+    } catch (error) {
+      // A module from before the ring look ignores `look` and says every ring is already on.
+      if (params.look && /already have their token ring on/i.test(String(error))) {
+        throw new Error(
+          `${error instanceof Error ? error.message : String(error)} If the rings were not set to the steel look, the Foundry module may be too old for it: update the module, then ask again.`,
+          { cause: error }
+        );
+      }
+      throw error;
+    }
     if (params.tokens === 'placed' && built.unmatched === undefined) {
       throw new Error(
         'This Foundry module is too old to plan placed tokens: update the module, then ask again.'

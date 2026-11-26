@@ -22,6 +22,7 @@ import { asRecord, readStr } from './routes/util.js';
 import type { PlayerDirectory } from './usage-route.js';
 import type { DashboardPrefsStore } from './dashboard-prefs.js';
 import { THEMES, type ThemeId, type ThemeStore } from './theme.js';
+import { KeepsakeStore, type KeepsakeLedger } from './player-vault/keepsake.js';
 import { PlayerLogStore } from './player-vault/log-store.js';
 import { PlayerVaultService, type PlayerVaultHealth } from './player-vault/service.js';
 import type { VaultPlayer } from './player-vault/types.js';
@@ -86,8 +87,17 @@ interface LiveState {
   recordingHealth: () => RecordingHealth;
   stamped: <S extends object>(s: S) => S & { now: string };
   currentPlayerState: () => ReturnType<typeof buildPlayerState>;
-  /** How the player vault passes went; null when the player vaults are off. */
-  playerVaultHealth: () => PlayerVaultHealth | null;
+  /**
+   * The player vault parts of the route context, spread into it: how the passes went (null when the
+   * vaults are off), and the keepsake rules store with its ledger builder (null while vaults are off).
+   */
+  playerVaultCtx: {
+    playerVaultHealth: () => PlayerVaultHealth | null;
+    keepsakes: {
+      store: KeepsakeStore;
+      ledgersFor: ((userId: string) => Promise<KeepsakeLedger[]>) | null;
+    };
+  };
   currentRolls: () => {
     rows: ReturnType<typeof buildRollRows>;
     open: ReturnType<typeof openRolls>;
@@ -171,8 +181,13 @@ export function createLiveState(inputs: LiveStateInputs): LiveState {
   }
 
   // O7 player vaults: one kept-current Obsidian vault per player, off unless the folder is set.
+  const keepsakeStore = new KeepsakeStore(
+    config.stateDir ? path.join(config.stateDir, 'player-keepsakes.json') : null,
+    logger.child('keepsakes')
+  );
   const playerVaults = config.playerVaultsDir
     ? new PlayerVaultService({
+        keepsakes: keepsakeStore,
         rootDir: config.playerVaultsDir,
         intervalMs: config.playerVaultIntervalMs ?? 60_000,
         client,
@@ -402,7 +417,15 @@ export function createLiveState(inputs: LiveStateInputs): LiveState {
     recordingHealth: () => recordingHealth,
     stamped,
     currentPlayerState,
-    playerVaultHealth: () => playerVaults?.healthSnapshot() ?? null,
+    playerVaultCtx: {
+      playerVaultHealth: () => playerVaults?.healthSnapshot() ?? null,
+      keepsakes: {
+        store: keepsakeStore,
+        ledgersFor: playerVaults
+          ? (userId: string): Promise<KeepsakeLedger[]> => playerVaults.keepsakesFor(userId)
+          : null,
+      },
+    },
     currentRolls,
     attachPlayerStream,
     themePayload,

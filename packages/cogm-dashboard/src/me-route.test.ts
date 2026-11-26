@@ -281,6 +281,34 @@ describe('/api/me and the player links', () => {
     });
   });
 
+  it('a replaced (stale) key no longer records usage, and a keyed user with no name still counts', async () => {
+    const { base, usage } = await start();
+    const oldKey = keyOf(await makeLink(base, PLAYER));
+    const newKey = keyOf(await makeLink(base, PLAYER));
+    const send = (k: string): Promise<Response> =>
+      fetch(`${base}/api/me/usage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CoGM-Me': k },
+        body: JSON.stringify({
+          events: [
+            {
+              v: 1,
+              key: 'abc:2',
+              t: Date.now(),
+              seq: 2,
+              clientId: 'abc',
+              kind: 'action',
+              name: 'me.print',
+            },
+          ],
+        }),
+      });
+    expect((await send(oldKey)).status).toBe(401);
+    expect(usage).toEqual([]);
+    expect((await send(newKey)).status).toBe(200);
+    expect(usage[0]?.who).toMatchObject({ role: 'player', userId: PLAYER });
+  });
+
   it('rolls for the player through their own key, as that player only', async () => {
     const { base, rolled } = await start();
     const key = keyOf(await makeLink(base, PLAYER));

@@ -103,5 +103,8 @@ $ErrorActionPreference = 'Stop'
 
 # bash -s reads the script from stdin. PowerShell ends piped text with CRLF, so the Pi strips every CR first.
 $script = (Get-Content (Join-Path $PSScriptRoot 'deployed-state.sh') -Raw) -replace "`r`n", "`n"
-$script | ssh $Target "tr -d '\r' | EXPECT_REF=$tag EXPECT_MAIN_AHEAD=$ahead EXPECT_ASSISTANT_GM_SHA256=$sha EXPECT_ASSISTANT_GM_SOURCE='$source' STAGE_FILES_B64=$stageB64 EXPECT_STAGE_SHAS_B64=$stageShasB64 EXPECT_STAGE_MAIN_SHAS_B64=$stageMainB64 EXPECT_STAGE_SOURCE='$stageSource' bash -s"
+# Windows PowerShell can write a UTF-8 BOM into the pipe ($OutputEncoding); bash then reads it as part of the shebang line
+# ("#!/usr/bin/env: No such file or directory"). Write none here, and strip one on the Pi side too.
+$OutputEncoding = New-Object System.Text.UTF8Encoding($false)
+$script | ssh $Target "tr -d '\r' | sed '1s/^\xEF\xBB\xBF//' | EXPECT_REF=$tag EXPECT_MAIN_AHEAD=$ahead EXPECT_ASSISTANT_GM_SHA256=$sha EXPECT_ASSISTANT_GM_SOURCE='$source' STAGE_FILES_B64=$stageB64 EXPECT_STAGE_SHAS_B64=$stageShasB64 EXPECT_STAGE_MAIN_SHAS_B64=$stageMainB64 EXPECT_STAGE_SOURCE='$stageSource' bash -s"
 exit $LASTEXITCODE

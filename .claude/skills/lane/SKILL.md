@@ -88,7 +88,9 @@ scripts/heavy-lock.mjs status`). `SKIP_PREPUSH=1 git push ...` skips the em-dash
 - **One pass:** a risky PR (guarded writes, the write gate, bridge link, security, Pi scripts, wire
   contracts, as the gate decides) gets one Opus pass: a narrow agent in `.claude/agents/`
   (`review-guarded-writes`, `review-wire-contracts`, `review-pi-ci`, `model: "opus"`) or a formal
-  Opus review, not both. Everything else gets a Sonnet review plus CI. The reviewer is a read-only
+  Opus review, not both. A fix round whose patch on Opus-list paths is unchanged since an Opus
+  review (Merge, or fixes naming no Opus-list file; no later Opus veto; main merges and rebases don't count) gets a Sonnet review; the gate checks it.
+  Everything else gets a Sonnet review plus CI. The reviewer is a read-only
   subagent; give it the PR number, the full head sha, the area, a `git diff aitool/main...HEAD`
   file and the PR description, in a checkout at that sha. A narrow agent cannot write files: save
   its answer as the note. A note with only lows says **Merge.**
@@ -114,7 +116,7 @@ scripts/heavy-lock.mjs status`). `SKIP_PREPUSH=1 git push ...` skips the em-dash
   pushed and stop; message nobody. The runner may push a main merge to it: fetch first. The runner gates that head in its own checkout and writes a
   refusal over the line. Plain progress text takes back every line; a ready line for another PR keeps the old one. With the merge queue on, the gate enqueues; a failed queue run needs
   a fresh ready line. Never run the
-  gate without `--dry-run`; don't offer Auto-fix. To check
+  gate without `--dry-run`; don't offer Auto-fix. **After opening the PR:** `bind_pr`, then `set_monitor` on, silently: the app wakes the lane on a conflict, red CI or a runner refusal (also a PR comment); fix it while the cache is warm. To check
   the gate, from the clean, pushed PR branch, run main's copy (never the branch's own):
 
   ```bash

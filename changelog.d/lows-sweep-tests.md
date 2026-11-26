@@ -1,0 +1,3 @@
+### Tests
+
+- **Lows sweep (Tests):** the Pi soak player loop no longer tries the Scenes sidebar tab, which players do not have in Foundry 14. `green --quick` runs the session-notes pytest when `tools/session-notes` or `scripts/voice-stack.ps1` changed. `docs:tools --check` words its failure as "check failed (usually a stale page)", and a relative `TOOL_REFERENCE_DIR` now resolves from where the command runs. `backlog.mjs done --no-pr` refuses `--sha` and `--pi-run`. The session-notes outbox warns when a short Discord note is still over its cap. New tests cover `kit-run --demo-rehearsal`, a real `cutClip` cut (skipped without ffmpeg), the outbox Danish labels, GM note and preview, and the summary-failure gap and reset. The unused `installIsFresh` is gone.

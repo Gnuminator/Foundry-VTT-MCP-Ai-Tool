@@ -197,8 +197,7 @@ function repoRoot() {
  * @returns {string | null}
  */
 export function cleanTreeHash(cwd) {
-  const git = (/** @type {string[]} */ args) =>
-    spawnSync('git', args, { cwd, ...HIDE });
+  const git = (/** @type {string[]} */ args) => spawnSync('git', args, { cwd, ...HIDE });
   const status = git(['status', '--porcelain']);
   if (status.status !== 0 || status.stdout.trim() !== '') return null;
   const tree = git(['rev-parse', 'HEAD^{tree}']);
@@ -416,25 +415,6 @@ export function nodeNote(o = {}) {
   return isSafeNode(version)
     ? `green: steps on Node ${version}`
     : `green: no portable Node 24.22+ found; steps run on Node ${version}`;
-}
-
-/**
- * True when `dir/node_modules/.package-lock.json` was written after `dir/package-lock.json`, so a
- * local `npm ci` would only repeat the same install (10 to 30 s and network). npm writes that file
- * last and `npm ci` deletes node_modules first, so an aborted install usually leaves none. A
- * leftover one from an older install is caught only when the lockfile changed since then; with an
- * unchanged lockfile an old file beside a damaged node_modules still reads as fresh. CI always installs.
- * @param {string} dir
- */
-export function installIsFresh(dir) {
-  try {
-    return (
-      fs.statSync(path.join(dir, 'node_modules', '.package-lock.json')).mtimeMs >
-      fs.statSync(path.join(dir, 'package-lock.json')).mtimeMs
-    );
-  } catch {
-    return false;
-  }
 }
 
 /**
@@ -947,6 +927,14 @@ export function quickSteps(files, cwd = process.cwd()) {
   const tests = [...nodeTests].filter(f => fs.existsSync(path.join(cwd, f))).sort();
   if (tests.length > 0)
     steps.push({ name: 'node-tests', cmd: 'node', args: ['--test', ...tests], env: CI });
+  // CI runs the Python unit tests of tools/*; locally they run only when the session notes or the
+  // voice stack script they ship with changed (python, never python3: the Store stub hangs).
+  if (files.some(f => f.startsWith('tools/session-notes/') || f === 'scripts/voice-stack.ps1'))
+    steps.push({
+      name: 'pytest-session-notes',
+      cmd: 'python',
+      args: ['-m', 'pytest', '-p', 'no:cacheprovider', '-q', 'tools/session-notes'],
+    });
   steps.push(...lineRatchetQuickSteps(files), ...cheapCiQuickSteps(files));
   const webTouched = touchesDashboardWeb(files);
   // Same order as the checks list: usage catalogue after typecheck, bundle budget after the build (dashboard typecheck covers web).

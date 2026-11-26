@@ -72,7 +72,7 @@ def test_depth_is_cached_and_resumes_after_a_limit(session: Path) -> None:
     result2 = Writer(session, again, opts()).run()
     assert result2.depth_missing == 0
     # only the missing scene is written, then the two session-wide layers
-    assert [k for k, _ in again.calls] == ["depth", "characters", "remember"]
+    assert [k for k, _ in again.calls] == ["depth", "characters", "remember", "moment"]
 
 
 def test_a_bad_depth_answer_is_retried_then_left_missing(session: Path) -> None:

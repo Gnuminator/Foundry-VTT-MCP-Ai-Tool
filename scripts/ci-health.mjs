@@ -158,13 +158,60 @@ export function fetchRuns(limit = 1000) {
   });
 }
 
+/** Workflows that run rarely or by hand; their last run is shown under the table. */
+export const OTHER_WORKFLOWS = ['mutation-core', 'pi-images', 'release'];
+
+/** One line: the last conclusion and date of a workflow. @param {string} name @param {{ conclusion?: string, status?: string, createdAt?: string } | undefined} run */
+export function lastRunLine(name, run) {
+  if (!run) return `last ${name}: no run`;
+  const state = run.conclusion || run.status || 'unknown';
+  const date = run.createdAt ? run.createdAt.slice(0, 10) : 'unknown date';
+  return `last ${name}: ${state} (${date})`;
+}
+
+/** The newest run of one workflow, or undefined. @param {string} workflow file stem, without .yml */
+export function fetchLastRun(workflow) {
+  return new Promise((resolve, reject) => {
+    execFile(
+      'gh',
+      [
+        'run',
+        'list',
+        '--repo',
+        REPO,
+        '--workflow',
+        `${workflow}.yml`,
+        '--limit',
+        '1',
+        '--json',
+        'createdAt,status,conclusion',
+      ],
+      { timeout: 60_000, windowsHide: true },
+      (err, stdout) => {
+        if (err) return reject(err);
+        try {
+          resolve(JSON.parse(stdout)[0]);
+        } catch (e) {
+          reject(e);
+        }
+      }
+    );
+  });
+}
+
 export async function main(argv = process.argv.slice(2), out = process.stdout, now = new Date()) {
   const summaries = buildCiHealth(await fetchRuns(), now);
-  out.write(
-    argv.includes('--json')
-      ? `${JSON.stringify(summaries, null, 2)}\n`
-      : `${formatTable(summaries)}\n`
-  );
+  if (argv.includes('--json')) {
+    out.write(`${JSON.stringify(summaries, null, 2)}\n`);
+    return;
+  }
+  /** @type {string[]} */
+  const others = [];
+  for (const w of OTHER_WORKFLOWS) {
+    // A workflow that cannot be read must not hide the table above it.
+    others.push(lastRunLine(w, await fetchLastRun(w).catch(() => undefined)));
+  }
+  out.write(`${formatTable(summaries)}\n${others.join('\n')}\n`);
 }
 
 const self = fileURLToPath(import.meta.url);

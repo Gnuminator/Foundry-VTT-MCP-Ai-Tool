@@ -123,7 +123,7 @@ export class DnD5eAddFeatureTool {
         description:
           'Direct write. D&D 5e only. Add a feature, attack, spellcasting setup or spells to an existing actor. ' +
           'featureType picks the mode. Parameters per mode (all need actor):\n' +
-          '- passive (a trait with no roll): featureName, description\n' +
+          '- passive (a trait with no roll): featureName; description optional\n' +
           '- save (breath weapon): featureName, saveAbility, saveDC, damageParts; area, halfOnSave optional\n' +
           '- attack (Claw, Bite): featureName, attackType, damageParts, rangeFt when ranged; weapon fields optional\n' +
           '- attack-with-save (hit plus save, Stinger): the attack ones plus saveAbility, saveDC, saveDamageParts\n' +
@@ -257,7 +257,7 @@ export class DnD5eAddFeatureTool {
             },
             equipped: {
               type: 'boolean',
-              description: 'Default true.',
+              description: 'Equipped (attacks). Default true.',
             },
             reachFt: {
               type: 'number',

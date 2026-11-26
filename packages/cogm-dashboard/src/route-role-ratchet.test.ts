@@ -44,6 +44,9 @@ const PUBLIC = new Set<string>([
   'GET /api/me/downtime',
   'POST /api/me/downtime',
   'DELETE /api/me/downtime/:id',
+  'GET /api/me/keepsakes',
+  'POST /api/me/keepsakes',
+  'DELETE /api/me/keepsakes/:id',
 ]);
 
 /**

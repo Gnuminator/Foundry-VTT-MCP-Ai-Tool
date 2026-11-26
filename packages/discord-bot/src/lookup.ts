@@ -199,7 +199,10 @@ const SHORT_HEADING = 40;
 
 /** True when every word of `q` appears in `text` (both already normalized). */
 function hasAllWords(text: string, q: string): boolean {
-  return text.includes(q) || q.split(' ').every(w => text.includes(w));
+  const words = text.split(/[^\p{L}\p{N}]+/u);
+  // Whole words only (a word that starts with the query counts, so "grapple" finds "grappling").
+  const wanted = q.split(' ').filter(w => w.length >= 2);
+  return wanted.length > 0 && wanted.every(w => words.some(t => t.startsWith(w)));
 }
 
 /**

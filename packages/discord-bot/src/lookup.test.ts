@@ -84,6 +84,18 @@ describe('rule lookup', () => {
     expect(lookupReply('rule', 'house', null)).toBe(LOOKUP_UNAVAILABLE);
   });
 
+  it('matches whole words, not parts of words', () => {
+    const s = { handouts: [{ id: 'x', title: 'Haunted Mouse', html: '<p>squeak</p>' }] };
+    expect(ruleAnswer(s, 'house')).toBe(NOTHING_FOUND);
+    expect(ruleAnswer(s, 'haunt')).toContain('Haunted Mouse');
+  });
+
+  it('keeps many long matching lines under the cap', () => {
+    const line = `<p>exhaustion ${'y'.repeat(400)}</p>`;
+    const s = { handouts: [{ id: 'l', title: 'Notes', html: line.repeat(8) }] };
+    expect(ruleAnswer(s, 'exhaustion').length).toBeLessThanOrEqual(1800);
+  });
+
   it('stays under the Discord cap', () => {
     const big = {
       handouts: [{ id: 'b', title: 'House rules', html: `<p>${'x '.repeat(3000)}</p>` }],

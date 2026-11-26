@@ -41,7 +41,7 @@ export interface CallCaller {
 type ErrorClass = 'not-connected' | 'timeout' | 'switch-off' | 'validation' | 'other';
 
 /** The text of an error result (what Claude receives), empty when there is none. */
-export function errorText(result: ToolResultLike | undefined): string {
+function errorText(result: ToolResultLike | undefined): string {
   if (!result || !Array.isArray(result.content)) return '';
   return result.content.map(p => (typeof p?.text === 'string' ? p.text : '')).join(' ');
 }
@@ -49,7 +49,12 @@ export function errorText(result: ToolResultLike | undefined): string {
 /** Sort an error message into one of the fixed classes. */
 function classifyError(text: string): ErrorClass {
   // Switches first: "event log is off ... or the Foundry link is disabled" is a switch, not a link.
-  if (/switched off|\bis off\b|turned off|allow write operations/i.test(text)) return 'switch-off';
+  // "cannot be turned off by a plan" is a refusal, not a switch the GM can flip.
+  if (
+    /switched off|\bis off\b|turned off|allow write operations/i.test(text) &&
+    !/cannot be turned off/i.test(text)
+  )
+    return 'switch-off';
   if (/not connected|no foundry connection|link is disabled/i.test(text)) return 'not-connected';
   if (/timed? ?out|no answer in|no answer from|did not answer|connection closed/i.test(text))
     return 'timeout';
@@ -183,6 +188,20 @@ export function buildCallLine(
     ...(ok ? {} : { err: classifyError(errorText(result)) }),
     ...who,
   };
+}
+
+/** The backend log's one warning per failed call: tool and class, plus the message (not in the call log). */
+export function warnFailedCall(
+  logger: { warn: (message: string, meta?: Record<string, unknown>) => void },
+  line: ToolCallLine,
+  result: ToolResultLike | undefined
+): void {
+  if (line.ok) return;
+  logger.warn('Tool call failed', {
+    tool: line.tool,
+    class: line.err,
+    message: errorText(result).slice(0, 500),
+  });
 }
 
 /** Day files older than this are deleted (the usage reports look back weeks, not months). */

@@ -43,6 +43,13 @@ describe('campaign model', () => {
     expect(html).toContain('data-ref="transcript.en#^u000001"');
   });
 
+  it('readSummary edge cases: a page without the language section throws, a bare section reads empty', () => {
+    expect(() => readSummary('', 'da')).toThrow(/Danish section/);
+    expect(
+      readSummary('<section class="campaign-lang" data-lang="da"><p>none</p></section>', 'da')
+    ).toBe('');
+  });
+
   it('escapes text', () => {
     const html = renderNewPage('lore', { summary: { da: '<b>x</b>', en: 'a & b' } });
     expect(html).not.toContain('<b>x</b>');
@@ -159,7 +166,7 @@ describe('planCampaignMerge', () => {
     const parts = await planCampaignMerge(
       [
         { kind: 'npcs', name: 'Aldo', timeline: [{ ...timeline, da: undefined }] },
-        { kind: 'npcs', name: 'Barnoon', nameConfirmed: false },
+        { kind: 'npcs', name: 'Wrenhallow', nameConfirmed: false },
       ],
       readerOf({ npcs: { [id]: html } }),
       opts

@@ -8,6 +8,7 @@ import {
   TOKEN_RINGS_BATCH as SHARED_BATCH,
   TOKEN_RINGS_FEATURE_ID as SHARED_FEATURE,
   TOKEN_RINGS_PLAN_QUERY as SHARED_QUERY,
+  TOKEN_RINGS_STEEL,
 } from '@gnuminator/shared';
 import { createTestWorld, type TestWorld } from './test-support/foundry-mock/index.js';
 import {
@@ -72,13 +73,29 @@ describe('planTokenRings', () => {
         uuid: 'Actor.a1',
         changes: {
           'prototypeToken.ring.enabled': true,
-          'prototypeToken.ring.colors.ring': '#8a8d99',
-          'prototypeToken.ring.colors.background': '#15151b',
-          'prototypeToken.ring.subject.scale': 0.8,
+          'prototypeToken.ring.colors.ring': TOKEN_RINGS_STEEL.ring,
+          'prototypeToken.ring.colors.background': TOKEN_RINGS_STEEL.background,
+          'prototypeToken.ring.subject.scale': TOKEN_RINGS_STEEL.scale,
         },
       },
     ]);
     expect(plan.summary).toContain('steel look');
+    expect(plan.alreadyDone).toBe(1);
+  });
+
+  it('reads a Foundry Color (its .css) as the steel look already in place', () => {
+    world.actors.get('a2')!.prototypeToken = {
+      ring: {
+        enabled: true,
+        colors: {
+          ring: { css: TOKEN_RINGS_STEEL.ring },
+          background: { css: TOKEN_RINGS_STEEL.background },
+        },
+        subject: { scale: TOKEN_RINGS_STEEL.scale },
+      },
+    };
+    const plan = planTokenRings({ action: 'enable', look: 'steel', actorType: 'npc' });
+    expect(plan.ops.map(o => o.uuid)).toEqual(['Actor.a1']);
     expect(plan.alreadyDone).toBe(1);
   });
 

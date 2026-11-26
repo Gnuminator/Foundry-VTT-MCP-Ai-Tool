@@ -131,7 +131,7 @@ export class CharacterDiaryTools {
     );
     if (matches.length > 0) {
       throw new Error(
-        `The diaries name ${matches.map(m => `"${m.term}" (${m.category})`).join(', ')}, which players must not see yet. Reword them.`
+        `The diaries or the session label name ${matches.map(m => `"${m.term}" (${m.category})`).join(', ')}, which players must not see yet. Reword them.`
       );
     }
 

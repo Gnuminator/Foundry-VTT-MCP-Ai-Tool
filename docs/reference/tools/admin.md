@@ -42,7 +42,7 @@ Parameters:
 
 - `action` (string, required): One of: `enable`, `disable`.
 - `tokens` (string): actors (default): the default token of each actor. placed: the tokens already placed on scenes. One of: `actors`, `placed`.
-- `look` (string): With enable: steel also sets the table look (steel ring, dark background, subject scale 0.8). Also plans rings that are on without it. Undo restores the old look. One of: `steel`.
+- `look` (string): With enable: steel also sets the steel look (ring colour, dark background, subject scale 0.8; the fit mode is left as it is). Also plans rings that are on without it. Undo restores the old look. One of: `steel`.
 - `scenes` (array of string): With tokens placed: only these scenes; default all scenes.
 - `actorType` (string): Which actors; default all (characters and NPCs). One of: `all`, `npc`, `character`.
 - `names` (array of string): Only actors with these names.

@@ -4,9 +4,27 @@ import {
   countByCode,
   compilerFailure,
   evaluate,
+  nextBaseline,
   WORKSPACES,
   STRICT_CODES,
 } from './typecheck-tests-ratchet.mjs';
+
+test('nextBaseline: --update refuses a rise, lowers counts, and a first seed may start high', () => {
+  const baseline = { 'packages/x': { TS18046: 10 } };
+  assert.deepEqual(nextBaseline({ 'packages/x': { TS18046: 4 } }, baseline, false), {
+    next: { 'packages/x': { TS18046: 4 } },
+    refusal: null,
+  });
+  assert.equal(
+    nextBaseline({ 'packages/x': { TS18046: 11 } }, baseline, false).refusal,
+    'refusing to raise packages/x TS18046 10 -> 11'
+  );
+  assert.equal(
+    nextBaseline({ 'packages/y': { TS7006: 1 } }, baseline, false).refusal,
+    'refusing to raise packages/y TS7006 0 -> 1'
+  );
+  assert.equal(nextBaseline({ 'packages/y': { TS7006: 1 } }, {}, true).refusal, null);
+});
 
 test('countByCode counts errors per TS code', () => {
   const out = [

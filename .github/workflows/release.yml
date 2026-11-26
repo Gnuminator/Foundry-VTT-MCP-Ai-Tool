@@ -34,6 +34,7 @@ jobs:
   verify:
     name: verify (version, types, lint, build, tests)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
@@ -76,6 +77,7 @@ jobs:
     name: module zip and manifest
     needs: verify
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
@@ -155,6 +157,7 @@ jobs:
     name: standalone bridge zip
     needs: verify
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
@@ -216,6 +219,7 @@ jobs:
     name: player extension and player skill
     needs: verify
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
@@ -258,6 +262,7 @@ jobs:
     name: Windows installer
     needs: verify
     runs-on: windows-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
@@ -321,6 +326,7 @@ jobs:
     needs: [module, bridge, installer, player-files]
     if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     # Waits for the user's Approve in the Actions run (GitHub environment "release"); a tag alone
     # builds but never publishes.
     environment: release

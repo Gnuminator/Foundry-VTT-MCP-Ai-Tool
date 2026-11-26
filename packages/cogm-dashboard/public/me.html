@@ -78,6 +78,35 @@
       </form>
       <ul id="md-list" class="md-list"></ul>
     </details>
+    <details class="me-connector me-diary me-keepsakes no-print" id="me-keepsakes" hidden>
+      <summary>My keepsakes</summary>
+      <p class="muted">
+        A keepsake your character carries that fills itself from what happens at the table: the
+        names of those who went down, a purse, a count of prayers. It shows only what the whole
+        table has seen. The same list is in your vault.
+      </p>
+      <ul id="mk-list" class="md-list"></ul>
+      <form id="mk-form" data-track="me.keepsake.add">
+        <label for="mk-title">Name of the keepsake</label>
+        <input id="mk-title" maxlength="60" placeholder="The book of the names of the dead" />
+        <label for="mk-kind">What it keeps</label>
+        <select id="mk-kind">
+          <option value="names">Names of those who went down</option>
+          <option value="count">A count of one kind of event</option>
+          <option value="purse">Coin won and lost</option>
+        </select>
+        <div id="mk-count" hidden>
+          <label for="mk-event">Count this</label>
+          <select id="mk-event"></select>
+          <label for="mk-unit">What one is called</label>
+          <input id="mk-unit" maxlength="30" placeholder="prayers" />
+        </div>
+        <p>
+          <button type="submit">Add keepsake</button>
+          <span id="mk-status" class="muted" role="status" aria-live="polite"></span>
+        </p>
+      </form>
+    </details>
     <details class="me-connector me-downtime no-print" id="me-downtime">
       <summary>Downtime</summary>
     </details>
@@ -94,8 +123,8 @@
       <div id="mc-remote" hidden>
         <p>
           <strong>The simple way:</strong> in Claude (the website or the app) open Settings,
-          Plugins, Add custom connector, paste this address and press Connect. Sign in with your
-          own email: Cloudflare mails you a code. Nothing to download, no password.
+          Plugins, Add custom connector, paste this address and press Connect. Sign in with your own
+          email: Cloudflare mails you a code. Nothing to download, no password.
         </p>
         <p class="mc-url-row">
           <input id="mc-remote-url" readonly aria-label="Connector address" />

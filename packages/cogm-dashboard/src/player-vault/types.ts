@@ -8,6 +8,7 @@ import type { CharacterSheet, PlayerEvent, PlayerHandout } from '@gnuminator/sha
 
 import type { ThemeId } from '../theme.js';
 
+import type { KeepsakeLedger } from './keepsake.js';
 import type { PlayerStats } from './stats.js';
 
 /** A player of the world (a Foundry user who is not a GM). */
@@ -37,6 +38,8 @@ export interface PlayerVaultInput {
   sessions: VaultSession[];
   /** The allowed-stats slice for this player (`projectPlayStats`), or null when there is none. */
   stats?: PlayerStats | null;
+  /** The player's keepsake ledgers (`buildKeepsakeLedgers`); absent or empty writes no note. */
+  keepsakes?: KeepsakeLedger[];
   /** The world's dashboard theme, and its Obsidian snippet CSS when the build has it (else null). */
   theme: { id: ThemeId; css: string | null };
 }

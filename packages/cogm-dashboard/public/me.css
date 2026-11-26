@@ -694,6 +694,7 @@ body.paper .me-views button[aria-pressed='true'] {
   font-size: 0.85rem;
 }
 .me-diary textarea,
+.me-diary select,
 .me-diary input {
   display: block;
   width: 100%;

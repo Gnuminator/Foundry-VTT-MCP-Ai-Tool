@@ -8,6 +8,7 @@ import type { ReadCache } from '../read-cache.js';
 import type { ThemeStore } from '../theme.js';
 import type { Logger } from '../logger.js';
 import type { BridgeStatus, FeedWorld } from '../feed/types.js';
+import type { KeepsakeLedger, KeepsakeStore } from '../player-vault/keepsake.js';
 import type { PlayerVaultHealth } from '../player-vault/service.js';
 import type { RecordingHealth } from '../recording-health.js';
 import type { SseHub } from '../sse.js';
@@ -52,6 +53,11 @@ export interface RouteContext {
   currentPlayerState(): ReturnType<typeof buildPlayerState>;
   /** How the player vault passes went; null when the player vaults are off. Optional for fixtures. */
   playerVaultHealth?(): PlayerVaultHealth | null;
+  /** Keepsake rules store and ledger builder (`ledgersFor` null while the player vaults are off). */
+  keepsakes?: {
+    store: KeepsakeStore;
+    ledgersFor: ((userId: string) => Promise<KeepsakeLedger[]>) | null;
+  };
   currentRolls(): { rows: ReturnType<typeof buildRollRows>; open: ReturnType<typeof openRolls> };
   attachPlayerStream(res: Response): void;
   themePayload(): { theme: string; themes: readonly string[] };

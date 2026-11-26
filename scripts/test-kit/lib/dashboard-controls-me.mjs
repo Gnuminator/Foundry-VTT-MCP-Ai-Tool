@@ -17,6 +17,8 @@ export const ME_CONTROLS = [
     'me.diary.save',
     'me.diary.edit',
     'me.diary.delete',
+    'me.keepsake.add',
+    'me.keepsake.delete',
     'me.downtime.save',
     'me.downtime.edit',
     'me.downtime.delete',

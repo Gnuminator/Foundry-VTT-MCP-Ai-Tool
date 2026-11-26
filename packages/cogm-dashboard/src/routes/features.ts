@@ -11,6 +11,7 @@ import {
 } from '../client-versions.js';
 import type { DashboardDeps } from '../dashboard-types.js';
 import { DiaryStore } from '../diary-store.js';
+import { mountKeepsakeRoute } from '../keepsake-route.js';
 import { mountDowntimeRoute } from '../downtime-route.js';
 import { gmConnectorFromEnv } from '../gm-connector.js';
 import { mountGmRoute } from '../gm-route.js';
@@ -196,6 +197,16 @@ export function mountMeSpaceVersionRoutes(
     directory,
     worldId: () => ctx.world()?.id ?? null,
   });
+
+  // Keepsake ledgers: a player's own list, filled from the public log (needs the player vaults).
+  if (ctx.keepsakes) {
+    mountKeepsakeRoute(app, {
+      links,
+      worldId: () => ctx.world()?.id ?? null,
+      store: ctx.keepsakes.store,
+      ledgersFor: ctx.keepsakes.ledgersFor,
+    });
+  }
 
   // The storage space check (2026-10-06): GM only; nothing on /player or /me.
   const spaceLogger = logger.child('space');

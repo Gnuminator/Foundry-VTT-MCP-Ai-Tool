@@ -126,7 +126,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     requireGm: createRequireGm(config.auth),
     stamped: live.stamped,
     currentPlayerState: live.currentPlayerState,
-    playerVaultHealth: live.playerVaultHealth,
+    ...live.playerVaultCtx,
     currentRolls: live.currentRolls,
     attachPlayerStream: live.attachPlayerStream,
     themePayload: live.themePayload,

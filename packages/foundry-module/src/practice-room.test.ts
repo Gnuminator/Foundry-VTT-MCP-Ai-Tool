@@ -37,7 +37,7 @@ describe('practice room', () => {
     ]);
     expect(actors[1].data.ownership).toEqual({ default: 0, u1: 3 });
     expect(actors[2].data.ownership).toEqual({ default: 0, u2: 3 });
-    for (const op of plan.ops) expect(op.keepId).toBe(true);
+    for (const op of plan.ops as any[]) expect(op.keepId).toBe(true);
 
     const hero = actors[1].data;
     expect(hero.items.map((i: any) => i.name)).toEqual(['Practice Sword', 'Practice Spark']);

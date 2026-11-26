@@ -15,6 +15,7 @@ import type { Logger } from '../logger.js';
 import { projectEvent } from '../player/projection.js';
 import type { ThemeId } from '../theme.js';
 
+import { buildKeepsakeLedgers, type KeepsakeLedger, type KeepsakeStore } from './keepsake.js';
 import type { PlayerLogStore } from './log-store.js';
 import { renderPlayerVault } from './render.js';
 import type { PlayerVaultInput, VaultPlayer } from './types.js';
@@ -69,6 +70,8 @@ export interface PlayerVaultServiceOptions {
    */
   handoutsReady?: () => boolean;
   theme: (worldId: string) => ThemeId;
+  /** The players' keepsake rules; without it no keepsake notes are written. */
+  keepsakes?: KeepsakeStore;
   /** Folder with `aitool-theme-<id>.css`; default {@link DEFAULT_SNIPPET_DIR}. */
   snippetDir?: string;
   /** How long one `get-play-stats` answer is reused (it rebuilds from the logs); default 5 min. */
@@ -189,6 +192,11 @@ export class PlayerVaultService {
           result.failed.push(player.name);
           continue;
         }
+        const stats = projectPlayStats(
+          rawStats,
+          world.id,
+          sheets.map(s => ({ id: s.id, name: s.name }))
+        );
         const input: PlayerVaultInput = {
           worldTitle: world.title,
           player,
@@ -197,10 +205,11 @@ export class PlayerVaultService {
             .filter(h => !h.players || h.players.includes(player.userId)),
           sheets,
           sessions,
-          stats: projectPlayStats(
-            rawStats,
-            world.id,
-            sheets.map(s => ({ id: s.id, name: s.name }))
+          stats,
+          keepsakes: buildKeepsakeLedgers(
+            this.options.keepsakes?.list(world.id, player.userId) ?? [],
+            sessions,
+            stats
           ),
           theme: { id: theme, css },
         };
@@ -264,6 +273,27 @@ export class PlayerVaultService {
       this.options.logger.warn('Player vault: play stats unavailable', { error: errorText(error) });
     }
     return this.lastStats?.worldId === worldId ? this.lastStats.raw : undefined;
+  }
+
+  /**
+   * One player's keepsake ledgers for `/me`, built from the same public log and allowed stats as
+   * the vault note. Without rules nothing is fetched.
+   */
+  async keepsakesFor(userId: string): Promise<KeepsakeLedger[]> {
+    const world = this.options.world();
+    const rules = world ? (this.options.keepsakes?.list(world.id, userId) ?? []) : [];
+    if (!world || rules.length === 0) return [];
+    let stats = null;
+    if (rules.some(r => r.kind === 'purse')) {
+      const sheets = (await this.sheets(userId)) ?? [];
+      const raw = await this.playStats(world.id);
+      stats = projectPlayStats(
+        raw,
+        world.id,
+        sheets.map(s => ({ id: s.id, name: s.name }))
+      );
+    }
+    return buildKeepsakeLedgers(rules, this.options.store.sessions(world.id), stats);
   }
 
   /** The player's own sheets, or null when the bridge could not answer. */

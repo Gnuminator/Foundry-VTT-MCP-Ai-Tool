@@ -29,7 +29,7 @@ export const MAX_AGE_DAYS = 14;
 
 export function loadStates(env = process.env, now = Date.now()) {
   const dir = stateDirFor(env);
-  let names = [];
+  let names;
   try {
     names = readdirSync(dir).filter(n => n.endsWith('.json'));
   } catch {

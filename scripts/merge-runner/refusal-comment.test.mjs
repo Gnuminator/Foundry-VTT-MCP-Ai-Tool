@@ -54,6 +54,18 @@ test('local absolute paths in the reason are cut to their last segment', () => {
   assert.doesNotMatch(body, /bob|AppData|home/);
 });
 
+test('a URL in the reason comes through unchanged', () => {
+  const f = fake();
+  const url = 'https://github.com/o/r/actions/runs/123';
+  commentRefusal(f.d, 'o/r', { pr: 5, head: HEAD }, `visual: rerun it (${url})`);
+  assert.ok(
+    f.calls
+      .find(a => a[1] === 'comment')
+      .at(-1)
+      .includes(`(${url})`)
+  );
+});
+
 test('a failing gh never throws', () => {
   const d = { log: () => {}, gh: () => ({ status: 1, stdout: '' }) };
   assert.equal(commentRefusal(d, 'o/r', { pr: 5, head: HEAD }, 'x'), false);

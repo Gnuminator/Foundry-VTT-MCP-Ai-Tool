@@ -19,7 +19,10 @@ const oneLine = (s, max) => String(s).replace(/\s+/g, ' ').trim().slice(0, max);
  * @param {string} s
  */
 export const noPaths = s =>
-  s.replace(/(?:[A-Za-z]:[\\/]|\/(?:home|Users|tmp|var)\/)[^\s)]*[\\/]([^\s\\/)]+)/g, '$1');
+  s.replace(
+    /(?:(?<![A-Za-z0-9])[A-Za-z]:[\\/]|\/(?:home|Users|tmp|var)\/)[^\s)]*[\\/]([^\s\\/)]+)/g,
+    '$1'
+  );
 
 /**
  * @param {{ gh: (args: string[]) => { status: number, stdout: string }, log: (l: string) => void }} d

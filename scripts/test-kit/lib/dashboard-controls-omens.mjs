@@ -12,4 +12,14 @@ export const OMENS_CONTROLS = [
   { name: 'dash.drafts.save', how: 'write', why: 'saves the edited text and whisper target' },
   { name: 'dash.drafts.discard', how: 'write', why: 'throws a drafted text away' },
   { name: 'dash.drafts.reopen', how: 'write', why: 'puts a discarded or stuck draft back' },
+  // Who knows what and the whisper desk (item secret-ledger-whispers).
+  { name: 'dash.ledger.add', how: 'write', why: 'saves a secret and who knows it in the ledger' },
+  { name: 'dash.ledger.remove', how: 'write', why: 'removes a line from the ledger' },
+  { name: 'dash.live.whisper-toggle', how: 'skip', why: 'opens the whisper box on the strip' },
+  {
+    name: 'dash.live.whisper-send',
+    how: 'write',
+    why: 'whispers to a player in Foundry and Discord',
+  },
+  { name: 'dash.readaloud.knows', how: 'skip', why: 'opens the who-knows editor of a page' },
 ];

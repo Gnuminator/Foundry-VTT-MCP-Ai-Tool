@@ -34,6 +34,7 @@ import { npcTurnModule } from './modules/npc-turn.js';
 import { obsidianMirrorModule } from './modules/obsidian-mirror.js';
 import { draftsModule } from './modules/drafts.js';
 import { omensModule } from './modules/omens.js';
+import { secretLedgerModule } from './modules/secret-ledger.js';
 import { ownershipModule } from './modules/ownership.js';
 import { characterDiariesModule } from './modules/character-diaries.js';
 import { paperSyncModule } from './modules/paper-sync.js';
@@ -123,6 +124,7 @@ export const TOOL_MODULES: readonly AnyToolModule[] = [
   preflightModule,
   prepDigestModule,
   readAloudModule,
+  secretLedgerModule,
   partyModule,
   livePlayModule,
   sceneChangeModule,

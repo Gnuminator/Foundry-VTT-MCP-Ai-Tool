@@ -13,6 +13,8 @@ interface OmenToSend {
   id: string;
   discordId: string;
   text: string;
+  /** 'whisper' for a line from the whisper desk; absent for an omen. */
+  kind?: string;
 }
 
 interface OmensPostOptions {
@@ -27,8 +29,10 @@ interface OmensPostOptions {
 }
 
 /** What the player sees: the omen text under a one-line heading. */
-export function omenMessage(text: string): string {
-  return `**An omen for you**\n\n${text}`;
+export function omenMessage(text: string, kind?: string): string {
+  return kind === 'whisper'
+    ? `**A whisper from your GM**\n\n${text}`
+    : `**An omen for you**\n\n${text}`;
 }
 
 export function createOmensPoster(options: OmensPostOptions): () => Promise<number> {
@@ -64,7 +68,7 @@ export function createOmensPoster(options: OmensPostOptions): () => Promise<numb
         let ok = false;
         let error = 'Discord did not take the message';
         try {
-          ok = await options.send(omen.discordId, omenMessage(omen.text));
+          ok = await options.send(omen.discordId, omenMessage(omen.text, omen.kind));
         } catch (err) {
           error = (err as Error).message;
           options.log?.(`Omens: could not send omen ${omen.id} (${error})`);

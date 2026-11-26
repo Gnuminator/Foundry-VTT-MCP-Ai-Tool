@@ -285,6 +285,14 @@
   color: var(--text-mid);
   overflow-wrap: anywhere;
 }
+.knows-chip {
+  display: inline-block;
+  padding: 0 0.45rem;
+  border: 1px solid var(--text-mid);
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  color: var(--text-mid);
+}
 .pf-manual {
   display: flex;
   gap: 0.55rem;

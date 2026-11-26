@@ -31,6 +31,10 @@ export interface DashboardClient {
   recordHandoutSeen?(pageId: string, userId: string, name: string): Promise<{ recorded: boolean }>;
   /** Omens by post (I-181): list, decide and send steps; absent on fakes and old backends. */
   omens?(action: string, params?: Record<string, unknown>): Promise<unknown>;
+  /** Who knows what (secret ledger): list, add, change and remove; absent on fakes and old backends. */
+  ledger?(action: string, params?: Record<string, unknown>): Promise<unknown>;
+  /** The whisper desk: a Foundry whisper, a Discord message and a ledger entry; absent on fakes and old backends. */
+  whisper?(params: { userId: string; name: string; text: string }): Promise<unknown>;
   /** Draft tray (I-069): list, edit, discard, reopen and publish; absent on fakes and old backends. */
   drafts?(action: string, params?: Record<string, unknown>): Promise<unknown>;
   /** The live write sweep's helper (I-016; test world only); absent on fakes. */

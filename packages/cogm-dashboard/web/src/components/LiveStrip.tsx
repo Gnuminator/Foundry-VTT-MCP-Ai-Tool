@@ -63,6 +63,7 @@ import styles from './LiveStrip.module.css';
 // The picker and the Damage / Heal form are lazy chunks, as on the combat strip (bundle budget).
 const StartCombat = lazy(() => import('./StartCombat').then(m => ({ default: m.StartCombat })));
 const DamageForm = lazy(() => import('./DamageForm').then(m => ({ default: m.DamageForm })));
+const WhisperDesk = lazy(() => import('./WhisperDesk').then(m => ({ default: m.WhisperDesk })));
 const MonsterActions = lazy(() =>
   import('./MonsterActions').then(m => ({ default: m.MonsterActions }))
 );
@@ -781,6 +782,9 @@ export function LiveStrip(): JSX.Element {
           {nextHandout ? (nextHandout.title ?? 'Untitled') : 'Nothing queued.'}
         </span>
       </div>
+      <Suspense fallback={null}>
+        <WhisperDesk />
+      </Suspense>
     </section>
   );
 }

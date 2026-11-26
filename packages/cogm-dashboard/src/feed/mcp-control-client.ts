@@ -207,6 +207,16 @@ export class McpControlClient extends EventEmitter {
     return this.send('drafts', { ...params, action }, action === 'publish' ? 40_000 : undefined);
   }
 
+  /** Who knows what (secret ledger). An old backend answers "Unknown method" (a ChannelError). */
+  async ledger(action: string, params: Record<string, unknown> = {}): Promise<unknown> {
+    return this.send('ledger', { ...params, action });
+  }
+
+  /** The whisper desk. Waits longer than a read: the backend waits on Foundry for up to 30 s. */
+  async whisper(params: { userId: string; name: string; text: string }): Promise<unknown> {
+    return this.send('whisper', params, 40_000);
+  }
+
   /** Omens by post (I-181). An old backend answers "Unknown method" (a ChannelError). */
   async omens(action: string, params: Record<string, unknown> = {}): Promise<unknown> {
     return this.send('omens', { ...params, action });

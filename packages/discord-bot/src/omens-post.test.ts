@@ -83,4 +83,25 @@ describe('omens poster', () => {
     expect(await check()).toBe(0);
     expect(log).toHaveBeenCalledTimes(1);
   });
+
+  it('heads a whisper from the whisper desk as a whisper, not an omen', async () => {
+    const fetchFn = vi.fn(async (url: string) => {
+      const path = url.replace('http://dash', '');
+      if (path === '/api/omens/outbox') return reply({ items: [{ id: 'w1' }] });
+      if (path === '/api/omens/claim') {
+        return reply({ item: { id: 'w1', discordId: '2', text: 'Psst', kind: 'whisper' } });
+      }
+      return reply({});
+    });
+    const send = vi.fn(async () => true);
+    const check = createOmensPoster({
+      dashboardUrl: 'http://dash',
+      gmToken: 't',
+      send,
+      fetch: fetchFn as unknown as typeof fetch,
+    });
+    expect(await check()).toBe(1);
+    expect(send).toHaveBeenCalledWith('2', '**A whisper from your GM**\n\nPsst');
+    expect(omenMessage('Hi')).toBe('**An omen for you**\n\nHi');
+  });
 });

@@ -114,7 +114,7 @@ scripts/heavy-lock.mjs status`). `SKIP_PREPUSH=1 git push ...` skips the em-dash
   pushed and stop; message nobody. The runner may push a main merge to it: fetch first. The runner gates that head in its own checkout and writes a
   refusal over the line. Plain progress text takes back every line; a ready line for another PR keeps the old one. With the merge queue on, the gate enqueues; a failed queue run needs
   a fresh ready line. Never run the
-  gate without `--dry-run`; don't offer Auto-fix. **Right after opening the PR:** `mcp__ccd_pr__bind_pr`, then `mcp__ccd_pr__set_monitor` on, silently (no card, no question): the app then wakes this lane on a conflict, red CI or a runner refusal, which the runner also writes as one PR comment per head; fix that turn at once, while the cache is warm. To check
+  gate without `--dry-run`; don't offer Auto-fix. **After opening the PR:** `bind_pr`, then `set_monitor` on, silently: the app wakes the lane on a conflict, red CI or a runner refusal (also a PR comment); fix it while the cache is warm. To check
   the gate, from the clean, pushed PR branch, run main's copy (never the branch's own):
 
   ```bash

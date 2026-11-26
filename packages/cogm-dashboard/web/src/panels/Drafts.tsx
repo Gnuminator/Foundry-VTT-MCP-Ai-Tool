@@ -123,12 +123,19 @@ export function DraftsSection({ open }: { open: boolean }): JSX.Element {
       text,
       whisperTo: whisper[draft.id] ?? draft.whisperTo ?? '',
     });
-    if (ok) {
-      setEditing(e => {
-        const { [draft.id]: _gone, ...rest } = e;
-        return rest;
-      });
-    }
+    if (ok) endEdit(draft.id);
+  }
+
+  /** Close the editor and forget its Send to pick, so the next Edit starts from the draft. */
+  function endEdit(id: string): void {
+    setEditing(e => {
+      const { [id]: _gone, ...rest } = e;
+      return rest;
+    });
+    setWhisper(w => {
+      const { [id]: _gone, ...rest } = w;
+      return rest;
+    });
   }
 
   return (
@@ -241,16 +248,7 @@ export function DraftsSection({ open }: { open: boolean }): JSX.Element {
                     >
                       Save
                     </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={() =>
-                        setEditing(s => {
-                          const { [draft.id]: _gone, ...rest } = s;
-                          return rest;
-                        })
-                      }
-                    >
+                    <Button type="button" size="sm" onClick={() => endEdit(draft.id)}>
                       Cancel
                     </Button>
                   </>

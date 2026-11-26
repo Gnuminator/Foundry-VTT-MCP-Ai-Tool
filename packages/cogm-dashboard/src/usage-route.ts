@@ -136,6 +136,8 @@ export interface UsageRouteOptions {
   requireGm: (req: Request, res: Response, next: () => void) => void;
   /** The user a `/me` private key belongs to in the live world, or null (item me-usage-tracking). */
   meUserFor?: (key: string | undefined) => string | null;
+  /** True when no world is live but the key belongs to a known link: the table is closed (503), not a bad link. */
+  meTableClosed?: (key: string | undefined) => boolean;
 }
 
 /** Mount the usage routes. Call before the app-wide JSON parser: these parse their own body. */
@@ -202,21 +204,41 @@ export function mountUsageRoute(app: Express, options: UsageRouteOptions): void 
     });
   });
 
-  app.post('/api/me/usage', parseBody, (req: Request, res: Response) => {
-    const raw = req.headers['x-cogm-me'];
-    const key = Array.isArray(raw) ? raw[0] : raw;
-    const userId = options.meUserFor?.(key) ?? null;
-    if (!userId) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
+  // The key check runs before the body is parsed (an unknown key costs no parsing). A closed table
+  // answers 503, so usage.js keeps the events and sends them later; a bad key is a 401 and dropped.
+  app.post(
+    '/api/me/usage',
+    (req: Request, res: Response, next: () => void) => {
+      const raw = req.headers['x-cogm-me'];
+      const key = Array.isArray(raw) ? raw[0] : raw;
+      const userId = options.meUserFor?.(key) ?? null;
+      if (!userId) {
+        if (options.meTableClosed?.(key)) {
+          res.status(503).json({ error: 'The table is not open right now. Try again later.' });
+        } else {
+          res.status(401).json({ error: 'Unauthorized' });
+        }
+        return;
+      }
+      res.locals.meUserId = userId;
+      next();
+    },
+    parseBody,
+    (req: Request, res: Response) => {
+      const userId = String(res.locals.meUserId);
+      void directory
+        .refreshIfStale()
+        .catch(() => undefined)
+        .then(() => {
+          // A keyed user the directory has not seen still counts, by id and without a name.
+          const known = directory.get(userId);
+          return respond(res, req.body, {
+            surface: 'player',
+            who: { role: 'player', userId, name: known?.name ?? null },
+          });
+        });
     }
-    void directory
-      .refreshIfStale()
-      .catch(() => undefined)
-      .then(() =>
-        respond(res, req.body, { surface: 'player', who: playerWho({ userId }, directory) })
-      );
-  });
+  );
 
   app.get('/api/player/names', playerAuth, (_req: Request, res: Response) => {
     void directory

@@ -170,7 +170,8 @@ const BASIC_ACTIONS = [
 
 /** Known class features: [name pattern, group, one short line]. */
 const FEATURE_COSTS = [
-  [/^channel divinity/i, 'action', 'Spend a use: Divine Spark or Turn Undead.'],
+  // Only the base feature (not subclass options such as "Channel Divinity: Path to the Grave").
+  [/^channel divinity\s*(\(.*\))?$/i, 'action', 'Spend a use: Divine Spark or Turn Undead.'],
   [/^(divine spark|turn undead)/i, 'action', 'Channel Divinity option.'],
   [/^second wind/i, 'bonus', 'Heal 1d10 + your level.'],
   [/^action surge/i, 'free', 'Take one extra action this turn.'],

@@ -11,7 +11,9 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { DiaryStore } from './diary-store.js';
 import { mountMeRoute } from './me-route.js';
 import type { PlayerLinkStore } from './player-links.js';
-import type { PlayerDirectory } from './usage-route.js';
+import type { Config } from './config.js';
+import type { Logger } from './logger.js';
+import { PlayerDirectory, mountUsageRoute } from './usage-route.js';
 
 const KNOWN = 'k'.repeat(24);
 const UNKNOWN = 'u'.repeat(24);
@@ -52,6 +54,9 @@ const ROUTES: Array<[string, string, string]> = [
   ['diary', 'GET', '/api/me/diary'],
   ['roll', 'POST', '/api/me/roll'],
   ['portrait', 'POST', '/api/me/portrait'],
+  ['helper', 'GET', '/api/me/helper.mcpb'],
+  ['diary add', 'POST', '/api/me/diary'],
+  ['diary delete', 'DELETE', '/api/me/diary/abc'],
 ];
 
 describe('My character with the table closed', () => {
@@ -74,6 +79,29 @@ describe('My character with the table closed', () => {
       expect(((await bad.json()) as { code: string }).code).toBe('no-link');
     });
   }
+
+  it('usage: a known key gets 503 (the page keeps its events), an unknown key 401', async () => {
+    const app = express();
+    mountUsageRoute(app, {
+      config: {} as unknown as Config,
+      client: {},
+      logger: { debug: (): void => undefined, warn: (): void => undefined } as unknown as Logger,
+      directory: new PlayerDirectory({}, {} as unknown as Logger),
+      requireGm: (_req, _res, next) => next(),
+      meUserFor: () => null,
+      meTableClosed: key => key === KNOWN,
+    });
+    await new Promise<void>(r => (server = app.listen(0, '127.0.0.1', () => r())));
+    const base = `http://127.0.0.1:${(server!.address() as AddressInfo).port}`;
+    const send = (key: string): Promise<Response> =>
+      fetch(`${base}/api/me/usage`, {
+        method: 'POST',
+        headers: { 'X-CoGM-Me': key, 'Content-Type': 'application/json' },
+        body: '{"events":[]}',
+      });
+    expect((await send(KNOWN)).status).toBe(503);
+    expect((await send(UNKNOWN)).status).toBe(401);
+  });
 
   it('with the table open an unknown key is still 401', async () => {
     const base = await start(true);

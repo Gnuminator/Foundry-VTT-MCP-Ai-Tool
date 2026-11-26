@@ -20,6 +20,7 @@ import {
   acquireLock,
   announceSource,
   carriedReviews,
+  fixRoundRelief,
   defaultAnnounce,
   defaultRun,
   entryDecision,
@@ -3809,6 +3810,34 @@ test('carry (5): an Opus-required PR with a carried Sonnet note still refuses', 
   const v = judgeReviews(veto, C, true, carriedReviews(r.run, veto, C));
   assert.equal(v.ok, false);
   assert.match(v.detail, /says "Do not merge\." for head .* \(verdict carried from /);
+});
+
+test('fix round: a fix off the Opus list needs only a Sonnet Merge, a risky file in the fix needs Opus', () => {
+  const r = carryRepo();
+  const opus = [reviewed(r.B, true, '**Fixes first.** One medium.')];
+  // the fix touches a non-risky file; main moves on and is merged in cleanly after it
+  r.write('a.txt', [...r.lines, 'fix']);
+  r.commit('fix');
+  const M1 = mainMovesOn(r);
+  r.g('merge', '-q', '--no-edit', 'main');
+  r.setMain(M1);
+  const C = r.g('rev-parse', 'HEAD');
+  const notes = [...opus, reviewed(C)];
+  const relief = fixRoundRelief(r.run, notes, C);
+  assert.deepEqual(relief, { relief: true, from: r.B, files: ['a.txt'] });
+  assert.equal(judgeReviews(notes, C, false).ok, true);
+  assert.equal(judgeReviews(notes, C, true).ok, false, 'without the relief Sonnet is refused');
+  // a risky file in the fix: no relief
+  fs.mkdirSync(path.join(r.dir, 'scripts', 'pi'), { recursive: true });
+  r.write('scripts/pi/x.sh', ['echo hi']);
+  const D = r.commit('risky fix');
+  const hit = fixRoundRelief(r.run, [...opus, reviewed(D)], D);
+  assert.equal(hit.relief, false);
+  assert.match(/** @type {{ why: string }} */ (hit).why, /touches scripts\/pi\/x\.sh/);
+  // no earlier Opus review: no relief
+  assert.equal(fixRoundRelief(r.run, [reviewed(r.B), reviewed(C)], C).relief, false);
+  // a Sonnet-only first pass of a risky PR gets no relief either
+  assert.equal(fixRoundRelief(r.run, [reviewed(C)], C).relief, false);
 });
 
 test('carry: any error carries nothing (unknown commit, shallow clone, old git, no main)', () => {

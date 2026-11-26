@@ -8,7 +8,8 @@
  *   node scripts/review-note.mjs <PR> --verdict merge|fixes|no --model opus|sonnet --body FILE
  *     [--round N] [--head SHA] [--vault DIR] [--no-commit] [--dry-run]
  *
- * It refuses `--model sonnet` when the gate calls the PR risky (an Opus review is required).
+ * It refuses `--model sonnet` when the gate calls the PR risky (an Opus review is required), except
+ * for a fix round whose change since the Opus-reviewed commit touches no Opus-list path.
  * Tests: scripts/review-note.test.mjs. The pure parts (noteName, finishNote, buildNote) are exported.
  */
 import fs from 'node:fs';
@@ -16,7 +17,13 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { parseReviewNote, riskyHits } from './lane-merge.mjs';
+import {
+  parseReviewNote,
+  riskyHits,
+  findReviewNotes,
+  fixRoundRelief,
+  defaultRun,
+} from './lane-merge.mjs';
 
 /** The verdicts the gate accepts, lower case, without the full stop. */
 export const VERDICTS = ['merge', 'merge after fixes', 'do not merge'];
@@ -169,10 +176,14 @@ export function parseArgs(argv, env = process.env) {
   return /** @type {typeof o & { verdict: keyof typeof VERDICT_FLAGS, model: 'opus' | 'sonnet', body: string }} */ (o);
 }
 
-/** The refusal for a Sonnet stamp on a risky PR, else null. @param {'opus' | 'sonnet'} model @param {string[]} files */
-export function modelRefusal(model, files) {
+/**
+ * The refusal for a Sonnet stamp on a risky PR, else null. `fixRound` is true when the gate would
+ * accept Sonnet for this head: a fix round whose change since an Opus-reviewed commit is off the Opus list.
+ * @param {'opus' | 'sonnet'} model @param {string[]} files @param {boolean} [fixRound]
+ */
+export function modelRefusal(model, files, fixRound = false) {
   const hits = riskyHits(files);
-  if (model === 'sonnet' && hits.length > 0) {
+  if (model === 'sonnet' && hits.length > 0 && !fixRound) {
     return `PR is risky (${hits.map(h => h.name).join(', ')}: ${hits[0].file}); the gate needs an Opus review, so --model opus (npm run lane:risky prints the list)`;
   }
   return null;
@@ -249,7 +260,12 @@ export function main(argv) {
   if (o.head && o.head !== sha) {
     throw new Error(`PR #${o.pr} head is ${sha.slice(0, 8)} on GitHub, not ${o.head.slice(0, 8)}; review the new head`);
   }
-  const refusal = modelRefusal(o.model, changedFiles(o.pr, sha));
+  const files = changedFiles(o.pr, sha);
+  const fixRound =
+    o.model === 'sonnet' &&
+    riskyHits(files).length > 0 &&
+    fixRoundRelief(defaultRun, findReviewNotes(o.vault, o.pr) ?? [], sha).relief;
+  const refusal = modelRefusal(o.model, files, fixRound);
   if (refusal) throw new Error(refusal);
   const handoff = path.join(o.vault, 'Dev', 'Foundry AI Tool', 'Handoff');
   if (!o.noCommit && !o.dryRun) syncVault(o.vault);

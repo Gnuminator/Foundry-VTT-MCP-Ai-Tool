@@ -19,6 +19,7 @@ import {
   queueQuery,
 } from './constants.mjs';
 import { riskyHits, isTrainRelevant } from './risky.mjs';
+import { fixRoundNeedsOpus } from './fix-round.mjs';
 import {
   findReviewNotes,
   reviewNamingRule,
@@ -444,7 +445,11 @@ export function main(options = {}) {
       );
     }
   } else {
-    const verdict = judgeReviews(reviews, head, hits.length > 0, carry, n);
+    // A fix round whose change since the Opus-reviewed commit is off the Opus list needs only Sonnet.
+    const fix = hits.length > 0 ? fixRoundNeedsOpus(run, reviews, head) : null;
+    if (fix?.notice) notes.push(fix.notice);
+    const needOpus = hits.length > 0 && (fix?.needOpus ?? true);
+    const verdict = judgeReviews(reviews, head, needOpus, carry, n);
     if (verdict.ok && verdict.carriedFrom?.length) {
       carriedFrom = verdict.carriedFrom;
       notes.push(

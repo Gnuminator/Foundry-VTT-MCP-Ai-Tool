@@ -111,6 +111,9 @@ function run(opts = {}) {
     SYSTEMCTL: systemctl,
     DOCKER: dockerPath,
     LDCONFIG: ldconfig,
+    JOURNALCTL: opts.journal
+      ? stub(path.join(root, 'bin'), 'journalctl', `echo "journalctl $1" >> "$CALL_LOG"\nprintf '${opts.journal}'`)
+      : path.join(root, 'bin', 'no-journalctl'),
     ...(opts.expect ?? {}),
   };
   const r = spawnSync('bash', [script], { encoding: 'utf8', env });
@@ -186,6 +189,18 @@ describe('deployed-state.sh', { skip: noBash }, () => {
     assert.equal(night.code, 0);
     assert.match(night.out, /ok: foundry-ai-tool-gm-browser\.service is active, 7 restart/);
     assert.doesNotMatch(night.out, /WARNING: foundry-ai-tool-gm-browser/);
+    // A slow loop at other times plus the backup restart is not routine: the journal shows restarts outside the window.
+    const mixed = run({
+      units: { [gm]: { active: 'active', sub: 'running', restarts: 3, since: 'Tue 2026-11-24 04:31:16 CET' } },
+      journal:
+        '2026-11-22T13:05:01+0100 pi systemd[1]: gm-browser.service: Scheduled restart job, restart counter is at 1.\\n2026-11-24T04:30:50+0100 pi systemd[1]: gm-browser.service: Scheduled restart job, restart counter is at 3.\\n',
+    });
+    assert.match(mixed.out, /WARNING: foundry-ai-tool-gm-browser\.service is active but restarted 3 time.*1 of them/);
+    const nightly = run({
+      units: { [gm]: { active: 'active', sub: 'running', restarts: 2, since: 'Tue 2026-11-24 04:31:16 CET' } },
+      journal: '2026-11-23T04:30:50+0100 pi systemd[1]: x: Scheduled restart job, restart counter is at 1.\\n',
+    });
+    assert.match(nightly.out, /ok: foundry-ai-tool-gm-browser\.service is active, 2 restart/);
     // A restart at another time of day keeps the old rule: warn from one, fail from five.
     const day = run({ units: { [gm]: { active: 'active', sub: 'running', restarts: 2, since: 'Tue 2026-11-24 14:10:00 CET' } } });
     assert.match(day.out, /WARNING: foundry-ai-tool-gm-browser\.service is active but restarted 2 time/);
@@ -342,7 +357,7 @@ describe('deployed-state.sh', { skip: noBash }, () => {
       run({ containers: {}, dockerActive: false }),
       run({ containers: {}, dockerPsFails: true }),
     ];
-    const allowed = new Set(['systemctl show', 'systemctl is-active', 'docker ps', 'docker inspect']);
+    const allowed = new Set(['systemctl show', 'systemctl is-active', 'docker ps', 'docker inspect', 'journalctl -u']);
     const seen = runs.flatMap(r => r.calls);
     for (const call of seen) assert.ok(allowed.has(call), `not read-only: ${call}`);
     assert.ok(seen.includes('docker inspect') && seen.includes('systemctl show'), 'the recorder saw nothing useful');

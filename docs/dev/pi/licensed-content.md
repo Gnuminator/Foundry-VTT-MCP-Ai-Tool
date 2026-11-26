@@ -408,7 +408,7 @@ turns up (it never kills a process).
 
 Stage 11 needs a world bundle from `push-world.ps1`, even to set one setting in a kept world. For the live
 `curse-of-strahd` that is the wrong route: `push-world.ps1` refuses the PC copy (the Pi's copy is the truth, and the
-PC copy has `racooze-map-library` active, which the Pi does not have, with its map files outside the bundle roots).
+PC copy's `racooze-map-library` map files lie outside the bundle roots, so the two copies differ).
 Stage 37 (`scripts/pi/remote/37-world-switches.sh`) sets world switches in the running world from the Pi itself: it
 joins as the GM with the login in `/etc/foundry-ai-tool/world-<world>.env` and uses the same driver as stage 11
 (`world-switches.mjs`), narrowed to the named entries. Nothing else changes: no world files, modules or units.

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { KitToolError } from '../lib/errors.mjs';
 import { createPiSoakGuard } from '../lib/pi-soak-guard.mjs';
 import {
   buildRecord,
@@ -26,7 +27,7 @@ function fake({ world = 'strahd-kit', risk = 'safe', undoFails = false, applyFai
       if (name === 'get-world-info') return { id: state.world };
       if (name === 'plan-actor-change') return { planId: 'p1', risk };
       if (name === 'apply-planned-change') {
-        if (applyFails) throw new Error('POST /api/tool timed out');
+        if (applyFails) throw applyFails instanceof Error ? applyFails : new Error('POST /api/tool timed out');
         return { changeId: 'c1' };
       }
       if (name === 'undo-change') {
@@ -143,6 +144,24 @@ test('soak guard: an apply that fails in transit is reported as possibly applied
   );
   assert.equal(g.stranded.length, 1);
   assert.match(g.stranded[0], /possibly applied, plan p1/);
+});
+
+test('soak guard: a 4xx refusal on apply is a refusal, not possibly applied', async () => {
+  const { dashboard } = fake({
+    applyFails: new KitToolError({ kind: 'bad-request', status: 400, error: 'no such plan', name: 'apply-planned-change' }),
+  });
+  const g = createPiSoakGuard(dashboard, { world: 'strahd-kit', allowWrites: true });
+  await assert.rejects(
+    g.damageRoundTrip({ target: 'G', action: 'damage', amount: 1 }),
+    /was refused .*nothing was applied/
+  );
+  assert.deepEqual(g.stranded, []);
+  const five = fake({
+    applyFails: new KitToolError({ kind: 'x', status: 502, error: 'bad gateway', name: 'apply-planned-change' }),
+  });
+  const g5 = createPiSoakGuard(five.dashboard, { world: 'strahd-kit', allowWrites: true });
+  await assert.rejects(g5.damageRoundTrip({ target: 'G', action: 'damage', amount: 1 }), /failed in transit/);
+  assert.equal(g5.stranded.length, 1);
 });
 
 test('evaluate: writes asked for but none measured fail the write bar', () => {

@@ -17,7 +17,7 @@
  * more than `maxWrites` writes in all, or any write unless the runner was started with `--writes`.
  */
 import { createPiGuard } from './pi-guard.mjs';
-import { EnvError } from './errors.mjs';
+import { EnvError, KitToolError } from './errors.mjs';
 
 export const SOAK_PLAN_TOOL = 'plan-actor-change';
 export const SOAK_ACTIONS = new Set(['damage', 'healing']);
@@ -103,6 +103,18 @@ export function createPiSoakGuard(
           { confirm: true }
         );
       } catch (e) {
+        // A 4xx answer (or an EnvError such as a missing GM token) is a refusal: the change was not applied.
+        if (
+          e instanceof EnvError ||
+          (e instanceof KitToolError &&
+            typeof e.status === 'number' &&
+            e.status >= 400 &&
+            e.status < 500)
+        ) {
+          throw new EnvError(
+            `REFUSED: pi soak write: the apply of plan ${plan.planId} was refused (${e.message}); nothing was applied`
+          );
+        }
         // The request went out: the change may be applied with nobody to undo it.
         stranded.push(`possibly applied, plan ${plan.planId} (check list-changes)`);
         throw new EnvError(

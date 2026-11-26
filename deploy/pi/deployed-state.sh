@@ -28,6 +28,7 @@ set -uo pipefail
 TOOL_DIR="${TOOL_DIR:-/opt/foundry-ai-tool}"
 TOOL_ETC="${TOOL_ETC:-/etc/foundry-ai-tool}"
 SYSTEMCTL="${SYSTEMCTL:-systemctl}"
+JOURNALCTL="${JOURNALCTL:-journalctl}"
 DOCKER="${DOCKER:-docker}"
 LDCONFIG="${LDCONFIG:-ldconfig}"
 COMPOSE_PROJECT="${COMPOSE_PROJECT:-foundry-ai-tool-pi}"
@@ -121,9 +122,25 @@ else
   fi
 fi
 
+# NRestarts is cumulative since the last manual start, so a slow loop at other times of day plus one backup restart
+# would still read as routine by the start time alone. The journal's "Scheduled restart job" lines (one per automatic
+# restart, logged when systemd schedules it, so at the backup stop for a routine one) tell them apart: this counts
+# those of the last 7 days that fall outside the backup window. An unreadable journal counts as none (the old rule).
+restarts_outside_window() { # $1 unit
+  local line hh mm t n=0
+  while IFS= read -r line; do
+    hh="$(printf '%s' "$line" | sed -n 's/^[^ ]*T\([0-9][0-9]\):\([0-9][0-9]\):[0-9][0-9].*/\1/p')"
+    mm="$(printf '%s' "$line" | sed -n 's/^[^ ]*T[0-9][0-9]:\([0-9][0-9]\):[0-9][0-9].*/\1/p')"
+    [[ "$hh" =~ ^[0-9]+$ && "$mm" =~ ^[0-9]+$ ]] || continue
+    t=$((10#$hh * 60 + 10#$mm))
+    if [ "$t" -lt "$BACKUP_WINDOW_FROM" ] || [ "$t" -gt "$BACKUP_WINDOW_TO" ]; then n=$((n + 1)); fi
+  done < <("$JOURNALCTL" -u "$1" --since "7 days ago" -o short-iso --no-pager -q 2>/dev/null | grep 'Scheduled restart job' || true)
+  printf '%s' "$n"
+}
+
 # ---- units ---------------------------------------------------------------------------------------------------
 check_unit() { # $1 unit name, $2 compose service it becomes, $3 "required" or "optional"
-  local unit="$1" service="$2" need="$3" props active sub restarts
+  local unit="$1" service="$2" need="$3" props active sub restarts outside=0
   props="$("$SYSTEMCTL" show "$unit" -p LoadState -p ActiveState -p SubState -p NRestarts -p ActiveEnterTimestamp 2>/dev/null)" || props=""
   if ! printf '%s\n' "$props" | grep -q '^LoadState=loaded'; then
     if [ "$mode" = containers ] || [ "$need" = optional ]; then ok "$unit is not installed"; else fail "$unit is not installed"; fi
@@ -137,6 +154,9 @@ check_unit() { # $1 unit name, $2 compose service it becomes, $3 "required" or "
   if [ "$service" = gm-browser ] && [ "$active" = active ] && [ "$restarts" -gt 0 ] &&
     started_in_backup_window "$(printf '%s\n' "$props" | sed -n 's/^ActiveEnterTimestamp=//p')"; then
     routine=yes
+    outside="$(restarts_outside_window "$unit")"
+    [[ "$outside" =~ ^[0-9]+$ ]] || outside=0
+    [ "$outside" -eq 0 ] || routine=no
   fi
   if [ "$mode" = containers ]; then
     case "$running_services" in
@@ -160,7 +180,11 @@ check_unit() { # $1 unit name, $2 compose service it becomes, $3 "required" or "
   elif [ "$routine" = yes ]; then
     ok "$unit is active, $restarts restart(s) since it was last started by hand, the last one in the nightly backup window (the backup stops Foundry and it rejoins by itself)"
   elif [ "$restarts" -gt 0 ]; then
-    warn "$unit is active but restarted $restarts time(s) since it started"
+    if [ "$outside" -gt 0 ]; then
+      warn "$unit is active but restarted $restarts time(s) since it started, $outside of them in the last 7 days outside the nightly backup window"
+    else
+      warn "$unit is active but restarted $restarts time(s) since it started"
+    fi
   else
     ok "$unit is active, no restarts"
   fi

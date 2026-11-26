@@ -90,6 +90,11 @@ describe('rule lookup', () => {
     expect(ruleAnswer(s, 'haunt')).toContain('Haunted Mouse');
   });
 
+  it('ignores punctuation in the query', () => {
+    expect(ruleAnswer(rules, 'house-rules')).toContain('**House rules**');
+    expect(ruleAnswer(rules, 'exhaustion.')).toContain('Each level costs');
+  });
+
   it('keeps many long matching lines under the cap', () => {
     const line = `<p>exhaustion ${'y'.repeat(400)}</p>`;
     const s = { handouts: [{ id: 'l', title: 'Notes', html: line.repeat(8) }] };

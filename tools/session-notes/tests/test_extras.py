@@ -9,7 +9,7 @@ import pytest
 from helpers import FakeClaude, write_session
 from test_notes import ROWS
 
-from session_notes import extras
+from session_notes import extras, moment
 from session_notes.model import Line, Roster
 from session_notes.publish import build
 from session_notes.run import Options, Writer
@@ -151,7 +151,7 @@ def test_a_limit_during_the_layers_pauses_and_resumes(session: Path) -> None:
     again = FakeClaude()
     result2 = Writer(session, again, opts()).run()
     assert result2.extras_missing == 0
-    assert [k for k, _ in again.calls] == ["characters", "remember"]
+    assert [k for k, _ in again.calls] == ["characters", "remember", "moment"]
 
 
 def test_a_bad_answer_is_retried_then_left_missing(session: Path) -> None:
@@ -167,7 +167,7 @@ def test_a_bad_answer_is_retried_then_left_missing(session: Path) -> None:
     assert result.extras_missing == 1 and not result.paused
     assert [k for k, _ in fake.calls].count("remember") == 2
     assert "Ikke skrevet" in (session / "notes" / "remember.da.md").read_text(encoding="utf-8")
-    assert "rejected" in fake.calls[-1][1]
+    assert "rejected" in [p for k, p in fake.calls if k == "remember"][-1]
     # after three failed runs the layer is given up, so it cannot block the publish for ever
     Writer(session, Empty(), opts(fallback_gap_s=0)).run()
     third = Writer(session, Empty(), opts(fallback_gap_s=0)).run()
@@ -204,3 +204,43 @@ def test_publish_carries_the_layers_on_the_gm_summary_only(session: Path) -> Non
     assert "Værd at huske" in pages["summary"] and "Ilvara" in pages["summary"]
     assert "Ilvara" not in pages["recap"] and "Worth remembering" not in pages["recap"]
     assert "Worth remembering" not in pages["scenes"]
+
+
+def test_the_moment_of_the_night_is_picked_by_claude_and_goes_in_the_recap(session: Path) -> None:
+    (session / "chat-log.json").write_text(
+        json.dumps([{"time": "21:03", "who": "Anna", "text": "rolls a natural 20"}]), encoding="utf-8"
+    )
+    fake = FakeClaude()
+    result = Writer(session, fake, opts()).run()
+    kinds = [k for k, _ in fake.calls]
+    assert kinds.count("moment") == 1 and result.extras_missing == 0 and not result.paused
+    prompt = next(p for k, p in fake.calls if k == "moment")
+    assert "nobody votes" in prompt and "natural 20" in prompt and "Secret" not in prompt
+    notes = session / "notes"
+    en = (notes / "recap.player.en.md").read_text(encoding="utf-8")
+    assert "## Moment of the night" in en and "Ilvara seized the moment" in en
+    assert "[[transcript.en#^u000001|" in en and "*The whole table cheered*" in en and "u999999" not in en
+    assert "## Aftenens øjeblik" in (notes / "recap.player.da.md").read_text(encoding="utf-8")
+    assert json.loads((notes / "notes.json").read_text(encoding="utf-8"))["moment"]["moments"]
+    again = FakeClaude()
+    Writer(session, again, opts()).run()
+    assert "moment" not in [k for k, _ in again.calls]
+
+
+def test_no_moment_when_claude_finds_none_or_fails(session: Path) -> None:
+    class Quiet(FakeClaude):
+        def __call__(self, prompt, schema, model, effort="low"):  # type: ignore[no-untyped-def]
+            if "moments" in schema["properties"]:
+                self.calls.append(("moment", prompt))
+                return {"moments": []}
+            return super().__call__(prompt, schema, model, effort)
+
+    Writer(session, Quiet(), opts()).run()
+    assert "Moment of the night" not in (session / "notes" / "recap.player.en.md").read_text(encoding="utf-8")
+
+
+def test_moment_rejects_two_moments_and_unknown_cites() -> None:
+    m = {"da": "a", "en": "b", "reason_da": "c", "reason_en": "d", "cites": ["u000001"]}
+    assert moment.check({"moments": [m, m]}, KNOWN)
+    assert moment.check({"moments": [{**m, "cites": ["u9"]}]}, KNOWN)
+    assert not moment.check({"moments": [m]}, KNOWN) and not moment.check({"moments": []}, KNOWN)

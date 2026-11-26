@@ -1,5 +1,5 @@
 {
-  // Format with Prettier on save (matches the repo's .prettierrc + `npm run format:check`).
+  // Format with Prettier on save (matches the repo's .prettierrc).
   "editor.formatOnSave": true,
   "editor.defaultFormatter": "esbenp.prettier-vscode",
   // Auto-apply ESLint fixes on save (uses eslint.config.mjs).

@@ -83,7 +83,6 @@
     "docs:dashboard-pictures": "npm run build -w @gnuminator/cogm-dashboard && npm run docs:pictures -w @gnuminator/cogm-dashboard",
     "docs:foundry-images": "node scripts/demo/foundry-basics.mjs",
     "format": "prettier --write \"**/*.{ts,js,json,md}\"",
-    "format:check": "prettier --check \"**/*.{ts,js,json,md}\"",
     "typecheck": "npm run usage:catalog && npm run typecheck --workspaces --if-present && tsc -p scripts/tsconfig.json",
     "vault": "node packages/mcp-server/dist/vault-cli.js",
     "obsidian": "node packages/mcp-server/dist/obsidian-cli.js",
@@ -156,7 +155,7 @@
     "rpg"
   ],
   "lint-staged": {
-    "*.{ts,js,json,md}": [
+    "*.{ts,tsx,js,mjs,cjs,json,md}": [
       "prettier --write"
     ]
   }

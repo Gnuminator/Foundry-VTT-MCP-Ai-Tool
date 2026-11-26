@@ -157,6 +157,7 @@ export const TURN_GROUPS = [
   { id: 'bonus', label: 'Bonus action' },
   { id: 'reaction', label: 'Reaction' },
   { id: 'free', label: 'Free' },
+  { id: 'movement', label: 'Movement' },
 ];
 
 const BASIC_ACTIONS = [
@@ -209,13 +210,18 @@ function usesText(u) {
   return u && typeof u.max === 'number' && u.max > 0 ? `${u.value}/${u.max} left` : '';
 }
 
+function slotsLeft(sheet, level) {
+  const sl = (Array.isArray(sheet.slots) ? sheet.slots : []).find(x => x && x.level === level);
+  return sl && sl.max > 0 ? `${sl.value}/${sl.max} slots left` : '';
+}
+
 /**
  * Options for one sheet (the shape /api/me gives), as `[{ id, label, options: [{ name, note }] }]`
  * with empty groups left out. Spare the Dying is a cantrip with a 1 action casting time and so
  * lands under Action; unprepared leveled spells are left out.
  */
 export function turnOptions(sheet) {
-  const by = { action: [], bonus: [], reaction: [], free: [] };
+  const by = { action: [], bonus: [], reaction: [], free: [], movement: [] };
   if (!sheet) return [];
   const seen = new Set();
   const add = (group, name, note) => {
@@ -246,8 +252,16 @@ export function turnOptions(sheet) {
     if (sp.level > 0 && !sp.prepared) continue;
     const g = CASTING_GROUP.find(([re]) => re.test(sp.castingTime ?? ''));
     if (!g) continue;
-    const bits = [sp.level === 0 ? 'Cantrip' : `Level ${sp.level}`, sp.range, sp.duration];
+    const left = sp.level > 0 ? slotsLeft(sheet, sp.level) : '';
+    const bits = [sp.level === 0 ? 'Cantrip' : `Level ${sp.level}`, left, sp.range, sp.duration];
     add(g[1], sp.name, bits.filter(Boolean).join(', '));
+  }
+  const speed = sheet.speed && typeof sheet.speed === 'object' ? sheet.speed : {};
+  const units = typeof sheet.speedUnits === 'string' && sheet.speedUnits ? sheet.speedUnits : 'ft';
+  for (const [mode, v] of Object.entries(speed)) {
+    if (typeof v !== 'number' || v <= 0) continue;
+    const name = mode === 'walk' ? 'Move' : mode[0].toUpperCase() + mode.slice(1);
+    add('movement', name, `Up to ${v} ${units} on your turn, split as you like.`);
   }
   return TURN_GROUPS.filter(g => by[g.id].length).map(g => ({ ...g, options: by[g.id] }));
 }

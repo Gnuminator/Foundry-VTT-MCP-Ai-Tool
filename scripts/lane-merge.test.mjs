@@ -3911,6 +3911,8 @@ test('fix round: a fix off the Opus list needs only a Sonnet Merge, a risky file
   assert.equal(fixRoundRelief(r.run, offList, C).relief, true, 'finding off the Opus list');
   // a mode change on a risky file is a change
   r.g('checkout', '-q', 'pr');
+  // chmod on disk too: where core.filemode is on (Linux), `git add -A` rereads the file mode
+  fs.chmodSync(path.join(r.dir, 'scripts', 'pi', 'x.sh'), 0o755);
   r.g('update-index', '--chmod=+x', 'scripts/pi/x.sh');
   const F = r.commit('mode change');
   assert.equal(fixRoundRelief(r.run, [...opus, reviewed(F)], F).relief, false, 'mode change');

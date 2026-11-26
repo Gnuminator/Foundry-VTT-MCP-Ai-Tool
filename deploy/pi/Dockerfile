@@ -6,6 +6,8 @@
 #   app         the bridge (packages/mcp-server) and the co-GM dashboard (packages/cogm-dashboard), built like
 #               deploy/Dockerfile; the compose services pick the entry point with `command`
 #   gm-browser  the Assistant GM: Chromium plus scripts/pi/remote/assistant-gm.mjs
+#   discord-bot the Discord recorder bot (packages/discord-bot) with its own production dependencies, so the bridge image
+#               carries no Discord library and a bot change does not recreate the bridge
 #   foundry     Node only. Foundry itself is licensed and is NEVER baked into an image: compose bind-mounts the
 #               host's /opt/foundry read-only. The CI test stack swaps this service for a stand-in.
 #
@@ -23,12 +25,14 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY packages/mcp-server/package.json     ./packages/mcp-server/
 COPY packages/cogm-dashboard/package.json ./packages/cogm-dashboard/
+COPY packages/discord-bot/package.json    ./packages/discord-bot/
 COPY shared/package.json                  ./shared/
 
 RUN npm ci
 
 COPY packages/mcp-server/     ./packages/mcp-server/
 COPY packages/cogm-dashboard/ ./packages/cogm-dashboard/
+COPY packages/discord-bot/    ./packages/discord-bot/
 COPY shared/                  ./shared/
 COPY tsconfig*.json           ./
 # The dashboard's in-app help is rendered from the GM guides at build time (same as deploy/Dockerfile).
@@ -64,6 +68,18 @@ COPY --from=build /app/packages/cogm-dashboard/package.json ./packages/cogm-dash
 COPY --from=build /app/shared/package.json                  ./shared/
 
 # The root `prepare` script installs git hooks (husky is a devDependency); an image has no git hooks.
+RUN npm pkg delete scripts.prepare && npm ci --omit=dev
+
+# ---- deps-bot: the recorder bot's production dependencies only (discord.js, @discordjs/voice, @snazzah/davey) -------
+FROM ${NODE_IMAGE} AS deps-bot
+
+WORKDIR /app
+COPY --from=build /app/package.json        ./
+COPY --from=build /app/package-lock.json   ./
+COPY --from=build /app/packages/discord-bot/package.json ./packages/discord-bot/
+
+# Only the bot's workspace is present, so npm ci installs its dependencies and nothing of the bridge or the dashboard.
+# @snazzah/davey ships a linux-arm64-gnu binary: no build tools are needed (same as stage 8 on the host).
 RUN npm pkg delete scripts.prepare && npm ci --omit=dev
 
 # ---- app: bridge and dashboard --------------------------------------------------------------------------------
@@ -126,3 +142,21 @@ RUN chmod -R a+rX /app
 ENV NODE_ENV=production
 # The compose service sets command and working_dir (/opt/foundry, mounted read-only from the host).
 CMD ["node", "/opt/foundry/main.js"]
+
+# ---- discord-bot: the recorder bot ----------------------------------------------------------------------------
+FROM ${NODE_IMAGE} AS discord-bot
+
+WORKDIR /app
+# node_modules and the workspace links, then the bot's compiled code. Compose runs the container as the host's foundry user
+# with the recordings folder mounted (TOOL_DATA_DIR), so nothing is written inside the image.
+COPY --from=deps-bot /app/node_modules ./node_modules
+COPY --from=deps-bot /app/package.json /app/package-lock.json ./
+COPY --from=deps-bot /app/packages ./packages
+COPY --from=build /app/packages/discord-bot/dist ./packages/discord-bot/dist/
+COPY deploy/pi/healthcheck.mjs deploy/pi/bot-container-check.mjs ./
+RUN chmod -R a+rX /app
+
+ENV NODE_ENV=production
+WORKDIR /app/packages/discord-bot
+# The compose service sets the command (umask 0007, then dist/cli.js run).
+CMD ["node", "dist/cli.js", "run"]

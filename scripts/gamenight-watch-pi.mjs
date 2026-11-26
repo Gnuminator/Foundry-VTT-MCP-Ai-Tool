@@ -215,14 +215,16 @@ export function unitActive(unit, exec = execFile) {
 }
 
 /**
- * The recorder runs: its unit is active and, when a status address is set, that lists no problem.
+ * The recorder runs: its unit is active (or, with a status address, that answers: the bot may run as a container since
+ * stage 24 MODE=bot) and the status lists no problem.
  * @param {{unit:string, statusUrl?:string, timeoutMs:number, isActive?:(u:string)=>Promise<boolean>, fetchImpl?:typeof fetch}} o
  */
 export async function probeRecorder({ unit, statusUrl, timeoutMs, isActive = unitActive, fetchImpl = fetch }) {
   const started = Date.now();
   const state = await isActive(unit);
   // A test double may still answer a plain boolean.
-  if (state === false || state === 'inactive') {
+  // With a status address the recorder may run as a container (the unit is then off on purpose): its answer decides.
+  if ((state === false || state === 'inactive') && !statusUrl) {
     return { ok: false, ms: Date.now() - started, error: 'the recorder service is not running' };
   }
   // "Cannot tell" is no alarm: the status address (when set) still decides, and the log says what happened.

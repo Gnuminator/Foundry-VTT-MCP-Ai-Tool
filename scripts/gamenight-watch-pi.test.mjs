@@ -322,6 +322,23 @@ test('probeRecorder: cannot tell is no alarm, but not running is', async () => {
   assert.equal(unknown.ok, true);
   assert.match(unknown.note, /cannot tell/);
   assert.match((await probeRecorder({ ...base, isActive: async () => 'inactive' })).error, /not running/);
+  // A container bot: the unit is off on purpose and the status address answers.
+  const asContainer = await probeRecorder({
+    ...base,
+    isActive: async () => 'inactive',
+    statusUrl: 'http://127.0.0.1:3110/status',
+    fetchImpl: async () => jsonRes(200, { recording: false, problems: [] }),
+  });
+  assert.equal(asContainer.ok, true);
+  const containerDown = await probeRecorder({
+    ...base,
+    isActive: async () => 'inactive',
+    statusUrl: 'http://127.0.0.1:3110/status',
+    fetchImpl: async () => {
+      throw new Error('boom');
+    },
+  });
+  assert.match(containerDown.error, /status/);
 });
 
 test('publicUrlProblem refuses plain http only while the Access token is set; settingsUrl hides the value', () => {

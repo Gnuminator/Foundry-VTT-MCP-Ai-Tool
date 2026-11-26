@@ -12,7 +12,15 @@
 require_root
 env_file="$TOOL_ETC/discord-bot.env"
 unit=foundry-ai-tool-discord-bot.service
-require_quiet_if_active "$unit" "restarting the Discord bot for the new token (it would end a recording)"
+# The bot as a container (stage 24 MODE=bot) reads this file when it is created: the token is written here, the container is
+# recreated afterwards with stage 24 MODE=bot-restart (never the unit: that would be a second bot on the same token).
+in_container=0
+[ -z "$(bot_container -a)" ] || in_container=1
+if [ "$in_container" = 1 ]; then
+  require_no_recording "the new token (the bot container is recreated afterwards and a recording would end)"
+else
+  require_quiet_if_active "$unit" "restarting the Discord bot for the new token (it would end a recording)"
+fi
 [ -f "$env_file" ] || die "$env_file is missing: run stage 8 (8-recorder.sh) first"
 [ -n "${TOKEN_IN:-}" ] || die "no token given"
 printf '%s' "$TOKEN_IN" | grep -Eq '^[A-Za-z0-9._-]{50,100}$' ||
@@ -45,6 +53,11 @@ else
   ok "no server id: /record registers globally (can take up to an hour to show)"
 fi
 
+if [ "$in_container" = 1 ]; then
+  restart_gamenight_watch "the new token"
+  say "done: the token is in the settings file. The bot container still runs on the old one: stage 24 with MODE=bot-restart recreates it (ask Claude)"
+  exit 0
+fi
 say "the bot"
 [ -f "/etc/systemd/system/$unit" ] || die "$unit is missing: run stage 8 (8-recorder.sh) first"
 since="$(date '+%Y-%m-%d %H:%M:%S')"

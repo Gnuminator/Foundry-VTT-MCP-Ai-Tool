@@ -10,6 +10,7 @@
 # Until the env file has a token, this stage installs everything but leaves the service stopped.
 
 require_root
+refuse_when_bot_container "stage 8 (the recorder unit)"
 require_recent_snapshot
 require_arm64
 [ -x "$NODE_DIR/bin/node" ] || die "Node is missing: run stage 2 first"

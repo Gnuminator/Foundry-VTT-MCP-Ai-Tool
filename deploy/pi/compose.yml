@@ -176,3 +176,46 @@ services:
       # listens but has had no module socket for 2 min (GM_LINK_WATCH above turns that watcher on).
       test: ["CMD", "node", "/opt/gm/healthcheck.mjs", "link", "${BRIDGE_CONTROL_PORT:-31414}"]
       start_period: 60s
+
+  # The Discord recorder bot (backlog pi-discord-bot-compose). Behind the profile "discord-bot", so nothing starts it
+  # until stage 24 MODE=bot has stopped the systemd unit and written COMPOSE_PROFILES=discord-bot into deploy/pi/.env; a
+  # rehearsal never starts it (two bots on one token would both answer /record). Voice is UDP: host networking, like the
+  # rest of the stack, needs no published port range. The recordings go to $TOOL_DATA_DIR/recordings, the same folder the
+  # unit wrote and the PC's pull reads. Not a gate service: a bot that is down never rolls the stack back.
+  discord-bot:
+    <<: *defaults
+    profiles: ["discord-bot"]
+    build:
+      context: ../..
+      dockerfile: deploy/pi/Dockerfile
+      target: discord-bot
+    image: foundry-ai-tool-pi/discord-bot:local
+    working_dir: /app/packages/discord-bot
+    init: true # node is not PID 1: a stop signal reaches it and zombies are reaped
+    # The unit's UMask=0007: recordings stay writable for the foundry group (the PC's pull marks and deletes sessions as a
+    # group member). exec keeps node as the process the signal goes to.
+    command: ["sh", "-c", "umask 0007 && exec node dist/cli.js run"]
+    # The unit's KillSignal=SIGINT and TimeoutStopSec=60: SIGINT ends a running recording cleanly and converts it.
+    stop_signal: SIGINT
+    stop_grace_period: 60s
+    env_file:
+      - path: ${TOOL_ETC_DIR:-/etc/foundry-ai-tool}/discord-bot.env
+        required: false # the unit needs it; without a token the bot stops with "not set" and restarts
+    environment:
+      HOME: ${TOOL_DATA_DIR:-/var/lib/foundry-ai-tool}
+      NODE_ENV: production
+      # Same path inside as outside, so the env file's FVTT_SESSIONS_DIR and the PC's pull agree.
+      FVTT_SESSIONS_DIR: ${TOOL_DATA_DIR:-/var/lib/foundry-ai-tool}/recordings
+    volumes:
+      - ${TOOL_DATA_DIR:-/var/lib/foundry-ai-tool}:${TOOL_DATA_DIR:-/var/lib/foundry-ai-tool}
+      # The record of the PC's last backup copies (stage 6), read-only: the bot DMs the owner when a copy gets old.
+      - type: bind
+        source: ${BACKUP_PULLS_DIR:-/var/lib/foundry-backup-pulls}
+        target: /var/lib/foundry-backup-pulls
+        read_only: true
+        bind:
+          create_host_path: false # a missing folder is an error here, not a root-owned folder
+    healthcheck:
+      <<: *health
+      test: ["CMD", "node", "/app/healthcheck.mjs", "process", "dist/cli.js run"]
+      start_period: 30s

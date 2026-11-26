@@ -28,6 +28,8 @@ export const CONTROL_COVERAGE = {
       'diary.save',
       'diary.edit',
       'diary.delete',
+      'keepsake.add',
+      'keepsake.delete',
       'downtime.save',
       'downtime.edit',
       'downtime.delete',

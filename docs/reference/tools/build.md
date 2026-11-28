@@ -195,52 +195,54 @@ Parameters:
 
 ## plan-room-setup
 
-Plan Region-based scene parts: "teleport" moves tokens entering one rectangle to another (same or other scene); "spawn" makes a room rectangle plus tokens from actors on free squares in it; "levels" adds Scene Levels; "stairs" joins levels; "hazard" makes difficult terrain, darkness or an existing effect; "whisper" whispers a room card to the GM only when a token enters the rectangle. Apply with apply-planned-change, undo with undo-change. Needs the module switch "Room setup" (off by default).
+Plan Region-based scene parts: "teleport" moves tokens entering one rectangle to another (same or other scene); "spawn" makes a room rectangle plus tokens from actors on free squares; "levels" adds Scene Levels; "stairs" joins levels; "hazard" makes difficult terrain, darkness or an existing effect; "whisper" whispers a room card to the GM when a token enters. Apply with apply-planned-change, undo with undo-change. Needs the module switch "Room setup" (off by default).
 
 Kind: read-only. Title: Plan room setup (teleports, rooms, levels, stairs, hazards).
 
 Parameters:
 
 - `action` (string, required): One of: `teleport`, `spawn`, `levels`, `stairs`, `hazard`, `whisper`.
-- `name` (string): teleport: entry name (arrival "&lt;name> (arrival)"). spawn: room name.
-- `from` (object): teleport: the entry: grid squares, x/y top-left from 0; scene id or name (default viewed).
+- `name` (string): teleport: entry name (arrival "&lt;name> (arrival)"). spawn: room.
+- `from` (object): teleport: the entry: grid squares, x/y top-left from 0; scene id or name.
   - `x` (integer, required)
   - `y` (integer, required)
   - `width` (integer, required)
   - `height` (integer, required)
   - `scene` (string)
   - `level` (string)
-- `to` (object): teleport: the arrival: grid squares, x/y top-left from 0; scene id or name (default viewed).
+- `to` (object): teleport: the arrival: grid squares, x/y top-left from 0; scene id or name.
   - `x` (integer, required)
   - `y` (integer, required)
   - `width` (integer, required)
   - `height` (integer, required)
   - `scene` (string)
   - `level` (string)
-- `twoWay` (boolean): teleport: also back from the arrival.
-- `choice` (boolean): teleport: player confirms each teleport.
-- `placement` (string): teleport: landing spot (default center). One of: `random`, `center`, `relative`.
-- `area` (object): spawn: the room: grid squares, x/y top-left from 0; scene id or name (default viewed).
+- `twoWay` (boolean): teleport: also back.
+- `choice` (boolean): teleport: player confirms.
+- `placement` (string): teleport: landing (default center). One of: `random`, `center`, `relative`.
+- `area` (object): spawn: the room: grid squares, x/y top-left from 0; scene id or name.
   - `x` (integer, required)
   - `y` (integer, required)
   - `width` (integer, required)
   - `height` (integer, required)
   - `scene` (string)
   - `level` (string)
-- `creatures` (array of object): spawn: actors (id or name) and count, 40 tokens at most.
+- `creatures` (array of object): spawn: actors (id or name), count; 40 tokens max.
   - `actor` (string, required)
   - `count` (integer)
-- `hidden` (boolean): spawn: tokens hidden from players (default true).
-- `scene` (string): levels: scene.
-- `levels` (array of any): levels: [{name, bottom, top?, background?}]. stairs: level names.
+- `hidden` (boolean): spawn: hide tokens from players (default true).
+- `squares` (string): stairs, hazard, whisper: grid labels instead of area, A1 top left: "C4 to H9, without E6 to F7"; L shape "A1 to D8, D5 to H8".
+- `scene` (string): levels, squares: scene.
+- `level` (string): squares: Scene Level.
+- `levels` (array of any): levels: [{name, bottom, top?, background?}]. stairs: names.
 - `movementActions` (array of string)
 - `kind` (string): One of: `difficult`, `darkness`, `effect`.
 - `magical` (boolean): difficult: magical terrain.
 - `darknessMode` (string): One of: `override`, `brighten`, `darken`.
 - `modifier` (number): darkness: 0 to 1.
 - `effectUuid` (string)
-- `text` (string): whisper: the room card text for the GM (2000 characters at most).
-- `once` (boolean): whisper: only the first entry (default every entry; two tokens entering at the same moment can both whisper).
+- `text` (string): whisper: card text for the GM (2000 characters).
+- `once` (boolean): whisper: first entry only (default every entry).
 
 ## plan-pc-creation
 

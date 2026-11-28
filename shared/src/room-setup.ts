@@ -108,21 +108,33 @@ export interface RoomLevelsRequest {
   levels: RoomLevelSpec[];
 }
 
+/**
+ * Where a stairs, hazard or whisper Region goes: a rectangle (`area`) or grid labels
+ * (`squares`), never both. Labels are letters for columns and numbers for rows from the top left,
+ * A1 first: "C4 to H9, without E6 to F7" is a rectangle with a pillar cut out, one Region with
+ * Foundry 14's grid shape (an L-shaped room: "A1 to D8, D5 to H8"). Squares are counted from the
+ * map's own top left. With squares, `scene` and `level` sit at the top level of the request.
+ */
+export interface RoomPlace {
+  area?: RoomArea;
+  squares?: string;
+  scene?: string;
+  level?: string;
+}
+
 /** A staircase: a Region whose `changeLevel` behavior offers the listed levels. */
-export interface RoomStairsRequest {
+export interface RoomStairsRequest extends RoomPlace {
   action: 'stairs';
   name: string;
-  area: RoomArea;
   /** Level names or ids it joins (at least 2); default every level of the scene. */
   levels?: string[];
   /** Movement actions that trigger it (e.g. walk, climb); default all. */
   movementActions?: string[];
 }
 
-export interface RoomHazardRequest {
+export interface RoomHazardRequest extends RoomPlace {
   action: 'hazard';
   name: string;
-  area: RoomArea;
   kind: RoomHazardKind;
   /** difficult: dnd5e difficult terrain (movement costs double); magical terrain is told apart by which creatures can ignore it. */
   magical?: boolean;
@@ -142,10 +154,9 @@ export interface RoomHazardRequest {
  * whispers and no-access entries to every client, as it does for any whisper, so a player's
  * browser console can read them). The Region name and the entry name: use a neutral name.
  */
-export interface RoomWhisperRequest {
+export interface RoomWhisperRequest extends RoomPlace {
   action: 'whisper';
   name: string;
-  area: RoomArea;
   /** The card text the GM reads (plain text, at most 2000 characters). */
   text: string;
   /** Whisper only the first time a token enters (the behavior turns itself off). Default false. */
@@ -164,7 +175,7 @@ export type RoomSetupRequest =
 export interface RoomRegionSummary {
   name: string;
   sceneName: string;
-  /** Grid squares: x, y, width, height. */
+  /** Grid squares: x, y, width, height (the bounding box when the Region was made from grid labels). */
   squares: [number, number, number, number];
   role: 'entry' | 'arrival' | 'room' | 'stairs' | 'hazard' | 'whisper';
 }

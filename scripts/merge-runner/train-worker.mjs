@@ -9,6 +9,7 @@
  * Steps (each prints one `train-worker:` line): build the checkout, stop server A, copy the module
  * in (sync-module.ps1 -NoBuild), start server A, join the world `ai-tool-test` as the passwordless
  * GM `Claude` in a headless Edge (the bridge needs a GM client for its Foundry link), run
+ * make Test Arena the active scene (ensure-scene.mjs), run
  * `npm run live:roundtrip` (and `npm run live:sweep` with --sweep), close the browser, stop server A.
  * Server A only (the testA ports of shared/ports.json): never the live bridge ports.
  *
@@ -19,6 +20,7 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import net from 'node:net';
 import { fileURLToPath } from 'node:url';
+import { ensureTestScene } from './ensure-scene.mjs';
 
 // The runner starts this script from its own checkout with the gate checkout (main's tip) as cwd.
 const root = process.cwd();
@@ -89,6 +91,8 @@ try {
   say(`joining ${WORLD} as Claude`);
   browser = await launchBrowser({ headless: true });
   await joinGame(browser.page, { foundryUrl: FOUNDRY_URL, user: 'Claude' });
+  // A scene left inactive by another lane's testing would fail the sweep for no reason of main's.
+  say(await ensureTestScene(browser.page));
   say('npm run live:roundtrip');
   const rt = npm('live:roundtrip', 900_000);
   if (rt === 2) throw new Error('live:roundtrip could not reach the environment (exit 2)');

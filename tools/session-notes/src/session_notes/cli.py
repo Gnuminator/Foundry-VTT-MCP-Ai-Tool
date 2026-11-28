@@ -154,6 +154,13 @@ def main(argv: list[str] | None = None) -> int:
         help="write the 'Names and facts to check' pages and read the answers on them (no Claude call)",
     )
     chk.add_argument("session")
+    agn = sub.add_parser(
+        "agenda",
+        help="show the table agenda (open questions carried over); --settle or --drop marks one by hand",
+    )
+    agn.add_argument("--settle", metavar="ID", help="mark the item settled")
+    agn.add_argument("--drop", metavar="ID", help="mark the item dropped")
+    agn.add_argument("--reopen", metavar="ID", help="mark the item open again")
     camp = sub.add_parser(
         "campaign",
         help="build the campaign merge plan from the notes (calls claude -p); writes "
@@ -270,6 +277,19 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if result.ok else 1
     if args.cmd == "outbox":
         return run_outbox(args)
+    if args.cmd == "agenda":
+        from . import agenda
+
+        root = sessions_root()
+        try:
+            for flag, status in (("settle", "settled"), ("drop", "dropped"), ("reopen", "open")):
+                if getattr(args, flag):
+                    agenda.set_status(root, getattr(args, flag), status)
+        except ValueError as exc:
+            print(exc, file=sys.stderr)
+            return 1
+        print(agenda.render(agenda.load(root), "en"))
+        return 0
     if args.cmd == "inbox":
         raw = os.environ.get("FVTT_RECAP_INBOX")
         if not raw or not Path(raw).is_dir():

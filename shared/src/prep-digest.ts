@@ -286,6 +286,37 @@ export type PrepPreviously =
     }
   | { status: 'none' | 'unreachable'; sessionsDir: string; note: string };
 
+/** Most open agenda items listed in the digest; the rest is counted in `omitted`. */
+export const PREP_AGENDA_MAX_ITEMS = 30;
+
+/** One open table question carried over from a session (tools/session-notes `table-agenda.json`). */
+export interface PrepAgendaItem {
+  id: string;
+  /** The recorded session folder it came from. */
+  session: string;
+  /** `proposed` (suggested, not settled) or `open` (left open at the table). */
+  topic: 'proposed' | 'open';
+  text: string;
+  /** Transcript time of the line, when known. */
+  time?: string;
+}
+
+/**
+ * The table agenda that carries over: open questions from earlier sessions, for "Settle at the
+ * start". Read from `table-agenda.json` in the sessions folder; settled and dropped items are only
+ * counted. `none`: no agenda written yet; `unreachable`: this bridge cannot read the file.
+ */
+export type PrepAgenda =
+  | {
+      status: 'found';
+      items: PrepAgendaItem[];
+      omitted: number;
+      settled: number;
+      dropped: number;
+      note: string;
+    }
+  | { status: 'none' | 'unreachable'; note: string };
+
 /** Open quests and scenes count as loose ends when this many sessions passed since they were seen. */
 export const LOOSE_ENDS_STALE_AFTER = 2;
 /** An NPC met in only one session is a loose end once at least this many sessions have passed. */
@@ -339,6 +370,8 @@ export interface PrepDigest {
    * without a sessions folder (only tests do that).
    */
   previously?: PrepPreviously;
+  /** Open table questions carried over from earlier sessions; undefined without a sessions folder. */
+  agenda?: PrepAgenda;
   /** Null when the vault has no play session yet. */
   lastSession: PrepLastSession | null;
   /** Open quests only; null when Foundry was not reachable. */

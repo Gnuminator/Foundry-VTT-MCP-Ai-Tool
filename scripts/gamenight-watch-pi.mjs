@@ -120,7 +120,9 @@ export function controlCall(port, host, method, params = {}, timeoutMs = 5000, n
       else resolve(value);
     };
     socket.setTimeout(timeoutMs, () => done(new Error('timed out')));
-    socket.on('connect', () => socket.write(`${JSON.stringify({ id: 'watch', method, params })}\n`));
+    socket.on('connect', () =>
+      socket.write(`${JSON.stringify({ id: 'watch', method, params })}\n`)
+    );
     socket.on('data', chunk => {
       buffer += chunk.toString('utf8');
       const nl = buffer.indexOf('\n');
@@ -219,7 +221,13 @@ export function unitActive(unit, exec = execFile) {
  * stage 24 MODE=bot) and the status lists no problem.
  * @param {{unit:string, statusUrl?:string, timeoutMs:number, isActive?:(u:string)=>Promise<boolean>, fetchImpl?:typeof fetch}} o
  */
-export async function probeRecorder({ unit, statusUrl, timeoutMs, isActive = unitActive, fetchImpl = fetch }) {
+export async function probeRecorder({
+  unit,
+  statusUrl,
+  timeoutMs,
+  isActive = unitActive,
+  fetchImpl = fetch,
+}) {
   const started = Date.now();
   const state = await isActive(unit);
   // A test double may still answer a plain boolean.
@@ -235,7 +243,8 @@ export async function probeRecorder({ unit, statusUrl, timeoutMs, isActive = uni
         redirect: 'manual',
         signal: AbortSignal.timeout(timeoutMs),
       });
-      if (!res.ok) return { ok: false, ms: Date.now() - started, error: `status HTTP ${res.status}` };
+      if (!res.ok)
+        return { ok: false, ms: Date.now() - started, error: `status HTTP ${res.status}` };
       const body = await res.json().catch(() => null);
       const problems = Array.isArray(body?.problems) ? body.problems.length : 0;
       if (problems > 0) {
@@ -294,7 +303,8 @@ export async function tick(rt) {
   const now = rt.now ?? Date.now;
   const open = rt.always ? true : await rt.readOpen();
   // A bridge that does not answer teaches nothing (the gate keeps its state); say so once per stretch.
-  if (open === null && !rt.unknownLogged) rt.log('session reading unavailable: the bridge did not answer');
+  if (open === null && !rt.unknownLogged)
+    rt.log('session reading unavailable: the bridge did not answer');
   rt.unknownLogged = open === null;
   const gated = gateStep(rt.gate, open);
   rt.gate = gated.gate;
@@ -302,7 +312,10 @@ export async function tick(rt) {
   if (gated.event === 'ended') {
     rt.log('session ended: watch idle');
     // Nobody may have marked the end: a night that went quiet closes by itself.
-    rt.pending.push({ text: 'Game-night watch stopped: the session has ended or has gone quiet.', at: now() });
+    rt.pending.push({
+      text: 'Game-night watch stopped: the session has ended or has gone quiet.',
+      at: now(),
+    });
     return;
   }
   if (!active) return;
@@ -314,7 +327,9 @@ export async function tick(rt) {
   // Still marked open, nothing happened for a long while and Foundry is down: the table has gone home (or the nightly
   // backup stopped Foundry). No alarm and no start post; the gate ends the watch by itself when the session closes.
   // The bridge counts too: after the backup restarts Foundry, the module socket reconnects a little later.
-  const downProbe = results.find(r => (r.check.key === 'foundry' || r.check.key === 'bridge') && !r.probe.ok);
+  const downProbe = results.find(
+    r => (r.check.key === 'foundry' || r.check.key === 'bridge') && !r.probe.ok
+  );
   if (
     !rt.always &&
     downProbe &&
@@ -390,7 +405,8 @@ async function main() {
   const num = (name, dflt) => {
     if (args[name] === undefined) return dflt;
     const v = Number(args[name]);
-    if (!Number.isFinite(v) || v <= 0) throw new SettingsError(`--${name} must be a positive number.`);
+    if (!Number.isFinite(v) || v <= 0)
+      throw new SettingsError(`--${name} must be a positive number.`);
     return v;
   };
   const cfg = {
@@ -406,8 +422,14 @@ async function main() {
     console.error('WATCH_CONTROL_PORT must be a port number.');
     process.exit(2);
   }
-  const foundryUrl = settingsUrl(get('WATCH_FOUNDRY_URL') ?? 'http://127.0.0.1:30000', 'WATCH_FOUNDRY_URL');
-  const dashboardUrl = settingsUrl(get('WATCH_DASHBOARD_URL') ?? 'http://127.0.0.1:3000', 'WATCH_DASHBOARD_URL');
+  const foundryUrl = settingsUrl(
+    get('WATCH_FOUNDRY_URL') ?? 'http://127.0.0.1:30000',
+    'WATCH_FOUNDRY_URL'
+  );
+  const dashboardUrl = settingsUrl(
+    get('WATCH_DASHBOARD_URL') ?? 'http://127.0.0.1:3000',
+    'WATCH_DASHBOARD_URL'
+  );
   const publicRaw = get('WATCH_PUBLIC_URL');
   const publicUrl = publicRaw ? settingsUrl(publicRaw, 'WATCH_PUBLIC_URL') : null;
   const headers = accessHeaders(get);
@@ -429,8 +451,7 @@ async function main() {
     foundry: () => probeFoundry(foundryUrl, cfg.timeoutMs),
     dashboard: () => probeDashboard(dashboardUrl, cfg.timeoutMs),
     bridge: () => probeBridgeLink(port),
-    recorder: () =>
-      probeRecorder({ unit, statusUrl: recorderStatusUrl, timeoutMs: cfg.timeoutMs }),
+    recorder: () => probeRecorder({ unit, statusUrl: recorderStatusUrl, timeoutMs: cfg.timeoutMs }),
   };
   if (publicUrl && headers) probes.public = () => probePublic(publicUrl, headers, cfg.timeoutMs);
 
@@ -439,7 +460,9 @@ async function main() {
     const token = get('DISCORD_TOKEN');
     const channelId = get('GAMENIGHT_WATCH_CHANNEL_ID');
     if (!token || !channelId) {
-      console.error('--post needs DISCORD_TOKEN and GAMENIGHT_WATCH_CHANNEL_ID in the environment.');
+      console.error(
+        '--post needs DISCORD_TOKEN and GAMENIGHT_WATCH_CHANNEL_ID in the environment.'
+      );
       process.exit(2);
     }
     target = { token, channelId };
@@ -518,7 +541,10 @@ export function createLifecycle(rt, target, { exit, post = postToChannel }) {
     // "stopping" line only while the gate is active.
     if (target && (rt.gate.active || rt.pending.length > 0)) {
       if (rt.gate.active) {
-        rt.pending.push({ text: 'Game-night watch stopped: the service is stopping.', at: Date.now() });
+        rt.pending.push({
+          text: 'Game-night watch stopped: the service is stopping.',
+          at: Date.now(),
+        });
       }
       // One overall deadline (20 s), inside the unit's TimeoutStopSec=30, so a slow Discord cannot outrun systemd.
       let timer;
@@ -526,7 +552,11 @@ export function createLifecycle(rt, target, { exit, post = postToChannel }) {
         timer = setTimeout(resolve, 20000);
       });
       await Promise.race([
-        flushPending(rt.pending, a => post(target, a.text), () => {}).catch(() => {}),
+        flushPending(
+          rt.pending,
+          a => post(target, a.text),
+          () => {}
+        ).catch(() => {}),
         deadline,
       ]);
       clearTimeout(timer);

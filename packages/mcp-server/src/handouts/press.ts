@@ -7,7 +7,7 @@
  */
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -166,6 +166,29 @@ export function findBrowser(env: NodeJS.ProcessEnv = process.env): string | null
 
 const RENDER_TIMEOUT_MS = 30_000;
 
+/**
+ * How long to wait for the picture after the browser program has exited. Edge and Chrome can
+ * relaunch themselves: the program started here exits after a few milliseconds and a child
+ * writes the screenshot a few hundred milliseconds later. Tests lower it.
+ */
+export const pressTiming = { settleMs: 10_000 };
+
+/** Wait until the file exists with a size that is non-zero and the same on two checks 100 ms apart. */
+async function waitForPicture(file: string): Promise<void> {
+  const deadline = Date.now() + pressTiming.settleMs;
+  let last = -1;
+  for (;;) {
+    const size = await stat(file).then(
+      s => s.size,
+      () => 0
+    );
+    if (size > 0 && size === last) return;
+    last = size;
+    if (Date.now() >= deadline) return;
+    await new Promise(r => setTimeout(r, 100));
+  }
+}
+
 /** Browsers that failed a render in this process; tried last from then on. */
 const failedBrowsers = new Set<string>();
 
@@ -258,10 +281,12 @@ async function renderWith(
     // A loaded machine can make the browser exit cleanly before it has written the screenshot;
     // one more run settles it, and a second miss is a real failure.
     let png: Buffer;
+    await waitForPicture(out);
     try {
       png = await readFile(out);
     } catch {
       await run(first || noSandboxNeeded);
+      await waitForPicture(out);
       try {
         png = await readFile(out);
       } catch {

@@ -55,6 +55,16 @@ describe('EncounterTools.handleSuggestBalancedEncounter', () => {
     expect(result).toBe(payload);
   });
 
+  it('forwards toughness, and says so when an older module does not apply it', async () => {
+    const { tools, query } = makeTools(EncounterTools, () => ({ success: true, xpBudget: 500 }));
+    const result = (await tools.handleSuggestBalancedEncounter({ toughness: 1.5 })) as any;
+    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.suggestBalancedEncounter', {
+      toughness: 1.5,
+    });
+    expect(result.note).toMatch(/too old to apply toughness/);
+    await expect(tools.handleSuggestBalancedEncounter({ toughness: 3 })).rejects.toThrow();
+  });
+
   it('defaults to empty params when args are omitted (undefined)', async () => {
     const { tools, query } = makeTools(EncounterTools);
     await tools.handleSuggestBalancedEncounter(undefined);

@@ -560,6 +560,76 @@ describe('combat, scene, world time and users', () => {
     expect(end.data).toEqual({ rounds: 1, roster: ['Lurker', 'Test Hero', 'Wolf 1', 'Wolf 2'] });
   });
 
+  it('combat-start carries the plan: party levels and max HP, foe XP and the three budgets', () => {
+    const now = Date.now();
+    const hero = makeFixtureActor({
+      id: 'hero',
+      name: 'Test Hero',
+      t: now,
+      system: { details: { level: 3 }, attributes: { hp: { max: 30 } } },
+    });
+    const wolf = makeFixtureActor({
+      id: 'w1',
+      name: 'Wolf 1',
+      type: 'npc',
+      t: now,
+      system: { details: { xp: { value: 50 } } },
+    });
+    const combat: any = {
+      id: 'combat-plan',
+      round: 1,
+      turn: 0,
+      combatants: { size: 2, contents: [{ actor: hero }, { actor: wolf }] },
+      _stats: { modifiedTime: now },
+    };
+    Hooks.callAll('combatStart', combat);
+    const [start] = recorder.getPlayRecords({}).records;
+    const plan = start.data?.plan as any;
+    expect(plan.party).toEqual([{ name: 'Test Hero', level: 3, hpMax: 30 }]);
+    expect(plan.foes).toBe(1);
+    expect(plan.foeXp).toBe(50);
+    // No dnd5e config in the test: the 2014 table, level 3 = 75 / 150 / 400 (high maps to deadly).
+    expect(plan.budgets).toEqual({ low: 75, moderate: 150, high: 400 });
+  });
+
+  it('the plan leaves out friendly tokens and counts a character once', () => {
+    const now = Date.now();
+    const hero = makeFixtureActor({
+      id: 'hero2',
+      name: 'Twice Hero',
+      t: now,
+      system: { details: { level: 3 }, attributes: { hp: { max: 30 } } },
+    });
+    const mk = (id: string, xp: number): any =>
+      makeFixtureActor({
+        id,
+        name: id,
+        type: 'npc',
+        t: now,
+        system: { details: { xp: { value: xp } } },
+      });
+    const combat: any = {
+      id: 'combat-friends',
+      round: 1,
+      turn: 0,
+      combatants: {
+        size: 4,
+        contents: [
+          { actor: hero },
+          { actor: hero },
+          { actor: mk('Ally', 700), token: { disposition: 1 } },
+          { actor: mk('Wolf', 50), token: { disposition: -1 } },
+        ],
+      },
+      _stats: { modifiedTime: now },
+    };
+    Hooks.callAll('combatStart', combat);
+    const plan = recorder.getPlayRecords({}).records[0].data?.plan as any;
+    expect(plan.party).toHaveLength(1);
+    expect(plan.foes).toBe(1);
+    expect(plan.foeXp).toBe(50);
+  });
+
   it('combat-end keeps the last turn although Foundry 14 nulls combat.turn before deleteCombat', () => {
     const now = Date.now();
     const combat: any = {

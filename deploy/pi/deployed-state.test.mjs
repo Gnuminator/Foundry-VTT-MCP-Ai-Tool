@@ -4,7 +4,16 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { after, describe, test } from 'node:test';
@@ -15,7 +24,8 @@ const fwd = p => p.replace(/\\/g, '/');
 const posix = p => fwd(p).replace(/^([A-Za-z]):/, (_, d) => `/${d.toLowerCase()}`);
 const script = fwd(path.join(here, 'deployed-state.sh'));
 
-const noBash = spawnSync('bash', ['-c', 'echo ok'], { encoding: 'utf8' }).status !== 0 && 'no bash here';
+const noBash =
+  spawnSync('bash', ['-c', 'echo ok'], { encoding: 'utf8' }).status !== 0 && 'no bash here';
 
 const dirs = [];
 after(() => {
@@ -99,7 +109,15 @@ function run(opts = {}) {
       `echo "docker $1" >> "$CALL_LOG"\n${opts.dockerPsFails ? 'if [ "$1" = ps ]; then exit 1; fi\n' : ''}case "$1" in\nps) case "$*" in *label=com.docker.compose.project=foundry-ai-tool-pi-rehearsal*) printf '${opts.rehearsal ? 'r-1\\n' : ''}';; *label=com.docker.compose.project=foundry-ai-tool-pi*) printf '${list}\\n';; *) printf 'runner-job-1|\\n';; esac;;\ninspect) case "$4" in\n${cases}\nrunner-job-1) echo 'exited|0|none';;\nesac;;\nesac`
     );
   }
-  const ldconfig = stub(path.join(root, 'bin'), 'ldconfig', opts.icu === false ? 'true' : opts.icu === 'long' ? LONG_LDCONFIG :'echo "libicuuc.so.72 => /usr/lib/libicuuc.so.72"');
+  const ldconfig = stub(
+    path.join(root, 'bin'),
+    'ldconfig',
+    opts.icu === false
+      ? 'true'
+      : opts.icu === 'long'
+        ? LONG_LDCONFIG
+        : 'echo "libicuuc.so.72 => /usr/lib/libicuuc.so.72"'
+  );
 
   const callLog = path.join(root, 'calls.log');
   writeFileSync(callLog, '');
@@ -112,7 +130,11 @@ function run(opts = {}) {
     DOCKER: dockerPath,
     LDCONFIG: ldconfig,
     JOURNALCTL: opts.journal
-      ? stub(path.join(root, 'bin'), 'journalctl', `echo "journalctl $1" >> "$CALL_LOG"\nprintf '${opts.journal}'`)
+      ? stub(
+          path.join(root, 'bin'),
+          'journalctl',
+          `echo "journalctl $1" >> "$CALL_LOG"\nprintf '${opts.journal}'`
+        )
       : path.join(root, 'bin', 'no-journalctl'),
     ...(opts.expect ?? {}),
   };
@@ -126,7 +148,10 @@ describe('deployed-state.sh', { skip: noBash }, () => {
     const r = run({ expect: { EXPECT_REF: 'v0.25.0', EXPECT_MAIN_AHEAD: '3' } });
     assert.equal(r.code, 0, r.out);
     assert.match(r.out, /foundry-ai-tool-bridge\.service is active, no restarts/);
-    assert.match(r.out, /deployed ref v0\.25\.0 is the newest release; main is 3 commit\(s\) past it/);
+    assert.match(
+      r.out,
+      /deployed ref v0\.25\.0 is the newest release; main is 3 commit\(s\) past it/
+    );
     assert.match(r.out, /0 failed/);
   });
 
@@ -169,45 +194,117 @@ describe('deployed-state.sh', { skip: noBash }, () => {
   });
 
   test('a unit in auto-restart fails as a crash loop', () => {
-    const r = run({ units: { 'foundry-ai-tool-bridge.service': { active: 'activating', sub: 'auto-restart', restarts: 2 } } });
+    const r = run({
+      units: {
+        'foundry-ai-tool-bridge.service': {
+          active: 'activating',
+          sub: 'auto-restart',
+          restarts: 2,
+        },
+      },
+    });
     assert.equal(r.code, 1);
     assert.match(r.out, /FAIL: foundry-ai-tool-bridge\.service is in a crash loop/);
   });
 
   test('five restarts fail, one restart warns', () => {
-    const loop = run({ units: { 'foundry.service': { active: 'active', sub: 'running', restarts: 5 } } });
+    const loop = run({
+      units: { 'foundry.service': { active: 'active', sub: 'running', restarts: 5 } },
+    });
     assert.equal(loop.code, 1);
-    assert.match(loop.out, /FAIL: foundry\.service is in a crash loop \(active\/running, 5 restarts\)/);
-    const once = run({ units: { 'foundry.service': { active: 'active', sub: 'running', restarts: 1 } } });
+    assert.match(
+      loop.out,
+      /FAIL: foundry\.service is in a crash loop \(active\/running, 5 restarts\)/
+    );
+    const once = run({
+      units: { 'foundry.service': { active: 'active', sub: 'running', restarts: 1 } },
+    });
     assert.equal(once.code, 0);
     assert.match(once.out, /WARNING: foundry\.service is active but restarted 1 time/);
   });
 
   test('the Assistant GM restarting nightly after the backup is ok, other restarts and a failed unit are not', () => {
     const gm = 'foundry-ai-tool-gm-browser.service';
-    const night = run({ units: { [gm]: { active: 'active', sub: 'running', restarts: 7, since: 'Tue 2026-11-24 04:31:16 CET' } } });
+    const night = run({
+      units: {
+        [gm]: {
+          active: 'active',
+          sub: 'running',
+          restarts: 7,
+          since: 'Tue 2026-11-24 04:31:16 CET',
+        },
+      },
+    });
     assert.equal(night.code, 0);
     assert.match(night.out, /ok: foundry-ai-tool-gm-browser\.service is active, 7 restart/);
     assert.doesNotMatch(night.out, /WARNING: foundry-ai-tool-gm-browser/);
     // A slow loop at other times plus the backup restart is not routine: the journal shows restarts outside the window.
     const mixed = run({
-      units: { [gm]: { active: 'active', sub: 'running', restarts: 3, since: 'Tue 2026-11-24 04:31:16 CET' } },
+      units: {
+        [gm]: {
+          active: 'active',
+          sub: 'running',
+          restarts: 3,
+          since: 'Tue 2026-11-24 04:31:16 CET',
+        },
+      },
       journal:
         '2026-11-22T13:05:01+0100 pi systemd[1]: gm-browser.service: Scheduled restart job, restart counter is at 1.\\n2026-11-24T04:30:50+0100 pi systemd[1]: gm-browser.service: Scheduled restart job, restart counter is at 3.\\n',
     });
-    assert.match(mixed.out, /WARNING: foundry-ai-tool-gm-browser\.service is active but restarted 3 time.*1 of them/);
+    assert.match(
+      mixed.out,
+      /WARNING: foundry-ai-tool-gm-browser\.service is active but restarted 3 time.*1 of them/
+    );
     const nightly = run({
-      units: { [gm]: { active: 'active', sub: 'running', restarts: 2, since: 'Tue 2026-11-24 04:31:16 CET' } },
-      journal: '2026-11-23T04:30:50+0100 pi systemd[1]: x: Scheduled restart job, restart counter is at 1.\\n',
+      units: {
+        [gm]: {
+          active: 'active',
+          sub: 'running',
+          restarts: 2,
+          since: 'Tue 2026-11-24 04:31:16 CET',
+        },
+      },
+      journal:
+        '2026-11-23T04:30:50+0100 pi systemd[1]: x: Scheduled restart job, restart counter is at 1.\\n',
     });
     assert.match(nightly.out, /ok: foundry-ai-tool-gm-browser\.service is active, 2 restart/);
     // A restart at another time of day keeps the old rule: warn from one, fail from five.
-    const day = run({ units: { [gm]: { active: 'active', sub: 'running', restarts: 2, since: 'Tue 2026-11-24 14:10:00 CET' } } });
-    assert.match(day.out, /WARNING: foundry-ai-tool-gm-browser\.service is active but restarted 2 time/);
-    const dayLoop = run({ units: { [gm]: { active: 'active', sub: 'running', restarts: 5, since: 'Tue 2026-11-24 14:10:00 CET' } } });
+    const day = run({
+      units: {
+        [gm]: {
+          active: 'active',
+          sub: 'running',
+          restarts: 2,
+          since: 'Tue 2026-11-24 14:10:00 CET',
+        },
+      },
+    });
+    assert.match(
+      day.out,
+      /WARNING: foundry-ai-tool-gm-browser\.service is active but restarted 2 time/
+    );
+    const dayLoop = run({
+      units: {
+        [gm]: {
+          active: 'active',
+          sub: 'running',
+          restarts: 5,
+          since: 'Tue 2026-11-24 14:10:00 CET',
+        },
+      },
+    });
     assert.equal(dayLoop.code, 1);
     // The crash guard's start limit leaves the unit failed: a crash loop even for the optional Assistant GM.
-    const failed = run({ units: { [gm]: { active: 'failed', sub: 'failed', restarts: 9, since: 'Tue 2026-11-24 04:31:16 CET' } } });
+    const failed = run({
+      units: {
+        [gm]: {
+          active: 'failed',
+          sub: 'failed',
+          restarts: 9,
+          since: 'Tue 2026-11-24 04:31:16 CET',
+        },
+      },
+    });
     assert.equal(failed.code, 1);
     assert.match(failed.out, /FAIL: foundry-ai-tool-gm-browser\.service is in a crash loop/);
   });
@@ -225,7 +322,9 @@ describe('deployed-state.sh', { skip: noBash }, () => {
   });
 
   test('an uninstalled optional unit is fine, a required one fails', () => {
-    const r = run({ units: { 'foundry-ai-tool-gm-browser.service': null, 'foundry.service': null } });
+    const r = run({
+      units: { 'foundry-ai-tool-gm-browser.service': null, 'foundry.service': null },
+    });
     assert.match(r.out, /gm-browser\.service is not installed/);
     assert.match(r.out, /FAIL: foundry\.service is not installed/);
   });
@@ -273,10 +372,15 @@ describe('deployed-state.sh', { skip: noBash }, () => {
     assert.match(cut.out, /foundry\.service is inactive \(retired; the foundry container runs\)/);
     const clash = run({
       containers: { bridge: healthy },
-      units: { 'foundry-ai-tool-bridge.service': { active: 'active', sub: 'running', restarts: 0 } },
+      units: {
+        'foundry-ai-tool-bridge.service': { active: 'active', sub: 'running', restarts: 0 },
+      },
     });
     assert.equal(clash.code, 1);
-    assert.match(clash.out, /FAIL: foundry-ai-tool-bridge\.service is active and the bridge container is running too/);
+    assert.match(
+      clash.out,
+      /FAIL: foundry-ai-tool-bridge\.service is active and the bridge container is running too/
+    );
   });
 
   test('the Discord bot: a unit and the bot container together fail, the retired unit next to the container is fine', () => {
@@ -287,9 +391,15 @@ describe('deployed-state.sh', { skip: noBash }, () => {
       units: { [unit]: { active: 'active', sub: 'running', restarts: 0 } },
     });
     assert.equal(clash.code, 1);
-    assert.match(clash.out, /FAIL: foundry-ai-tool-discord-bot\.service is active and the discord-bot container is running too/);
+    assert.match(
+      clash.out,
+      /FAIL: foundry-ai-tool-discord-bot\.service is active and the discord-bot container is running too/
+    );
     const cut = run({ containers: { 'discord-bot': healthy }, units: { [unit]: OFF } });
-    assert.match(cut.out, /foundry-ai-tool-discord-bot\.service is inactive \(retired; the discord-bot container runs\)/);
+    assert.match(
+      cut.out,
+      /foundry-ai-tool-discord-bot\.service is inactive \(retired; the discord-bot container runs\)/
+    );
     assert.match(cut.out, /container discord-bot is running and healthy/);
     // No bot unit installed (a Pi without the recorder) is fine.
     assert.match(run().out, /foundry-ai-tool-discord-bot\.service is not installed/);
@@ -305,9 +415,16 @@ describe('deployed-state.sh', { skip: noBash }, () => {
   test('a stale ref and a changed helper warn when expectations are given', () => {
     const r = run({
       ref: 'v0.24.0',
-      expect: { EXPECT_REF: 'v0.25.0', EXPECT_MAIN_AHEAD: '41', EXPECT_ASSISTANT_GM_SHA256: 'deadbeef' },
+      expect: {
+        EXPECT_REF: 'v0.25.0',
+        EXPECT_MAIN_AHEAD: '41',
+        EXPECT_ASSISTANT_GM_SHA256: 'deadbeef',
+      },
     });
-    assert.match(r.out, /WARNING: deployed ref is v0\.24\.0, the newest release is v0\.25\.0; main is 41 commit\(s\) past it/);
+    assert.match(
+      r.out,
+      /WARNING: deployed ref is v0\.24\.0, the newest release is v0\.25\.0; main is 41 commit\(s\) past it/
+    );
     assert.match(r.out, /WARNING: Assistant GM helper differs from the repo copy/);
   });
 
@@ -328,7 +445,10 @@ describe('deployed-state.sh', { skip: noBash }, () => {
   });
 
   test('docker is queried only while docker.service is active (a stopped daemon is never socket-activated)', () => {
-    const r = run({ containers: { foundry: { state: 'running', restarts: 0, health: 'healthy' } }, dockerActive: false });
+    const r = run({
+      containers: { foundry: { state: 'running', restarts: 0, health: 'healthy' } },
+      dockerActive: false,
+    });
     assert.match(r.out, /WARNING: docker is installed but not running/);
     assert.doesNotMatch(r.out, /no containers in project|container foundry/);
     assert.ok(!r.calls.some(c => c.startsWith('docker ')), `docker was called: ${r.calls}`);
@@ -345,7 +465,7 @@ describe('deployed-state.sh', { skip: noBash }, () => {
     const r = run({
       env: {
         'dashboard.env': 'DASHBOARD_FOUNDRY_URL=https://p.example\nOBSIDIAN_VAULT_NAME=""\n',
-        'bridge.env': "FOUNDRY_AI_OBSIDIAN_DIR=''\nFOUNDRY_AI_OPEN_BASE=\"http://pi:3000\"\n",
+        'bridge.env': 'FOUNDRY_AI_OBSIDIAN_DIR=\'\'\nFOUNDRY_AI_OPEN_BASE="http://pi:3000"\n',
         'dashboard-access.env': 'GM_DASHBOARD_TOKEN=abc\n',
         'assistant-gm.env': 'ASSISTANT_GM_PASSWORD="pw"\n',
       },
@@ -359,10 +479,22 @@ describe('deployed-state.sh', { skip: noBash }, () => {
     const helper = 'helper-v1\n';
     const sha = createHash('sha256').update(helper).digest('hex');
     const src = 'the v0.25.0 copy of assistant-gm.mjs';
-    const same = run({ helper, expect: { EXPECT_ASSISTANT_GM_SHA256: sha, EXPECT_ASSISTANT_GM_SOURCE: src } });
-    assert.match(same.out, /ok: Assistant GM helper matches the v0\.25\.0 copy of assistant-gm\.mjs/);
-    const diff = run({ helper, expect: { EXPECT_ASSISTANT_GM_SHA256: 'deadbeef', EXPECT_ASSISTANT_GM_SOURCE: src } });
-    assert.match(diff.out, /WARNING: Assistant GM helper differs from the v0\.25\.0 copy of assistant-gm\.mjs/);
+    const same = run({
+      helper,
+      expect: { EXPECT_ASSISTANT_GM_SHA256: sha, EXPECT_ASSISTANT_GM_SOURCE: src },
+    });
+    assert.match(
+      same.out,
+      /ok: Assistant GM helper matches the v0\.25\.0 copy of assistant-gm\.mjs/
+    );
+    const diff = run({
+      helper,
+      expect: { EXPECT_ASSISTANT_GM_SHA256: 'deadbeef', EXPECT_ASSISTANT_GM_SOURCE: src },
+    });
+    assert.match(
+      diff.out,
+      /WARNING: Assistant GM helper differs from the v0\.25\.0 copy of assistant-gm\.mjs/
+    );
   });
 
   test('read-only: the stand-ins only ever see show, is-active, ps or inspect', () => {
@@ -373,10 +505,19 @@ describe('deployed-state.sh', { skip: noBash }, () => {
       run({ containers: {}, dockerActive: false }),
       run({ containers: {}, dockerPsFails: true }),
     ];
-    const allowed = new Set(['systemctl show', 'systemctl is-active', 'docker ps', 'docker inspect', 'journalctl -u']);
+    const allowed = new Set([
+      'systemctl show',
+      'systemctl is-active',
+      'docker ps',
+      'docker inspect',
+      'journalctl -u',
+    ]);
     const seen = runs.flatMap(r => r.calls);
     for (const call of seen) assert.ok(allowed.has(call), `not read-only: ${call}`);
-    assert.ok(seen.includes('docker inspect') && seen.includes('systemctl show'), 'the recorder saw nothing useful');
+    assert.ok(
+      seen.includes('docker inspect') && seen.includes('systemctl show'),
+      'the recorder saw nothing useful'
+    );
   });
 
   test('a rehearsal stack left behind warns', () => {
@@ -411,7 +552,10 @@ describe('deployed-state.sh', { skip: noBash }, () => {
       },
     });
     assert.equal(r.code, 0, 'a stale file is a warning');
-    assert.match(r.out, /WARNING: .*gamenight-watch\.mjs differs from the release copy of scripts\/gamenight-watch\.mjs: run stage 29 again/);
+    assert.match(
+      r.out,
+      /WARNING: .*gamenight-watch\.mjs differs from the release copy of scripts\/gamenight-watch\.mjs: run stage 29 again/
+    );
     assert.doesNotMatch(r.out, /assistant-gm\.mjs differs/);
     assert.doesNotMatch(r.out, /who-uses-what\.mjs differs/);
     assert.match(r.out, /stage files: 1 behind, 1 match, 0 ahead, 1 not installed/);
@@ -427,7 +571,10 @@ describe('deployed-state.sh', { skip: noBash }, () => {
         EXPECT_STAGE_MAIN_SHAS_B64: b64(`scripts/gamenight-watch.mjs ${sha('main\n')}\n`),
       },
     });
-    assert.match(r.out, /ok: .*gamenight-watch\.mjs matches main's copy of scripts\/gamenight-watch\.mjs \(ahead of the v0\.31\.0 copy\)/);
+    assert.match(
+      r.out,
+      /ok: .*gamenight-watch\.mjs matches main's copy of scripts\/gamenight-watch\.mjs \(ahead of the v0\.31\.0 copy\)/
+    );
     assert.doesNotMatch(r.out, /WARNING: .*gamenight/);
     assert.match(r.out, /ok: stage files: .*1 ahead of the release.*0 behind/);
   });
@@ -435,9 +582,15 @@ describe('deployed-state.sh', { skip: noBash }, () => {
   test('stage files: all current is ok; with no list passed the deployed build supplies list and copies', () => {
     const current = run({
       helper: 'h\n',
-      expect: { STAGE_FILES_B64: b64(LIST), EXPECT_STAGE_SHAS_B64: b64(`scripts/pi/remote/assistant-gm.mjs ${sha('h\n')}\n`) },
+      expect: {
+        STAGE_FILES_B64: b64(LIST),
+        EXPECT_STAGE_SHAS_B64: b64(`scripts/pi/remote/assistant-gm.mjs ${sha('h\n')}\n`),
+      },
     });
-    assert.match(current.out, /ok: stage files: 1 match, 0 ahead of the release, 2 not installed, 0 behind/);
+    assert.match(
+      current.out,
+      /ok: stage files: 1 match, 0 ahead of the release, 2 not installed, 0 behind/
+    );
     const fromBuild = run({
       helper: 'installed\n',
       setup: tool => {
@@ -445,7 +598,10 @@ describe('deployed-state.sh', { skip: noBash }, () => {
         put(tool, 'app/scripts/pi/remote/assistant-gm.mjs', 'in the build\n');
       },
     });
-    assert.match(fromBuild.out, /assistant-gm\.mjs differs from the deployed build's copy of scripts\/pi\/remote\/assistant-gm\.mjs: run stage 5 or 28 again/);
+    assert.match(
+      fromBuild.out,
+      /assistant-gm\.mjs differs from the deployed build's copy of scripts\/pi\/remote\/assistant-gm\.mjs: run stage 5 or 28 again/
+    );
   });
 
   test('stage files: no list anywhere warns that nothing was compared', () => {
@@ -466,13 +622,20 @@ describe('deployed-state.sh', { skip: noBash }, () => {
       .map(f => readFileSync(path.join(repoRoot, 'scripts', 'pi', 'remote', f), 'utf8'))
       .join('\n');
     const remoteDir = path.join(repoRoot, 'scripts', 'pi', 'remote');
-    const stageFile = n => readdirSync(remoteDir).find(f => f === `${n}.sh` || f.startsWith(`${n}-`));
+    const stageFile = n =>
+      readdirSync(remoteDir).find(f => f === `${n}.sh` || f.startsWith(`${n}-`));
     for (const [stage, rel, repoPath] of rows) {
       assert.ok(stage && rel && repoPath, `bad row ${stage}|${rel}|${repoPath}`);
       assert.ok(existsSync(path.join(repoRoot, repoPath)), `${repoPath} is not in the repo`);
-      assert.ok(stageText.includes(path.basename(rel)), `no stage script installs ${path.basename(rel)}`);
+      assert.ok(
+        stageText.includes(path.basename(rel)),
+        `no stage script installs ${path.basename(rel)}`
+      );
       // The named stage (or one of "5 or 28") must mention the file and its install folder.
-      const named = stage.split(' or ').map(n => stageFile(n)).filter(Boolean);
+      const named = stage
+        .split(' or ')
+        .map(n => stageFile(n))
+        .filter(Boolean);
       assert.ok(named.length > 0, `no stage script for "${stage}"`);
       const ok = named.some(f => {
         const t = readFileSync(path.join(remoteDir, f), 'utf8');
@@ -484,20 +647,36 @@ describe('deployed-state.sh', { skip: noBash }, () => {
     const listed = new Set(rows.map(r => path.basename(r[1])));
     for (const f of readdirSync(remoteDir).filter(x => x.endsWith('.sh'))) {
       const t = readFileSync(path.join(remoteDir, f), 'utf8');
-      for (const m of t.matchAll(/install -m 0?644 (?:-o root -g root )?"\$(?:SETTINGS_DRIVER|SWITCH_DRIVER|SESSION_DRIVER)" "[^"]*\/([\w.-]+\.mjs)"/g)) {
-        assert.ok(listed.has(m[1]), `${f} installs ${m[1]} but deploy/pi/stage-files.txt has no row for it`);
+      for (const m of t.matchAll(
+        /install -m 0?644 (?:-o root -g root )?"\$(?:SETTINGS_DRIVER|SWITCH_DRIVER|SESSION_DRIVER)" "[^"]*\/([\w.-]+\.mjs)"/g
+      )) {
+        assert.ok(
+          listed.has(m[1]),
+          `${f} installs ${m[1]} but deploy/pi/stage-files.txt has no row for it`
+        );
       }
       // The other install forms: the loop over a `files="a b"` list (stages 29, 35) needs a row per listed file ...
       if (/for f in \$files; do install -m 0?644 [^;]*"\$src_dir\/\$f" "\$dest\/\$f"/.test(t)) {
         const list = /^files="([^"]+)"/m.exec(t);
-        assert.ok(list, `${f} installs "$files" in a loop but has no files="..." line the test can read`);
+        assert.ok(
+          list,
+          `${f} installs "$files" in a loop but has no files="..." line the test can read`
+        );
         for (const name of list[1].split(/\s+/)) {
-          assert.ok(listed.has(name), `${f} installs ${name} (its files list) but deploy/pi/stage-files.txt has no row for it`);
+          assert.ok(
+            listed.has(name),
+            `${f} installs ${name} (its files list) but deploy/pi/stage-files.txt has no row for it`
+          );
         }
       }
       // ... and a plain `install -m 0644 "$var" "<dir>/<name>.mjs"` whatever the variable is called (stage 5's driver_src).
-      for (const m of t.matchAll(/install -m 0?644 (?:-o root -g root )?"\$\w+" "\$\w+\/([\w.-]+\.mjs)"/g)) {
-        assert.ok(listed.has(m[1]), `${f} installs ${m[1]} but deploy/pi/stage-files.txt has no row for it`);
+      for (const m of t.matchAll(
+        /install -m 0?644 (?:-o root -g root )?"\$\w+" "\$\w+\/([\w.-]+\.mjs)"/g
+      )) {
+        assert.ok(
+          listed.has(m[1]),
+          `${f} installs ${m[1]} but deploy/pi/stage-files.txt has no row for it`
+        );
       }
     }
   });

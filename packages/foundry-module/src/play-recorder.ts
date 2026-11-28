@@ -2,6 +2,7 @@ import { asRecord } from '@gnuminator/shared/browser';
 import { startedOnCreate } from './combat-plan.js';
 import { MODULE_ID } from './constants.js';
 import { EffectEventDeduper } from './effect-dedupe.js';
+import { fightPlanOf } from './fight-plan.js';
 import { hpChangeFitsRoll, originatingMessageId } from './hp-credit.js';
 import { isTablePlayer, isTableViewerUser } from './table-viewer-user.js';
 import {
@@ -1747,6 +1748,7 @@ export class PlayRecorder {
         data: {
           combatantCount: num(asRecord(combat.combatants)?.size) ?? 0,
           roster: this.rosterOf(combat),
+          plan: fightPlanOf(combatantsOf(combat)), // what the fight was planned to be
         },
       })
     );

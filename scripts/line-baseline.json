@@ -7,7 +7,7 @@
     "packages/foundry-module/src/data-access/player-rolls.ts": 1195,
     "packages/foundry-module/src/export-index.ts": 1428,
     "packages/foundry-module/src/npc-turn.ts": 1158,
-    "packages/foundry-module/src/play-recorder.ts": 2127,
+    "packages/foundry-module/src/play-recorder.ts": 2129,
     "packages/foundry-module/src/session-events.ts": 1301,
     "packages/mcp-server/src/backend.ts": 1024,
     "packages/mcp-server/src/change-history.ts": 1446,
@@ -17,7 +17,7 @@
     "packages/mcp-server/src/obsidian/mirror-pump.ts": 2170,
     "packages/mcp-server/src/obsidian/mirror-render.ts": 1513,
     "packages/mcp-server/src/obsidian/render.ts": 1172,
-    "packages/mcp-server/src/stats/build.ts": 1035,
+    "packages/mcp-server/src/stats/build.ts": 1047,
     "packages/mcp-server/src/tools/character.ts": 1049,
     "packages/mcp-server/src/tools/compendium.ts": 1079,
     "packages/mcp-server/src/tools/dnd5e/add-feature.ts": 1123,
@@ -238,6 +238,18 @@
       "file": "packages/foundry-module/src/data-access/guarded-write.ts",
       "lines": 1102,
       "reason": "two lines for the apply-time start-stamp check; the logic lives in start-stamp.ts",
+      "pr": ""
+    },
+    {
+      "file": "packages/foundry-module/src/play-recorder.ts",
+      "lines": 2129,
+      "reason": "encounter afterglow: plan stamp on combat-start, logic lives in fight-plan.ts",
+      "pr": ""
+    },
+    {
+      "file": "packages/mcp-server/src/stats/build.ts",
+      "lines": 1047,
+      "reason": "encounter afterglow: per-combat plan and slot fields, parsing lives in fights.ts",
       "pr": ""
     }
   ]

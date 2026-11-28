@@ -318,3 +318,48 @@ test('parseArgs and playerNames', () => {
   assert.throws(() => parseArgs(['--label', 'x', '--players', '6']), /--players/);
   assert.deepEqual(playerNames(3), ['Kit Player', 'Kit Player 2', 'Kit Player 3']);
 });
+
+const ID = 'a'.repeat(64);
+const CONTAINER_SAMPLE = (restarts = 0, pid = 500, cgId = ID) =>
+  [
+    'DT 10',
+    'A',
+    `1 0 0 1000 system.slice/docker-${cgId}.scope`,
+    `2 0 0 1000 system.slice/docker-${cgId}.scope`,
+    'B',
+    `1 500 0 1000 system.slice/docker-${cgId}.scope`,
+    `2 300 0 1000 system.slice/docker-${cgId}.scope`,
+    'LOAD 1.00 1.00 1.00',
+    'MEM 16000000 8000000',
+    'TEMP 55000',
+    'NCPU 8',
+    'CPUSTAT cpu 100 0 50 800 20 0 0 0',
+    'FREQ 1800000 | 1800000',
+    'UNIT foundry.service ActiveState=inactive MainPID=0 NRestarts=0',
+    `CONTAINER foundry ${ID} running ${restarts} ${pid}`,
+  ].join('\n');
+
+test('buildRecord: Foundry CPU comes from the foundry container on the compose stack', () => {
+  const r = buildRecord(CONTAINER_SAMPLE(), null);
+  assert.equal(Math.round(r.foundryCpu ?? -1), 80);
+  assert.equal(Math.round(r.unitCpu['container:foundry']), 80);
+  assert.match(remoteExtras(), /docker ps -a/);
+});
+
+test('buildRecord: a container restart is a unit event; with no container the systemd unit is the fallback', () => {
+  const first = buildRecord(CONTAINER_SAMPLE(0), null);
+  const second = buildRecord(CONTAINER_SAMPLE(1), first.counters);
+  assert.ok(second.unitEvents.some(e => /container:foundry restarted/.test(e)));
+  const systemd = buildRecord(SAMPLE('cpu 100 0 50 800 20 0 0 0'), null);
+  assert.equal(Math.round(systemd.foundryCpu ?? -1), 80);
+});
+
+test('buildRecord: a container with no matching cgroup is not measured, a new pid or a vanished container is an event', () => {
+  const none = buildRecord(CONTAINER_SAMPLE(0, 500, 'b'.repeat(64)), null);
+  assert.equal(none.foundryCpu, null);
+  const first = buildRecord(CONTAINER_SAMPLE(0, 500), null);
+  const repid = buildRecord(CONTAINER_SAMPLE(0, 501), first.counters);
+  assert.ok(repid.unitEvents.some(e => /container:foundry main process changed/.test(e)));
+  const gone = buildRecord(SAMPLE('cpu 100 0 50 800 20 0 0 0'), first.counters);
+  assert.ok(gone.unitEvents.some(e => /container:foundry is gone/.test(e)));
+});

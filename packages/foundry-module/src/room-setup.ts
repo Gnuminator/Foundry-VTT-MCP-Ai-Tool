@@ -30,6 +30,7 @@ import type {
 
 import { MODULE_ID } from './constants.js';
 import { newId } from './new-id.js';
+import { planPracticeRoom } from './practice-room.js';
 import { findSpots, type GridLike, type Rect } from './party-place.js';
 import { currentLevelId, sceneHasLevels } from './systems/core.js';
 import { viewedScene } from './viewed-scene.js';
@@ -866,6 +867,8 @@ export async function planRoomSetup(data: unknown): Promise<RoomSetupPlan> {
       return await planHazard(request);
     case 'whisper':
       return planWhisper(request);
+    case 'practice':
+      return planPracticeRoom(request);
     default:
       throw new Error(`Unknown action "${String(rec(data)?.action)}"`);
   }

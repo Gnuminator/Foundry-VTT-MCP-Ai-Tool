@@ -1,6 +1,6 @@
 ---
 source: player/README.md
-sourceHash: c152ca8046e1
+sourceHash: 59ff6fc5a3b0
 title: Spillerguide
 description: Hvad spillere kan se, hvad værktøjet optager under spillet, hvilke dele der når en AI, og hvordan du får dine data slettet.
 ---
@@ -14,7 +14,8 @@ ekstraer ved siden af Foundry, aldrig en erstatning. Færdige forespørgsler til
 [D&D-hjælperens kogebog](cookbook.md).
 
 Er du ny ved bordet? Start med [Kom med i spillet](join.md) (adressen, login, Discord), og derefter
-[Lav din karakter](make-a-character.md).
+[Lav din karakter](make-a-character.md). Vil du prøve knapperne først? Bed om
+[øverummet](practice-room.md).
 Vil du have en AI-hjælper til din egen karakter og reglerne? Se [D&D-hjælperen til
 spillere](dnd-helper.md).
 

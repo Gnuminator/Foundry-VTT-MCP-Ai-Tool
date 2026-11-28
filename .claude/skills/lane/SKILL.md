@@ -21,7 +21,7 @@ Not prose, not only the wrap-up ask, never a message asking the planner to get i
 1. Use `node scripts/backlog.mjs` for every Backlog write (hand edits are refused). `status`, then
    `claim <id> "<session title>" --link <link>` (`get_session "self"`, field `link`). If the item has
    `- touches:` or `- depends on:` lines, look at the board's lane warnings first: another lane on
-   the same paths, or an unmerged dependency, means wait or ask the planner. Use your own worktree.
+   the same paths, or an unmerged dependency, means wait or ask the planner.
 2. `git branch --show-current`. New work:
    `git fetch aitool && git checkout --no-track -b claude/<topic> aitool/main`, then `npm ci`.
 3. Read only what the item names. Over about eight files goes to an Explore subagent
@@ -33,8 +33,8 @@ Not prose, not only the wrap-up ask, never a message asking the planner to get i
   the one risky-PR review; Haiku suits long notes, logs and read-only sweeps. Partition workers by
   file, lock shared contracts first, big files in parts of 250 lines.
   Workers never build, sync or commit.
-- **Set `model` on every Agent call, Workflow `agent()` call and `start_session`** (unset inherits
-  the caller's); `guard-model.mjs` denies one without it (forks, cloud starts exempt). Agent takes `sonnet`, `haiku`, `opus`; `start_session` a full id.
+- **Set `model` on every Agent call, Workflow `agent()` call and `start_session`**:
+  `guard-model.mjs` denies one without it (forks, cloud starts exempt). Agent takes `sonnet`, `haiku`, `opus`; `start_session` a full id.
 - **Test server:** load `foundry-test-env`; take the lock (`scripts/test-env/lock.ps1 take`) before
   any live check and release it after. Servers A, B, C: check `lock.ps1
 status -Server B`, take a free one with `-Server X` and pass it to start, stop, sync and
@@ -48,7 +48,7 @@ status -Server B`, take a free one with `-Server X` and pass it to start, stop, 
 
 ## Before the PR
 
-- **CI on the PR head is the green.** No full `npm run green` before a PR: quick
+- **CI on the PR head is the green.** Quick
   local checks, push, fix what CI reports, also after review fixes (`npm run green -- --cloud` runs CI for the pushed head). `scripts/lane-merge.mjs --wait-ci` refuses a merge without CI green on the exact head.
   - **Quick checks:** `npm run green -- --quick`. It
     diffs your branch against `aitool/main` and runs, for what you touched: the shared build,
@@ -57,15 +57,14 @@ status -Server B`, take a free one with `-Server X` and pass it to start, stop, 
     dashboard or kit paths the catalogue check, bundle budget and `kit.mjs check`.
   - **Push early, never red:** once the quick checks pass, push and open a draft PR before baselines and review; `gh pr ready` before the gate. A failure already on main
     is named in the PR body (`gh run list --branch main -w ci.yml -L 1`), not guessed at.
-  - Code comments never contain `#<number>`. After a tool change run `npm run docs:tools`; lower
-    the lint and em-dash baselines when the CI ratchet reports a drop (`npm run lint:ratchet --
---update`).
+  - Code comments never contain `#<number>`. After a tool change run `npm run docs:tools`; when
+    CI's ratchet reports a drop, `npm run lint:ratchet -- --update`.
   - **The full local `npm run green`** only on request or when CI cannot tell (Windows-only
     behaviour, checks CI does not run, CI down); it takes the heavy lock (`node
 scripts/heavy-lock.mjs status`). `SKIP_PREPUSH=1 git push ...` skips the em-dash pre-push.
 - **Dashboard change (anything under `packages/cogm-dashboard/` or a `package-lock.json` change such
-  as a Playwright bump):** full-page shots are not committed (CI uploads them as the artifacts
-  `dashboard-page-shots-N`; look there). No story baseline is committed either: CI renders main
+  as a Playwright bump):** no full-page shots or story baselines are committed. CI uploads the shots as
+  `dashboard-page-shots-N` and renders main
   and the PR head and the artifact `dashboard-visual-diff` shows what changed. A change to a
   component with a story needs no PNG; open the diff page and, once the changes look intended, put
   the `visual: accepted <n> <hash>` line in the review note.
@@ -81,10 +80,8 @@ scripts/heavy-lock.mjs status`). `SKIP_PREPUSH=1 git push ...` skips the em-dash
 ## Review and merge
 
 - **Pick the reviewer with the gate, before the first review:** once the PR is pushed, run the
-  gate's `--dry-run` (command below). A `risky (...): an Opus review is required; ...` line (it
-  ends with `Opus note for head <sha>: found (...)` or `missing`) means Opus whatever your own
-  reading says; its other refusals at this point (no review note,
-  CI pending) are expected.
+  gate's `--dry-run` (command below). A `risky (...): an Opus review is required; ...` line means
+  Opus whatever your own reading says; its other refusals now (no review note, CI pending) are expected.
 - **One pass:** a risky PR (guarded writes, the write gate, bridge link, security, Pi scripts, wire
   contracts, as the gate decides) gets one Opus pass: a narrow agent in `.claude/agents/`
   (`review-guarded-writes`, `review-wire-contracts`, `review-pi-ci`, `model: "opus"`) or a formal
@@ -123,8 +120,7 @@ scripts/heavy-lock.mjs status`). `SKIP_PREPUSH=1 git push ...` skips the em-dash
   d=$(cygpath -m "$(mktemp -d)") && git fetch -q aitool main && git archive aitool/main scripts/lane-merge.mjs scripts/lane-merge | tar -x -C "$d" && test -s "$d/scripts/lane-merge.mjs" && node "$d/scripts/lane-merge.mjs" <PR> --dry-run
   ```
 
-  Only a `lane:merge: OK #<PR>` line passes; anything else (or nothing) is a refusal. The gate checks CI on the head, a review note for that sha, the changelog fragment,
-  `drift:check` and the merge train. Exit codes: 0 ok or merged, 1 refused, 2 usage, 3 a check
+  Only a `lane:merge: OK #<PR>` line passes; anything else (or nothing) is a refusal. Exit codes: 0 ok or merged, 1 refused, 2 usage, 3 a check
   failed, 4 head moved, 5 timed out. **Do not pipe the gate through
   `tail` or `head`** (it hides the exit code): read its last line. A blocking CANCELLED check of an unclassified or mixed CI
   run (all its jobs cancelled before they started, or both `[dispatch]` and plain names) is not
@@ -136,9 +132,8 @@ scripts/heavy-lock.mjs status`). `SKIP_PREPUSH=1 git push ...` skips the em-dash
 
 ## Context and handover
 
-- The context hook prints one line at 250k (plan the handover) and 300k (hand over now) for a
-  lane (project dir under `.claude/worktrees/`), fixed at session start (the user, 2026-11-04); the planner and
-  other sessions keep 200k and 250k. `get_usage "self"` gives the exact number.
+- The context hook prints a line at 250k (plan the handover) and 300k (hand over now) for a
+  lane; `get_usage "self"` gives the exact number.
 - **Hard stop:** at or above 300k `context-stop.mjs` denies Edit, Write, Agent and shell commands
   that write in the repo. Still allowed: reading, git, `gh`, vault and scratchpad writes. Hand over, stop.
 - **Handover:** write it once. Half a page in vault `Handoff/<lane> prompt

@@ -25,6 +25,7 @@ import {
   findBrowsers,
   PRESS_LIMITS,
   PRESS_SIZES,
+  pressTiming,
   pressHtml,
   renderPress,
 } from './press.js';
@@ -59,6 +60,27 @@ describe('pressHtml', () => {
 });
 
 describe('renderPress', () => {
+  const realSettle = pressTiming.settleMs;
+  beforeEach(() => {
+    pressTiming.settleMs = 300;
+  });
+  afterEach(() => {
+    pressTiming.settleMs = realSettle;
+  });
+
+  it('waits for a relaunching browser that writes the picture after it has exited', async () => {
+    pressTiming.settleMs = 3000;
+    let calls = 0;
+    const runner = async (_browser: string, args: string[]): Promise<void> => {
+      calls++;
+      const shot = args.find(a => a.startsWith('--screenshot='))!.slice('--screenshot='.length);
+      setTimeout(() => void fsp.writeFile(shot, Buffer.from(PNG)), 300); // a child writes it later
+    };
+    const png = await renderPress('letter', { title: 't', body: 'b' }, ['relaunch'], runner);
+    expect(Array.from(png)).toEqual(Array.from(PNG));
+    expect(calls).toBe(1);
+  });
+
   it('says so in a sentence when no browser is found', async () => {
     await expect(renderPress('letter', { title: 't', body: 'b' }, null)).rejects.toThrow(
       /Edge, Google Chrome or Chromium/
@@ -114,6 +136,7 @@ describe('renderPress', () => {
   it.skipIf(!browser)(
     'renders all three templates to a PNG in under 10 seconds each',
     async () => {
+      pressTiming.settleMs = realSettle; // the real browser may relaunch itself and write late
       // A warm-up render, untimed: the first start can include a failed sandbox try (see
       // renderPress) and a cold browser, and is slow under a loaded CI runner.
       await renderPress('card', { title: 'Warm up', body: 'x' });

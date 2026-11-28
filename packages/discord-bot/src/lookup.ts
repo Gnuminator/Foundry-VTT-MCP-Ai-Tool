@@ -17,6 +17,10 @@ interface LookupHandout {
 }
 
 export const NOTHING_REVEALED = bi('Intet afsløret endnu.', 'Nothing revealed yet.');
+export const NOTHING_FOUND = bi(
+  'Intet om det i de regler, der er delt. Spørg GM.',
+  'Nothing about that in the shared rules. Ask the GM.'
+);
 export const LOOKUP_UNAVAILABLE = bi(
   'Kan ikke hente det lige nu. Prøv igen om lidt.',
   'Could not look that up right now. Try again in a moment.'
@@ -47,6 +51,7 @@ export function lookupReply(command: string, name: string, state: unknown): stri
   if (state === null) return LOOKUP_UNAVAILABLE;
   if (command === 'recap') return recapAnswer(state);
   if (command === 'npc') return npcAnswer(state, name);
+  if (command === 'rule') return ruleAnswer(state, name);
   return handoutsAnswer(state);
 }
 
@@ -187,6 +192,56 @@ export function npcAnswer(state: unknown, name: string): string {
     if (hit) return answer(hit);
   }
   return NOTHING_REVEALED;
+}
+
+const MAX_RULE_LINES = 8;
+const SHORT_HEADING = 40;
+
+/** True when every word of `q` appears in `text` (both already normalized). */
+function hasAllWords(text: string, q: string): boolean {
+  const words = text.split(/[^\p{L}\p{N}]+/u);
+  // Whole words only (a word that starts with the query word counts: "grappl" finds "grappling").
+  const wanted = q.split(/[^\p{L}\p{N}]+/u).filter(w => w.length >= 2);
+  return wanted.length > 0 && wanted.every(w => words.some(t => t.startsWith(w)));
+}
+
+/**
+ * `/rule <words>`: the table's house rules and other revealed rules pages, by plain text search
+ * (no AI). A page whose title holds the words answers whole (so `/rule house` gives the house
+ * rules page); otherwise the lines that hold every word, grouped under their page, newest page
+ * first. Only handouts the GM revealed to everyone are searched (`publicHandouts`), so a GM-only
+ * page never answers; the reply is cut at the same 1800 character cap as the other lookups.
+ */
+export function ruleAnswer(state: unknown, query: string): string {
+  const q = norm(query);
+  if (!q) return NOTHING_REVEALED;
+  const list = newestFirst(publicHandouts(state));
+  const titleHit = list.find(h => hasAllWords(norm(h.title), q));
+  if (titleHit) return answer(titleHit);
+  const blocks: string[] = [];
+  let used = 0;
+  for (const h of list) {
+    const all = htmlToText(h.html)
+      .split('\n')
+      .map(l => l.trim())
+      .filter(l => l !== '');
+    const picked = new Set<number>();
+    all.forEach((l, i) => {
+      if (!hasAllWords(norm(l), q)) return;
+      picked.add(i);
+      // A short matching line is a heading (the text has no markers): its paragraph comes with it.
+      if (l.length <= SHORT_HEADING && i + 1 < all.length) picked.add(i + 1);
+    });
+    const lines = [...picked]
+      .sort((a, b) => a - b)
+      .map(i => all[i])
+      .slice(0, MAX_RULE_LINES - used);
+    if (lines.length === 0) continue;
+    blocks.push(`**${h.title}**\n${lines.map(l => `- ${l}`).join('\n')}`);
+    used += lines.length;
+    if (used >= MAX_RULE_LINES) break;
+  }
+  return blocks.length > 0 ? clip(blocks.join('\n\n')) : NOTHING_FOUND;
 }
 
 /** `/handouts`: the titles of what has been revealed, newest first. */
